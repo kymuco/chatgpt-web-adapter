@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+.coverage
+.venv/
+venv/
+build/
+dist/
+src/*.egg-info/
+*.egg-info/
+*.pyc
+auth_data.json
+auth_data_*.json
