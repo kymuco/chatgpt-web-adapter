@@ -9,7 +9,7 @@ The goal of this repository is to keep the transport layer reusable, dependency-
 - zero runtime Python dependencies
 - sync chat API with optional token callback for streaming output
 - `auth_data.json` and `.env` auth loading
-- image/file uploads using the same web transport
+- image uploads from local paths, `Path`, URL, data URI, or raw bytes
 - local `curl`-based transport for compatibility with stock Python
 
 ## Requirements
@@ -46,6 +46,12 @@ response = client.send(
 print(response.text)
 print(response.metrics.total)
 ```
+
+## Detailed Guide
+
+For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `web_search`,
+`reasoning_effort`, conversation continuation, image inputs, response objects, and error handling,
+see [USAGE.md](USAGE.md).
 
 ## Streaming Callback
 

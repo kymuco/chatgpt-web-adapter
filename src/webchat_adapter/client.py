@@ -50,12 +50,12 @@ def _generate_answer(
     config: list[Any],
     max_attempts: int = 500_000,
 ) -> tuple[str, bool]:
-    diff_len = len(diff)
     seed_encoded = seed.encode()
     p1 = (json.dumps(config[:3], separators=(",", ":"), ensure_ascii=False)[:-1] + ",").encode()
     p2 = ("," + json.dumps(config[4:9], separators=(",", ":"), ensure_ascii=False)[1:-1] + ",").encode()
     p3 = ("," + json.dumps(config[10:], separators=(",", ":"), ensure_ascii=False)[1:]).encode()
     target_diff = bytes.fromhex(diff)
+    diff_len = len(target_diff)
     for i in range(max_attempts):
         d1 = str(i).encode()
         d2 = str(i >> 1).encode()
@@ -253,6 +253,40 @@ class ChatGPTWebClient:
             headers.update({key: value for key, value in extra.items() if value is not None})
         return headers
 
+    @staticmethod
+    def _read_media_path(path_like: str | Path | os.PathLike[str]) -> bytes:
+        path = Path(path_like)
+        try:
+            return path.read_bytes()
+        except OSError as error:
+            raise MediaError(f"Failed to read media file {path}: {error}") from error
+
+    @staticmethod
+    def _cleanup_process(process: subprocess.Popen | None, *, timeout: float = 1.0) -> None:
+        if process is None:
+            return
+        try:
+            running = process.poll() is None
+        except Exception:
+            running = False
+        if running:
+            try:
+                process.terminate()
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=timeout)
+            except OSError:
+                pass
+        for stream_name in ("stdout", "stderr"):
+            stream = getattr(process, stream_name, None)
+            if stream is None:
+                continue
+            try:
+                stream.close()
+            except OSError:
+                pass
+
     def _update_cookies_from_text(self, header_text: str) -> None:
         for raw_line in header_text.splitlines():
             if not raw_line.lower().startswith("set-cookie:"):
@@ -377,7 +411,7 @@ class ChatGPTWebClient:
         try:
             requirements = self._get_chat_requirements()
             proof_header = self._build_proof_header(requirements)
-        except Exception:
+        except RequestError:
             return False
         token = requirements.get("token") if isinstance(requirements, dict) else None
         if isinstance(token, str) and token:
@@ -444,9 +478,9 @@ class ChatGPTWebClient:
         if isinstance(media_data, bytearray):
             return bytes(media_data)
         if isinstance(media_data, Path):
-            return media_data.read_bytes()
+            return self._read_media_path(media_data)
         if isinstance(media_data, os.PathLike):
-            return Path(media_data).read_bytes()
+            return self._read_media_path(media_data)
         if isinstance(media_data, str):
             if media_data.startswith("data:"):
                 return _extract_data_uri(media_data)
@@ -461,7 +495,7 @@ class ChatGPTWebClient:
                 if not 200 <= status < 300:
                     raise MediaError(f"Media download failed: status={status}")
                 return raw_body
-            raise MediaError("Unsupported media string. Use file path, URL, or data URI.")
+            return self._read_media_path(media_data)
         raise MediaError("Unsupported media type")
 
     @staticmethod
@@ -504,6 +538,12 @@ class ChatGPTWebClient:
             status, created = self._json_request("POST", CHAT_FILES_URL, create_payload, create_headers)
             if status >= 400 or not isinstance(created, dict):
                 raise RequestError(f"Create file failed: status={status} body={created}")
+            upload_url = created.get("upload_url")
+            file_id = created.get("file_id")
+            if not isinstance(upload_url, str) or not upload_url:
+                raise RequestError(f"Create file response missing upload_url: {created}")
+            if not isinstance(file_id, str) or not file_id:
+                raise RequestError(f"Create file response missing file_id: {created}")
             upload_headers = {
                 **UPLOAD_HEADERS,
                 "content-type": mime_type,
@@ -514,7 +554,7 @@ class ChatGPTWebClient:
             }
             upload_status, upload_body, _ = self._run_curl(
                 "PUT",
-                created["upload_url"],
+                upload_url,
                 upload_headers,
                 data_bytes,
                 persist_cookies=False,
@@ -526,7 +566,7 @@ class ChatGPTWebClient:
                 )
             finalize_status, finalized = self._json_request(
                 "POST",
-                f"{CHAT_FILES_URL}/{created['file_id']}/uploaded",
+                f"{CHAT_FILES_URL}/{file_id}/uploaded",
                 {},
                 create_headers,
             )
@@ -685,7 +725,7 @@ class ChatGPTWebClient:
         if normalized_effort in {"", "off", "none", "-"}:
             normalized_effort = None
         if normalized_effort not in {None, "standard", "extended"}:
-            raise ValueError("reasoning_effort must be one of: standard, extended, off")
+            raise ValueError("reasoning_effort must be one of: standard, extended, off/none/-")
 
         normalized_media = self._normalize_media_items(media)
         image_requests = self._upload_media_files(normalized_media) if normalized_media else None
@@ -755,6 +795,7 @@ class ChatGPTWebClient:
         title_update: str | None = None
         started_at = time.perf_counter()
         payload_path: str | None = None
+        process: subprocess.Popen | None = None
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
@@ -813,6 +854,7 @@ class ChatGPTWebClient:
             if return_code != 0:
                 raise RequestError(f"curl failed: {stderr_text.strip() or return_code}")
         finally:
+            self._cleanup_process(process)
             try:
                 Path(header_path).unlink(missing_ok=True)
             except OSError:
