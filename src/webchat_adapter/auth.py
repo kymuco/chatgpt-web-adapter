@@ -59,7 +59,6 @@ def _load_access_token(auth_path: Path) -> str | None:
                 continue
             token = value.strip().strip("'").strip('"')
             if token:
-                os.environ["accessToken"] = token
                 return token
     return None
 
