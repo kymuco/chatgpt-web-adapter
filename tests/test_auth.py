@@ -14,8 +14,8 @@ def test_load_auth_data_uses_env_token_when_auth_file_is_missing(
 
     auth = adapter.load_auth_data(tmp_path / "missing_auth.json")
 
-    assert auth.api_key == "not.a.jwt"
-    assert auth.api_key_source == ".env:accessToken"
+    assert auth.accessToken == "not.a.jwt"
+    assert auth.accessTokenSource == ".env:accessToken"
     assert auth.cookies == {}
     assert auth.headers == {}
 
@@ -47,7 +47,27 @@ def test_load_auth_data_does_not_cache_dotenv_token_across_projects(
     auth_one = adapter.load_auth_data(project_one / "missing_auth.json")
     auth_two = adapter.load_auth_data(project_two / "missing_auth.json")
 
-    assert auth_one.api_key == "token-one"
-    assert auth_one.api_key_source == ".env:accessToken"
-    assert auth_two.api_key == "token-two"
-    assert auth_two.api_key_source == ".env:accessToken"
+    assert auth_one.accessToken == "token-one"
+    assert auth_one.accessTokenSource == ".env:accessToken"
+    assert auth_two.accessToken == "token-two"
+    assert auth_two.accessTokenSource == ".env:accessToken"
+
+
+def test_load_auth_data_accepts_legacy_api_key_field(tmp_path) -> None:
+    auth_file = tmp_path / "auth_data.json"
+    auth_file.write_text('{"api_key":"legacy-token"}', encoding="utf-8")
+
+    auth = adapter.load_auth_data(auth_file)
+
+    assert auth.accessToken == "legacy-token"
+    assert auth.accessTokenSource == "auth_data.json:accessToken"
+    assert auth.api_key == "legacy-token"
+
+
+def test_auth_data_accepts_legacy_constructor_names() -> None:
+    auth = adapter.AuthData(api_key="legacy-token", api_key_source="legacy-source")
+
+    assert auth.accessToken == "legacy-token"
+    assert auth.accessTokenSource == "legacy-source"
+    assert auth.api_key == "legacy-token"
+    assert auth.api_key_source == "legacy-source"

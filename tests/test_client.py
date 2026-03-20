@@ -263,7 +263,7 @@ def test_send_with_warmup_media_and_flags_uses_prefetched_requirements(
     tmp_path,
 ) -> None:
     client = _build_client()
-    client.auth.api_key = "test-token"
+    client.auth.accessToken = "test-token"
     image_path = tmp_path / "image.png"
     image_path.write_bytes(PNG_BYTES)
     state = {
@@ -323,7 +323,7 @@ def test_send_with_warmup_media_and_flags_uses_prefetched_requirements(
 
 def test_send_backend_error_raises_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _build_client()
-    client.auth.api_key = "test-token"
+    client.auth.accessToken = "test-token"
     state = {
         "requirements_calls": 0,
         "file_create_payloads": [],
@@ -341,7 +341,7 @@ def test_send_backend_error_raises_request_error(monkeypatch: pytest.MonkeyPatch
 
 def test_send_cleans_up_process_on_callback_error(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _build_client()
-    client.auth.api_key = "test-token"
+    client.auth.accessToken = "test-token"
 
     class FakeProcess:
         def __init__(self) -> None:

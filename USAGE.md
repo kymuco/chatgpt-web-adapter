@@ -80,18 +80,26 @@ The SDK consumes existing auth data. It does not create or refresh sessions by i
 You can authenticate in three main ways:
 
 1. Let the client load `auth_data.json`.
-2. Let the client load `accessToken` from `.env`.
+2. Let the client load `accessToken` from `.env` as an optional fallback.
 3. Pass an `AuthData` object directly.
 
 ### `auth_data.json`
 
 In practice, the easiest path is to reuse an existing file captured by another tool, for example `webchat-openai-cli`.
 
-Minimal shape:
+Minimal workable shape:
 
 ```json
 {
-  "api_key": "eyJhbGciOi...",
+  "accessToken": "eyJhbGciOi..."
+}
+```
+
+Recommended captured shape:
+
+```json
+{
+  "accessToken": "eyJhbGciOi...",
   "cookies": {
     "__Secure-next-auth.session-token": "..."
   },
@@ -101,17 +109,20 @@ Minimal shape:
 }
 ```
 
-If your captured file also includes `proof_token` or `turnstile_token`, keep them. The SDK can use those fields when the backend requires them.
+- `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
+- `cookies` and `headers` should come from the same account/session as the token.
+- If your captured file also includes `proof_token` or `turnstile_token`, keep them. The SDK can use those fields when the backend requires them.
+- Older files that still use `api_key` are accepted for backward compatibility, but new files should use `accessToken`.
 
 ### `.env`
 
-If `auth_data.json` is missing or its token is expired, the loader can fall back to `.env`.
+`.env` is optional. If `auth_data.json` is missing or its token is expired, the loader can fall back to `.env`.
 
 ```dotenv
 accessToken=eyJhbGciOi...
 ```
 
-The loader looks for `.env` in the current working directory and a few nearby project/module locations.
+The loader looks for `.env` in the current working directory and a few nearby project/module locations. If you already have a good `auth_data.json`, you do not need `.env`.
 
 ### Loading Auth Manually
 
@@ -120,13 +131,14 @@ from webchat_adapter import load_auth_data
 
 auth = load_auth_data("auth_data.json")
 
-print(auth.api_key_source)
+print(auth.accessTokenSource)
+print(bool(auth.accessToken))
 print(bool(auth.cookies))
 ```
 
 ### Auth Resolution Rules
 
-- If `auth_data.json` contains a valid `api_key`, it is used first.
+- If `auth_data.json` contains a valid `accessToken`, it is used first.
 - If that token is missing or expired, `.env:accessToken` can be used instead.
 - If every discovered token is expired, `AuthError` is raised.
 - If no token is found at all, `AuthError` is raised.
@@ -147,7 +159,7 @@ client = ChatGPTWebClient(auth_file="auth_data.json")
 from webchat_adapter import AuthData, ChatGPTWebClient
 
 auth = AuthData(
-    api_key="eyJhbGciOi...",
+    accessToken="eyJhbGciOi...",
     cookies={"__Secure-next-auth.session-token": "..."},
 )
 

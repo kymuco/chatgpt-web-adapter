@@ -245,8 +245,8 @@ class ChatGPTWebClient:
 
     def _build_headers(self, extra: dict[str, str | None] | None = None) -> dict[str, str]:
         headers = dict(self.base_headers)
-        if self.auth.api_key:
-            headers["authorization"] = f"Bearer {self.auth.api_key}"
+        if self.auth.accessToken:
+            headers["authorization"] = f"Bearer {self.auth.accessToken}"
         if self.auth.cookies:
             headers["cookie"] = "; ".join(f"{key}={value}" for key, value in self.auth.cookies.items())
         if extra:

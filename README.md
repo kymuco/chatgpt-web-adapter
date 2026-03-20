@@ -18,7 +18,7 @@ The goal of this repository is to keep the transport layer reusable, dependency-
 
 - Python 3.10+
 - system `curl` available in `PATH`
-- valid `auth_data.json` or `.env` with `accessToken`
+- valid `auth_data.json` with `accessToken`, or an optional `.env` fallback with `accessToken`
 
 ## Install
 
@@ -48,6 +48,30 @@ response = client.send(
 print(response.text)
 print(response.metrics.total)
 ```
+
+## Authentication at a Glance
+
+`webchat-adapter` does not log you in and does not capture auth by itself. It only reuses existing `chatgpt.com` web-session data.
+
+Recommended `auth_data.json` shape:
+
+```json
+{
+  "accessToken": "eyJhbGciOi...",
+  "cookies": {
+    "__Secure-next-auth.session-token": "..."
+  },
+  "headers": {
+    "user-agent": "Mozilla/5.0 ..."
+  }
+}
+```
+
+- `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
+- `cookies` and `headers` should come from the same account/session as the token.
+- `.env` is optional, not required. If present, `accessToken=...` is used only as a fallback when the file token is missing or expired.
+- Older files that still use `api_key` are accepted for backward compatibility, but new examples and new files should use `accessToken`.
+- If you need to generate this file, capture it with `webchat-openai-cli` and then reuse it here.
 
 ## Detailed Guide
 
@@ -84,7 +108,7 @@ second = client.send(
 
 ## Auth Notes
 
-This repository only consumes existing auth data. If you still need browser-based capture, you can generate `auth_data.json` with `webchat-openai-cli` and reuse it here.
+This repository only consumes existing auth data. If you still need browser-based capture, generate `auth_data.json` with `webchat-openai-cli` first and then reuse it here.
 
 ## Status
 

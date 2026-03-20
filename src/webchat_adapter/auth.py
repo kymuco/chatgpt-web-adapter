@@ -90,11 +90,11 @@ def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
         raise AuthError(f"Failed to parse auth data from {auth_path}: {error}") from error
 
     candidates: list[tuple[str, str]] = []
-    if auth.api_key:
-        candidates.append((f"{auth_path.name}:api_key", auth.api_key))
-    env_api_key = _load_access_token(auth_path)
-    if env_api_key and env_api_key != auth.api_key:
-        candidates.append((".env:accessToken", env_api_key))
+    if auth.accessToken:
+        candidates.append((f"{auth_path.name}:accessToken", auth.accessToken))
+    env_access_token = _load_access_token(auth_path)
+    if env_access_token and env_access_token != auth.accessToken:
+        candidates.append((".env:accessToken", env_access_token))
 
     expired_sources: list[str] = []
     now_utc = datetime.now(timezone.utc)
@@ -106,11 +106,11 @@ def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
                 f"{source} expired at {expires_local.strftime('%Y-%m-%d %H:%M:%S %z')}"
             )
             continue
-        auth.api_key = token
-        auth.api_key_source = source
+        auth.accessToken = token
+        auth.accessTokenSource = source
         break
 
-    if not auth.api_key:
+    if not auth.accessToken:
         if expired_sources:
             raise AuthError(
                 "All available access tokens are expired: "
@@ -118,7 +118,7 @@ def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
                 + ". Refresh authorization before using the adapter."
             )
         raise AuthError(
-            f"No access token found. Expected api_key in {auth_path.name}"
+            f"No access token found. Expected accessToken in {auth_path.name}"
             " or accessToken in .env."
         )
     return auth
