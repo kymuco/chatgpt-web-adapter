@@ -1,5 +1,7 @@
 # webchat-adapter
 
+[![CI](https://github.com/kymuco/webchat-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/webchat-adapter/actions/workflows/ci.yml)
+
 Minimal Python SDK for `chatgpt.com` web sessions, extracted from `webchat-openai-cli`.
 
 The goal of this repository is to keep the transport layer reusable, dependency-free at runtime, and close to standard Python. The package intentionally does not include the CLI, localization, or local chat-history management from the original project.
@@ -87,3 +89,4 @@ This repository only consumes existing auth data. If you still need browser-base
 ## Status
 
 Initial SDK baseline. The repository is intentionally small and focused on the transport layer first.
+GitHub Actions validates tests on Python 3.10-3.13 across Ubuntu and Windows, and also checks that the package builds successfully.
