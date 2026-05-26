@@ -21,6 +21,7 @@ This document covers the public API exposed by the package today and only descri
 - [Use Temporary Chats](#use-temporary-chats)
 - [Control Reasoning Effort](#control-reasoning-effort)
 - [Continue a Conversation](#continue-a-conversation)
+- [Approve a Pending Tool Action](#approve-a-pending-tool-action)
 - [Send Images](#send-images)
 - [Media Input Formats](#media-input-formats)
 - [Handle Errors](#handle-errors)
@@ -408,6 +409,59 @@ response = client.send(
 ```
 
 The SDK uses `conversation_id` plus the previous message identifiers to continue the thread.
+
+## Approve a Pending Tool Action
+
+Some ChatGPT web-agent/tool flows can pause on an approval card in the web UI, for example before a connected GitHub action writes a file. `approve_pending_action()` mirrors the web client's confirmation path without browser automation.
+
+The method sends `POST /backend-api/f/conversation/prepare` with `action="next"` and then, by default, polls `GET /backend-api/conversation/{conversation_id}` until a newer assistant message appears.
+
+```python
+from webchat_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+
+# This should point at a conversation whose latest assistant message is waiting
+# on a tool/action approval card.
+conversation = {
+    "conversation_id": "conv_123",
+    # Replace this with the id of the latest assistant message that is waiting
+    # on the approval card. This is not a fixed value.
+    "message_id": "msg_456",
+    "parent_message_id": "msg_456",
+}
+
+response = client.approve_pending_action(
+    conversation,
+    model="gpt-5-5-thinking",
+    reasoning_effort="extended",
+    poll_timeout=90,
+)
+
+print(response.text)
+print(response.conversation.message_id)
+```
+
+Use this only when you have already decided that the pending action is allowed. The SDK does not inspect the approval card text, repository name, file path, or action type. If you need allowlist checks such as "only approve this GitHub repository", implement those checks before calling this method.
+
+Arguments:
+
+- `conversation`: `ChatConversation` or a plain dict containing `conversation_id` and either `message_id` or `parent_message_id`
+- `message_id` / `parent_message_id`: the id of the current latest assistant message, usually the message that rendered the approval card
+- `model`: model slug to send in the prepare payload
+- `reasoning_effort`: `"standard"`, `"extended"`, `"off"`, `"none"`, or `"-"`
+- `poll`: when `True`, wait for the next assistant message; when `False`, return after the prepare request succeeds
+- `poll_timeout`: max seconds to wait for a newer assistant message
+- `poll_interval`: seconds between conversation polling attempts
+- `timezone` and `timezone_offset_min`: optional web-payload metadata if you need to match the browser client more closely
+
+Behavior:
+
+- on successful prepare, the backend returns an internal conduit token; the SDK does not expose it
+- with `poll=True`, the returned `ChatResponse.text` is the newest assistant message found in the conversation
+- with `poll=False`, `ChatResponse.text` is empty and `response.conversation` keeps the approval message id
+- if polling times out before a newer assistant message appears, `RequestError` is raised
+- this is a best-effort web-backend flow and can change if the ChatGPT web client changes its approval protocol
 
 ## Send Images
 

@@ -80,6 +80,8 @@ class RedirectHandler(BaseHTTPRequestHandler):
 def _patch_chat_endpoints(monkeypatch: pytest.MonkeyPatch, base_url: str) -> None:
     monkeypatch.setattr(client_mod, "CHAT_REQUIREMENTS_URL", f"{base_url}/backend-api/sentinel/chat-requirements")
     monkeypatch.setattr(client_mod, "CHAT_BACKEND_URL", f"{base_url}/backend-api/f/conversation")
+    monkeypatch.setattr(client_mod, "CHAT_CONVERSATION_PREPARE_URL", f"{base_url}/backend-api/f/conversation/prepare")
+    monkeypatch.setattr(client_mod, "CHAT_CONVERSATION_URL", f"{base_url}/backend-api/conversation/{{conversation_id}}")
     monkeypatch.setattr(client_mod, "CHAT_FILES_URL", f"{base_url}/backend-api/files")
 
 
@@ -174,6 +176,52 @@ def _make_chat_handler(
                 self.wfile.flush()
                 return
 
+            if self.path == "/backend-api/f/conversation/prepare":
+                payload = json.loads(self._read_body().decode("utf-8"))
+                state.setdefault("prepare_payloads", []).append(payload)
+                self._write_json(200, {"status": "ok", "conduit_token": "conduit-token"})
+                return
+
+            self.send_response(404)
+            self.end_headers()
+
+        def do_GET(self) -> None:
+            if self.path == "/backend-api/conversation/conv-123":
+                state["conversation_get_calls"] = state.get("conversation_get_calls", 0) + 1
+                self._write_json(
+                    200,
+                    {
+                        "conversation_id": "conv-123",
+                        "mapping": {
+                            "assistant-old": {
+                                "message": {
+                                    "id": "assistant-old",
+                                    "author": {"role": "assistant"},
+                                    "create_time": 1,
+                                    "content": {
+                                        "content_type": "text",
+                                        "parts": ["approval required"],
+                                    },
+                                }
+                            },
+                            "assistant-new": {
+                                "message": {
+                                    "id": "assistant-new",
+                                    "author": {"role": "assistant"},
+                                    "create_time": 2,
+                                    "content": {
+                                        "content_type": "text",
+                                        "parts": ["approved result"],
+                                    },
+                                    "metadata": {
+                                        "finish_details": {"type": "stop"},
+                                    },
+                                }
+                            },
+                        },
+                    },
+                )
+                return
             self.send_response(404)
             self.end_headers()
 
@@ -337,6 +385,86 @@ def test_send_backend_error_raises_request_error(monkeypatch: pytest.MonkeyPatch
 
         with pytest.raises(adapter.RequestError, match="backend status=500"):
             client.send("fail please")
+
+
+def test_approve_pending_action_posts_prepare_and_polls_conversation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "prepare_payloads": [],
+        "conversation_get_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+
+        response = client.approve_pending_action(
+            adapter.ChatConversation(
+                conversation_id="conv-123",
+                message_id="assistant-old",
+                parent_message_id="assistant-old",
+            ),
+            model="gpt-5-5-thinking",
+            reasoning_effort="extended",
+            poll_interval=0.01,
+        )
+
+    assert state["prepare_payloads"] == [
+        {
+            "action": "next",
+            "fork_from_shared_post": False,
+            "conversation_id": "conv-123",
+            "parent_message_id": "assistant-old",
+            "model": "gpt-5-5-thinking",
+            "client_prepare_state": "none",
+            "conversation_mode": {"kind": "primary_assistant"},
+            "system_hints": [],
+            "supports_buffering": True,
+            "supported_encodings": ["v1"],
+            "client_contextual_info": {"app_name": "chatgpt.com"},
+            "thinking_effort": "extended",
+        }
+    ]
+    assert state["conversation_get_calls"] == 1
+    assert response.text == "approved result"
+    assert response.conversation.conversation_id == "conv-123"
+    assert response.conversation.message_id == "assistant-new"
+    assert response.conversation.parent_message_id == "assistant-new"
+    assert response.conversation.finish_reason == "stop"
+
+
+def test_approve_pending_action_can_skip_polling(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "prepare_payloads": [],
+        "conversation_get_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+
+        response = client.approve_pending_action(
+            {"conversation_id": "conv-123", "message_id": "assistant-old"},
+            poll=False,
+        )
+
+    assert len(state["prepare_payloads"]) == 1
+    assert state["conversation_get_calls"] == 0
+    assert response.text == ""
+    assert response.conversation.message_id == "assistant-old"
 
 
 def test_send_cleans_up_process_on_callback_error(monkeypatch: pytest.MonkeyPatch) -> None:
