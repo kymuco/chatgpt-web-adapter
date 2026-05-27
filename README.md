@@ -93,6 +93,12 @@ on reverse-engineered web behavior and should be treated as less stable than the
 
 See [USAGE.md](USAGE.md) and [examples/github_auto_approve.py](examples/github_auto_approve.py).
 
+The example script includes:
+
+- a neutral repository placeholder instead of a hard-coded demo repo
+- live assistant token printing
+- structured approval progress events
+
 ## Streaming Callback
 
 ```python

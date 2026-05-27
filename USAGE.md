@@ -430,6 +430,11 @@ There are now three approval-related entry points. Use the narrowest one that ma
 
 For most GitHub connector automation flows, start with `send_and_auto_approve()`.
 
+All three approval helpers are quiet by default. If you want terminal-visible progress, use:
+
+- `on_token` to receive visible assistant text tokens
+- `on_event` to receive structured progress events such as approval detection and approval completion
+
 ## Approve a Pending Tool Action
 
 Some ChatGPT web-agent/tool flows can pause on an approval card in the web UI, for example before a connected GitHub action writes a file. `approve_pending_action()` mirrors the web client's confirmation path without browser automation.
@@ -452,6 +457,8 @@ response = client.approve_pending_action(
     model="gpt-5-5-thinking",
     reasoning_effort="extended",
     poll_timeout=90,
+    on_token=lambda token: print(token, end="", flush=True),
+    on_event=lambda event: print(event),
 )
 
 print(response.text)
@@ -469,6 +476,8 @@ Arguments:
 - `poll_timeout`: max seconds to wait for a newer assistant message
 - `poll_interval`: seconds between conversation polling attempts
 - `timezone` and `timezone_offset_min`: optional web-payload metadata if you need to match the browser client more closely
+- `on_token`: optional callback for visible assistant text produced during the approval-resume turn
+- `on_event`: optional callback receiving structured progress events
 
 Behavior:
 
@@ -479,6 +488,14 @@ Behavior:
 - with `poll=False`, `ChatResponse.text` is empty and `response.conversation.message_id` is the pending tool message id that was approved
 - if polling times out before a newer assistant message appears, `RequestError` is raised
 - this is a best-effort web-backend flow and can change if the ChatGPT web client changes its approval protocol
+
+Common `on_event` types:
+
+- `pending_approval_detected`
+- `approval_prepare_succeeded`
+- `approval_sent`
+- `approval_completed`
+- `assistant_token`
 
 ## Wait for and Approve Multiple Tool Actions
 
@@ -498,6 +515,8 @@ result = client.wait_and_approve_pending_actions(
     pending_poll_interval=3.0,
     settle_delay=2.0,
     max_rounds=0,
+    verify=lambda response: response.text != "",
+    on_event=lambda event: print(event),
 )
 
 print(result.text)
@@ -510,16 +529,9 @@ Arguments:
 - `pending_poll_interval`: seconds between checks while waiting for the next approval card to appear
 - `settle_delay`: pause between successful approvals
 - `max_rounds`: max approvals to process; `0` means unlimited
-- `stop_when`: optional callback receiving `ChatResponse`; return `True` to stop the loop after a successful approval
-
-Typical use for `stop_when`:
-
-```python
-result = client.wait_and_approve_pending_actions(
-    {"conversation_id": "conv_123"},
-    stop_when=lambda response: "all files created" in response.text.lower(),
-)
-```
+- `verify`: optional callback receiving the final `ChatResponse`; return `True` to confirm the external side effect after the conversation becomes idle
+- `on_token`: optional callback for visible assistant text during each approval-resume turn
+- `on_event`: optional callback receiving loop and approval progress events
 
 ## Send a Prompt and Auto-Approve Pending Tool Actions
 
@@ -536,9 +548,11 @@ from webchat_adapter import ChatConversation, ChatGPTWebClient
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
 result = client.send_and_auto_approve(
-    "Use the GitHub connector to create one text file named sdk-test.txt with exact content: sdk test.",
+    "Use the GitHub connector to create one text file named project-outline.txt with exact content: project outline draft.",
     model="gpt-5-5-thinking",
     reasoning_effort="extended",
+    on_token=lambda token: print(token, end="", flush=True),
+    on_event=lambda event: print(event),
 )
 
 print(result.text)
@@ -560,7 +574,8 @@ Behavior notes:
 - for a new chat, the SDK may have to discover the new `conversation_id` through the recent-conversations endpoint
 - if the first approval card appears late, `pending_poll_interval` controls how often the SDK checks for it
 - `new_chat_timeout` only applies to discovering the brand-new conversation shell; after that, the approval loop can run indefinitely when `max_rounds=0`
-- if your prompt never produces a pending tool approval and `max_rounds=0`, the method will keep waiting until you interrupt it
+- the loop now stops on its own when no pending approvals remain and the conversation becomes idle
+- `on_event` can emit high-level progress such as `prompt_sent`, `new_conversation_resolved`, `waiting_for_pending_approval`, `approval_round_started`, `approval_round_finished`, and `conversation_idle`
 
 ## Verify Results with GitHub CLI
 
@@ -569,16 +584,16 @@ For connector flows that are supposed to create or update files in GitHub, verif
 Example:
 
 ```bash
-gh api repos/rn7-coder/new_repo/contents/sdk-gh-case-1.txt --jq '{sha:.sha,content:.content}'
+gh api repos/your-user-or-org/your-repo/contents/project-outline.txt --jq '{sha:.sha,content:.content}'
 ```
 
-The `content` field is Base64-encoded. For the example file above, `sdk case 1` appears as:
+The `content` field is Base64-encoded. For the example file above, `project outline draft` appears as:
 
 ```text
-c2RrIGNhc2UgMQ==
+cHJvamVjdCBvdXRsaW5lIGRyYWZ0
 ```
 
-This verify step is especially useful when you are using `stop_when` callbacks and want a second source of truth for the final side effect.
+This verify step is especially useful when you pass a `verify=` callback and want a second source of truth for the final side effect.
 
 ## Send Images
 

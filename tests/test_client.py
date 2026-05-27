@@ -411,6 +411,8 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
 ) -> None:
     client = _build_client()
     client.auth.accessToken = "test-token"
+    streamed_tokens: list[str] = []
+    events: list[dict[str, Any]] = []
     state = {
         "requirements_calls": 0,
         "file_create_payloads": [],
@@ -488,6 +490,8 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
             model="gpt-5-5-thinking",
             reasoning_effort="extended",
             poll_interval=0.01,
+            on_token=streamed_tokens.append,
+            on_event=events.append,
         )
 
     assert state["prepare_payloads"] == [
@@ -518,6 +522,15 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
         "remember_answer": False,
     }
     assert state["conversation_get_calls"] == 2
+    assert streamed_tokens == ["Hello ", "world"]
+    assert [event["type"] for event in events] == [
+        "pending_approval_detected",
+        "approval_prepare_succeeded",
+        "assistant_token",
+        "assistant_token",
+        "approval_sent",
+        "approval_completed",
+    ]
     assert response.text == "approved result"
     assert response.conversation.conversation_id == "conv-123"
     assert response.conversation.message_id == "assistant-new"
@@ -589,11 +602,11 @@ def test_approve_pending_action_can_skip_polling(monkeypatch: pytest.MonkeyPatch
 
     assert len(state["prepare_payloads"]) == 1
     assert state["conversation_get_calls"] == 1
-    assert response.text == ""
+    assert response.text == "Hello world"
     assert response.conversation.message_id == "tool-leaf"
 
 
-def test_wait_and_approve_pending_actions_loops_until_stop_callback(
+def test_wait_and_approve_pending_actions_stops_when_conversation_becomes_idle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = _build_client()
@@ -609,6 +622,8 @@ def test_wait_and_approve_pending_actions_loops_until_stop_callback(
     ]
     payloads = [
         {
+            "conversation_id": "conv-123",
+            "current_node": "a1-final",
             "mapping": {
                 "tool-1": {
                     "children": [],
@@ -629,9 +644,12 @@ def test_wait_and_approve_pending_actions_loops_until_stop_callback(
                     },
                 },
                 "a1": {"message": {"id": "a1", "author": {"role": "assistant"}, "recipient": "api_tool.call_tool"}},
+                "a1-final": {"message": {"id": "a1-final", "author": {"role": "assistant"}, "recipient": "all", "content": {"content_type": "text", "parts": ["created file 1"]}}},
             }
         },
         {
+            "conversation_id": "conv-123",
+            "current_node": "a2-final",
             "mapping": {
                 "tool-2": {
                     "children": [],
@@ -652,12 +670,29 @@ def test_wait_and_approve_pending_actions_loops_until_stop_callback(
                     },
                 },
                 "a2": {"message": {"id": "a2", "author": {"role": "assistant"}, "recipient": "api_tool.call_tool"}},
+                "a2-final": {"message": {"id": "a2-final", "author": {"role": "assistant"}, "recipient": "all", "content": {"content_type": "text", "parts": ["created file 2"]}}},
+            }
+        },
+        {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "content": {"content_type": "text", "parts": ["created file 2"]},
+                        "metadata": {"finish_details": {"type": "stop"}},
+                    }
+                }
             }
         },
     ]
     approve_calls: list[str] = []
 
     monkeypatch.setattr(client, "_get_conversation_payload", lambda _cid: payloads.pop(0))
+    monkeypatch.setattr(client, "_get_recent_conversation_summary", lambda _cid: {"id": "conv-123", "async_status": None})
 
     def fake_approve(conversation, **_kwargs):
         approve_calls.append(str(adapter.ChatConversation.from_dict(
@@ -670,12 +705,11 @@ def test_wait_and_approve_pending_actions_loops_until_stop_callback(
     response = client.wait_and_approve_pending_actions(
         adapter.ChatConversation(conversation_id="conv-123", message_id="assistant-old"),
         settle_delay=0.0,
-        stop_when=lambda item: item.text == "created file 2",
     )
 
     assert approve_calls == ["conv-123", "conv-123"]
     assert response.text == "created file 2"
-    assert response.conversation.message_id == "assistant-2"
+    assert response.conversation.message_id == "assistant-final"
 
 
 def test_send_and_auto_approve_resolves_new_conversation_id(
@@ -683,6 +717,7 @@ def test_send_and_auto_approve_resolves_new_conversation_id(
 ) -> None:
     client = _build_client()
     recent_calls = {"count": 0}
+    events: list[dict[str, Any]] = []
 
     def fake_list_recent_conversations(*, limit: int = 10) -> list[dict[str, Any]]:
         recent_calls["count"] += 1
@@ -715,11 +750,52 @@ def test_send_and_auto_approve_resolves_new_conversation_id(
         "create a file",
         pending_poll_interval=0.01,
         settle_delay=0.0,
+        on_event=events.append,
     )
 
     assert response.text == "approved final"
     assert captured["conversation"].conversation_id == "conv-new"
     assert recent_calls["count"] >= 2
+    assert [event["type"] for event in events] == [
+        "prompt_sent",
+        "new_conversation_resolved",
+    ]
+
+
+def test_wait_and_approve_pending_actions_verifies_after_idle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    events: list[dict[str, Any]] = []
+    payload = {
+        "conversation_id": "conv-123",
+        "current_node": "assistant-final",
+        "mapping": {
+            "assistant-final": {
+                "message": {
+                    "id": "assistant-final",
+                    "author": {"role": "assistant"},
+                    "recipient": "all",
+                    "content": {"content_type": "text", "parts": ["done"]},
+                    "metadata": {"finish_details": {"type": "stop"}},
+                }
+            }
+        },
+    }
+    monkeypatch.setattr(client, "_get_conversation_payload", lambda _cid: payload)
+    monkeypatch.setattr(client, "_get_recent_conversation_summary", lambda _cid: {"id": "conv-123", "async_status": None})
+
+    response = client.wait_and_approve_pending_actions(
+        adapter.ChatConversation(conversation_id="conv-123"),
+        verify=lambda item: item.text == "done",
+        on_event=events.append,
+    )
+
+    assert response.text == "done"
+    assert [event["type"] for event in events] == [
+        "conversation_idle",
+        "verification_completed",
+    ]
 
 
 def test_send_cleans_up_process_on_callback_error(monkeypatch: pytest.MonkeyPatch) -> None:
