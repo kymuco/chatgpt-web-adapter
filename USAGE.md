@@ -21,9 +21,11 @@ This document covers the public API exposed by the package today and only descri
 - [Use Temporary Chats](#use-temporary-chats)
 - [Control Reasoning Effort](#control-reasoning-effort)
 - [Continue a Conversation](#continue-a-conversation)
+- [Choose the Right Approval Method](#choose-the-right-approval-method)
 - [Approve a Pending Tool Action](#approve-a-pending-tool-action)
 - [Wait for and Approve Multiple Tool Actions](#wait-for-and-approve-multiple-tool-actions)
 - [Send a Prompt and Auto-Approve Pending Tool Actions](#send-a-prompt-and-auto-approve-pending-tool-actions)
+- [Verify Results with GitHub CLI](#verify-results-with-github-cli)
 - [Send Images](#send-images)
 - [Media Input Formats](#media-input-formats)
 - [Handle Errors](#handle-errors)
@@ -412,6 +414,22 @@ response = client.send(
 
 The SDK uses `conversation_id` plus the previous message identifiers to continue the thread.
 
+## Choose the Right Approval Method
+
+There are now three approval-related entry points. Use the narrowest one that matches your workflow.
+
+- `approve_pending_action()`
+  - low-level
+  - approve one currently pending tool action in an existing conversation
+- `wait_and_approve_pending_actions()`
+  - mid-level
+  - attach to an existing conversation and keep approving new cards as they appear
+- `send_and_auto_approve()`
+  - high-level
+  - send a prompt first, then wait for and approve follow-up tool actions
+
+For most GitHub connector automation flows, start with `send_and_auto_approve()`.
+
 ## Approve a Pending Tool Action
 
 Some ChatGPT web-agent/tool flows can pause on an approval card in the web UI, for example before a connected GitHub action writes a file. `approve_pending_action()` mirrors the web client's confirmation path without browser automation.
@@ -543,6 +561,24 @@ Behavior notes:
 - if the first approval card appears late, `pending_poll_interval` controls how often the SDK checks for it
 - `new_chat_timeout` only applies to discovering the brand-new conversation shell; after that, the approval loop can run indefinitely when `max_rounds=0`
 - if your prompt never produces a pending tool approval and `max_rounds=0`, the method will keep waiting until you interrupt it
+
+## Verify Results with GitHub CLI
+
+For connector flows that are supposed to create or update files in GitHub, verify the repository state independently instead of trusting only the assistant text.
+
+Example:
+
+```bash
+gh api repos/rn7-coder/new_repo/contents/sdk-gh-case-1.txt --jq '{sha:.sha,content:.content}'
+```
+
+The `content` field is Base64-encoded. For the example file above, `sdk case 1` appears as:
+
+```text
+c2RrIGNhc2UgMQ==
+```
+
+This verify step is especially useful when you are using `stop_when` callbacks and want a second source of truth for the final side effect.
 
 ## Send Images
 

@@ -80,6 +80,19 @@ For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `we
 `reasoning_effort`, conversation continuation, image inputs, response objects, and error handling,
 see [USAGE.md](USAGE.md).
 
+## Experimental Features
+
+The SDK also includes experimental browserless helpers for web-agent/tool approval flows:
+
+- `approve_pending_action()`
+- `wait_and_approve_pending_actions()`
+- `send_and_auto_approve()`
+
+These APIs are useful for ChatGPT web connector flows such as GitHub file creation, but they rely
+on reverse-engineered web behavior and should be treated as less stable than the base `send()` API.
+
+See [USAGE.md](USAGE.md) and [examples/github_auto_approve.py](examples/github_auto_approve.py).
+
 ## Streaming Callback
 
 ```python

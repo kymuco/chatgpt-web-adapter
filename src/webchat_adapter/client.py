@@ -1170,6 +1170,13 @@ class ChatGPTWebClient:
         timezone_offset_min: int | None = None,
         stop_when: Callable[[ChatResponse], bool] | None = None,
     ) -> ChatResponse:
+        """Repeatedly approve pending tool actions in a conversation.
+
+        Experimental browserless helper built on top of
+        :meth:`approve_pending_action`. With ``max_rounds=0`` the method waits
+        indefinitely for new approval cards until interrupted or ``stop_when``
+        returns ``True``.
+        """
         conversation_dict = self._conversation_to_dict(conversation)
         if not isinstance(conversation_dict, dict):
             raise ValueError("conversation is required")
@@ -1231,6 +1238,12 @@ class ChatGPTWebClient:
         poll_interval: float = DEFAULT_APPROVAL_POLL_INTERVAL_SECONDS,
         stop_when: Callable[[ChatResponse], bool] | None = None,
     ) -> ChatResponse:
+        """Send a prompt and then auto-approve follow-up tool actions.
+
+        Experimental convenience wrapper for web-agent flows. It can start a new
+        chat when ``conversation`` is omitted or continue an existing one when a
+        conversation object is provided.
+        """
         before_ids: set[str] = set()
         conversation_dict = self._conversation_to_dict(conversation)
         if conversation_dict is None:
