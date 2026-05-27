@@ -22,6 +22,8 @@ This document covers the public API exposed by the package today and only descri
 - [Control Reasoning Effort](#control-reasoning-effort)
 - [Continue a Conversation](#continue-a-conversation)
 - [Approve a Pending Tool Action](#approve-a-pending-tool-action)
+- [Wait for and Approve Multiple Tool Actions](#wait-for-and-approve-multiple-tool-actions)
+- [Send a Prompt and Auto-Approve Pending Tool Actions](#send-a-prompt-and-auto-approve-pending-tool-actions)
 - [Send Images](#send-images)
 - [Media Input Formats](#media-input-formats)
 - [Handle Errors](#handle-errors)
@@ -414,21 +416,17 @@ The SDK uses `conversation_id` plus the previous message identifiers to continue
 
 Some ChatGPT web-agent/tool flows can pause on an approval card in the web UI, for example before a connected GitHub action writes a file. `approve_pending_action()` mirrors the web client's confirmation path without browser automation.
 
-The method sends `POST /backend-api/f/conversation/prepare` with `action="next"` and then, by default, polls `GET /backend-api/conversation/{conversation_id}` until a newer assistant message appears.
+The method fetches the conversation, finds the newest pending `confirm_action` tool leaf, synthesizes the same client-side `allow` message that the web UI sends, posts it through the conversation backend, and then polls `GET /backend-api/conversation/{conversation_id}` until a newer assistant message appears.
 
 ```python
 from webchat_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
-# This should point at a conversation whose latest assistant message is waiting
-# on a tool/action approval card.
+# This should point at a conversation that currently contains a pending tool
+# approval card somewhere in its latest turn chain.
 conversation = {
     "conversation_id": "conv_123",
-    # Replace this with the id of the latest assistant message that is waiting
-    # on the approval card. This is not a fixed value.
-    "message_id": "msg_456",
-    "parent_message_id": "msg_456",
 }
 
 response = client.approve_pending_action(
@@ -446,8 +444,7 @@ Use this only when you have already decided that the pending action is allowed. 
 
 Arguments:
 
-- `conversation`: `ChatConversation` or a plain dict containing `conversation_id` and either `message_id` or `parent_message_id`
-- `message_id` / `parent_message_id`: the id of the current latest assistant message, usually the message that rendered the approval card
+- `conversation`: `ChatConversation` or a plain dict containing `conversation_id`
 - `model`: model slug to send in the prepare payload
 - `reasoning_effort`: `"standard"`, `"extended"`, `"off"`, `"none"`, or `"-"`
 - `poll`: when `True`, wait for the next assistant message; when `False`, return after the prepare request succeeds
@@ -457,11 +454,95 @@ Arguments:
 
 Behavior:
 
+- the SDK first inspects the conversation payload and picks the latest pending `confirm_action`
 - on successful prepare, the backend returns an internal conduit token; the SDK does not expose it
+- the SDK then sends an experimental browserless `allow` turn through the same conversation backend
 - with `poll=True`, the returned `ChatResponse.text` is the newest assistant message found in the conversation
-- with `poll=False`, `ChatResponse.text` is empty and `response.conversation` keeps the approval message id
+- with `poll=False`, `ChatResponse.text` is empty and `response.conversation.message_id` is the pending tool message id that was approved
 - if polling times out before a newer assistant message appears, `RequestError` is raised
 - this is a best-effort web-backend flow and can change if the ChatGPT web client changes its approval protocol
+
+## Wait for and Approve Multiple Tool Actions
+
+Some tool workflows emit more than one approval card in sequence. `wait_and_approve_pending_actions()` keeps watching the conversation and approves each new pending action as it appears.
+
+By default, `max_rounds=0`, which means no limit.
+
+```python
+from webchat_adapter import ChatConversation, ChatGPTWebClient
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+
+result = client.wait_and_approve_pending_actions(
+    ChatConversation(conversation_id="conv_123"),
+    model="gpt-5-5-thinking",
+    reasoning_effort="extended",
+    pending_poll_interval=3.0,
+    settle_delay=2.0,
+    max_rounds=0,
+)
+
+print(result.text)
+print(result.conversation.message_id)
+```
+
+Arguments:
+
+- `conversation`: `ChatConversation` or dict with `conversation_id`
+- `pending_poll_interval`: seconds between checks while waiting for the next approval card to appear
+- `settle_delay`: pause between successful approvals
+- `max_rounds`: max approvals to process; `0` means unlimited
+- `stop_when`: optional callback receiving `ChatResponse`; return `True` to stop the loop after a successful approval
+
+Typical use for `stop_when`:
+
+```python
+result = client.wait_and_approve_pending_actions(
+    {"conversation_id": "conv_123"},
+    stop_when=lambda response: "all files created" in response.text.lower(),
+)
+```
+
+## Send a Prompt and Auto-Approve Pending Tool Actions
+
+If you want one call that sends a prompt and then waits for approval cards, use `send_and_auto_approve()`.
+
+This works for both:
+
+- a brand-new chat when `conversation` is omitted
+- an existing chat when `conversation` is passed
+
+```python
+from webchat_adapter import ChatConversation, ChatGPTWebClient
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+
+result = client.send_and_auto_approve(
+    "Use the GitHub connector to create one text file named sdk-test.txt with exact content: sdk test.",
+    model="gpt-5-5-thinking",
+    reasoning_effort="extended",
+)
+
+print(result.text)
+print(result.conversation.conversation_id)
+```
+
+Continue an existing chat:
+
+```python
+result = client.send_and_auto_approve(
+    "Create the next file.",
+    conversation=ChatConversation(conversation_id="conv_123"),
+    model="gpt-5-5-thinking",
+)
+```
+
+Behavior notes:
+
+- for a new chat, the SDK may have to discover the new `conversation_id` through the recent-conversations endpoint
+- if the first approval card appears late, `pending_poll_interval` controls how often the SDK checks for it
+- `new_chat_timeout` only applies to discovering the brand-new conversation shell; after that, the approval loop can run indefinitely when `max_rounds=0`
+- if your prompt never produces a pending tool approval and `max_rounds=0`, the method will keep waiting until you interrupt it
 
 ## Send Images
 

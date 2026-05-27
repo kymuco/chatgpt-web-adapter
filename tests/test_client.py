@@ -82,6 +82,7 @@ def _patch_chat_endpoints(monkeypatch: pytest.MonkeyPatch, base_url: str) -> Non
     monkeypatch.setattr(client_mod, "CHAT_BACKEND_URL", f"{base_url}/backend-api/f/conversation")
     monkeypatch.setattr(client_mod, "CHAT_CONVERSATION_PREPARE_URL", f"{base_url}/backend-api/f/conversation/prepare")
     monkeypatch.setattr(client_mod, "CHAT_CONVERSATION_URL", f"{base_url}/backend-api/conversation/{{conversation_id}}")
+    monkeypatch.setattr(client_mod, "CHAT_CONVERSATIONS_URL", f"{base_url}/backend-api/conversations")
     monkeypatch.setattr(client_mod, "CHAT_FILES_URL", f"{base_url}/backend-api/files")
 
 
@@ -137,6 +138,8 @@ def _make_chat_handler(
             if self.path == "/backend-api/f/conversation":
                 payload = json.loads(self._read_body().decode("utf-8"))
                 state["conversation_payloads"].append(payload)
+                if payload.get("messages"):
+                    state.setdefault("approval_stream_payloads", []).append(payload)
                 if backend_status >= 400:
                     body = b"backend exploded"
                     self.send_response(backend_status)
@@ -186,8 +189,24 @@ def _make_chat_handler(
             self.end_headers()
 
         def do_GET(self) -> None:
+            if self.path.startswith("/backend-api/conversations"):
+                state["conversations_get_calls"] = state.get("conversations_get_calls", 0) + 1
+                self._write_json(
+                    200,
+                    {
+                        "items": state.get(
+                            "recent_conversations",
+                            [{"id": "conv-123", "title": "Test conversation"}],
+                        )
+                    },
+                )
+                return
             if self.path == "/backend-api/conversation/conv-123":
                 state["conversation_get_calls"] = state.get("conversation_get_calls", 0) + 1
+                conversation_payload = state.get("conversation_get_payload")
+                if isinstance(conversation_payload, dict):
+                    self._write_json(200, conversation_payload)
+                    return
                 self._write_json(
                     200,
                     {
@@ -400,6 +419,61 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
         "finalize_calls": 0,
         "prepare_payloads": [],
         "conversation_get_calls": 0,
+        "approval_stream_payloads": [],
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "mapping": {
+                "assistant-target": {
+                    "message": {
+                        "id": "assistant-target",
+                        "author": {"role": "assistant"},
+                        "recipient": "api_tool.call_tool",
+                        "create_time": 1.0,
+                        "content": {"content_type": "text", "parts": [""]},
+                    }
+                },
+                "tool-leaf": {
+                    "parent": "assistant-target",
+                    "children": [],
+                    "message": {
+                        "id": "tool-leaf",
+                        "author": {"role": "tool"},
+                        "recipient": "assistant",
+                        "create_time": 2.0,
+                        "content": {"content_type": "text", "parts": [""]},
+                        "metadata": {
+                            "jit_plugin_data": {
+                                "from_server": {
+                                    "type": "confirm_action",
+                                    "body": {
+                                        "actions": [
+                                            {
+                                                "type": "allow",
+                                                "allow": {"target_message_id": "assistant-target"},
+                                            }
+                                        ]
+                                    },
+                                }
+                            }
+                        },
+                    },
+                },
+                "assistant-new": {
+                    "message": {
+                        "id": "assistant-new",
+                        "author": {"role": "assistant"},
+                        "create_time": 3.0,
+                        "content": {
+                            "content_type": "text",
+                            "parts": ["approved result"],
+                        },
+                        "metadata": {
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                },
+            },
+        },
     }
 
     with _serve(_make_chat_handler(state)) as base_url:
@@ -421,7 +495,7 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
             "action": "next",
             "fork_from_shared_post": False,
             "conversation_id": "conv-123",
-            "parent_message_id": "assistant-old",
+            "parent_message_id": "tool-leaf",
             "model": "gpt-5-5-thinking",
             "client_prepare_state": "none",
             "conversation_mode": {"kind": "primary_assistant"},
@@ -432,7 +506,18 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
             "thinking_effort": "extended",
         }
     ]
-    assert state["conversation_get_calls"] == 1
+    assert len(state["approval_stream_payloads"]) == 1
+    stream_payload = state["approval_stream_payloads"][0]
+    assert stream_payload["client_prepare_state"] == "success"
+    assert stream_payload["parent_message_id"] == "tool-leaf"
+    assert stream_payload["messages"][0]["author"] == {"role": "tool", "name": "api_tool.call_tool"}
+    assert stream_payload["messages"][0]["recipient"] == "all"
+    assert stream_payload["messages"][0]["metadata"]["jit_plugin_data"]["from_client"] == {
+        "type": "allow",
+        "target_message_id": "assistant-target",
+        "remember_answer": False,
+    }
+    assert state["conversation_get_calls"] == 2
     assert response.text == "approved result"
     assert response.conversation.conversation_id == "conv-123"
     assert response.conversation.message_id == "assistant-new"
@@ -451,6 +536,47 @@ def test_approve_pending_action_can_skip_polling(monkeypatch: pytest.MonkeyPatch
         "finalize_calls": 0,
         "prepare_payloads": [],
         "conversation_get_calls": 0,
+        "approval_stream_payloads": [],
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "mapping": {
+                "assistant-target": {
+                    "message": {
+                        "id": "assistant-target",
+                        "author": {"role": "assistant"},
+                        "recipient": "api_tool.call_tool",
+                        "create_time": 1.0,
+                        "content": {"content_type": "text", "parts": [""]},
+                    }
+                },
+                "tool-leaf": {
+                    "parent": "assistant-target",
+                    "children": [],
+                    "message": {
+                        "id": "tool-leaf",
+                        "author": {"role": "tool"},
+                        "recipient": "assistant",
+                        "create_time": 2.0,
+                        "content": {"content_type": "text", "parts": [""]},
+                        "metadata": {
+                            "jit_plugin_data": {
+                                "from_server": {
+                                    "type": "confirm_action",
+                                    "body": {
+                                        "actions": [
+                                            {
+                                                "type": "allow",
+                                                "allow": {"target_message_id": "assistant-target"},
+                                            }
+                                        ]
+                                    },
+                                }
+                            }
+                        },
+                    },
+                },
+            },
+        },
     }
 
     with _serve(_make_chat_handler(state)) as base_url:
@@ -462,9 +588,138 @@ def test_approve_pending_action_can_skip_polling(monkeypatch: pytest.MonkeyPatch
         )
 
     assert len(state["prepare_payloads"]) == 1
-    assert state["conversation_get_calls"] == 0
+    assert state["conversation_get_calls"] == 1
     assert response.text == ""
-    assert response.conversation.message_id == "assistant-old"
+    assert response.conversation.message_id == "tool-leaf"
+
+
+def test_wait_and_approve_pending_actions_loops_until_stop_callback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    responses = [
+        adapter.ChatResponse(
+            text="created file 1",
+            conversation=adapter.ChatConversation(conversation_id="conv-123", message_id="assistant-1"),
+        ),
+        adapter.ChatResponse(
+            text="created file 2",
+            conversation=adapter.ChatConversation(conversation_id="conv-123", message_id="assistant-2"),
+        ),
+    ]
+    payloads = [
+        {
+            "mapping": {
+                "tool-1": {
+                    "children": [],
+                    "message": {
+                        "id": "tool-1",
+                        "author": {"role": "tool"},
+                        "create_time": 1.0,
+                        "metadata": {
+                            "jit_plugin_data": {
+                                "from_server": {
+                                    "type": "confirm_action",
+                                    "body": {
+                                        "actions": [{"type": "allow", "allow": {"target_message_id": "a1"}}]
+                                    },
+                                }
+                            }
+                        },
+                    },
+                },
+                "a1": {"message": {"id": "a1", "author": {"role": "assistant"}, "recipient": "api_tool.call_tool"}},
+            }
+        },
+        {
+            "mapping": {
+                "tool-2": {
+                    "children": [],
+                    "message": {
+                        "id": "tool-2",
+                        "author": {"role": "tool"},
+                        "create_time": 2.0,
+                        "metadata": {
+                            "jit_plugin_data": {
+                                "from_server": {
+                                    "type": "confirm_action",
+                                    "body": {
+                                        "actions": [{"type": "allow", "allow": {"target_message_id": "a2"}}]
+                                    },
+                                }
+                            }
+                        },
+                    },
+                },
+                "a2": {"message": {"id": "a2", "author": {"role": "assistant"}, "recipient": "api_tool.call_tool"}},
+            }
+        },
+    ]
+    approve_calls: list[str] = []
+
+    monkeypatch.setattr(client, "_get_conversation_payload", lambda _cid: payloads.pop(0))
+
+    def fake_approve(conversation, **_kwargs):
+        approve_calls.append(str(adapter.ChatConversation.from_dict(
+            conversation.to_dict() if isinstance(conversation, adapter.ChatConversation) else conversation
+        ).conversation_id))
+        return responses.pop(0)
+
+    monkeypatch.setattr(client, "approve_pending_action", fake_approve)
+
+    response = client.wait_and_approve_pending_actions(
+        adapter.ChatConversation(conversation_id="conv-123", message_id="assistant-old"),
+        settle_delay=0.0,
+        stop_when=lambda item: item.text == "created file 2",
+    )
+
+    assert approve_calls == ["conv-123", "conv-123"]
+    assert response.text == "created file 2"
+    assert response.conversation.message_id == "assistant-2"
+
+
+def test_send_and_auto_approve_resolves_new_conversation_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    recent_calls = {"count": 0}
+
+    def fake_list_recent_conversations(*, limit: int = 10) -> list[dict[str, Any]]:
+        recent_calls["count"] += 1
+        if recent_calls["count"] == 1:
+            return [{"id": "conv-old"}]
+        return [{"id": "conv-new"}, {"id": "conv-old"}]
+
+    monkeypatch.setattr(client, "_list_recent_conversations", fake_list_recent_conversations)
+    monkeypatch.setattr(
+        client,
+        "send",
+        lambda *args, **kwargs: adapter.ChatResponse(
+            text="",
+            conversation=adapter.ChatConversation(conversation_id=None, message_id="assistant-prompt"),
+        ),
+    )
+    captured: dict[str, Any] = {}
+
+    def fake_wait(conversation, **kwargs):
+        captured["conversation"] = conversation
+        captured["kwargs"] = kwargs
+        return adapter.ChatResponse(
+            text="approved final",
+            conversation=adapter.ChatConversation(conversation_id="conv-new", message_id="assistant-final"),
+        )
+
+    monkeypatch.setattr(client, "wait_and_approve_pending_actions", fake_wait)
+
+    response = client.send_and_auto_approve(
+        "create a file",
+        pending_poll_interval=0.01,
+        settle_delay=0.0,
+    )
+
+    assert response.text == "approved final"
+    assert captured["conversation"].conversation_id == "conv-new"
+    assert recent_calls["count"] >= 2
 
 
 def test_send_cleans_up_process_on_callback_error(monkeypatch: pytest.MonkeyPatch) -> None:

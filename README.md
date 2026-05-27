@@ -12,6 +12,7 @@ The goal of this repository is to keep the transport layer reusable, dependency-
 - sync chat API with optional token callback for streaming output
 - `auth_data.json` and `.env` auth loading
 - image uploads from local paths, `Path`, URL, data URI, or raw bytes
+- experimental browserless tool-approval helpers for web-agent flows
 - local `curl`-based transport for compatibility with stock Python
 
 ## Requirements

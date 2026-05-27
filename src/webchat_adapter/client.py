@@ -25,12 +25,15 @@ CHAT_REQUIREMENTS_URL = "https://chatgpt.com/backend-api/sentinel/chat-requireme
 CHAT_BACKEND_URL = "https://chatgpt.com/backend-api/f/conversation"
 CHAT_CONVERSATION_PREPARE_URL = "https://chatgpt.com/backend-api/f/conversation/prepare"
 CHAT_CONVERSATION_URL = "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+CHAT_CONVERSATIONS_URL = "https://chatgpt.com/backend-api/conversations"
 CHAT_FILES_URL = "https://chatgpt.com/backend-api/files"
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_TIMEOUT_SECONDS = 90
 PREFETCH_TTL_SECONDS = 20.0
 DEFAULT_APPROVAL_POLL_TIMEOUT_SECONDS = 90.0
 DEFAULT_APPROVAL_POLL_INTERVAL_SECONDS = 2.0
+DEFAULT_PENDING_POLL_INTERVAL_SECONDS = 3.0
+DEFAULT_APPROVAL_SETTLE_DELAY_SECONDS = 2.0
 MODEL_ALIASES = {
     "gpt-5.1": "gpt-5-1",
     "gpt-4.1": "gpt-4.1",
@@ -751,6 +754,120 @@ class ChatGPTWebClient:
         _create_time, message, text = max(candidates, key=lambda item: item[0])
         return message, text
 
+    @classmethod
+    def _latest_message_any_from_conversation(
+        cls,
+        payload: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, str]:
+        mapping = payload.get("mapping")
+        if not isinstance(mapping, dict):
+            return None, ""
+        candidates: list[tuple[float, dict[str, Any], str]] = []
+        for node in mapping.values():
+            if not isinstance(node, dict):
+                continue
+            message = node.get("message")
+            if not isinstance(message, dict):
+                continue
+            message_id = message.get("id")
+            if not isinstance(message_id, str) or not message_id:
+                continue
+            create_time = message.get("create_time")
+            candidates.append((float(create_time or 0), message, cls._conversation_message_text(message)))
+        if not candidates:
+            return None, ""
+        _create_time, message, text = max(candidates, key=lambda item: item[0])
+        return message, text
+
+    @classmethod
+    def _latest_confirm_action_leaf(
+        cls,
+        payload: dict[str, Any],
+    ) -> tuple[str | None, str | None, str | None]:
+        mapping = payload.get("mapping")
+        if not isinstance(mapping, dict):
+            return None, None, None
+        candidates: list[tuple[float, str, str, str]] = []
+        for node in mapping.values():
+            if not isinstance(node, dict):
+                continue
+            message = node.get("message")
+            if not isinstance(message, dict):
+                continue
+            author = message.get("author")
+            role = author.get("role") if isinstance(author, dict) else ""
+            if role != "tool" or node.get("children"):
+                continue
+            message_id = message.get("id")
+            if not isinstance(message_id, str) or not message_id:
+                continue
+            metadata = message.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            jit_plugin_data = metadata.get("jit_plugin_data")
+            if not isinstance(jit_plugin_data, dict):
+                continue
+            from_server = jit_plugin_data.get("from_server")
+            if not isinstance(from_server, dict) or from_server.get("type") != "confirm_action":
+                continue
+            body = from_server.get("body")
+            if not isinstance(body, dict):
+                continue
+            actions = body.get("actions")
+            if not isinstance(actions, list):
+                continue
+            target_message_id: str | None = None
+            for action in actions:
+                if not isinstance(action, dict) or action.get("type") != "allow":
+                    continue
+                allow = action.get("allow")
+                if isinstance(allow, dict) and isinstance(allow.get("target_message_id"), str):
+                    target_message_id = allow["target_message_id"]
+                    break
+            if not target_message_id:
+                continue
+            target_node = mapping.get(target_message_id)
+            if not isinstance(target_node, dict):
+                continue
+            target_message = target_node.get("message")
+            if not isinstance(target_message, dict):
+                continue
+            recipient = target_message.get("recipient")
+            if not isinstance(recipient, str) or not recipient:
+                continue
+            create_time = message.get("create_time")
+            candidates.append((float(create_time or 0), message_id, target_message_id, recipient))
+        if not candidates:
+            return None, None, None
+        _create_time, tool_id, target_message_id, recipient = max(candidates, key=lambda item: item[0])
+        return tool_id, target_message_id, recipient
+
+    @staticmethod
+    def _build_client_allow_message(
+        *,
+        recipient: str,
+        target_message_id: str,
+        message_text: str = "",
+    ) -> dict[str, Any]:
+        return {
+            "id": str(uuid.uuid4()),
+            "author": {"role": "tool", "name": recipient},
+            "content": {"content_type": "text", "parts": [message_text]},
+            "recipient": "all",
+            "metadata": {
+                "jit_plugin_data": {
+                    "from_client": {
+                        "type": "allow",
+                        "target_message_id": target_message_id,
+                        "remember_answer": False,
+                    }
+                }
+            },
+            "clientMetadata": {
+                "completionSampleFinishTime": int(time.time() * 1000),
+            },
+        }
+
     def _get_conversation_payload(self, conversation_id: str) -> dict[str, Any]:
         headers = self._build_headers(
             {
@@ -769,6 +886,32 @@ class ChatGPTWebClient:
         if not isinstance(data, dict):
             raise RequestError("conversation response is not a dict")
         return data
+
+    def _list_recent_conversations(self, *, limit: int = 10) -> list[dict[str, Any]]:
+        headers = self._build_headers({"accept": "application/json", "referer": CHAT_URL})
+        status, data = self._json_request(
+            "GET",
+            f"{CHAT_CONVERSATIONS_URL}?offset=0&limit={max(1, limit)}&order=updated",
+            None,
+            headers,
+        )
+        if status >= 400:
+            raise RequestError(f"conversations status={status}: {data}")
+        if not isinstance(data, dict):
+            raise RequestError("conversations response is not a dict")
+        items = data.get("items")
+        if not isinstance(items, list):
+            return []
+        return [item for item in items if isinstance(item, dict)]
+
+    @staticmethod
+    def _normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
+        normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
+        if normalized_effort in {"", "off", "none", "-"}:
+            normalized_effort = None
+        if normalized_effort not in {None, "standard", "extended"}:
+            raise ValueError("reasoning_effort must be one of: standard, extended, off/none/-")
+        return normalized_effort
 
     def _poll_conversation_after_prepare(
         self,
@@ -794,6 +937,82 @@ class ChatGPTWebClient:
                 return last_message, last_text
             time.sleep(max(0.5, interval))
 
+    def _stream_backend_payload(
+        self,
+        payload: dict[str, Any],
+        headers: dict[str, str],
+    ) -> tuple[str | None, str | None]:
+        payload_path: str | None = None
+        process: subprocess.Popen | None = None
+        with tempfile.NamedTemporaryFile(delete=False) as header_file:
+            header_path = header_file.name
+        try:
+            with tempfile.NamedTemporaryFile(delete=False) as payload_file:
+                payload_file.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+                payload_path = payload_file.name
+            command = self._build_curl_command(
+                "POST",
+                CHAT_BACKEND_URL,
+                headers,
+                header_path,
+                payload_path,
+                no_buffer=True,
+            )
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            latest_conversation_id: str | None = None
+            latest_message_id: str | None = None
+            assert process.stdout is not None
+            for raw_line in iter(process.stdout.readline, b""):
+                if not raw_line.startswith(b"data: "):
+                    continue
+                if raw_line.startswith(b"data: [DONE]"):
+                    break
+                try:
+                    event_payload = json.loads(raw_line[6:])
+                except ValueError:
+                    continue
+                if not isinstance(event_payload, dict):
+                    continue
+                value = event_payload.get("v")
+                if not isinstance(value, dict):
+                    continue
+                conversation_id = value.get("conversation_id")
+                if isinstance(conversation_id, str) and conversation_id:
+                    latest_conversation_id = conversation_id
+                message = value.get("message")
+                if not isinstance(message, dict):
+                    continue
+                message_id = message.get("id")
+                if isinstance(message_id, str) and message_id:
+                    latest_message_id = message_id
+            stderr_text = ""
+            if process.stderr is not None:
+                stderr_text = process.stderr.read().decode("utf-8", errors="replace")
+            return_code = process.wait()
+            header_text = Path(header_path).read_text(encoding="utf-8", errors="replace")
+            self._update_cookies_from_text(header_text)
+            status = self._extract_status_code(header_text)
+            if status >= 400:
+                raise RequestError(f"backend status={status}")
+            if return_code != 0:
+                raise RequestError(f"curl failed: {stderr_text.strip() or return_code}")
+            return latest_conversation_id, latest_message_id
+        finally:
+            self._cleanup_process(process)
+            try:
+                Path(header_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+            if payload_path:
+                try:
+                    Path(payload_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
+
     def approve_pending_action(
         self,
         conversation: ChatConversation | dict[str, Any],
@@ -806,30 +1025,30 @@ class ChatGPTWebClient:
         timezone: str | None = None,
         timezone_offset_min: int | None = None,
     ) -> ChatResponse:
-        """Resume a conversation after a web UI approval card.
+        """Approve the latest pending tool action in a web conversation.
 
-        This mirrors the ChatGPT web UI confirmation flow for agent/tool approvals:
-        it sends ``/backend-api/f/conversation/prepare`` with ``action=next`` and,
-        by default, polls the conversation until a newer assistant message appears.
+        This is an experimental browserless flow that mirrors the ChatGPT web UI
+        approval card by synthesizing a ``jit_plugin_data.from_client.allow`` tool
+        message and sending it through the same conversation backend.
         """
         conversation_dict = self._conversation_to_dict(conversation)
         if not isinstance(conversation_dict, dict):
             raise ValueError("conversation is required")
         conversation_id = conversation_dict.get("conversation_id")
-        parent_message_id = (
-            conversation_dict.get("parent_message_id")
-            or conversation_dict.get("message_id")
-        )
         if not isinstance(conversation_id, str) or not conversation_id:
             raise ValueError("conversation.conversation_id is required")
-        if not isinstance(parent_message_id, str) or not parent_message_id:
-            raise ValueError("conversation.message_id or parent_message_id is required")
 
-        payload: dict[str, Any] = {
+        normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
+        conversation_payload = self._get_conversation_payload(conversation_id)
+        tool_id, target_message_id, recipient = self._latest_confirm_action_leaf(conversation_payload)
+        if not (tool_id and target_message_id and recipient):
+            raise RequestError("No pending confirm_action tool approval was found")
+
+        prepare_payload: dict[str, Any] = {
             "action": "next",
             "fork_from_shared_post": False,
             "conversation_id": conversation_id,
-            "parent_message_id": parent_message_id,
+            "parent_message_id": tool_id,
             "model": MODEL_ALIASES.get(model, model),
             "client_prepare_state": "none",
             "conversation_mode": {"kind": "primary_assistant"},
@@ -839,18 +1058,13 @@ class ChatGPTWebClient:
             "client_contextual_info": {"app_name": "chatgpt.com"},
         }
         if timezone_offset_min is not None:
-            payload["timezone_offset_min"] = int(timezone_offset_min)
+            prepare_payload["timezone_offset_min"] = int(timezone_offset_min)
         if timezone:
-            payload["timezone"] = timezone
-        normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
-        if normalized_effort in {"", "off", "none", "-"}:
-            normalized_effort = None
-        if normalized_effort not in {None, "standard", "extended"}:
-            raise ValueError("reasoning_effort must be one of: standard, extended, off/none/-")
+            prepare_payload["timezone"] = timezone
         if normalized_effort is not None:
-            payload["thinking_effort"] = normalized_effort
+            prepare_payload["thinking_effort"] = normalized_effort
 
-        headers = self._build_headers(
+        prepare_headers = self._build_headers(
             {
                 "accept": "application/json",
                 "content-type": "application/json",
@@ -861,19 +1075,55 @@ class ChatGPTWebClient:
             }
         )
         started_at = time.perf_counter()
-        status, data = self._json_request("POST", CHAT_CONVERSATION_PREPARE_URL, payload, headers)
+        status, data = self._json_request("POST", CHAT_CONVERSATION_PREPARE_URL, prepare_payload, prepare_headers)
         if status >= 400:
             raise RequestError(f"conversation prepare status={status}: {data}")
         if not isinstance(data, dict) or data.get("status") != "ok":
             raise RequestError(f"conversation prepare failed: {data}")
+        conduit_token = data.get("conduit_token")
+        if not isinstance(conduit_token, str) or not conduit_token:
+            raise RequestError("conversation prepare response is missing conduit_token")
+
+        requirements, proof_header = self._get_ready_requirements()
+        stream_headers = self._build_headers(
+            {
+                "accept": "text/event-stream",
+                "content-type": "application/json",
+                "origin": CHAT_URL.rstrip("/"),
+                "referer": f"{CHAT_URL.rstrip('/')}/c/{conversation_id}",
+                "x-openai-target-path": "/backend-api/f/conversation",
+                "x-openai-target-route": "/backend-api/f/conversation",
+                "x-conduit-token": conduit_token,
+                "x-oai-turn-trace-id": str(uuid.uuid4()),
+                "openai-sentinel-chat-requirements-token": requirements.get("token"),
+                "openai-sentinel-proof-token": proof_header,
+                "openai-sentinel-turnstile-token": self.auth.turnstile_token
+                if (requirements.get("turnstile") or {}).get("required")
+                else None,
+            }
+        )
+        stream_payload = dict(prepare_payload)
+        stream_payload["client_prepare_state"] = "success"
+        stream_payload["messages"] = [
+            self._build_client_allow_message(
+                recipient=recipient,
+                target_message_id=target_message_id,
+            )
+        ]
+        observed_conversation_id, _observed_message_id = self._stream_backend_payload(
+            stream_payload,
+            stream_headers,
+        )
+        if observed_conversation_id:
+            conversation_id = observed_conversation_id
 
         text = ""
-        message_id = parent_message_id
+        message_id = tool_id
         finish_reason = None
         if poll:
             message, text = self._poll_conversation_after_prepare(
                 conversation_id,
-                previous_message_id=parent_message_id,
+                previous_message_id=tool_id,
                 timeout=poll_timeout,
                 interval=poll_interval,
             )
@@ -886,7 +1136,7 @@ class ChatGPTWebClient:
                     finish_details = metadata.get("finish_details")
                     if isinstance(finish_details, dict):
                         finish_reason = finish_details.get("type")
-            if message_id == parent_message_id:
+            if message_id == tool_id:
                 raise RequestError(
                     "approval polling timed out before a new assistant message appeared"
                 )
@@ -905,6 +1155,141 @@ class ChatGPTWebClient:
             metrics=ChatMetrics(total=total_latency),
         )
 
+    def wait_and_approve_pending_actions(
+        self,
+        conversation: ChatConversation | dict[str, Any],
+        *,
+        model: str = DEFAULT_MODEL,
+        reasoning_effort: str | None = "extended",
+        poll_timeout: float = DEFAULT_APPROVAL_POLL_TIMEOUT_SECONDS,
+        poll_interval: float = DEFAULT_APPROVAL_POLL_INTERVAL_SECONDS,
+        pending_poll_interval: float = DEFAULT_PENDING_POLL_INTERVAL_SECONDS,
+        settle_delay: float = DEFAULT_APPROVAL_SETTLE_DELAY_SECONDS,
+        max_rounds: int = 0,
+        timezone: str | None = None,
+        timezone_offset_min: int | None = None,
+        stop_when: Callable[[ChatResponse], bool] | None = None,
+    ) -> ChatResponse:
+        conversation_dict = self._conversation_to_dict(conversation)
+        if not isinstance(conversation_dict, dict):
+            raise ValueError("conversation is required")
+        conversation_id = conversation_dict.get("conversation_id")
+        if not isinstance(conversation_id, str) or not conversation_id:
+            raise ValueError("conversation.conversation_id is required")
+
+        last_response = ChatResponse(
+            text="",
+            conversation=ChatConversation.from_dict(conversation_dict),
+            metrics=ChatMetrics(),
+        )
+        round_index = 0
+        while True:
+            payload = self._get_conversation_payload(conversation_id)
+            tool_id, target_message_id, recipient = self._latest_confirm_action_leaf(payload)
+            if tool_id and target_message_id and recipient:
+                round_index += 1
+                last_response = self.approve_pending_action(
+                    ChatConversation.from_dict(conversation_dict),
+                    model=model,
+                    reasoning_effort=reasoning_effort,
+                    poll=True,
+                    poll_timeout=poll_timeout,
+                    poll_interval=poll_interval,
+                    timezone=timezone,
+                    timezone_offset_min=timezone_offset_min,
+                )
+                conversation_dict = last_response.conversation.to_dict()
+                conversation_id = str(last_response.conversation.conversation_id or conversation_id)
+                if stop_when is not None and stop_when(last_response):
+                    return last_response
+                if max_rounds > 0 and round_index >= max_rounds:
+                    return last_response
+                if settle_delay > 0:
+                    time.sleep(max(0.0, settle_delay))
+                continue
+            if max_rounds > 0 and round_index >= max_rounds:
+                return last_response
+            time.sleep(max(0.5, pending_poll_interval))
+
+    def send_and_auto_approve(
+        self,
+        prompt: str,
+        *,
+        model: str = DEFAULT_MODEL,
+        system: str | None = None,
+        web_search: bool = False,
+        temporary: bool = False,
+        reasoning_effort: str | None = "extended",
+        conversation: ChatConversation | dict[str, Any] | None = None,
+        media: Sequence[MediaItem] | None = None,
+        on_token: Callable[[str], None] | None = None,
+        new_chat_timeout: float = 60.0,
+        pending_poll_interval: float = DEFAULT_PENDING_POLL_INTERVAL_SECONDS,
+        settle_delay: float = DEFAULT_APPROVAL_SETTLE_DELAY_SECONDS,
+        max_rounds: int = 0,
+        poll_timeout: float = DEFAULT_APPROVAL_POLL_TIMEOUT_SECONDS,
+        poll_interval: float = DEFAULT_APPROVAL_POLL_INTERVAL_SECONDS,
+        stop_when: Callable[[ChatResponse], bool] | None = None,
+    ) -> ChatResponse:
+        before_ids: set[str] = set()
+        conversation_dict = self._conversation_to_dict(conversation)
+        if conversation_dict is None:
+            conversation_dict = None
+            for item in self._list_recent_conversations(limit=10):
+                conversation_id = item.get("id")
+                if isinstance(conversation_id, str) and conversation_id:
+                    before_ids.add(conversation_id)
+
+        send_response = self.send(
+            prompt,
+            model=model,
+            system=system,
+            web_search=web_search,
+            temporary=temporary,
+            reasoning_effort=reasoning_effort,
+            conversation=conversation,
+            media=media,
+            on_token=on_token,
+        )
+        active_conversation = send_response.conversation
+        if not active_conversation.conversation_id and conversation_dict is None:
+            deadline = time.monotonic() + max(0.0, new_chat_timeout)
+            while True:
+                for item in self._list_recent_conversations(limit=10):
+                    conversation_id = item.get("id")
+                    if not isinstance(conversation_id, str) or not conversation_id:
+                        continue
+                    if conversation_id not in before_ids:
+                        active_conversation = ChatConversation(
+                            conversation_id=conversation_id,
+                            message_id=send_response.conversation.message_id,
+                            user_id=send_response.conversation.user_id,
+                            finish_reason=send_response.conversation.finish_reason,
+                            parent_message_id=send_response.conversation.parent_message_id,
+                            is_thinking=send_response.conversation.is_thinking,
+                        )
+                        break
+                if active_conversation.conversation_id:
+                    break
+                if time.monotonic() >= deadline:
+                    raise RequestError("Timed out while waiting for the new conversation to appear")
+                time.sleep(max(0.5, pending_poll_interval))
+
+        if not active_conversation.conversation_id:
+            raise RequestError("No conversation_id is available for auto-approval")
+
+        return self.wait_and_approve_pending_actions(
+            active_conversation,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            poll_timeout=poll_timeout,
+            poll_interval=poll_interval,
+            pending_poll_interval=pending_poll_interval,
+            settle_delay=settle_delay,
+            max_rounds=max_rounds,
+            stop_when=stop_when,
+        )
+
     def send(
         self,
         prompt: str,
@@ -918,11 +1303,7 @@ class ChatGPTWebClient:
         media: Sequence[MediaItem] | None = None,
         on_token: Callable[[str], None] | None = None,
     ) -> ChatResponse:
-        normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
-        if normalized_effort in {"", "off", "none", "-"}:
-            normalized_effort = None
-        if normalized_effort not in {None, "standard", "extended"}:
-            raise ValueError("reasoning_effort must be one of: standard, extended, off/none/-")
+        normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
 
         normalized_media = self._normalize_media_items(media)
         image_requests = self._upload_media_files(normalized_media) if normalized_media else None
