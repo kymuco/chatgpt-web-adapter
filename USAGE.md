@@ -376,6 +376,13 @@ Behavior:
 
 ## Continue a Conversation
 
+All conversation-taking methods in this SDK accept either:
+
+- a `ChatConversation` instance
+- a plain dictionary with the same fields
+
+In the examples below, quick low-friction snippets may use a plain dict, while more structured multi-step examples prefer `ChatConversation`.
+
 ### Use the Returned `ChatConversation`
 
 ```python
@@ -434,6 +441,11 @@ All three approval helpers are quiet by default. If you want terminal-visible pr
 
 - `on_token` to receive visible assistant text tokens
 - `on_event` to receive structured progress events such as approval detection and approval completion
+
+Example style used in this guide:
+
+- `approve_pending_action()` uses a plain dict because it only needs a minimal `conversation_id`
+- `wait_and_approve_pending_actions()` and `send_and_auto_approve()` use `ChatConversation` because they are longer-lived workflow examples
 
 ## Approve a Pending Tool Action
 
@@ -525,7 +537,7 @@ print(result.conversation.message_id)
 
 Arguments:
 
-- `conversation`: `ChatConversation` or dict with `conversation_id`
+- `conversation`: `ChatConversation` or a plain dict containing `conversation_id`
 - `pending_poll_interval`: seconds between checks while waiting for the next approval card to appear
 - `settle_delay`: pause between successful approvals
 - `max_rounds`: max approvals to process; `0` means unlimited
