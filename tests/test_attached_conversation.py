@@ -131,7 +131,9 @@ def test_attached_conversation_rejects_missing_conversation_id() -> None:
 
 def test_attached_conversation_rejects_non_conversation() -> None:
     with pytest.raises(TypeError, match="ChatConversation"):
-        adapter.AttachedConversation(conversation={"conversation_id": CONVERSATION_ID})  # type: ignore[arg-type]
+        adapter.AttachedConversation(
+            conversation={"conversation_id": CONVERSATION_ID},  # type: ignore[arg-type]
+        )
 
 
 def test_attached_conversation_rejects_non_dict_payload() -> None:
