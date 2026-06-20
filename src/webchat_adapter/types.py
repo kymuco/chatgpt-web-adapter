@@ -262,9 +262,23 @@ class AttachedConversation:
             raise TypeError("conversation payload must be a dict")
 
         payload_conversation_id = _optional_str(payload.get("conversation_id"))
+        conversation_id = (
+            _optional_str(conversation.conversation_id)
+            if conversation is not None
+            else None
+        )
+        if (
+            conversation_id
+            and payload_conversation_id
+            and conversation_id != payload_conversation_id
+        ):
+            raise ValueError(
+                "conversation.conversation_id does not match payload.conversation_id"
+            )
+
         if conversation is None:
             conversation = ChatConversation(conversation_id=payload_conversation_id)
-        elif not _optional_str(conversation.conversation_id) and payload_conversation_id:
+        elif not conversation_id and payload_conversation_id:
             conversation_dict = conversation.to_dict()
             conversation_dict["conversation_id"] = payload_conversation_id
             conversation = ChatConversation.from_dict(conversation_dict)
