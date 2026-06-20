@@ -85,6 +85,14 @@ def test_attached_conversation_from_payload_fills_missing_conversation_id() -> N
     assert attached.conversation.message_id == "message-123"
 
 
+def test_attached_conversation_from_payload_rejects_mismatched_conversation_id() -> None:
+    with pytest.raises(ValueError, match="does not match"):
+        adapter.AttachedConversation.from_payload(
+            {"conversation_id": "payload-conv"},
+            conversation=adapter.ChatConversation(conversation_id="conversation-conv"),
+        )
+
+
 def test_attached_conversation_copies_raw_status() -> None:
     raw_status = {"async_status": "running"}
 
