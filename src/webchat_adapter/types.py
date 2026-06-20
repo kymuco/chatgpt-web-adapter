@@ -10,6 +10,13 @@ MediaSource = bytes | bytearray | str | Path | os.PathLike[str]
 MediaItem = MediaSource | tuple[MediaSource, str | None]
 
 
+def _optional_str(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
 @dataclass(init=False)
 class AuthData:
     accessToken: str | None = None
@@ -209,6 +216,103 @@ class ConversationRef:
         if len(parts) != 2 or parts[0] != "c":
             raise ValueError("conversation URL must have /c/<conversation_id> path")
         return parts[1]
+
+
+@dataclass
+class AttachedConversation:
+    conversation: ChatConversation
+    current_node: str | None = None
+    detected_model: str | None = None
+    title: str | None = None
+    raw_status: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.conversation, ChatConversation):
+            raise TypeError("conversation must be a ChatConversation")
+        ref = ConversationRef.from_any(self.conversation)
+        conversation_dict = self.conversation.to_dict()
+        conversation_dict["conversation_id"] = ref.conversation_id
+        self.conversation = ChatConversation.from_dict(conversation_dict)
+        self.current_node = _optional_str(self.current_node)
+        self.detected_model = _optional_str(self.detected_model)
+        self.title = _optional_str(self.title)
+        if self.raw_status is None:
+            self.raw_status = {}
+        elif not isinstance(self.raw_status, dict):
+            raise TypeError("raw_status must be a dict")
+        else:
+            self.raw_status = dict(self.raw_status)
+
+    @property
+    def conversation_id(self) -> str:
+        ref = ConversationRef.from_any(self.conversation)
+        return ref.conversation_id
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: dict[str, Any],
+        *,
+        conversation: ChatConversation | None = None,
+        detected_model: str | None = None,
+        title: str | None = None,
+        raw_status: dict[str, Any] | None = None,
+    ) -> "AttachedConversation":
+        if not isinstance(payload, dict):
+            raise TypeError("conversation payload must be a dict")
+
+        payload_conversation_id = _optional_str(payload.get("conversation_id"))
+        conversation_id = (
+            _optional_str(conversation.conversation_id)
+            if conversation is not None
+            else None
+        )
+        if (
+            conversation_id
+            and payload_conversation_id
+            and conversation_id != payload_conversation_id
+        ):
+            raise ValueError(
+                "conversation.conversation_id does not match payload.conversation_id"
+            )
+
+        if conversation is None:
+            conversation = ChatConversation(conversation_id=payload_conversation_id)
+        elif not conversation_id and payload_conversation_id:
+            conversation_dict = conversation.to_dict()
+            conversation_dict["conversation_id"] = payload_conversation_id
+            conversation = ChatConversation.from_dict(conversation_dict)
+
+        return cls(
+            conversation=conversation,
+            current_node=_optional_str(payload.get("current_node")),
+            detected_model=detected_model,
+            title=title if title is not None else _optional_str(payload.get("title")),
+            raw_status=raw_status
+            if raw_status is not None
+            else cls._lightweight_status_from_payload(payload),
+        )
+
+    @staticmethod
+    def _lightweight_status_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        keys = (
+            "async_status",
+            "create_time",
+            "update_time",
+            "is_archived",
+            "is_starred",
+        )
+        return {key: payload[key] for key in keys if key in payload}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "conversation": self.conversation.to_dict(),
+            "conversation_id": self.conversation_id,
+            "current_node": self.current_node,
+            "detected_model": self.detected_model,
+            "title": self.title,
+            "raw_status": dict(self.raw_status),
+        }
 
 
 @dataclass

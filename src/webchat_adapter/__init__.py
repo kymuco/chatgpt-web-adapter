@@ -4,6 +4,7 @@ from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .client import DEFAULT_MODEL, ChatGPTWebClient
 from .exceptions import AuthError, MediaError, RequestError, WebChatAdapterError
 from .types import (
+    AttachedConversation,
     AuthData,
     ChatConversation,
     ChatMetrics,
@@ -16,6 +17,7 @@ from .types import (
 WebChatClient = ChatGPTWebClient
 
 __all__ = [
+    "AttachedConversation",
     "AuthData",
     "AuthError",
     "ChatConversation",
