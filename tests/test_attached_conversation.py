@@ -139,15 +139,19 @@ def test_attached_conversation_rejects_non_conversation() -> None:
 
 
 def test_attached_conversation_rejects_non_dict_payload() -> None:
+    not_payload: Any = None
+
     with pytest.raises(TypeError, match="payload"):
-        adapter.AttachedConversation.from_payload(None)  # type: ignore[arg-type]
+        adapter.AttachedConversation.from_payload(not_payload)
 
 
 def test_attached_conversation_rejects_non_dict_raw_status() -> None:
+    raw_status: Any = "running"
+
     with pytest.raises(TypeError, match="raw_status"):
         adapter.AttachedConversation(
             conversation=adapter.ChatConversation(conversation_id=CONVERSATION_ID),
-            raw_status="running",  # type: ignore[arg-type]
+            raw_status=raw_status,
         )
 
 
