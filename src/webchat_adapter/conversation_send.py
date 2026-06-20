@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+from typing import Any, Callable, Sequence
+
+from .client import DEFAULT_MODEL
+from .types import AttachedConversation, ChatConversation, ChatResponse, ConversationRef, MediaItem
+
+
+def _resolve_send_model(
+    *,
+    attached: AttachedConversation,
+    preserve_model: bool,
+    model: str | None,
+) -> str:
+    if model is not None:
+        return model
+    if preserve_model and attached.detected_model:
+        return attached.detected_model
+    return DEFAULT_MODEL
+
+
+def send_to_conversation(
+    self: Any,
+    url_or_id: ConversationRef | ChatConversation | dict[str, Any] | str,
+    prompt: str,
+    *,
+    preserve_model: bool = True,
+    model: str | None = None,
+    system: str | None = None,
+    web_search: bool = False,
+    temporary: bool = False,
+    reasoning_effort: str | None = None,
+    media: Sequence[MediaItem] | None = None,
+    on_token: Callable[[str], None] | None = None,
+) -> ChatResponse:
+    """Send a prompt to an existing chatgpt.com conversation by URL or id."""
+
+    attached = self.attach_conversation(url_or_id)
+    resolved_model = _resolve_send_model(
+        attached=attached,
+        preserve_model=preserve_model,
+        model=model,
+    )
+    return self.send(
+        prompt,
+        model=resolved_model,
+        system=system,
+        web_search=web_search,
+        temporary=temporary,
+        reasoning_effort=reasoning_effort,
+        conversation=attached.conversation,
+        media=media,
+        on_token=on_token,
+    )
