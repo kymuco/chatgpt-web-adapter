@@ -91,6 +91,22 @@ def test_chat_message_metadata_preview_copies_dict() -> None:
     assert message.metadata_preview == {"content_type": "text"}
 
 
+def test_chat_message_metadata_preview_deep_copies_nested_values() -> None:
+    metadata = {
+        "finish_details": {"type": "stop"},
+        "attachments": [{"name": "image.png"}],
+    }
+
+    message = ChatMessage(metadata_preview=metadata)
+    metadata["finish_details"]["type"] = "changed"
+    metadata["attachments"][0]["name"] = "changed.png"
+
+    assert message.metadata_preview == {
+        "finish_details": {"type": "stop"},
+        "attachments": [{"name": "image.png"}],
+    }
+
+
 def test_chat_message_invalid_metadata_preview_raises_type_error() -> None:
     with pytest.raises(TypeError, match="metadata_preview must be a dict"):
         ChatMessage(metadata_preview=["bad"])
@@ -103,6 +119,24 @@ def test_chat_message_to_dict_returns_copied_metadata_preview() -> None:
     payload["metadata_preview"]["content_type"] = "changed"
 
     assert message.metadata_preview == {"content_type": "text"}
+
+
+def test_chat_message_to_dict_deep_copies_nested_metadata_preview() -> None:
+    message = ChatMessage(
+        metadata_preview={
+            "finish_details": {"type": "stop"},
+            "attachments": [{"name": "image.png"}],
+        }
+    )
+
+    payload = message.to_dict()
+    payload["metadata_preview"]["finish_details"]["type"] = "changed"
+    payload["metadata_preview"]["attachments"][0]["name"] = "changed.png"
+
+    assert message.metadata_preview == {
+        "finish_details": {"type": "stop"},
+        "attachments": [{"name": "image.png"}],
+    }
 
 
 def test_chat_message_from_dict_roundtrip() -> None:
