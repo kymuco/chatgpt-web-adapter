@@ -112,7 +112,24 @@ response = client.send(
 )
 ```
 
-## Continue a Conversation
+## Continue an Existing ChatGPT Web Conversation
+
+```python
+from webchat_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+
+response = client.send_to_conversation(
+    "https://chatgpt.com/c/...",
+    "Продолжи с этого места.",
+)
+
+print(response.text)
+```
+
+`send_to_conversation()` attaches to the latest web conversation state, resolves the current parent message automatically, and preserves the detected model when possible. Model detection is best-effort because ChatGPT web payloads can change. If the model cannot be detected, the SDK uses the normal `send()` default model.
+
+## Continue from an SDK Response
 
 ```python
 from webchat_adapter import ChatGPTWebClient
