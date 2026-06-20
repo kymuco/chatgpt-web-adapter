@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -347,7 +348,7 @@ class ChatMessage:
         elif not isinstance(self.metadata_preview, dict):
             raise TypeError("metadata_preview must be a dict")
         else:
-            self.metadata_preview = dict(self.metadata_preview)
+            self.metadata_preview = copy.deepcopy(self.metadata_preview)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any] | None) -> "ChatMessage":
@@ -375,7 +376,7 @@ class ChatMessage:
             "recipient": self.recipient,
             "model": self.model,
             "finish_reason": self.finish_reason,
-            "metadata_preview": dict(self.metadata_preview),
+            "metadata_preview": copy.deepcopy(self.metadata_preview),
         }
 
 
