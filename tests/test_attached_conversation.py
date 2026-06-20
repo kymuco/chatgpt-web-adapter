@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 import webchat_adapter as adapter
@@ -130,20 +132,26 @@ def test_attached_conversation_rejects_missing_conversation_id() -> None:
 
 
 def test_attached_conversation_rejects_non_conversation() -> None:
+    not_conversation: Any = {"conversation_id": CONVERSATION_ID}
+
     with pytest.raises(TypeError, match="ChatConversation"):
-        adapter.AttachedConversation(conversation={"conversation_id": CONVERSATION_ID})  # type: ignore[arg-type]
+        adapter.AttachedConversation(conversation=not_conversation)
 
 
 def test_attached_conversation_rejects_non_dict_payload() -> None:
+    not_payload: Any = None
+
     with pytest.raises(TypeError, match="payload"):
-        adapter.AttachedConversation.from_payload(None)  # type: ignore[arg-type]
+        adapter.AttachedConversation.from_payload(not_payload)
 
 
 def test_attached_conversation_rejects_non_dict_raw_status() -> None:
+    raw_status: Any = "running"
+
     with pytest.raises(TypeError, match="raw_status"):
         adapter.AttachedConversation(
             conversation=adapter.ChatConversation(conversation_id=CONVERSATION_ID),
-            raw_status="running",  # type: ignore[arg-type]
+            raw_status=raw_status,
         )
 
 
