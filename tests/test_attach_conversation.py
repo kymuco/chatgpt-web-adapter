@@ -178,6 +178,25 @@ def test_attach_conversation_detects_model_from_payload_metadata() -> None:
     assert attached.detected_model == "gpt-4.1-mini"
 
 
+def test_attach_conversation_uses_hardened_nested_model_detection() -> None:
+    client, _calls = _client_with_payload(
+        {
+            "conversation_id": CONVERSATION_ID,
+            "current_node": "assistant-1",
+            "mapping": {
+                "assistant-1": _message_node(
+                    "assistant-1",
+                    metadata={"selected_model": {"slug": "gpt-selected"}},
+                ),
+            },
+        }
+    )
+
+    attached = client.attach_conversation(CONVERSATION_ID)
+
+    assert attached.detected_model == "gpt-selected"
+
+
 def test_attach_conversation_returns_none_when_model_is_unknown() -> None:
     client, _calls = _client_with_payload(
         {
