@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -312,6 +313,70 @@ class AttachedConversation:
             "detected_model": self.detected_model,
             "title": self.title,
             "raw_status": dict(self.raw_status),
+        }
+
+
+@dataclass
+class ChatMessage:
+    node_id: str | None = None
+    message_id: str | None = None
+    role: str | None = None
+    text: str = ""
+    create_time: float | None = None
+    recipient: str | None = None
+    model: str | None = None
+    finish_reason: str | None = None
+    metadata_preview: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.node_id = _optional_str(self.node_id)
+        self.message_id = _optional_str(self.message_id)
+        self.role = _optional_str(self.role)
+        self.text = "" if self.text is None else str(self.text)
+        self.recipient = _optional_str(self.recipient)
+        self.model = _optional_str(self.model)
+        self.finish_reason = _optional_str(self.finish_reason)
+
+        if self.create_time is not None:
+            try:
+                self.create_time = float(self.create_time)
+            except (TypeError, ValueError):
+                self.create_time = None
+
+        if self.metadata_preview is None:
+            self.metadata_preview = {}
+        elif not isinstance(self.metadata_preview, dict):
+            raise TypeError("metadata_preview must be a dict")
+        else:
+            self.metadata_preview = copy.deepcopy(self.metadata_preview)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any] | None) -> "ChatMessage":
+        if not isinstance(payload, dict):
+            return cls()
+        return cls(
+            node_id=payload.get("node_id"),
+            message_id=payload.get("message_id"),
+            role=payload.get("role"),
+            text=payload.get("text"),
+            create_time=payload.get("create_time"),
+            recipient=payload.get("recipient"),
+            model=payload.get("model"),
+            finish_reason=payload.get("finish_reason"),
+            metadata_preview=payload.get("metadata_preview"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "node_id": self.node_id,
+            "message_id": self.message_id,
+            "role": self.role,
+            "text": self.text,
+            "create_time": self.create_time,
+            "recipient": self.recipient,
+            "model": self.model,
+            "finish_reason": self.finish_reason,
+            "metadata_preview": copy.deepcopy(self.metadata_preview),
         }
 
 
