@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 MediaSource = bytes | bytearray | str | Path | os.PathLike[str]
 MediaItem = MediaSource | tuple[MediaSource, str | None]
@@ -138,6 +139,76 @@ class ChatConversation:
             "parent_message_id": self.parent_message_id,
             "is_thinking": self.is_thinking,
         }
+
+
+@dataclass(frozen=True)
+class ConversationRef:
+    conversation_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.conversation_id, str):
+            raise TypeError("conversation_id must be a string")
+        conversation_id = self.conversation_id.strip()
+        if not conversation_id:
+            raise ValueError("conversation_id is required")
+        if any(separator in conversation_id for separator in ("/", "?", "#")):
+            raise ValueError("conversation_id must be a raw id, not a URL")
+        object.__setattr__(self, "conversation_id", conversation_id)
+
+    @classmethod
+    def from_any(
+        cls,
+        value: "ConversationRef | ChatConversation | dict[str, Any] | str",
+    ) -> "ConversationRef":
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, ChatConversation):
+            return cls._from_optional_id(
+                value.conversation_id,
+                "conversation.conversation_id is required",
+            )
+        if isinstance(value, dict):
+            return cls._from_optional_id(
+                value.get("conversation_id"),
+                "conversation_id is required",
+            )
+        if isinstance(value, str):
+            return cls._from_string(value)
+        raise TypeError(
+            "conversation reference must be a raw id, ChatGPT conversation URL, "
+            "ChatConversation, dict, or ConversationRef"
+        )
+
+    @classmethod
+    def _from_optional_id(cls, value: Any, error_message: str) -> "ConversationRef":
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(error_message)
+        return cls(value)
+
+    @classmethod
+    def _from_string(cls, value: str) -> "ConversationRef":
+        raw_value = value.strip()
+        if not raw_value:
+            raise ValueError("conversation_id is required")
+
+        parsed = urlparse(raw_value)
+        if parsed.scheme or parsed.netloc:
+            return cls(cls._conversation_id_from_url(raw_value))
+        return cls(raw_value)
+
+    @staticmethod
+    def _conversation_id_from_url(value: str) -> str:
+        parsed = urlparse(value)
+        hostname = (parsed.hostname or "").lower()
+        if parsed.scheme not in {"http", "https"}:
+            raise ValueError("conversation URL must use http or https")
+        if hostname not in {"chatgpt.com", "chat.openai.com"}:
+            raise ValueError("conversation URL host is not supported")
+
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) != 2 or parts[0] != "c":
+            raise ValueError("conversation URL must have /c/<conversation_id> path")
+        return parts[1]
 
 
 @dataclass
