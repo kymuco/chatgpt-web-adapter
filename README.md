@@ -158,6 +158,12 @@ second = client.send(
 
 This repository only consumes existing auth data. If you still need browser-based capture, generate `auth_data.json` with `webchat-openai-cli` first and then reuse it here.
 
+## Future Rename
+
+The project may later move to the clearer name `chatgpt-web-adapter`, with Python package import `chatgpt_web_adapter`.
+
+The current `webchat_adapter` import remains the only supported import today. See [docs/rename_compatibility.md](docs/rename_compatibility.md).
+
 ## Status
 
 Initial SDK baseline. The repository is intentionally small and focused on the transport layer first.
