@@ -96,6 +96,11 @@ def test_approval_event_allowed_accepts_bool_or_none() -> None:
     assert ApprovalEvent(type="approval_detected").allowed is None
 
 
+def test_approval_event_allowed_rejects_non_bool_values() -> None:
+    with pytest.raises(TypeError, match="allowed must be a bool or None"):
+        ApprovalEvent(type="approval_allowed", allowed="false")
+
+
 def test_approval_event_metadata_none_becomes_empty_dict() -> None:
     event = ApprovalEvent(type="approval_detected", metadata_preview=None)
 
