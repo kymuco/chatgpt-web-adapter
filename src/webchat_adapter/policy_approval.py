@@ -49,6 +49,8 @@ def approve_pending_action(original: Callable[..., ChatResponse]) -> Callable[..
         on_event: Callable[[dict[str, Any]], None] | None = None,
         **kwargs: Any,
     ) -> ChatResponse:
+        if policy is None:
+            return original(self, conversation, on_event=on_event, **kwargs)
         approval_policy = _resolve_policy(policy)
         original_finder = self._latest_confirm_action_leaf
 
