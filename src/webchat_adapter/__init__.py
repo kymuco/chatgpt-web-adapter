@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from . import errors
 from .approval_policy import ApprovalDecision, ApprovalPolicy
 from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
@@ -65,35 +66,43 @@ ChatGPTWebClient.wait_until_completed = _wait_until_completed
 WebChatClient = ChatGPTWebClient
 
 __all__ = [
+    # Stable core API
+    "ChatGPTWebClient",
+    "WebChatClient",
+    "ChatConversation",
+    "AttachedConversation",
+    "ChatMessage",
+    "ConversationStatus",
+    "PendingApproval",
+    "ChatResponse",
+    "ChatMetrics",
+    "AuthData",
+    "errors",
+    # Stable errors, kept for direct-import compatibility
+    "WebChatAdapterError",
+    "AuthError",
+    "ConversationTimeoutError",
+    "MediaError",
+    "PayloadValidationError",
+    "RequestError",
+    # Advanced conversation/status helpers
+    "ConversationRef",
+    "WaitResult",
+    # Media types
+    "MediaItem",
+    "MediaSource",
+    # Experimental approvals
     "ApprovalDecision",
     "ApprovalDeniedError",
     "ApprovalEvent",
     "ApprovalPolicy",
     "ApprovalResult",
     "ApprovalRound",
-    "AttachedConversation",
-    "AuthData",
-    "AuthError",
-    "ChatConversation",
-    "ChatGPTWebClient",
-    "ChatMessage",
-    "ChatMetrics",
-    "ChatResponse",
-    "ConversationRef",
-    "ConversationStatus",
-    "ConversationTimeoutError",
+    # Experimental raw payload
+    "PayloadBuilder",
+    "validate_payload",
+    # Support helpers/constants
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
-    "MediaError",
-    "MediaItem",
-    "MediaSource",
-    "PayloadBuilder",
-    "PayloadValidationError",
-    "PendingApproval",
-    "RequestError",
-    "WaitResult",
-    "WebChatAdapterError",
-    "WebChatClient",
     "load_auth_data",
-    "validate_payload",
 ]
