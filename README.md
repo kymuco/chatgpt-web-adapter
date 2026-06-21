@@ -2,14 +2,50 @@
 
 [![CI](https://github.com/kymuco/webchat-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/webchat-adapter/actions/workflows/ci.yml)
 
-Minimal Python SDK for `chatgpt.com` web sessions, extracted from `webchat-openai-cli`.
+Python SDK for controlling existing ChatGPT web sessions without browser UI.
 
-The goal of this repository is to keep the transport layer reusable, dependency-free at runtime, and close to standard Python. The package intentionally does not include the CLI, localization, or local chat-history management from the original project.
+> [!WARNING]
+> Not the official OpenAI API.
+> Uses an existing ChatGPT web session.
+> Web backend behavior may change.
+
+`webchat-adapter` is a small, dependency-free Python SDK for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
+
+It is designed for tools that already have valid ChatGPT web-session auth data and want to avoid driving the browser UI.
+
+## What This Is
+
+`webchat-adapter` wraps the existing ChatGPT web backend behavior used by a logged-in web session. It focuses on reusable transport, request formatting, response parsing, and conversation helpers.
+
+The package intentionally does not include the CLI, localization, auth capture, browser automation, or local chat-history management from `webchat-openai-cli`.
+
+## When It Is Useful
+
+- controlling long ChatGPT conversations without loading the browser UI
+- building local tools or CLIs on top of an existing ChatGPT web session
+- continuing existing ChatGPT web conversations by id or URL
+- streaming assistant tokens into terminal or app UIs
+- reading messages and polling conversation status from Python
+- uploading images through the web-session flow
+- experimenting with browserless approval workflows
+
+## What This Is Not
+
+`webchat-adapter` is not:
+
+- the official OpenAI API
+- a replacement for the OpenAI Python SDK
+- a login or auth-capture tool
+- a browser automation framework
+- a stable contract for undocumented ChatGPT web internals
 
 ## Features
 
 - zero runtime Python dependencies
-- sync chat API with optional token callback for streaming output
+- sync `ChatGPTWebClient`
+- streaming via `on_token` and structured events via `on_event`
+- conversation continuation with returned conversation metadata
+- attach/read/status helpers for existing conversations
 - `auth_data.json` and `.env` auth loading
 - image uploads from local paths, `Path`, URL, data URI, or raw bytes
 - experimental browserless tool-approval helpers for web-agent flows
@@ -48,7 +84,6 @@ response = client.send(
 )
 
 print(response.text)
-print(response.metrics.total)
 ```
 
 ## Authentication at a Glance
@@ -75,22 +110,69 @@ Recommended `auth_data.json` shape:
 - Older files that still use `api_key` are accepted for backward compatibility, but new examples and new files should use `accessToken`.
 - If you need to generate this file, capture it with `webchat-openai-cli` and then reuse it here.
 
-## Detailed Guide
+## Common Workflows
 
-For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `web_search`,
-`reasoning_effort`, conversation continuation, image inputs, response objects, and error handling,
-see [USAGE.md](USAGE.md).
+### Streaming Callback
+
+```python
+from webchat_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+
+response = client.send(
+    "Stream the answer token by token.",
+    on_token=lambda token: print(token, end="", flush=True),
+)
+```
+
+### Continue an Existing ChatGPT Web Conversation
+
+```python
+from webchat_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+
+response = client.send_to_conversation(
+    "https://chatgpt.com/c/...",
+    "Продолжи с этого места.",
+)
+
+print(response.text)
+```
+
+`send_to_conversation()` attaches to the latest web conversation state, resolves the current parent message automatically, and preserves the detected model when possible. Model detection is best-effort because ChatGPT web payloads can change. If the model cannot be detected, the SDK uses the normal `send()` default model.
+
+### Continue from an SDK Response
+
+```python
+from webchat_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+
+first = client.send("Start a conversation.")
+second = client.send(
+    "Continue it.",
+    conversation=first.conversation,
+)
+```
+
+Other common APIs:
+
+- read conversation messages with `client.get_messages(...)`
+- poll conversation status with `client.get_status(...)`
+- wait for completion with `client.wait_until_completed(...)`
+- approve selected tool flows with `client.send_and_auto_approve(...)`
+- inspect request latency with [examples/diagnose_latency.py](examples/diagnose_latency.py)
 
 ## Experimental Features
 
-The SDK also includes experimental browserless helpers for web-agent/tool approval flows:
+The SDK includes experimental browserless helpers for web-agent/tool approval flows:
 
 - `approve_pending_action()`
 - `wait_and_approve_pending_actions()`
 - `send_and_auto_approve()`
 
-These APIs are useful for ChatGPT web connector flows such as GitHub file creation, but they rely
-on reverse-engineered web behavior and should be treated as less stable than the base `send()` API.
+These APIs are useful for ChatGPT web connector flows such as GitHub file creation, but they rely on reverse-engineered web behavior and should be treated as less stable than the base `send()` API.
 
 See [USAGE.md](USAGE.md) and [examples/github_auto_approve.py](examples/github_auto_approve.py).
 
@@ -110,53 +192,13 @@ The example script includes:
 - live assistant token printing
 - structured approval progress events
 
-## Streaming Callback
-
-```python
-from webchat_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json")
-
-response = client.send(
-    "Stream the answer token by token.",
-    on_token=lambda token: print(token, end="", flush=True),
-)
-```
-
-## Continue an Existing ChatGPT Web Conversation
-
-```python
-from webchat_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json")
-
-response = client.send_to_conversation(
-    "https://chatgpt.com/c/...",
-    "Продолжи с этого места.",
-)
-
-print(response.text)
-```
-
-`send_to_conversation()` attaches to the latest web conversation state, resolves the current parent message automatically, and preserves the detected model when possible. Model detection is best-effort because ChatGPT web payloads can change. If the model cannot be detected, the SDK uses the normal `send()` default model.
-
-## Continue from an SDK Response
-
-```python
-from webchat_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json")
-
-first = client.send("Start a conversation.")
-second = client.send(
-    "Continue it.",
-    conversation=first.conversation,
-)
-```
-
 ## Auth Notes
 
 This repository only consumes existing auth data. If you still need browser-based capture, generate `auth_data.json` with `webchat-openai-cli` first and then reuse it here.
+
+## Detailed Guide
+
+For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `web_search`, `reasoning_effort`, conversation continuation, image inputs, response objects, and error handling, see [USAGE.md](USAGE.md).
 
 ## Future Rename
 
