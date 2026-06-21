@@ -4,11 +4,29 @@ import copy
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 MediaSource = bytes | bytearray | str | Path | os.PathLike[str]
 MediaItem = MediaSource | tuple[MediaSource, str | None]
+ConversationStatusValue = Literal[
+    "completed",
+    "running",
+    "awaiting_tool_approval",
+    "tool_calling",
+    "tool_running",
+    "user_last_message",
+    "unknown",
+]
+CONVERSATION_STATUS_VALUES: tuple[ConversationStatusValue, ...] = (
+    "completed",
+    "running",
+    "awaiting_tool_approval",
+    "tool_calling",
+    "tool_running",
+    "user_last_message",
+    "unknown",
+)
 
 
 def _optional_str(value: Any) -> str | None:
@@ -313,6 +331,68 @@ class AttachedConversation:
             "detected_model": self.detected_model,
             "title": self.title,
             "raw_status": dict(self.raw_status),
+        }
+
+
+@dataclass
+class ConversationStatus:
+    status: ConversationStatusValue = "unknown"
+    node_id: str | None = None
+    message_id: str | None = None
+    role: str | None = None
+    recipient: str | None = None
+    async_status: str | None = None
+    finish_reason: str | None = None
+    pending_approval: bool = False
+    metadata_preview: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        status = _optional_str(self.status)
+        if status not in CONVERSATION_STATUS_VALUES:
+            raise ValueError(f"unsupported conversation status: {self.status!r}")
+        self.status = status
+        self.node_id = _optional_str(self.node_id)
+        self.message_id = _optional_str(self.message_id)
+        self.role = _optional_str(self.role)
+        self.recipient = _optional_str(self.recipient)
+        self.async_status = _optional_str(self.async_status)
+        self.finish_reason = _optional_str(self.finish_reason)
+        self.pending_approval = bool(self.pending_approval)
+
+        if self.metadata_preview is None:
+            self.metadata_preview = {}
+        elif not isinstance(self.metadata_preview, dict):
+            raise TypeError("metadata_preview must be a dict")
+        else:
+            self.metadata_preview = copy.deepcopy(self.metadata_preview)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any] | None) -> "ConversationStatus":
+        if not isinstance(payload, dict):
+            return cls()
+        return cls(
+            status=payload.get("status", "unknown"),
+            node_id=payload.get("node_id"),
+            message_id=payload.get("message_id"),
+            role=payload.get("role"),
+            recipient=payload.get("recipient"),
+            async_status=payload.get("async_status"),
+            finish_reason=payload.get("finish_reason"),
+            pending_approval=payload.get("pending_approval", False),
+            metadata_preview=payload.get("metadata_preview"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "node_id": self.node_id,
+            "message_id": self.message_id,
+            "role": self.role,
+            "recipient": self.recipient,
+            "async_status": self.async_status,
+            "finish_reason": self.finish_reason,
+            "pending_approval": self.pending_approval,
+            "metadata_preview": copy.deepcopy(self.metadata_preview),
         }
 
 
