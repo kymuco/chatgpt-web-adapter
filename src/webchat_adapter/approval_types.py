@@ -87,6 +87,30 @@ def _metadata_preview(value: Any) -> dict[str, Any]:
     return copy.deepcopy(value)
 
 
+def _chat_metrics_to_dict(metrics: ChatMetrics) -> dict[str, Any]:
+    payload = {
+        "first_token": metrics.first_token,
+        "last_token": metrics.last_token,
+        "total": metrics.total,
+    }
+    to_dict = getattr(metrics, "to_dict", None)
+    if not callable(to_dict):
+        return payload
+    expanded_payload = to_dict()
+    if not isinstance(expanded_payload, dict):
+        return payload
+    for key in (
+        "requirements_latency",
+        "stream_duration",
+        "chars_per_second",
+        "backend_status",
+    ):
+        value = expanded_payload.get(key)
+        if value is not None:
+            payload[key] = copy.deepcopy(value)
+    return payload
+
+
 def _chat_response_to_dict(response: ChatResponse | None) -> dict[str, Any] | None:
     if response is None:
         return None
@@ -94,11 +118,7 @@ def _chat_response_to_dict(response: ChatResponse | None) -> dict[str, Any] | No
         "text": response.text,
         "title": response.title,
         "conversation": response.conversation.to_dict(),
-        "metrics": {
-            "first_token": response.metrics.first_token,
-            "last_token": response.metrics.last_token,
-            "total": response.metrics.total,
-        },
+        "metrics": _chat_metrics_to_dict(response.metrics),
     }
 
 

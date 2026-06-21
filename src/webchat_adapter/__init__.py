@@ -6,6 +6,7 @@ from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .client import DEFAULT_MODEL, ChatGPTWebClient
 from .conversation_send import send_to_conversation as _send_to_conversation
+from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .exceptions import (
     AuthError,
     ConversationTimeoutError,
@@ -41,6 +42,7 @@ from .types import (
 )
 from .wait import wait_until_completed as _wait_until_completed
 
+_original_send = ChatGPTWebClient.send
 _original_approve_pending_action = ChatGPTWebClient.approve_pending_action
 _original_send_and_auto_approve = ChatGPTWebClient.send_and_auto_approve
 
@@ -52,6 +54,7 @@ ChatGPTWebClient.export_conversation = _export_conversation
 ChatGPTWebClient.get_messages = _get_messages
 ChatGPTWebClient.get_pending_approval = _get_pending_approval
 ChatGPTWebClient.get_status = _get_status
+ChatGPTWebClient.send = _send_with_expanded_metrics(_original_send)
 ChatGPTWebClient.send_and_auto_approve = _policy_send_and_auto_approve(
     _original_send_and_auto_approve
 )
