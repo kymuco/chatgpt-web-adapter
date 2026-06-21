@@ -44,17 +44,17 @@ def extract_message_text(message: dict[str, Any]) -> str:
         return ""
 
     chunks: list[str] = []
-    seen: set[int] = set()
-    _collect_text(message.get("content"), chunks, seen)
+    stack: set[int] = set()
+    _collect_text(message.get("content"), chunks, stack)
 
     if not chunks:
-        _collect_text(message.get("text"), chunks, seen)
-        _collect_text(message.get("multimodal_text"), chunks, seen)
+        _collect_text(message.get("text"), chunks, stack)
+        _collect_text(message.get("multimodal_text"), chunks, stack)
 
     return "\n".join(chunks).strip()
 
 
-def _collect_text(value: Any, chunks: list[str], seen: set[int]) -> None:
+def _collect_text(value: Any, chunks: list[str], stack: set[int]) -> None:
     if value is None:
         return
 
@@ -65,30 +65,39 @@ def _collect_text(value: Any, chunks: list[str], seen: set[int]) -> None:
     if isinstance(value, (int, float, bool)):
         return
 
-    value_id = id(value)
-    if value_id in seen:
-        return
-    seen.add(value_id)
-
     if isinstance(value, list):
-        for item in value:
-            _collect_text(item, chunks, seen)
+        value_id = id(value)
+        if value_id in stack:
+            return
+        stack.add(value_id)
+        try:
+            for item in value:
+                _collect_text(item, chunks, stack)
+        finally:
+            stack.discard(value_id)
         return
 
     if not isinstance(value, dict):
         return
 
-    placeholder = _media_placeholder(value)
-    if placeholder:
-        _append_text(chunks, placeholder)
+    value_id = id(value)
+    if value_id in stack:
+        return
+    stack.add(value_id)
+    try:
+        placeholder = _media_placeholder(value)
+        if placeholder:
+            _append_text(chunks, placeholder)
 
-    for key in TEXT_FIELD_KEYS:
-        if key in value:
-            _collect_text(value[key], chunks, seen)
+        for key in TEXT_FIELD_KEYS:
+            if key in value:
+                _collect_text(value[key], chunks, stack)
 
-    for key in PART_FIELD_KEYS:
-        if key in value:
-            _collect_text(value[key], chunks, seen)
+        for key in PART_FIELD_KEYS:
+            if key in value:
+                _collect_text(value[key], chunks, stack)
+    finally:
+        stack.discard(value_id)
 
 
 def _append_text(chunks: list[str], value: str) -> None:
