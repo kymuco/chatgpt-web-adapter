@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from .message_text import extract_message_text
 from .types import ChatConversation, ChatMessage, ConversationRef
 
 METADATA_PREVIEW_KEYS = (
@@ -115,22 +116,6 @@ def _message_metadata_preview(message: dict[str, Any]) -> dict[str, Any]:
     return {key: metadata[key] for key in METADATA_PREVIEW_KEYS if key in metadata}
 
 
-def _basic_message_text(message: dict[str, Any]) -> str:
-    content = message.get("content")
-    if not isinstance(content, dict):
-        return ""
-
-    text = content.get("text")
-    if isinstance(text, str):
-        return text
-
-    parts = content.get("parts")
-    if not isinstance(parts, list):
-        return ""
-
-    return "\n".join(part for part in parts if isinstance(part, str) and part)
-
-
 def _chat_message_from_node(node_id: str, node: dict[str, Any]) -> ChatMessage | None:
     message = _message_from_node(node)
     if message is None:
@@ -140,7 +125,7 @@ def _chat_message_from_node(node_id: str, node: dict[str, Any]) -> ChatMessage |
         node_id=node_id,
         message_id=message.get("id"),
         role=_message_role(message),
-        text=_basic_message_text(message),
+        text=extract_message_text(message),
         create_time=message.get("create_time"),
         recipient=message.get("recipient"),
         model=_message_model(message),
