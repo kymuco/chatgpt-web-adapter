@@ -121,6 +121,8 @@ def test_send_payload_calls_stream_backend_with_payload_headers_and_callbacks() 
     _install_requirements(client)
     tokens: list[str] = []
     events: list[dict[str, Any]] = []
+    on_token = tokens.append
+    on_event = events.append
     payload = {"messages": [{"id": "msg"}]}
     observed: dict[str, Any] = {}
 
@@ -139,13 +141,13 @@ def test_send_payload_calls_stream_backend_with_payload_headers_and_callbacks() 
 
     client._stream_backend_payload = fake_stream
 
-    response = client.send_payload(payload, on_token=tokens.append, on_event=events.append)
+    response = client.send_payload(payload, on_token=on_token, on_event=on_event)
 
     assert observed["payload"] == payload
     assert observed["payload"] is not payload
     assert observed["headers"]["openai-sentinel-chat-requirements-token"] == "requirements-token"
-    assert observed["on_token"] is tokens.append
-    assert observed["on_event"] is events.append
+    assert observed["on_token"] is on_token
+    assert observed["on_event"] is on_event
     assert response.text == "hello"
 
 
