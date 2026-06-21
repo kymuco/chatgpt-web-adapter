@@ -146,7 +146,41 @@ def test_wait_until_completed_returns_latest_assistant_message_on_completed() ->
     assert result.approval is None
     assert result.polls == 1
     assert client.message_calls == [
-        (ConversationRef("conversation-1"), 1, {"assistant"}, False)
+        (ConversationRef("conversation-1"), None, {"assistant"}, True)
+    ]
+
+
+def test_wait_until_completed_prefers_completed_status_message_even_when_empty() -> None:
+    earlier = ChatMessage(
+        node_id="earlier-node",
+        message_id="earlier-msg",
+        role="assistant",
+        text="Earlier answer",
+    )
+    completed = ChatMessage(
+        node_id="completed-node",
+        message_id="completed-msg",
+        role="assistant",
+        text="",
+    )
+    client = FakeWaitClient(
+        [
+            ConversationStatus(
+                status="completed",
+                node_id="completed-node",
+                message_id="completed-msg",
+            )
+        ],
+        messages=[earlier, completed],
+    )
+
+    result = client.wait_until_completed("conversation-1", timeout=90, interval=0.01)
+
+    assert result.status.status == "completed"
+    assert result.message == completed
+    assert result.message.text == ""
+    assert client.message_calls == [
+        (ConversationRef("conversation-1"), None, {"assistant"}, True)
     ]
 
 
