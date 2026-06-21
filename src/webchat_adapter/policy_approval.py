@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Sequence
 
+from .approval_events import emit_approval_event, make_approval_event
 from .approval_policy import ApprovalPolicy
 from .exceptions import RequestError
 from .types import ChatConversation, ChatMetrics, ChatResponse, MediaItem, PendingApproval
@@ -47,35 +48,112 @@ def approve_pending_action(original: Callable[..., ChatResponse]) -> Callable[..
         *,
         policy: ApprovalPolicy | None = None,
         on_event: Callable[[dict[str, Any]], None] | None = None,
+        _approval_round_index: int | None = None,
         **kwargs: Any,
     ) -> ChatResponse:
         if policy is None:
             return original(self, conversation, on_event=on_event, **kwargs)
         approval_policy = _resolve_policy(policy)
         original_finder = self._latest_confirm_action_leaf
+        approval_state: dict[str, Any] = {}
+
+        def emit_canonical(event_type: str, **event_kwargs: Any) -> None:
+            event = make_approval_event(
+                event_type,
+                round_index=_approval_round_index,
+                **event_kwargs,
+            )
+            emit_approval_event(self._emit_event, on_event, event)
 
         def guarded_finder(payload: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
             tool_id, target_message_id, recipient = original_finder(payload)
             if not (tool_id and target_message_id and recipient):
                 return tool_id, target_message_id, recipient
+            conversation_id = payload.get("conversation_id")
+            if not isinstance(conversation_id, str):
+                conversation_id = None
             approval = _pending_approval(tool_id, target_message_id, recipient)
             decision = approval_policy.evaluate(approval)
-            event_payload = {
-                "pending_tool_id": tool_id,
-                "target_message_id": target_message_id,
-                "recipient": recipient,
-                "approval": approval.to_dict(),
-                "decision": decision.to_dict(),
-            }
+            approval_state["approval"] = approval
+            approval_state["decision"] = decision
+            approval_state["conversation_id"] = conversation_id
+
+            emit_canonical(
+                "approval_detected",
+                conversation_id=conversation_id,
+                approval=approval,
+            )
             if not decision.allowed:
-                self._emit_event(on_event, "approval_policy_denied", **event_payload)
+                emit_canonical(
+                    "approval_denied",
+                    conversation_id=conversation_id,
+                    approval=approval,
+                    decision=decision,
+                )
                 raise ApprovalDeniedError(approval=approval, decision=decision)
-            self._emit_event(on_event, "approval_policy_allowed", **event_payload)
+            emit_canonical(
+                "approval_allowed",
+                conversation_id=conversation_id,
+                approval=approval,
+                decision=decision,
+            )
             return tool_id, target_message_id, recipient
+
+        def normalized_on_event(event: dict[str, Any]) -> None:
+            if not isinstance(event, dict):
+                if on_event is not None:
+                    on_event(event)
+                return
+            event_type = event.get("type")
+            if event_type in {
+                "pending_approval_detected",
+                "approval_policy_allowed",
+                "approval_policy_denied",
+            }:
+                return
+
+            approval = approval_state.get("approval")
+            conversation_id = event.get("conversation_id")
+            if not isinstance(conversation_id, str):
+                conversation_id = approval_state.get("conversation_id")
+            if event_type == "approval_sent" and isinstance(approval, PendingApproval):
+                emit_canonical(
+                    "approval_sent",
+                    conversation_id=conversation_id,
+                    approval=approval,
+                    metadata_preview={"legacy_event": dict(event)},
+                )
+                return
+            if event_type == "approval_completed" and isinstance(approval, PendingApproval):
+                message_id = event.get("message_id")
+                if not isinstance(message_id, str):
+                    message_id = None
+                emit_canonical(
+                    "approval_completed",
+                    conversation_id=conversation_id,
+                    approval=approval,
+                    message_id=message_id,
+                    metadata_preview={"legacy_event": dict(event)},
+                )
+                return
+            if on_event is not None:
+                on_event(event)
 
         self._latest_confirm_action_leaf = guarded_finder
         try:
-            return original(self, conversation, on_event=on_event, **kwargs)
+            return original(self, conversation, on_event=normalized_on_event, **kwargs)
+        except ApprovalDeniedError:
+            raise
+        except Exception as error:
+            approval = approval_state.get("approval")
+            if isinstance(approval, PendingApproval):
+                emit_canonical(
+                    "approval_failed",
+                    conversation_id=approval_state.get("conversation_id"),
+                    approval=approval,
+                    error=str(error),
+                )
+            raise
         finally:
             self._latest_confirm_action_leaf = original_finder
 
@@ -140,6 +218,7 @@ def wait_and_approve_pending_actions(
                 policy=approval_policy,
                 on_token=on_token,
                 on_event=on_event,
+                _approval_round_index=round_index,
             )
             conversation_dict = last_response.conversation.to_dict()
             conversation_id = str(last_response.conversation.conversation_id or conversation_id)
