@@ -13,6 +13,7 @@ The goal of this repository is to keep the transport layer reusable, dependency-
 - `auth_data.json` and `.env` auth loading
 - image uploads from local paths, `Path`, URL, data URI, or raw bytes
 - experimental browserless tool-approval helpers for web-agent flows
+- experimental raw payload escape hatch for advanced users
 - local `curl`-based transport for compatibility with stock Python
 
 ## Requirements
@@ -92,6 +93,16 @@ These APIs are useful for ChatGPT web connector flows such as GitHub file creati
 on reverse-engineered web behavior and should be treated as less stable than the base `send()` API.
 
 See [USAGE.md](USAGE.md) and [examples/github_auto_approve.py](examples/github_auto_approve.py).
+
+The SDK also includes an experimental raw payload escape hatch for advanced users:
+
+- `PayloadBuilder`
+- `validate_payload()`
+- `send_payload()`
+
+See [docs/raw_payload.md](docs/raw_payload.md).
+
+This API sends raw ChatGPT web backend payloads. It is not an official or stable API.
 
 The example script includes:
 
