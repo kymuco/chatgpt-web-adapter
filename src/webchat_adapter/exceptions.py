@@ -19,6 +19,10 @@ class MediaError(WebChatAdapterError):
     """Media normalization, download, or upload failure."""
 
 
+class PayloadValidationError(WebChatAdapterError):
+    """Raw payload failed lightweight validation."""
+
+
 class ConversationTimeoutError(WebChatAdapterError):
     """Conversation did not reach a terminal wait state before timeout."""
 

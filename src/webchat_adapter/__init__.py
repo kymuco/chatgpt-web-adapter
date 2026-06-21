@@ -10,12 +10,14 @@ from .exceptions import (
     AuthError,
     ConversationTimeoutError,
     MediaError,
+    PayloadValidationError,
     RequestError,
     WebChatAdapterError,
 )
 from .export import export_conversation as _export_conversation
 from .messages import get_messages as _get_messages
 from .payload_builder import PayloadBuilder
+from .payload_validation import validate_payload
 from .policy_approval import ApprovalDeniedError
 from .policy_approval import approve_pending_action as _policy_approve_pending_action
 from .policy_approval import send_and_auto_approve as _policy_send_and_auto_approve
@@ -83,10 +85,12 @@ __all__ = [
     "MediaItem",
     "MediaSource",
     "PayloadBuilder",
+    "PayloadValidationError",
     "PendingApproval",
     "RequestError",
     "WaitResult",
     "WebChatAdapterError",
     "WebChatClient",
     "load_auth_data",
+    "validate_payload",
 ]
