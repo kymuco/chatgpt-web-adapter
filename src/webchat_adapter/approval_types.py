@@ -135,7 +135,7 @@ class ApprovalEvent:
         self.target_message_id = _optional_str(self.target_message_id)
         self.recipient = _optional_str(self.recipient)
         if self.allowed is not None and not isinstance(self.allowed, bool):
-            self.allowed = bool(self.allowed)
+            raise TypeError("allowed must be a bool or None")
         self.reason = _optional_str(self.reason)
         self.metadata_preview = _metadata_preview(self.metadata_preview)
 
