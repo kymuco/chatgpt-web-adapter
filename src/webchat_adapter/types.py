@@ -508,6 +508,61 @@ class ChatMessage:
 
 
 @dataclass
+class WaitResult:
+    status: ConversationStatus
+    message: ChatMessage | None = None
+    approval: PendingApproval | None = None
+    elapsed: float = 0.0
+    polls: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.status, ConversationStatus):
+            raise TypeError("status must be a ConversationStatus")
+        if self.message is not None and not isinstance(self.message, ChatMessage):
+            raise TypeError("message must be a ChatMessage or None")
+        if self.approval is not None and not isinstance(self.approval, PendingApproval):
+            raise TypeError("approval must be a PendingApproval or None")
+
+        try:
+            self.elapsed = float(self.elapsed)
+        except (TypeError, ValueError):
+            self.elapsed = 0.0
+        if self.elapsed < 0:
+            self.elapsed = 0.0
+
+        try:
+            self.polls = int(self.polls)
+        except (TypeError, ValueError):
+            self.polls = 0
+        if self.polls < 0:
+            self.polls = 0
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any] | None) -> "WaitResult":
+        if not isinstance(payload, dict):
+            return cls(status=ConversationStatus())
+        message_payload = payload.get("message")
+        return cls(
+            status=ConversationStatus.from_dict(payload.get("status")),
+            message=ChatMessage.from_dict(message_payload)
+            if isinstance(message_payload, dict)
+            else None,
+            approval=PendingApproval.from_dict(payload.get("approval")),
+            elapsed=payload.get("elapsed", 0.0),
+            polls=payload.get("polls", 0),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status.to_dict(),
+            "message": self.message.to_dict() if self.message is not None else None,
+            "approval": self.approval.to_dict() if self.approval is not None else None,
+            "elapsed": self.elapsed,
+            "polls": self.polls,
+        }
+
+
+@dataclass
 class ChatMetrics:
     first_token: float | None = None
     last_token: float | None = None
