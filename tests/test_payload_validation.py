@@ -27,6 +27,10 @@ def test_validate_payload_accepts_conversation_id_when_non_empty() -> None:
     validate_payload(_valid_payload(conversation_id="conv-1"))
 
 
+def test_validate_payload_accepts_null_conversation_id_for_new_chat_payloads() -> None:
+    validate_payload(_valid_payload(conversation_id=None))
+
+
 def test_validate_payload_accepts_payload_builder_new_chat() -> None:
     validate_payload(
         PayloadBuilder.new_chat(
@@ -114,10 +118,10 @@ def test_validate_payload_rejects_non_dict_message_items(message: object) -> Non
         validate_payload(_valid_payload(messages=[message]))
 
 
-@pytest.mark.parametrize("conversation_id", ["", "   ", None, 123])
+@pytest.mark.parametrize("conversation_id", ["", "   ", 123])
 def test_validate_payload_rejects_invalid_conversation_id(conversation_id: object) -> None:
     with pytest.raises(
         PayloadValidationError,
-        match="conversation_id must be a non-empty string when present",
+        match="conversation_id must be None or a non-empty string when present",
     ):
         validate_payload(_valid_payload(conversation_id=conversation_id))
