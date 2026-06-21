@@ -15,6 +15,7 @@ from .exceptions import (
 )
 from .export import export_conversation as _export_conversation
 from .messages import get_messages as _get_messages
+from .payload_builder import PayloadBuilder
 from .policy_approval import ApprovalDeniedError
 from .policy_approval import approve_pending_action as _policy_approve_pending_action
 from .policy_approval import send_and_auto_approve as _policy_send_and_auto_approve
@@ -79,6 +80,7 @@ __all__ = [
     "MediaError",
     "MediaItem",
     "MediaSource",
+    "PayloadBuilder",
     "PendingApproval",
     "RequestError",
     "WaitResult",
