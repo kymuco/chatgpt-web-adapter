@@ -5,6 +5,7 @@ from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .client import DEFAULT_MODEL, ChatGPTWebClient
 from .conversation_send import send_to_conversation as _send_to_conversation
 from .exceptions import AuthError, MediaError, RequestError, WebChatAdapterError
+from .messages import get_messages as _get_messages
 from .types import (
     AttachedConversation,
     AuthData,
@@ -18,6 +19,7 @@ from .types import (
 )
 
 ChatGPTWebClient.attach_conversation = _attach_conversation
+ChatGPTWebClient.get_messages = _get_messages
 ChatGPTWebClient.send_to_conversation = _send_to_conversation
 WebChatClient = ChatGPTWebClient
 
