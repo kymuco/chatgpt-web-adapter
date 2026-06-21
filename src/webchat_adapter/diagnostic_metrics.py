@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable
 
+from .exceptions import RequestError
 from .types import ChatMetrics
 
 
@@ -31,12 +32,29 @@ def _is_stream_request(
     return headers.get("accept") == "text/event-stream"
 
 
+def _fill_request_error(
+    error: RequestError,
+    *,
+    status_code: int | None,
+    endpoint: str | None,
+    request_stage: str | None,
+) -> None:
+    if error.status_code is None and status_code is not None:
+        error.status_code = status_code
+    if error.endpoint is None and endpoint is not None:
+        error.endpoint = endpoint
+    if error.request_stage is None and request_stage is not None:
+        error.request_stage = request_stage
+
+
 def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..., Any]:
     def send(self: Any, *args: Any, **kwargs: Any) -> Any:
         on_event = kwargs.pop("on_event", None)
         on_token = kwargs.get("on_token")
         requirements_latency: float | None = None
         backend_status: int | None = None
+        stream_endpoint: str | None = None
+        request_stage: str | None = None
         stream_started = False
         first_token_seen = False
         request_started_at = time.perf_counter()
@@ -45,7 +63,8 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
         original_build_curl_command = self._build_curl_command
 
         def timed_get_ready_requirements() -> tuple[dict[str, Any], str | None]:
-            nonlocal requirements_latency
+            nonlocal requirements_latency, request_stage
+            request_stage = "chat_requirements"
             started_at = time.perf_counter()
             requirements, proof_header = original_get_ready_requirements()
             requirements_latency = time.perf_counter() - started_at
@@ -76,7 +95,7 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             no_buffer: bool = False,
             follow_redirects: bool = False,
         ) -> list[str]:
-            nonlocal stream_started
+            nonlocal request_stage, stream_endpoint, stream_started
             command = original_build_curl_command(
                 method,
                 url,
@@ -87,6 +106,8 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
                 follow_redirects=follow_redirects,
             )
             if not stream_started and _is_stream_request(headers, no_buffer):
+                request_stage = "conversation_stream"
+                stream_endpoint = url
                 stream_started = True
                 _emit_event(
                     on_event,
@@ -120,11 +141,22 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
         try:
             response = original_send(self, *args, **kwargs)
         except Exception as error:
+            if isinstance(error, RequestError):
+                _fill_request_error(
+                    error,
+                    status_code=backend_status,
+                    endpoint=stream_endpoint,
+                    request_stage=request_stage,
+                )
             _emit_event(
                 on_event,
                 "error",
                 error_type=type(error).__name__,
                 message=str(error),
+                status_code=getattr(error, "status_code", None),
+                endpoint=getattr(error, "endpoint", None),
+                body_preview=getattr(error, "body_preview", None),
+                request_stage=getattr(error, "request_stage", None),
             )
             raise
         finally:
