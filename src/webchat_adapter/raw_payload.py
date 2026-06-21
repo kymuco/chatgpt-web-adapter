@@ -4,6 +4,7 @@ import copy
 import time
 from typing import Any, Callable
 
+from .payload_validation import validate_payload
 from .types import ChatConversation, ChatMetrics, ChatResponse
 
 
@@ -21,8 +22,7 @@ def send_payload(
     conversations and messages. Use at your own risk.
     """
 
-    if not isinstance(payload, dict):
-        raise TypeError("payload must be a dict")
+    validate_payload(payload)
 
     payload_copy = copy.deepcopy(payload)
     requirements, proof_header = self._get_ready_requirements()
