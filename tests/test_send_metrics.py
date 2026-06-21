@@ -85,6 +85,9 @@ def _make_metrics_handler(state: dict[str, Any]) -> type[BaseHTTPRequestHandler]
                 state["conversation_payloads"].append(
                     json.loads(self._read_body().decode("utf-8"))
                 )
+                if state.get("backend_status"):
+                    self._write_json(state["backend_status"], {"error": "backend failed"})
+                    return
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.end_headers()
@@ -167,3 +170,70 @@ def test_send_metrics_to_dict_contains_expanded_values(monkeypatch: pytest.Monke
     assert metrics["stream_duration"] == response.metrics.stream_duration
     assert metrics["chars_per_second"] == response.metrics.chars_per_second
     assert metrics["backend_status"] == 200
+
+
+def test_send_emits_event_callback_sequence(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _build_client()
+    state: dict[str, Any] = {
+        "requirements_calls": 0,
+        "conversation_payloads": [],
+    }
+    events: list[dict[str, Any]] = []
+    tokens: list[str] = []
+
+    with _serve(_make_metrics_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "hello",
+            model="gpt-4o-mini",
+            on_token=tokens.append,
+            on_event=events.append,
+        )
+
+    assert response.text == "Hi there"
+    assert tokens == ["Hi", " there"]
+    event_types = [event["type"] for event in events]
+    assert event_types == [
+        "request_started",
+        "requirements_ready",
+        "stream_started",
+        "first_token",
+        "assistant_token",
+        "assistant_token",
+        "stream_done",
+        "request_completed",
+    ]
+    assert events[0]["model"] == "gpt-4o-mini"
+    assert events[1]["token_present"] is True
+    assert events[3]["token"] == "Hi"
+    assert events[4]["token"] == "Hi"
+    assert events[5]["token"] == " there"
+    assert events[-2]["text_length"] == len("Hi there")
+    assert events[-1]["conversation_id"] == "conv-123"
+    assert events[-1]["message_id"] == "assistant-1"
+    assert events[-1]["finish_reason"] == "stop"
+
+
+def test_send_emits_error_event_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _build_client()
+    state: dict[str, Any] = {
+        "requirements_calls": 0,
+        "conversation_payloads": [],
+        "backend_status": 500,
+    }
+    events: list[dict[str, Any]] = []
+
+    with _serve(_make_metrics_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        with pytest.raises(adapter.RequestError, match="backend status=500"):
+            client.send("hello", model="gpt-4o-mini", on_event=events.append)
+
+    event_types = [event["type"] for event in events]
+    assert event_types == [
+        "request_started",
+        "requirements_ready",
+        "stream_started",
+        "error",
+    ]
+    assert events[-1]["error_type"] == "RequestError"
+    assert "backend status=500" in events[-1]["message"]
