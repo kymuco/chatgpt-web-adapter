@@ -22,9 +22,9 @@ def test_rename_plan_is_explicitly_future_only() -> None:
     lower_text = text.lower()
 
     assert "the rename is planned for a future milestone" in lower_text
-    assert "only `webchat_adapter` exists" in text
-    assert "That future import is not available yet." in text
-    assert "For now, use `webchat_adapter`." in text
+    assert "only `webchat_adapter` exists" in lower_text
+    assert "that future import is not available yet." in lower_text
+    assert "for now, use `webchat_adapter`." in lower_text
 
 
 def test_readme_links_to_rename_compatibility_plan() -> None:
