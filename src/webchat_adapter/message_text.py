@@ -22,11 +22,13 @@ MEDIA_KIND_BY_MIME_PREFIX = {
     "video/": "video",
 }
 MEDIA_KIND_MARKERS = (
-    ("image", "image"),
-    ("audio", "audio"),
-    ("video", "video"),
-    ("file", "file"),
+    ("image_asset_pointer", "image"),
+    ("audio_asset_pointer", "audio"),
+    ("video_asset_pointer", "video"),
+    ("asset_pointer", "media"),
+    ("assetpointer", "media"),
     ("attachment", "file"),
+    ("file", "file"),
 )
 ASSET_POINTER_KEYS = (
     "asset_pointer",
@@ -138,8 +140,6 @@ def _media_kind(value: dict[str, Any]) -> str | None:
         for marker, kind in MEDIA_KIND_MARKERS:
             if marker in normalized:
                 return kind
-        if "asset_pointer" in normalized or "assetpointer" in normalized:
-            return "media"
 
     for key in ASSET_POINTER_KEYS:
         if key in value:
