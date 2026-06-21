@@ -171,11 +171,11 @@ def get_messages(
 
     normalized_limit = _normalize_limit(limit)
     normalized_roles = _normalize_roles(roles)
+    ref = ConversationRef.from_any(url_or_id)
 
     if normalized_limit == 0 or normalized_roles == set():
         return []
 
-    ref = ConversationRef.from_any(url_or_id)
     payload = self._get_conversation_payload(ref.conversation_id)
     if not isinstance(payload, dict):
         return []
