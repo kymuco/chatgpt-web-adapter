@@ -1,75 +1,9 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 from typing import Any, Callable
 
-
-def _optional_non_negative_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    return result if result >= 0 else None
-
-
-def _optional_positive_int(value: Any) -> int | None:
-    if value is None:
-        return None
-    try:
-        result = int(value)
-    except (TypeError, ValueError):
-        return None
-    return result if result > 0 else None
-
-
-@dataclass
-class ChatMetrics:
-    first_token: float | None = None
-    last_token: float | None = None
-    total: float | None = None
-    requirements_latency: float | None = None
-    stream_duration: float | None = None
-    chars_per_second: float | None = None
-    backend_status: int | None = None
-
-    def __post_init__(self) -> None:
-        self.first_token = _optional_non_negative_float(self.first_token)
-        self.last_token = _optional_non_negative_float(self.last_token)
-        self.total = _optional_non_negative_float(self.total)
-        self.requirements_latency = _optional_non_negative_float(
-            self.requirements_latency
-        )
-        self.stream_duration = _optional_non_negative_float(self.stream_duration)
-        self.chars_per_second = _optional_non_negative_float(self.chars_per_second)
-        self.backend_status = _optional_positive_int(self.backend_status)
-
-    @classmethod
-    def from_dict(cls, payload: dict[str, Any] | None) -> "ChatMetrics":
-        if not isinstance(payload, dict):
-            return cls()
-        return cls(
-            first_token=payload.get("first_token"),
-            last_token=payload.get("last_token"),
-            total=payload.get("total"),
-            requirements_latency=payload.get("requirements_latency"),
-            stream_duration=payload.get("stream_duration"),
-            chars_per_second=payload.get("chars_per_second"),
-            backend_status=payload.get("backend_status"),
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "first_token": self.first_token,
-            "last_token": self.last_token,
-            "total": self.total,
-            "requirements_latency": self.requirements_latency,
-            "stream_duration": self.stream_duration,
-            "chars_per_second": self.chars_per_second,
-            "backend_status": self.backend_status,
-        }
+from .types import ChatMetrics
 
 
 def _chars_per_second(text: str, stream_duration: float | None) -> float | None:
