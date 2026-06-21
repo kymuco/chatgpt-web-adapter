@@ -90,7 +90,7 @@ def test_approval_denied_error_is_exported() -> None:
     assert "ApprovalDeniedError" in webchat_adapter.__all__
 
 
-def test_approve_pending_action_default_policy_blocks_before_prepare_or_stream() -> None:
+def test_wait_and_approve_pending_actions_default_policy_blocks_before_prepare_or_stream() -> None:
     client = _client_with_pending_payload(_confirm_action_payload(recipient="python"))
     events: list[dict[str, Any]] = []
     calls: list[str] = []
@@ -98,9 +98,10 @@ def test_approve_pending_action_default_policy_blocks_before_prepare_or_stream()
     client._stream_backend_payload = lambda *_args, **_kwargs: calls.append("stream")
 
     with pytest.raises(ApprovalDeniedError) as exc_info:
-        client.approve_pending_action(
+        client.wait_and_approve_pending_actions(
             ChatConversation(conversation_id="conversation-1"),
-            poll=False,
+            max_rounds=1,
+            settle_delay=0,
             on_event=events.append,
         )
 
@@ -108,7 +109,10 @@ def test_approve_pending_action_default_policy_blocks_before_prepare_or_stream()
     assert exc_info.value.approval.recipient == "python"
     assert exc_info.value.decision.allowed is False
     assert exc_info.value.decision.reason == "manual_required_for_unknown_recipient"
-    assert [event["type"] for event in events] == ["approval_policy_denied"]
+    assert [event["type"] for event in events] == [
+        "approval_round_started",
+        "approval_policy_denied",
+    ]
 
 
 def test_approve_pending_action_allowed_policy_reaches_existing_send_flow() -> None:
@@ -157,7 +161,7 @@ def test_approve_pending_action_denied_policy_blocks_before_prepare_or_stream() 
     assert exc_info.value.decision.manual_required is False
 
 
-def test_approve_pending_action_unknown_manual_disabled_still_blocks() -> None:
+def test_approve_pending_action_unknown_manual_disabled_still_blocks_when_policy_is_explicit() -> None:
     client = _client_with_pending_payload(_confirm_action_payload(recipient="python"))
     client._json_request = lambda *_args, **_kwargs: pytest.fail("prepare must not run")
     client._stream_backend_payload = lambda *_args, **_kwargs: pytest.fail("stream must not run")
@@ -256,7 +260,11 @@ def test_send_and_auto_approve_passes_policy_to_wait_helper() -> None:
     client.send = fake_send
     client.wait_and_approve_pending_actions = fake_wait
 
-    response = client.send_and_auto_approve("prompt", policy=policy)
+    response = client.send_and_auto_approve(
+        "prompt",
+        conversation=ChatConversation(conversation_id="conversation-1"),
+        policy=policy,
+    )
 
     assert captured == [policy]
     assert response.text == "waited"
