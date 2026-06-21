@@ -42,7 +42,9 @@ def validate_payload(payload: dict[str, Any]) -> None:
 
     if "conversation_id" in payload:
         conversation_id = payload.get("conversation_id")
-        if not isinstance(conversation_id, str) or not conversation_id.strip():
+        if conversation_id is not None and (
+            not isinstance(conversation_id, str) or not conversation_id.strip()
+        ):
             raise PayloadValidationError(
-                "conversation_id must be a non-empty string when present"
+                "conversation_id must be None or a non-empty string when present"
             )
