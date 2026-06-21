@@ -164,6 +164,18 @@ Other common APIs:
 - approve selected tool flows with `client.send_and_auto_approve(...)`
 - inspect request latency with [examples/diagnose_latency.py](examples/diagnose_latency.py)
 
+## Examples
+
+- [examples/basic_send.py](examples/basic_send.py) - send one prompt and print response metadata
+- [examples/continue_saved.py](examples/continue_saved.py) - save `ChatConversation` metadata and continue later
+- [examples/attach_existing.py](examples/attach_existing.py) - attach to an existing conversation URL or id
+- [examples/read_messages.py](examples/read_messages.py) - read messages from an existing conversation
+- [examples/status_polling.py](examples/status_polling.py) - poll conversation lifecycle status
+- [examples/approve_tools.py](examples/approve_tools.py) - approve pending tool actions after review
+- [examples/raw_payload.py](examples/raw_payload.py) - send an experimental raw web backend payload
+- [examples/diagnose_latency.py](examples/diagnose_latency.py) - print request and streaming diagnostics
+- [examples/github_auto_approve.py](examples/github_auto_approve.py) - specialized GitHub connector approval demo
+
 ## Experimental Features
 
 The SDK includes experimental browserless helpers for web-agent/tool approval flows:
