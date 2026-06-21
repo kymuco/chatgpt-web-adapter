@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import approval_types as _approval_types_module
 from . import client as _client_module
 from . import raw_payload as _raw_payload_module
 from . import types as _types_module
@@ -71,6 +72,7 @@ def _chat_response_init(
 _types_module.ChatMetrics = ChatMetrics
 _client_module.ChatMetrics = ChatMetrics
 _raw_payload_module.ChatMetrics = ChatMetrics
+_approval_types_module.ChatMetrics = ChatMetrics
 ChatResponse.__dataclass_fields__["metrics"].default_factory = ChatMetrics
 ChatResponse.__init__ = _chat_response_init
 
