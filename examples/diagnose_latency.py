@@ -68,7 +68,11 @@ def main() -> None:
     parser.add_argument("--auth-file", default="auth_data.json")
     parser.add_argument("--model", default="gpt-4o-mini")
     parser.add_argument("--timeout", type=int, default=120)
-    parser.add_argument("--no-stream", action="store_true", help="Do not print assistant tokens live.")
+    parser.add_argument(
+        "--no-stream",
+        action="store_true",
+        help="Do not print assistant tokens live.",
+    )
     args = parser.parse_args()
 
     client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
