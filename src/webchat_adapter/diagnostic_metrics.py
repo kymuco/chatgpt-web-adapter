@@ -41,7 +41,7 @@ def _fill_request_error(
 ) -> None:
     if error.status_code is None and status_code is not None:
         error.status_code = status_code
-    if error.endpoint is None and endpoint is not None:
+    if endpoint is not None:
         error.endpoint = endpoint
     if error.request_stage is None and request_stage is not None:
         error.request_stage = request_stage
