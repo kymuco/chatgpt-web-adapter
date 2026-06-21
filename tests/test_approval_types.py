@@ -41,6 +41,7 @@ def _event() -> ApprovalEvent:
 def _response() -> ChatResponse:
     return ChatResponse(
         text="Done",
+        title="Approval workflow",
         conversation=ChatConversation(
             conversation_id="conversation-1",
             message_id="assistant-msg",
@@ -287,6 +288,7 @@ def test_approval_result_to_dict_with_response_preview() -> None:
         "events": [event.to_dict()],
         "response": {
             "text": "Done",
+            "title": "Approval workflow",
             "conversation": response.conversation.to_dict(),
             "metrics": {
                 "first_token": 0.1,
