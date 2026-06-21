@@ -15,6 +15,10 @@ from .exceptions import (
 )
 from .export import export_conversation as _export_conversation
 from .messages import get_messages as _get_messages
+from .policy_approval import ApprovalDeniedError
+from .policy_approval import approve_pending_action as _policy_approve_pending_action
+from .policy_approval import send_and_auto_approve as _policy_send_and_auto_approve
+from .policy_approval import wait_and_approve_pending_actions as _policy_wait_and_approve_pending_actions
 from .status import get_pending_approval as _get_pending_approval
 from .status import get_status as _get_status
 from .types import (
@@ -33,17 +37,28 @@ from .types import (
 )
 from .wait import wait_until_completed as _wait_until_completed
 
+_original_approve_pending_action = ChatGPTWebClient.approve_pending_action
+_original_send_and_auto_approve = ChatGPTWebClient.send_and_auto_approve
+
+ChatGPTWebClient.approve_pending_action = _policy_approve_pending_action(
+    _original_approve_pending_action
+)
 ChatGPTWebClient.attach_conversation = _attach_conversation
 ChatGPTWebClient.export_conversation = _export_conversation
 ChatGPTWebClient.get_messages = _get_messages
 ChatGPTWebClient.get_pending_approval = _get_pending_approval
 ChatGPTWebClient.get_status = _get_status
+ChatGPTWebClient.send_and_auto_approve = _policy_send_and_auto_approve(
+    _original_send_and_auto_approve
+)
 ChatGPTWebClient.send_to_conversation = _send_to_conversation
+ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pending_actions
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
 WebChatClient = ChatGPTWebClient
 
 __all__ = [
     "ApprovalDecision",
+    "ApprovalDeniedError",
     "ApprovalEvent",
     "ApprovalPolicy",
     "ApprovalResult",
