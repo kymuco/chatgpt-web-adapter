@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .types import ChatConversation, ConversationRef, ConversationStatus
+from .types import ChatConversation, ConversationRef, ConversationStatus, PendingApproval
 
 ACTIVE_ASYNC_STATUSES = {
     "running",
@@ -151,36 +151,80 @@ def _has_generic_pending_approval_signal(*sources: dict[str, Any]) -> bool:
     return False
 
 
-def _confirm_action_pending_approval(payload: dict[str, Any]) -> bool:
+def _approval_from_confirm_action_node(
+    payload: dict[str, Any],
+    node: dict[str, Any],
+) -> PendingApproval | None:
+    message = _message_from_node(node)
+    if not isinstance(message, dict):
+        return None
+    if _message_role(message) != "tool":
+        return None
+
+    tool_message_id = _optional_str(message.get("id"))
+    if tool_message_id is None:
+        return None
+
+    metadata = _message_metadata(message)
+    jit_plugin_data = metadata.get("jit_plugin_data")
+    if not isinstance(jit_plugin_data, dict):
+        return None
+    from_server = jit_plugin_data.get("from_server")
+    if not isinstance(from_server, dict) or from_server.get("type") != "confirm_action":
+        return None
+    body = from_server.get("body")
+    if not isinstance(body, dict):
+        return None
+    actions = body.get("actions")
+    if not isinstance(actions, list):
+        return None
+
     mapping = _conversation_mapping(payload)
-    for node in mapping.values():
+    for action in actions:
+        if not isinstance(action, dict) or action.get("type") != "allow":
+            continue
+        allow = action.get("allow")
+        if not isinstance(allow, dict):
+            continue
+        target_message_id = _optional_str(allow.get("target_message_id"))
+        if target_message_id is None:
+            continue
+        target_node = mapping.get(target_message_id)
+        if not isinstance(target_node, dict):
+            continue
+        target_message = _message_from_node(target_node)
+        if not isinstance(target_message, dict):
+            continue
+        recipient = _optional_str(target_message.get("recipient"))
+        if recipient is None:
+            continue
+        return PendingApproval(
+            tool_message_id=tool_message_id,
+            target_message_id=target_message_id,
+            recipient=recipient,
+        )
+    return None
+
+
+def _find_pending_approval(payload: dict[str, Any]) -> PendingApproval | None:
+    candidates: list[tuple[float, PendingApproval]] = []
+    for node in _conversation_mapping(payload).values():
         if not isinstance(node, dict) or node.get("children"):
             continue
-        message = _message_from_node(node)
-        if not isinstance(message, dict):
+        approval = _approval_from_confirm_action_node(payload, node)
+        if approval is None:
             continue
-        if _message_role(message) != "tool":
-            continue
-        metadata = _message_metadata(message)
-        jit_plugin_data = metadata.get("jit_plugin_data")
-        if not isinstance(jit_plugin_data, dict):
-            continue
-        from_server = jit_plugin_data.get("from_server")
-        if not isinstance(from_server, dict) or from_server.get("type") != "confirm_action":
-            continue
-        body = from_server.get("body")
-        if not isinstance(body, dict):
-            continue
-        actions = body.get("actions")
-        if not isinstance(actions, list):
-            continue
-        for action in actions:
-            if not isinstance(action, dict) or action.get("type") != "allow":
-                continue
-            allow = action.get("allow")
-            if isinstance(allow, dict) and _optional_str(allow.get("target_message_id")):
-                return True
-    return False
+        message = _message_from_node(node) or {}
+        create_time = message.get("create_time")
+        try:
+            sortable_create_time = float(create_time or 0)
+        except (TypeError, ValueError):
+            sortable_create_time = 0.0
+        candidates.append((sortable_create_time, approval))
+    if not candidates:
+        return None
+    _create_time, approval = max(candidates, key=lambda item: item[0])
+    return approval
 
 
 def _has_pending_approval(
@@ -194,7 +238,7 @@ def _has_pending_approval(
         payload,
         node_dict,
         metadata,
-    ) or _confirm_action_pending_approval(payload)
+    ) or _find_pending_approval(payload) is not None
 
 
 def _recipient_is_tool(recipient: str | None) -> bool:
@@ -279,3 +323,16 @@ def get_status(
     if not isinstance(payload, dict):
         return ConversationStatus(status="unknown")
     return _status_from_payload(payload)
+
+
+def get_pending_approval(
+    self: Any,
+    url_or_id: ConversationRef | ChatConversation | dict[str, Any] | str,
+) -> PendingApproval | None:
+    """Return the actionable pending tool approval descriptor, if one exists."""
+
+    ref = ConversationRef.from_any(url_or_id)
+    payload = self._get_conversation_payload(ref.conversation_id)
+    if not isinstance(payload, dict):
+        return None
+    return _find_pending_approval(payload)
