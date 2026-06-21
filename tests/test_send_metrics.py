@@ -225,8 +225,16 @@ def test_send_emits_error_event_on_failure(monkeypatch: pytest.MonkeyPatch) -> N
 
     with _serve(_make_metrics_handler(state)) as base_url:
         _patch_chat_endpoints(monkeypatch, base_url)
-        with pytest.raises(adapter.RequestError, match="backend status=500"):
+        with pytest.raises(adapter.RequestError, match="backend status=500") as exc_info:
             client.send("hello", model="gpt-4o-mini", on_event=events.append)
+
+    error = exc_info.value
+    assert str(error).startswith("backend status=500")
+    assert error.status_code == 500
+    assert error.endpoint.endswith("/backend-api/f/conversation")
+    assert error.body_preview is not None
+    assert "backend failed" in error.body_preview
+    assert error.request_stage == "conversation_stream"
 
     event_types = [event["type"] for event in events]
     assert event_types == [
@@ -237,3 +245,7 @@ def test_send_emits_error_event_on_failure(monkeypatch: pytest.MonkeyPatch) -> N
     ]
     assert events[-1]["error_type"] == "RequestError"
     assert "backend status=500" in events[-1]["message"]
+    assert events[-1]["status_code"] == 500
+    assert events[-1]["endpoint"].endswith("/backend-api/f/conversation")
+    assert events[-1]["request_stage"] == "conversation_stream"
+    assert "backend failed" in events[-1]["body_preview"]
