@@ -88,16 +88,27 @@ def _metadata_preview(value: Any) -> dict[str, Any]:
 
 
 def _chat_metrics_to_dict(metrics: ChatMetrics) -> dict[str, Any]:
-    to_dict = getattr(metrics, "to_dict", None)
-    if callable(to_dict):
-        payload = to_dict()
-        if isinstance(payload, dict):
-            return copy.deepcopy(payload)
-    return {
+    payload = {
         "first_token": metrics.first_token,
         "last_token": metrics.last_token,
         "total": metrics.total,
     }
+    to_dict = getattr(metrics, "to_dict", None)
+    if not callable(to_dict):
+        return payload
+    expanded_payload = to_dict()
+    if not isinstance(expanded_payload, dict):
+        return payload
+    for key in (
+        "requirements_latency",
+        "stream_duration",
+        "chars_per_second",
+        "backend_status",
+    ):
+        value = expanded_payload.get(key)
+        if value is not None:
+            payload[key] = copy.deepcopy(value)
+    return payload
 
 
 def _chat_response_to_dict(response: ChatResponse | None) -> dict[str, Any] | None:
@@ -232,7 +243,7 @@ class ApprovalRound:
 
 @dataclass
 class ApprovalResult:
-    status: ApprovalResultStatus
+    status: ApprovalResultStatus = "completed"
     rounds: list[ApprovalRound] = field(default_factory=list)
     events: list[ApprovalEvent] = field(default_factory=list)
     response: ChatResponse | None = None
@@ -275,7 +286,7 @@ class ApprovalResult:
         if isinstance(events_payload, list):
             events = [ApprovalEvent.from_dict(event) for event in events_payload]
         return cls(
-            status=payload.get("status"),
+            status=payload.get("status", "completed"),
             rounds=rounds,
             events=events,
             response=_chat_response_from_dict(payload.get("response")),
