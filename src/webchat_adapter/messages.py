@@ -20,6 +20,16 @@ MODEL_KEYS = (
     "default_model_slug",
     "selected_model",
 )
+MODEL_CONTAINER_KEYS = (
+    "model",
+    "selected_model",
+    "default_model",
+)
+NESTED_MODEL_KEYS = (
+    "slug",
+    "name",
+    "id",
+)
 
 
 def _optional_str(value: Any) -> str | None:
@@ -79,6 +89,16 @@ def _message_model(message: dict[str, Any]) -> str | None:
         value = _optional_str(metadata.get(key))
         if value:
             return value
+
+    for key in MODEL_CONTAINER_KEYS:
+        container = metadata.get(key)
+        if not isinstance(container, dict):
+            continue
+        for nested_key in NESTED_MODEL_KEYS:
+            value = _optional_str(container.get(nested_key))
+            if value:
+                return value
+
     return None
 
 
