@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .approval_policy import ApprovalDecision, ApprovalPolicy
 from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
@@ -42,7 +43,9 @@ ChatGPTWebClient.wait_until_completed = _wait_until_completed
 WebChatClient = ChatGPTWebClient
 
 __all__ = [
+    "ApprovalDecision",
     "ApprovalEvent",
+    "ApprovalPolicy",
     "ApprovalResult",
     "ApprovalRound",
     "AttachedConversation",
