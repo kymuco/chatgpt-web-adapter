@@ -28,6 +28,13 @@ MEDIA_KIND_MARKERS = (
     ("file", "file"),
     ("attachment", "file"),
 )
+ASSET_POINTER_KEYS = (
+    "asset_pointer",
+    "assetPointer",
+    "image_asset_pointer",
+    "audio_asset_pointer",
+    "video_asset_pointer",
+)
 
 
 def extract_message_text(message: dict[str, Any]) -> str:
@@ -114,7 +121,7 @@ def _media_kind(value: dict[str, Any]) -> str | None:
         if mime_type:
             return "file"
 
-    for key in ("type", "content_type", "asset_pointer", "assetPointer"):
+    for key in ("type", "content_type"):
         raw_value = value.get(key)
         if not isinstance(raw_value, str):
             continue
@@ -125,10 +132,24 @@ def _media_kind(value: dict[str, Any]) -> str | None:
         if "asset_pointer" in normalized or "assetpointer" in normalized:
             return "media"
 
+    for key in ASSET_POINTER_KEYS:
+        if key in value:
+            return _asset_pointer_kind(key)
+
     if _media_file_name(value) and _has_media_signal(value):
         return "file"
 
     return None
+
+
+def _asset_pointer_kind(key: str) -> str:
+    if key.startswith("image"):
+        return "image"
+    if key.startswith("audio"):
+        return "audio"
+    if key.startswith("video"):
+        return "video"
+    return "media"
 
 
 def _media_file_name(value: dict[str, Any]) -> str | None:
@@ -145,10 +166,6 @@ def _has_media_signal(value: dict[str, Any]) -> bool:
         "mimeType",
         "file_name",
         "filename",
-        "asset_pointer",
-        "assetPointer",
-        "image_asset_pointer",
-        "audio_asset_pointer",
-        "video_asset_pointer",
+        *ASSET_POINTER_KEYS,
     )
     return any(key in value for key in signal_keys)
