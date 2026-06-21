@@ -12,6 +12,7 @@ class AuthError(WebChatAdapterError):
     """Authentication or auth-data loading failure."""
 
 
+
 def _optional_str(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
@@ -109,10 +110,14 @@ class RequestError(WebChatAdapterError):
     ) -> None:
         message = str(message)
         inferred_stage = _request_stage_from_message(message)
-        self.status_code = _optional_status_code(status_code) or _status_code_from_message(message)
+        self.status_code = (
+            _optional_status_code(status_code) or _status_code_from_message(message)
+        )
         self.request_stage = _optional_str(request_stage) or inferred_stage
         self.endpoint = _optional_str(endpoint) or _endpoint_from_stage(self.request_stage)
-        self.body_preview = _body_preview(body_preview) or _body_preview_from_message(message)
+        self.body_preview = _body_preview(body_preview) or _body_preview_from_message(
+            message
+        )
         super().__init__(message)
 
     def to_dict(self) -> dict[str, Any]:
