@@ -190,7 +190,11 @@ def _has_pending_approval(
 ) -> bool:
     metadata = _message_metadata(message)
     node_dict = node if isinstance(node, dict) else {}
-    return _has_generic_pending_approval_signal(payload, node_dict, metadata) or _confirm_action_pending_approval(payload)
+    return _has_generic_pending_approval_signal(
+        payload,
+        node_dict,
+        metadata,
+    ) or _confirm_action_pending_approval(payload)
 
 
 def _recipient_is_tool(recipient: str | None) -> bool:
@@ -215,14 +219,14 @@ def _status_from_signals(
         return "tool_calling"
     if normalized_async_status in ACTIVE_ASYNC_STATUSES:
         return "running"
-    if role == "assistant" and not finish_reason and recipient in {None, "all"}:
-        return "running"
     if role == "user":
         return "user_last_message"
     if role == "assistant" and recipient in {None, "all"} and finish_reason:
         return "completed"
     if role == "assistant" and recipient in {None, "all"} and normalized_async_status in COMPLETED_ASYNC_STATUSES:
         return "completed"
+    if role == "assistant" and not finish_reason and recipient in {None, "all"}:
+        return "running"
     return "unknown"
 
 
