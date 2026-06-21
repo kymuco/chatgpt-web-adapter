@@ -36,6 +36,13 @@ def _optional_str(value: Any) -> str | None:
     return value or None
 
 
+def _required_str(value: Any, field_name: str) -> str:
+    value = _optional_str(value)
+    if value is None:
+        raise ValueError(f"{field_name} is required")
+    return value
+
+
 @dataclass(init=False)
 class AuthData:
     accessToken: str | None = None
@@ -393,6 +400,46 @@ class ConversationStatus:
             "finish_reason": self.finish_reason,
             "pending_approval": self.pending_approval,
             "metadata_preview": copy.deepcopy(self.metadata_preview),
+        }
+
+
+@dataclass(frozen=True)
+class PendingApproval:
+    tool_message_id: str
+    target_message_id: str
+    recipient: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "tool_message_id",
+            _required_str(self.tool_message_id, "tool_message_id"),
+        )
+        object.__setattr__(
+            self,
+            "target_message_id",
+            _required_str(self.target_message_id, "target_message_id"),
+        )
+        object.__setattr__(self, "recipient", _required_str(self.recipient, "recipient"))
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any] | None) -> "PendingApproval | None":
+        if not isinstance(payload, dict):
+            return None
+        try:
+            return cls(
+                tool_message_id=payload.get("tool_message_id"),
+                target_message_id=payload.get("target_message_id"),
+                recipient=payload.get("recipient"),
+            )
+        except ValueError:
+            return None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tool_message_id": self.tool_message_id,
+            "target_message_id": self.target_message_id,
+            "recipient": self.recipient,
         }
 
 
