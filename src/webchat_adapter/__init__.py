@@ -20,6 +20,7 @@ from .policy_approval import ApprovalDeniedError
 from .policy_approval import approve_pending_action as _policy_approve_pending_action
 from .policy_approval import send_and_auto_approve as _policy_send_and_auto_approve
 from .policy_approval import wait_and_approve_pending_actions as _policy_wait_and_approve_pending_actions
+from .raw_payload import send_payload as _send_payload
 from .status import get_pending_approval as _get_pending_approval
 from .status import get_status as _get_status
 from .types import (
@@ -52,6 +53,7 @@ ChatGPTWebClient.get_status = _get_status
 ChatGPTWebClient.send_and_auto_approve = _policy_send_and_auto_approve(
     _original_send_and_auto_approve
 )
+ChatGPTWebClient.send_payload = _send_payload
 ChatGPTWebClient.send_to_conversation = _send_to_conversation
 ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pending_actions
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
