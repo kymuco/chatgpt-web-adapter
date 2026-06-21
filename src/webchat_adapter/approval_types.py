@@ -92,6 +92,7 @@ def _chat_response_to_dict(response: ChatResponse | None) -> dict[str, Any] | No
         return None
     return {
         "text": response.text,
+        "title": response.title,
         "conversation": response.conversation.to_dict(),
         "metrics": {
             "first_token": response.metrics.first_token,
@@ -107,6 +108,7 @@ def _chat_response_from_dict(payload: Any) -> ChatResponse | None:
     metrics = payload.get("metrics")
     return ChatResponse(
         text="" if payload.get("text") is None else str(payload.get("text")),
+        title=_optional_str(payload.get("title")),
         conversation=ChatConversation.from_dict(payload.get("conversation")),
         metrics=ChatMetrics.from_dict(metrics if isinstance(metrics, dict) else None),
     )
