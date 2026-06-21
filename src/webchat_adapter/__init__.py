@@ -15,6 +15,7 @@ from .types import (
     ChatMetrics,
     ChatResponse,
     ConversationRef,
+    ConversationStatus,
     MediaItem,
     MediaSource,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "ChatMetrics",
     "ChatResponse",
     "ConversationRef",
+    "ConversationStatus",
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
     "MediaError",
