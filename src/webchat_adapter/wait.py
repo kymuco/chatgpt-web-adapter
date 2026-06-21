@@ -27,17 +27,34 @@ def _coerce_interval(value: Any) -> float:
     return interval
 
 
-def _latest_assistant_message(self: Any, ref: ConversationRef) -> ChatMessage | None:
+def _completed_assistant_message(
+    self: Any,
+    ref: ConversationRef,
+    status: Any,
+) -> ChatMessage | None:
     messages = self.get_messages(
         ref,
-        limit=1,
+        limit=None,
         roles={"assistant"},
-        include_empty=False,
+        include_empty=True,
     )
     if not isinstance(messages, list) or not messages:
         return None
-    message = messages[0]
-    return message if isinstance(message, ChatMessage) else None
+
+    status_node_id = getattr(status, "node_id", None)
+    status_message_id = getattr(status, "message_id", None)
+    for message in messages:
+        if not isinstance(message, ChatMessage):
+            continue
+        if status_node_id is not None and message.node_id == status_node_id:
+            return message
+        if status_message_id is not None and message.message_id == status_message_id:
+            return message
+
+    for message in reversed(messages):
+        if isinstance(message, ChatMessage):
+            return message
+    return None
 
 
 def wait_until_completed(
@@ -66,7 +83,7 @@ def wait_until_completed(
         if getattr(status, "status", None) == "completed":
             return WaitResult(
                 status=status,
-                message=_latest_assistant_message(self, ref),
+                message=_completed_assistant_message(self, ref, status),
                 elapsed=elapsed,
                 polls=polls,
             )
