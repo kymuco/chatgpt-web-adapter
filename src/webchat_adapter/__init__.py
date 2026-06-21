@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
-
-from . import approval_types as _approval_types_module
-from . import client as _client_module
-from . import raw_payload as _raw_payload_module
-from . import types as _types_module
 from .approval_policy import ApprovalDecision, ApprovalPolicy
 from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .client import DEFAULT_MODEL, ChatGPTWebClient
 from .conversation_send import send_to_conversation as _send_to_conversation
-from .diagnostic_metrics import ChatMetrics
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .exceptions import (
     AuthError,
@@ -38,6 +31,7 @@ from .types import (
     AuthData,
     ChatConversation,
     ChatMessage,
+    ChatMetrics,
     ChatResponse,
     ConversationRef,
     ConversationStatus,
@@ -48,33 +42,9 @@ from .types import (
 )
 from .wait import wait_until_completed as _wait_until_completed
 
-_ORIGINAL_DEFAULT = object()
 _original_send = ChatGPTWebClient.send
 _original_approve_pending_action = ChatGPTWebClient.approve_pending_action
 _original_send_and_auto_approve = ChatGPTWebClient.send_and_auto_approve
-
-
-def _chat_response_init(
-    self: ChatResponse,
-    text: str,
-    title: str | None = None,
-    conversation: ChatConversation | Any = _ORIGINAL_DEFAULT,
-    metrics: ChatMetrics | Any = _ORIGINAL_DEFAULT,
-) -> None:
-    self.text = text
-    self.title = title
-    self.conversation = (
-        ChatConversation() if conversation is _ORIGINAL_DEFAULT else conversation
-    )
-    self.metrics = ChatMetrics() if metrics is _ORIGINAL_DEFAULT else metrics
-
-
-_types_module.ChatMetrics = ChatMetrics
-_client_module.ChatMetrics = ChatMetrics
-_raw_payload_module.ChatMetrics = ChatMetrics
-_approval_types_module.ChatMetrics = ChatMetrics
-ChatResponse.__dataclass_fields__["metrics"].default_factory = ChatMetrics
-ChatResponse.__init__ = _chat_response_init
 
 ChatGPTWebClient.approve_pending_action = _policy_approve_pending_action(
     _original_approve_pending_action
