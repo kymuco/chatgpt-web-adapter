@@ -118,10 +118,10 @@ The stable core is the main surface intended for building tools on top of an exi
 ## Install
 
 ```bash
-python -m pip install -e .
+python -m pip install chatgpt-web-adapter
 ```
 
-For tests:
+For local development and tests:
 
 ```bash
 python -m pip install -e .[test]
