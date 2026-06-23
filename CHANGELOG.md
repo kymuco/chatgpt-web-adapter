@@ -6,6 +6,7 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- docs: aligned repository metadata after the `chatgpt-web-adapter` rename
 - docs: defined stable vs experimental SDK surface and compatibility policy
 - docs: clarified approval helpers as experimental and unstable
 - docs: added SDK positioning, failure model, live smoke checklist, release checklist, architecture notes, and build-on-top guidance
