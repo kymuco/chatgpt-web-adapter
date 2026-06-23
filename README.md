@@ -1,6 +1,6 @@
-# webchat-adapter
+# chatgpt-web-adapter
 
-[![CI](https://github.com/kymuco/webchat-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/webchat-adapter/actions/workflows/ci.yml)
+[![CI](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml)
 
 Python SDK for controlling existing ChatGPT web sessions without browser UI.
 
@@ -10,6 +10,8 @@ Python SDK for controlling existing ChatGPT web sessions without browser UI.
 > Web backend behavior may change.
 
 `webchat-adapter` is a small, dependency-free Python SDK for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
+
+The repository is named `chatgpt-web-adapter`; the current distribution package and Python import path remain `webchat-adapter` and `webchat_adapter` until the planned package/import rename.
 
 It is designed for tools that already have valid ChatGPT web-session auth data and want to avoid driving the browser UI.
 
@@ -278,9 +280,9 @@ Operational docs:
 - [docs/architecture.md](docs/architecture.md)
 - [docs/building_on_top.md](docs/building_on_top.md)
 
-## Future Rename
+## Future Package Rename
 
-The project may later move to the clearer name `chatgpt-web-adapter`, with Python package import `chatgpt_web_adapter`.
+The repository is already named `chatgpt-web-adapter`. The Python distribution package and import package may later move to `chatgpt-web-adapter` and `chatgpt_web_adapter`.
 
 The current `webchat_adapter` import remains the only supported import today. See [docs/rename_compatibility.md](docs/rename_compatibility.md).
 
