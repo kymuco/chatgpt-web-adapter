@@ -29,6 +29,14 @@ The package intentionally does not include the CLI, localization, auth capture, 
 - uploading images through the web-session flow
 - experimenting with browserless approval workflows
 
+## When Not To Use This
+
+- when you need a stable, documented API contract
+- when you need OpenAI-supported authentication and long-term platform guarantees
+- when browser automation is acceptable and product-level UI behavior matters more than backend reuse
+- when the workflow depends heavily on approval cards or other fast-changing connector behavior
+- when your tool cannot tolerate breakage from undocumented `chatgpt.com` changes
+
 ## What This Is Not
 
 `webchat-adapter` is not:
@@ -70,6 +78,23 @@ The stable core is the main surface intended for building tools on top of an exi
 - Experimental APIs may need faster iteration when the ChatGPT web client changes.
 - A package release does not guarantee that undocumented web behavior on `chatgpt.com` has remained unchanged.
 - When the site changes, experimental flows are expected to break before the stable core send/continue/read flows.
+
+## Known Failure Modes
+
+- expired or mismatched session auth
+  - `accessToken`, cookies, and headers can drift out of sync
+- changed anti-abuse requirements
+  - `chat-requirements`, proof-of-work, or Turnstile expectations can change
+- changed backend payload schema
+  - send/continue flows can fail if required request fields move or change meaning
+- changed SSE response shape
+  - token streaming, finish-reason parsing, or conversation-id extraction can break
+- changed conversation payload schema
+  - attach, status, model detection, and message extraction depend on unstable fields
+- changed upload flow
+  - file creation, upload, or attachment metadata contracts can shift
+- changed approval protocol
+  - approval helpers are especially sensitive to connector and web-client changes
 
 ## Features
 

@@ -33,6 +33,7 @@ This document covers the public API exposed by the package today and only descri
 - [Handle Errors](#handle-errors)
 - [Public Exports](#public-exports)
 - [End-to-End Example](#end-to-end-example)
+- [Known Failure Modes](#known-failure-modes)
 - [Behavior Notes and Gotchas](#behavior-notes-and-gotchas)
 
 ## What This SDK Does
@@ -888,6 +889,23 @@ follow_up = client.send(
 
 print(follow_up.text)
 ```
+
+## Known Failure Modes
+
+- expired or mismatched session auth
+  - `accessToken`, cookies, and headers can drift out of sync
+- changed anti-abuse requirements
+  - `chat-requirements`, proof-of-work, or Turnstile expectations can change
+- changed backend payload schema
+  - send/continue flows can fail if required request fields move or change meaning
+- changed SSE response shape
+  - token streaming, finish-reason parsing, or conversation-id extraction can break
+- changed conversation payload schema
+  - attach, status, model detection, and message extraction depend on unstable fields
+- changed upload flow
+  - file creation, upload, or attachment metadata contracts can shift
+- changed approval protocol
+  - approval helpers are especially sensitive to connector and web-client changes
 
 ## Behavior Notes and Gotchas
 
