@@ -9,8 +9,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Iterator
 
-import webchat_adapter as adapter
-import webchat_adapter.client as client_mod
+import chatgpt_web_adapter as adapter
+import chatgpt_web_adapter.client as client_mod
 import pytest
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 40

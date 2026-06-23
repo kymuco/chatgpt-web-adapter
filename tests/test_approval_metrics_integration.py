@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import webchat_adapter
-from webchat_adapter import ApprovalResult, ChatConversation, ChatMetrics, ChatResponse
+import chatgpt_web_adapter
+from chatgpt_web_adapter import ApprovalResult, ChatConversation, ChatMetrics, ChatResponse
 
 
 def test_approval_result_from_dict_preserves_expanded_metrics_class() -> None:
@@ -28,5 +28,5 @@ def test_approval_result_from_dict_preserves_expanded_metrics_class() -> None:
     restored = ApprovalResult.from_dict(result.to_dict())
 
     assert restored == result
-    assert isinstance(restored.response.metrics, webchat_adapter.ChatMetrics)
+    assert isinstance(restored.response.metrics, chatgpt_web_adapter.ChatMetrics)
     assert restored.response.metrics.backend_status == 200

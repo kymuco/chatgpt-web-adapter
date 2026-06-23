@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import webchat_adapter as adapter
+import chatgpt_web_adapter as adapter
 
 
 CORE_PUBLIC_API = [

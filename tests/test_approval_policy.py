@@ -4,9 +4,9 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-import webchat_adapter
-from webchat_adapter import ApprovalDecision, ApprovalPolicy, PendingApproval
-from webchat_adapter.approval_policy import APPROVAL_DECISION_REASONS
+import chatgpt_web_adapter
+from chatgpt_web_adapter import ApprovalDecision, ApprovalPolicy, PendingApproval
+from chatgpt_web_adapter.approval_policy import APPROVAL_DECISION_REASONS
 
 
 def _approval(recipient: str = "python") -> PendingApproval:
@@ -340,7 +340,7 @@ def test_approval_policy_evaluate_rejects_non_pending_approval() -> None:
 
 
 def test_approval_policy_types_are_exported_from_public_package() -> None:
-    assert webchat_adapter.ApprovalDecision is ApprovalDecision
-    assert webchat_adapter.ApprovalPolicy is ApprovalPolicy
-    assert "ApprovalDecision" in webchat_adapter.__all__
-    assert "ApprovalPolicy" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.ApprovalDecision is ApprovalDecision
+    assert chatgpt_web_adapter.ApprovalPolicy is ApprovalPolicy
+    assert "ApprovalDecision" in chatgpt_web_adapter.__all__
+    assert "ApprovalPolicy" in chatgpt_web_adapter.__all__

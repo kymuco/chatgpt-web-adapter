@@ -1,13 +1,13 @@
 # Architecture
 
-`webchat-adapter` is intentionally small, but it already has a few distinct layers. Keeping those layers clear is important if the package is going to remain a reusable SDK instead of drifting into an application framework.
+`chatgpt-web-adapter` is intentionally small, but it already has a few distinct layers. Keeping those layers clear is important if the package is going to remain a reusable SDK instead of drifting into an application framework.
 
 ## Layer 1: Auth Loading
 
 Primary files:
 
-- `src/webchat_adapter/auth.py`
-- `src/webchat_adapter/types.py`
+- `src/chatgpt_web_adapter/auth.py`
+- `src/chatgpt_web_adapter/types.py`
 
 Responsibilities:
 
@@ -22,7 +22,7 @@ This layer should stay narrowly focused on consuming existing auth material. It 
 
 Primary files:
 
-- `src/webchat_adapter/client.py`
+- `src/chatgpt_web_adapter/client.py`
 
 Responsibilities:
 
@@ -39,10 +39,10 @@ This is the core engine of the SDK. It should remain reusable and low-level. Pro
 
 Primary files:
 
-- `src/webchat_adapter/client.py`
-- `src/webchat_adapter/payload_builder.py`
-- `src/webchat_adapter/payload_validation.py`
-- `src/webchat_adapter/raw_payload.py`
+- `src/chatgpt_web_adapter/client.py`
+- `src/chatgpt_web_adapter/payload_builder.py`
+- `src/chatgpt_web_adapter/payload_validation.py`
+- `src/chatgpt_web_adapter/raw_payload.py`
 
 Responsibilities:
 
@@ -57,12 +57,12 @@ This layer is where reverse-engineered request contracts live. It should stay ex
 
 Primary files:
 
-- `src/webchat_adapter/client.py`
-- `src/webchat_adapter/message_text.py`
-- `src/webchat_adapter/messages.py`
-- `src/webchat_adapter/model_detection.py`
-- `src/webchat_adapter/status.py`
-- `src/webchat_adapter/attach.py`
+- `src/chatgpt_web_adapter/client.py`
+- `src/chatgpt_web_adapter/message_text.py`
+- `src/chatgpt_web_adapter/messages.py`
+- `src/chatgpt_web_adapter/model_detection.py`
+- `src/chatgpt_web_adapter/status.py`
+- `src/chatgpt_web_adapter/attach.py`
 
 Responsibilities:
 
@@ -79,10 +79,10 @@ This layer is inherently fragile because it depends on undocumented response sha
 
 Primary files:
 
-- `src/webchat_adapter/wait.py`
-- `src/webchat_adapter/conversation_send.py`
-- `src/webchat_adapter/policy_approval.py`
-- `src/webchat_adapter/diagnostic_metrics.py`
+- `src/chatgpt_web_adapter/wait.py`
+- `src/chatgpt_web_adapter/conversation_send.py`
+- `src/chatgpt_web_adapter/policy_approval.py`
+- `src/chatgpt_web_adapter/diagnostic_metrics.py`
 
 Responsibilities:
 

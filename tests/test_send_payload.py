@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from webchat_adapter import (
+from chatgpt_web_adapter import (
     ChatGPTWebClient,
     ChatResponse,
     PayloadValidationError,

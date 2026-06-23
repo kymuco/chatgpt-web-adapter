@@ -11,7 +11,7 @@ import argparse
 import time
 from typing import Any
 
-from webchat_adapter import ChatGPTWebClient, RequestError
+from chatgpt_web_adapter import ChatGPTWebClient, RequestError
 
 
 DEFAULT_PROMPT = "Reply with one short sentence and nothing else."

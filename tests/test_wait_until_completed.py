@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
-import webchat_adapter
-import webchat_adapter.wait as wait_module
-from webchat_adapter import (
+import chatgpt_web_adapter
+import chatgpt_web_adapter.wait as wait_module
+from chatgpt_web_adapter import (
     ChatGPTWebClient,
     ChatMessage,
     ConversationRef,
@@ -15,7 +15,7 @@ from webchat_adapter import (
     PendingApproval,
     WaitResult,
 )
-from webchat_adapter.wait import wait_until_completed
+from chatgpt_web_adapter.wait import wait_until_completed
 
 
 class FakeWaitClient:
@@ -123,13 +123,13 @@ def test_wait_result_validates_nested_types() -> None:
 
 
 def test_wait_result_is_exported_from_public_package() -> None:
-    assert webchat_adapter.WaitResult is WaitResult
-    assert "WaitResult" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.WaitResult is WaitResult
+    assert "WaitResult" in chatgpt_web_adapter.__all__
 
 
 def test_conversation_timeout_error_is_exported_from_public_package() -> None:
-    assert webchat_adapter.ConversationTimeoutError is ConversationTimeoutError
-    assert "ConversationTimeoutError" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.ConversationTimeoutError is ConversationTimeoutError
+    assert "ConversationTimeoutError" in chatgpt_web_adapter.__all__
 
 
 def test_wait_until_completed_returns_latest_assistant_message_on_completed() -> None:

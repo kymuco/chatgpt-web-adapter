@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-import webchat_adapter
-from webchat_adapter import ConversationStatus
-from webchat_adapter.types import CONVERSATION_STATUS_VALUES
+import chatgpt_web_adapter
+from chatgpt_web_adapter import ConversationStatus
+from chatgpt_web_adapter.types import CONVERSATION_STATUS_VALUES
 
 
 def test_conversation_status_defaults_to_unknown() -> None:
@@ -151,5 +151,5 @@ def test_conversation_status_from_dict_non_dict_returns_default() -> None:
 
 
 def test_conversation_status_is_exported_from_public_package() -> None:
-    assert webchat_adapter.ConversationStatus is ConversationStatus
-    assert "ConversationStatus" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.ConversationStatus is ConversationStatus
+    assert "ConversationStatus" in chatgpt_web_adapter.__all__

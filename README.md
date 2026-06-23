@@ -9,15 +9,13 @@ Python SDK for controlling existing ChatGPT web sessions without browser UI.
 > Uses an existing ChatGPT web session.
 > Web backend behavior may change.
 
-`webchat-adapter` is a small, dependency-free Python SDK for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
-
-The repository is named `chatgpt-web-adapter`; the current distribution package and Python import path remain `webchat-adapter` and `webchat_adapter` until the planned package/import rename.
+`chatgpt-web-adapter` is a small, dependency-free Python SDK for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
 
 It is designed for tools that already have valid ChatGPT web-session auth data and want to avoid driving the browser UI.
 
 ## What This Is
 
-`webchat-adapter` wraps the existing ChatGPT web backend behavior used by a logged-in web session. It focuses on reusable transport, request formatting, response parsing, and conversation helpers.
+`chatgpt-web-adapter` wraps the existing ChatGPT web backend behavior used by a logged-in web session. It focuses on reusable transport, request formatting, response parsing, and conversation helpers.
 
 The package intentionally does not include the CLI, localization, auth capture, browser automation, or local chat-history management from `webchat-openai-cli`.
 
@@ -41,7 +39,7 @@ The package intentionally does not include the CLI, localization, auth capture, 
 
 ## What This Is Not
 
-`webchat-adapter` is not:
+`chatgpt-web-adapter` is not:
 
 - the official OpenAI API
 - a replacement for the OpenAI Python SDK
@@ -133,7 +131,7 @@ pytest -q
 ## Quick Start
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -147,7 +145,7 @@ print(response.text)
 
 ## Authentication at a Glance
 
-`webchat-adapter` does not log you in and does not capture auth by itself. It only reuses existing `chatgpt.com` web-session data.
+`chatgpt-web-adapter` does not log you in and does not capture auth by itself. It only reuses existing `chatgpt.com` web-session data.
 
 Recommended `auth_data.json` shape:
 
@@ -174,7 +172,7 @@ Recommended `auth_data.json` shape:
 ### Streaming Callback
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -187,7 +185,7 @@ response = client.send(
 ### Continue an Existing ChatGPT Web Conversation
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -204,7 +202,7 @@ print(response.text)
 ### Continue from an SDK Response
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -280,11 +278,15 @@ Operational docs:
 - [docs/architecture.md](docs/architecture.md)
 - [docs/building_on_top.md](docs/building_on_top.md)
 
-## Future Package Rename
+## Package Naming
 
-The repository is already named `chatgpt-web-adapter`. The Python distribution package and import package may later move to `chatgpt-web-adapter` and `chatgpt_web_adapter`.
+Canonical package naming is:
 
-The current `webchat_adapter` import remains the only supported import today. See [docs/rename_compatibility.md](docs/rename_compatibility.md).
+- repository: `chatgpt-web-adapter`
+- distribution: `chatgpt-web-adapter`
+- import: `chatgpt_web_adapter`
+
+See [docs/rename_compatibility.md](docs/rename_compatibility.md).
 
 ## Status
 

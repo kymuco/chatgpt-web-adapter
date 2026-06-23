@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "webchat-adapter"
+name = "chatgpt-web-adapter"
 version = "0.1.3"
 description = "Minimal dependency-free Python adapter for chatgpt.com web sessions."
 readme = "README.md"

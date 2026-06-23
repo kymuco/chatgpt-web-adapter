@@ -12,7 +12,7 @@ Use this checklist before cutting a release or publishing a new package version.
   - `python -m twine check dist/*`
 - Smoke test the built wheel in a clean environment:
   - `python -m pip install --force-reinstall dist/*.whl`
-  - `python -c "from webchat_adapter import ChatGPTWebClient"`
+  - `python -c "from chatgpt_web_adapter import ChatGPTWebClient"`
 - If public exports changed, recheck API-surface tests.
 - If transport/parsing changed, recheck client/status/message tests.
 

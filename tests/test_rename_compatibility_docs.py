@@ -13,18 +13,18 @@ def test_rename_compatibility_doc_exists_and_names_future_target() -> None:
 
     assert "chatgpt-web-adapter" in text
     assert "chatgpt_web_adapter" in text
-    assert "webchat_adapter" in text
-    assert "compatibility import" in text.lower()
+    assert "package rename is complete" in text.lower()
+    assert "not supported anymore" in text.lower()
 
 
-def test_rename_plan_is_explicitly_future_only() -> None:
+def test_rename_doc_describes_current_canonical_import_only() -> None:
     text = DOC.read_text(encoding="utf-8")
     lower_text = text.lower()
 
-    assert "the rename is planned for a future milestone" in lower_text
-    assert "only `webchat_adapter` exists" in lower_text
-    assert "that future import is not available yet." in lower_text
-    assert "for now, use `webchat_adapter`." in lower_text
+    assert "supported import:" in lower_text
+    assert "from chatgpt_web_adapter import chatgptwebclient" in lower_text
+    assert "old `webchat_adapter` import" in lower_text
+    assert "not supported anymore" in lower_text
 
 
 def test_readme_links_to_rename_compatibility_plan() -> None:
@@ -33,11 +33,10 @@ def test_readme_links_to_rename_compatibility_plan() -> None:
     assert "docs/rename_compatibility.md" in text
     assert "chatgpt-web-adapter" in text
     assert "chatgpt_web_adapter" in text
-    assert "webchat_adapter" in text
+    assert "repository: `chatgpt-web-adapter`" in text
 
 
-def test_package_metadata_is_not_renamed_yet() -> None:
+def test_package_metadata_uses_renamed_distribution() -> None:
     text = PYPROJECT.read_text(encoding="utf-8")
 
-    assert 'name = "webchat-adapter"' in text
-    assert 'name = "chatgpt-web-adapter"' not in text
+    assert 'name = "chatgpt-web-adapter"' in text

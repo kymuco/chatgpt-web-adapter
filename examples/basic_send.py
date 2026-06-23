@@ -10,7 +10,7 @@ Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
 
 import argparse
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 
 DEFAULT_PROMPT = "Reply with one short sentence and nothing else."

@@ -41,8 +41,8 @@ def test_examples_use_public_package_imports_only() -> None:
     for path in sorted(EXAMPLES.glob("*.py")):
         text = path.read_text(encoding="utf-8")
 
-        assert "from webchat_adapter." not in text
-        assert "import webchat_adapter." not in text
+        assert "from chatgpt_web_adapter." not in text
+        assert "import chatgpt_web_adapter." not in text
 
 
 def test_dangerous_examples_warn_about_risk() -> None:

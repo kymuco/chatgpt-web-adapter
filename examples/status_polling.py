@@ -10,7 +10,7 @@ Prerequisites: valid ``auth_data.json`` and an existing conversation.
 import argparse
 import time
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 TERMINAL_STATUSES = {"completed", "awaiting_tool_approval", "user_last_message"}
 

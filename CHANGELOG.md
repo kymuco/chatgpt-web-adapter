@@ -6,6 +6,7 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- breaking: renamed the canonical Python import package to `chatgpt_web_adapter` and removed the old `webchat_adapter` import path
 - docs: aligned repository metadata after the `chatgpt-web-adapter` rename
 - docs: defined stable vs experimental SDK surface and compatibility policy
 - docs: clarified approval helpers as experimental and unstable

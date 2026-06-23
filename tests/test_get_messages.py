@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from webchat_adapter import ChatGPTWebClient, ChatMessage
+from chatgpt_web_adapter import ChatGPTWebClient, ChatMessage
 
 
 def _message(

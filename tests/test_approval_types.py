@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-import webchat_adapter
-from webchat_adapter import (
+import chatgpt_web_adapter
+from chatgpt_web_adapter import (
     ApprovalEvent,
     ApprovalResult,
     ApprovalRound,
@@ -12,7 +12,7 @@ from webchat_adapter import (
     ChatResponse,
     PendingApproval,
 )
-from webchat_adapter.approval_types import (
+from chatgpt_web_adapter.approval_types import (
     APPROVAL_EVENT_TYPES,
     APPROVAL_RESULT_STATUSES,
     APPROVAL_ROUND_STATUSES,
@@ -328,9 +328,9 @@ def test_approval_result_from_dict_rejects_non_dict_payload() -> None:
 
 
 def test_approval_types_are_exported_from_public_package() -> None:
-    assert webchat_adapter.ApprovalEvent is ApprovalEvent
-    assert webchat_adapter.ApprovalRound is ApprovalRound
-    assert webchat_adapter.ApprovalResult is ApprovalResult
-    assert "ApprovalEvent" in webchat_adapter.__all__
-    assert "ApprovalRound" in webchat_adapter.__all__
-    assert "ApprovalResult" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.ApprovalEvent is ApprovalEvent
+    assert chatgpt_web_adapter.ApprovalRound is ApprovalRound
+    assert chatgpt_web_adapter.ApprovalResult is ApprovalResult
+    assert "ApprovalEvent" in chatgpt_web_adapter.__all__
+    assert "ApprovalRound" in chatgpt_web_adapter.__all__
+    assert "ApprovalResult" in chatgpt_web_adapter.__all__

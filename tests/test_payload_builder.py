@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-import webchat_adapter
-from webchat_adapter import ChatConversation, PayloadBuilder
+import chatgpt_web_adapter
+from chatgpt_web_adapter import ChatConversation, PayloadBuilder
 
 
 def test_text_message_builds_web_text_message_shape() -> None:
@@ -306,5 +306,5 @@ def test_continue_chat_does_not_mutate_input_conversation() -> None:
 
 
 def test_payload_builder_is_exported_from_public_package() -> None:
-    assert webchat_adapter.PayloadBuilder is PayloadBuilder
-    assert "PayloadBuilder" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.PayloadBuilder is PayloadBuilder
+    assert "PayloadBuilder" in chatgpt_web_adapter.__all__

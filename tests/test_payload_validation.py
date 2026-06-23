@@ -4,8 +4,8 @@ import copy
 
 import pytest
 
-import webchat_adapter
-from webchat_adapter import PayloadBuilder, PayloadValidationError, validate_payload
+import chatgpt_web_adapter
+from chatgpt_web_adapter import PayloadBuilder, PayloadValidationError, validate_payload
 
 
 def _valid_payload(**overrides: object) -> dict[str, object]:
@@ -61,10 +61,10 @@ def test_validate_payload_does_not_mutate_payload() -> None:
 
 
 def test_payload_validation_exports() -> None:
-    assert webchat_adapter.PayloadValidationError is PayloadValidationError
-    assert webchat_adapter.validate_payload is validate_payload
-    assert "PayloadValidationError" in webchat_adapter.__all__
-    assert "validate_payload" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.PayloadValidationError is PayloadValidationError
+    assert chatgpt_web_adapter.validate_payload is validate_payload
+    assert "PayloadValidationError" in chatgpt_web_adapter.__all__
+    assert "validate_payload" in chatgpt_web_adapter.__all__
 
 
 def test_validate_payload_rejects_non_dict() -> None:

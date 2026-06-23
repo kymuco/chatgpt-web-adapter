@@ -37,7 +37,7 @@ def test_readme_explains_what_this_is_and_is_not() -> None:
 def test_readme_keeps_key_existing_paths_and_workflows() -> None:
     text = README.read_text(encoding="utf-8")
 
-    assert "from webchat_adapter import ChatGPTWebClient" in text
+    assert "from chatgpt_web_adapter import ChatGPTWebClient" in text
     assert "docs/raw_payload.md" in text
     assert "PayloadBuilder" in text
     assert "validate_payload" in text

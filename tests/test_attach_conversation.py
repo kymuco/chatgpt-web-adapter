@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-import webchat_adapter as adapter
-import webchat_adapter.client as client_mod
+import chatgpt_web_adapter as adapter
+import chatgpt_web_adapter.client as client_mod
 
 
 CONVERSATION_ID = "conv-123"

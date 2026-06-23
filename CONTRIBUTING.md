@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to `webchat-adapter`.
+Thanks for contributing to `chatgpt-web-adapter`.
 
 This repository is intentionally small and should stay disciplined. Changes should preserve the distinction between the stable SDK core and experimental features built on top of changing `chatgpt.com` behavior.
 

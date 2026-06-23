@@ -9,7 +9,7 @@ Prerequisites: valid ``auth_data.json`` and an existing conversation.
 
 import argparse
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 
 def _preview(text: str, *, max_chars: int = 500) -> str:

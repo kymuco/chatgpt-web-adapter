@@ -1,4 +1,4 @@
-# `webchat-adapter` Usage Guide
+# `chatgpt-web-adapter` Usage Guide
 
 Detailed usage guide for the dependency-free Python SDK that talks to the `chatgpt.com` web backend through a local `curl` transport.
 
@@ -38,7 +38,7 @@ This document covers the public API exposed by the package today and only descri
 
 ## What This SDK Does
 
-`webchat-adapter` is a small sync SDK for working with an existing `chatgpt.com` web session from Python. It is intentionally focused on transport and request formatting.
+`chatgpt-web-adapter` is a small sync SDK for working with an existing `chatgpt.com` web session from Python. It is intentionally focused on transport and request formatting.
 
 Current capabilities:
 
@@ -167,7 +167,7 @@ The loader looks for `.env` in the current working directory and a few nearby pr
 ### Loading Auth Manually
 
 ```python
-from webchat_adapter import load_auth_data
+from chatgpt_web_adapter import load_auth_data
 
 auth = load_auth_data("auth_data.json")
 
@@ -188,7 +188,7 @@ print(bool(auth.cookies))
 ### Default File-Based Client
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 ```
@@ -196,7 +196,7 @@ client = ChatGPTWebClient(auth_file="auth_data.json")
 ### Pass a Preloaded `AuthData`
 
 ```python
-from webchat_adapter import AuthData, ChatGPTWebClient
+from chatgpt_web_adapter import AuthData, ChatGPTWebClient
 
 auth = AuthData(
     accessToken="eyJhbGciOi...",
@@ -209,7 +209,7 @@ client = ChatGPTWebClient(auth=auth)
 ### Custom Timeout and `curl` Binary
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(
     auth_file="auth_data.json",
@@ -232,7 +232,7 @@ Constructor arguments:
 If you need to compare live `chatgpt.com` behavior against the SDK, you can ask the client to write sanitized local trace files.
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(
     auth_file="auth_data.json",
@@ -245,7 +245,7 @@ This is intended for local diagnostics and live smoke work. When enabled, the cl
 ## Basic Chat Request
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -262,7 +262,7 @@ print(response.text)
 `send()` returns a `ChatResponse` object:
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 response = client.send("Say hello in one sentence.")
@@ -289,7 +289,7 @@ Fields returned by the SDK:
 Use `on_token` if you want to print or process chunks as they arrive.
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -309,7 +309,7 @@ The callback is optional. The SDK still returns the full concatenated text in `r
 `warmup()` prefetches the backend requirements/proof information so the next request can start with less setup work.
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -330,7 +330,7 @@ Notes:
 ## Use a System Prompt
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -345,7 +345,7 @@ Important behavior: the SDK only sends `system` on the first turn of a conversat
 ## Choose a Model
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -358,7 +358,7 @@ response = client.send(
 The package default is:
 
 ```python
-from webchat_adapter import DEFAULT_MODEL
+from chatgpt_web_adapter import DEFAULT_MODEL
 
 print(DEFAULT_MODEL)  # gpt-4o-mini
 ```
@@ -373,7 +373,7 @@ The client also normalizes some web-style aliases internally, including:
 ## Enable Web Search
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -388,7 +388,7 @@ This sends the backend search hint used by the web client. Availability still de
 ## Use Temporary Chats
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -403,7 +403,7 @@ This sets the web payload flag that disables history/training for the request.
 ## Control Reasoning Effort
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -438,7 +438,7 @@ In the examples below, quick low-friction snippets may use a plain dict, while m
 ### Use the Returned `ChatConversation`
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -454,7 +454,7 @@ print(second.text)
 ### Pass a Plain Dictionary
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -508,7 +508,7 @@ Some ChatGPT web-agent/tool flows can pause on an approval card in the web UI, f
 The method fetches the conversation, finds the newest pending `confirm_action` tool leaf, synthesizes the same client-side `allow` message that the web UI sends, posts it through the conversation backend, and then polls `GET /backend-api/conversation/{conversation_id}` until a newer assistant message appears.
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -570,7 +570,7 @@ Some tool workflows emit more than one approval card in sequence. `wait_and_appr
 By default, `max_rounds=0`, which means no limit.
 
 ```python
-from webchat_adapter import ChatConversation, ChatGPTWebClient
+from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -609,7 +609,7 @@ This works for both:
 - an existing chat when `conversation` is passed
 
 ```python
-from webchat_adapter import ChatConversation, ChatGPTWebClient
+from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -675,7 +675,7 @@ The current media helper is image-focused. Supported formats are:
 ```python
 from pathlib import Path
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -688,7 +688,7 @@ response = client.send(
 ### Remote Image by URL
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -703,7 +703,7 @@ The SDK follows redirects when downloading remote media before upload.
 ### Data URI
 
 ```python
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -720,7 +720,7 @@ response = client.send(
 ```python
 from pathlib import Path
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 image_bytes = Path("examples/diagram.webp").read_bytes()
@@ -736,7 +736,7 @@ response = client.send(
 ```python
 from pathlib import Path
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -782,7 +782,7 @@ Example:
 ```python
 from pathlib import Path
 
-from webchat_adapter import AuthError, ChatGPTWebClient, MediaError, RequestError
+from chatgpt_web_adapter import AuthError, ChatGPTWebClient, MediaError, RequestError
 
 try:
     client = ChatGPTWebClient(auth_file="auth_data.json")
@@ -801,7 +801,7 @@ except RequestError as error:
 
 ## Public Exports
 
-The package exports its public surface directly from `webchat_adapter`.
+The package exports its public surface directly from `chatgpt_web_adapter`.
 
 Stable core:
 
@@ -853,7 +853,7 @@ Support exports:
 Example import:
 
 ```python
-from webchat_adapter import (
+from chatgpt_web_adapter import (
     AuthData,
     AuthError,
     ChatConversation,
@@ -877,7 +877,7 @@ from webchat_adapter import (
 ```python
 from pathlib import Path
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json", timeout=120)
 

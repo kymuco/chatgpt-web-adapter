@@ -75,4 +75,4 @@ jobs:
       - name: Smoke test built wheel
         run: |
           python -m pip install --force-reinstall dist/*.whl
-          python -c "from webchat_adapter import ChatGPTWebClient, __all__; assert 'ChatGPTWebClient' in __all__"
+          python -c "from chatgpt_web_adapter import ChatGPTWebClient, __all__; assert 'ChatGPTWebClient' in __all__"
