@@ -224,6 +224,23 @@ Constructor arguments:
 - `auth_file`: path to `auth_data.json` if `auth` is not passed
 - `timeout`: request timeout in seconds, minimum effective value is `10`
 - `curl_bin`: override the detected `curl` executable
+- `debug_trace_dir`: optional local directory for sanitized debug trace JSON files
+- `debug_trace_sanitize`: redact auth/session headers in debug traces, defaults to `True`
+
+### Optional Sanitized Debug Traces
+
+If you need to compare live `chatgpt.com` behavior against the SDK, you can ask the client to write sanitized local trace files.
+
+```python
+from webchat_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    debug_trace_dir="traffic-scan/client-traces",
+)
+```
+
+This is intended for local diagnostics and live smoke work. When enabled, the client writes JSON trace files for normal HTTP requests and streaming backend requests. Sensitive request and response headers such as auth, cookies, and sentinel tokens are redacted by default.
 
 ## Basic Chat Request
 
@@ -917,6 +934,7 @@ print(follow_up.text)
 - Image dimensions are detected automatically for PNG, JPEG, GIF, and WebP when possible.
 - `response.metrics` values are measured in seconds.
 - If the backend requires a Turnstile token and your auth data does not contain one, the request can fail.
+- If `debug_trace_dir` is enabled, the client writes local trace JSON files for transport diagnostics.
 - This package is intentionally small; if you need auth capture or a CLI workflow, use a separate tool and feed its auth output into this SDK.
 
 For operational verification and release hygiene, see:

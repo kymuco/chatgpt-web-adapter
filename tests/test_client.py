@@ -26,6 +26,9 @@ def _build_client() -> adapter.ChatGPTWebClient:
     client.prefetched_proof_header = None
     client.prefetched_ts = 0.0
     client._file_cache = {}
+    client.debug_trace_dir = None
+    client.debug_trace_sanitize = True
+    client._debug_trace_counter = 0
     if not client.curl_bin:
         raise RuntimeError("curl is required for tests")
     return client
@@ -274,6 +277,37 @@ def test_run_curl_persists_cookies_by_default() -> None:
     assert client.auth.cookies["session"] == "internal"
 
 
+def test_run_curl_writes_sanitized_debug_trace(tmp_path) -> None:
+    client = _build_client()
+    client.debug_trace_dir = tmp_path
+
+    with _serve(CookieHandler) as base_url:
+        status, body, _ = client._run_curl(
+            "GET",
+            f"{base_url}/image.png",
+            {
+                "user-agent": client.base_headers["user-agent"],
+                "authorization": "Bearer secret-token",
+                "cookie": "session=secret",
+                "openai-sentinel-proof-token": "proof-secret",
+            },
+        )
+
+    trace_files = sorted(tmp_path.glob("*.json"))
+    assert status == 200
+    assert body == PNG_BYTES
+    assert len(trace_files) == 1
+
+    payload = json.loads(trace_files[0].read_text(encoding="utf-8"))
+    assert payload["method"] == "GET"
+    assert payload["response_status"] == 200
+    assert payload["request_headers"]["authorization"] == "<redacted>"
+    assert payload["request_headers"]["cookie"] == "<redacted>"
+    assert payload["request_headers"]["openai-sentinel-proof-token"] == "<redacted>"
+    assert "Set-Cookie: <redacted>" in payload["response_headers"]
+    assert payload["response_body"]["kind"] == "base64"
+
+
 def test_media_url_download_follows_redirects_without_polluting_auth_cookies() -> None:
     client = _build_client()
 
@@ -323,6 +357,39 @@ def test_send_rejects_invalid_reasoning_effort() -> None:
 
     with pytest.raises(ValueError, match="reasoning_effort"):
         client.send("hello", reasoning_effort="deep")
+
+
+def test_send_writes_stream_debug_trace(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    client.debug_trace_dir = tmp_path
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("hello")
+
+    trace_files = sorted(tmp_path.glob("*.json"))
+    assert response.text == "Hello world"
+    assert len(trace_files) >= 2
+
+    stream_payloads = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in trace_files
+        if path.name.endswith("-stream.json")
+    ]
+    assert len(stream_payloads) == 1
+    stream_trace = stream_payloads[0]
+    assert stream_trace["request_headers"]["authorization"] == "<redacted>"
+    assert stream_trace["response_status"] == 200
+    assert stream_trace["stream_text"] == "Hello world"
+    assert stream_trace["events"][-1] == "[DONE]"
 
 
 def test_send_with_warmup_media_and_flags_uses_prefetched_requirements(

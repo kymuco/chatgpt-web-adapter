@@ -34,6 +34,15 @@ DEFAULT_APPROVAL_POLL_TIMEOUT_SECONDS = 90.0
 DEFAULT_APPROVAL_POLL_INTERVAL_SECONDS = 2.0
 DEFAULT_PENDING_POLL_INTERVAL_SECONDS = 3.0
 DEFAULT_APPROVAL_SETTLE_DELAY_SECONDS = 2.0
+TRACE_REDACTED = "<redacted>"
+TRACE_HEADER_REDACT_KEYS = {
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "openai-sentinel-chat-requirements-token",
+    "openai-sentinel-proof-token",
+    "openai-sentinel-turnstile-token",
+}
 MODEL_ALIASES = {
     "gpt-5.1": "gpt-5-1",
     "gpt-4.1": "gpt-4.1",
@@ -236,6 +245,8 @@ class ChatGPTWebClient:
         auth_file: str | Path = DEFAULT_AUTH_FILE,
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
         curl_bin: str | None = None,
+        debug_trace_dir: str | Path | None = None,
+        debug_trace_sanitize: bool = True,
     ) -> None:
         self.auth = auth or load_auth_data(auth_file)
         self.timeout = max(10, int(timeout))
@@ -249,6 +260,9 @@ class ChatGPTWebClient:
         self.prefetched_proof_header: str | None = None
         self.prefetched_ts = 0.0
         self._file_cache: dict[str, dict[str, Any]] = {}
+        self.debug_trace_dir = Path(debug_trace_dir) if debug_trace_dir is not None else None
+        self.debug_trace_sanitize = bool(debug_trace_sanitize)
+        self._debug_trace_counter = 0
 
     def _build_headers(self, extra: dict[str, str | None] | None = None) -> dict[str, str]:
         headers = dict(self.base_headers)
@@ -326,6 +340,76 @@ class ChatGPTWebClient:
                 status = int(parts[1])
         return status
 
+    def _debug_trace_enabled(self) -> bool:
+        return isinstance(getattr(self, "debug_trace_dir", None), Path)
+
+    def _next_debug_trace_path(self, kind: str) -> Path:
+        trace_dir = getattr(self, "debug_trace_dir", None)
+        if not isinstance(trace_dir, Path):
+            raise RuntimeError("debug trace directory is not configured")
+        trace_dir.mkdir(parents=True, exist_ok=True)
+        counter = int(getattr(self, "_debug_trace_counter", 0)) + 1
+        self._debug_trace_counter = counter
+        return trace_dir / f"{counter:04d}-{kind}.json"
+
+    def _sanitize_header_value(self, key: str, value: str) -> str:
+        if not bool(getattr(self, "debug_trace_sanitize", True)):
+            return value
+        if key.strip().lower() in TRACE_HEADER_REDACT_KEYS:
+            return TRACE_REDACTED
+        return value
+
+    def _sanitize_headers_mapping(self, headers: dict[str, str]) -> dict[str, str]:
+        return {
+            key: self._sanitize_header_value(key, value)
+            for key, value in headers.items()
+        }
+
+    def _sanitize_header_lines(self, header_text: str) -> list[str]:
+        lines: list[str] = []
+        for raw_line in header_text.splitlines():
+            if ":" not in raw_line:
+                if raw_line.strip():
+                    lines.append(raw_line)
+                continue
+            key, value = raw_line.split(":", 1)
+            lines.append(f"{key}: {self._sanitize_header_value(key, value.strip())}")
+        return lines
+
+    @staticmethod
+    def _trace_text_repr(text: str, *, max_chars: int = 200_000) -> dict[str, Any]:
+        truncated = len(text) > max_chars
+        return {
+            "kind": "text",
+            "size": len(text),
+            "truncated": truncated,
+            "text": text[:max_chars],
+        }
+
+    def _trace_bytes_repr(self, body: bytes | None, *, max_chars: int = 200_000) -> dict[str, Any] | None:
+        if body is None:
+            return None
+        try:
+            return self._trace_text_repr(body.decode("utf-8"), max_chars=max_chars)
+        except UnicodeDecodeError:
+            encoded = base64.b64encode(body).decode("ascii")
+            truncated = len(encoded) > max_chars
+            return {
+                "kind": "base64",
+                "size": len(body),
+                "truncated": truncated,
+                "base64": encoded[:max_chars],
+            }
+
+    def _write_debug_trace(self, kind: str, payload: dict[str, Any]) -> None:
+        if not self._debug_trace_enabled():
+            return
+        trace_path = self._next_debug_trace_path(kind)
+        trace_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
     def _build_curl_command(
         self,
         method: str,
@@ -372,6 +456,12 @@ class ChatGPTWebClient:
         follow_redirects: bool = False,
     ) -> tuple[int, bytes, str]:
         payload_path: str | None = None
+        status = 0
+        raw_body = b""
+        header_text = ""
+        stderr_text = ""
+        error_text: str | None = None
+        return_code = 0
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
@@ -388,15 +478,35 @@ class ChatGPTWebClient:
                 follow_redirects=follow_redirects,
             )
             result = subprocess.run(command, capture_output=True)
+            raw_body = result.stdout
+            return_code = result.returncode
+            stderr_text = result.stderr.decode("utf-8", errors="replace")
             header_text = Path(header_path).read_text(encoding="utf-8", errors="replace")
             if persist_cookies:
                 self._update_cookies_from_text(header_text)
             status = self._extract_status_code(header_text)
-            if result.returncode != 0 and not status:
-                stderr_text = result.stderr.decode("utf-8", errors="replace")
-                raise RequestError(f"curl failed: {stderr_text.strip() or result.returncode}")
-            return status, result.stdout, header_text
+            if return_code != 0 and not status:
+                error_text = f"curl failed: {stderr_text.strip() or return_code}"
+                raise RequestError(error_text)
+            return status, raw_body, header_text
         finally:
+            self._write_debug_trace(
+                "http",
+                {
+                    "method": method.upper(),
+                    "url": url,
+                    "persist_cookies": bool(persist_cookies),
+                    "follow_redirects": bool(follow_redirects),
+                    "request_headers": self._sanitize_headers_mapping(headers),
+                    "request_body": self._trace_bytes_repr(body),
+                    "response_status": status,
+                    "response_headers": self._sanitize_header_lines(header_text),
+                    "response_body": self._trace_bytes_repr(raw_body),
+                    "stderr": stderr_text or None,
+                    "return_code": return_code,
+                    "error": error_text,
+                },
+            )
             try:
                 Path(header_path).unlink(missing_ok=True)
             except OSError:
@@ -1023,6 +1133,12 @@ class ChatGPTWebClient:
     ) -> tuple[str | None, str | None, str]:
         payload_path: str | None = None
         process: subprocess.Popen | None = None
+        header_text = ""
+        stderr_text = ""
+        status = 0
+        return_code = 0
+        error_text: str | None = None
+        raw_events: list[str] = []
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
@@ -1057,7 +1173,9 @@ class ChatGPTWebClient:
                 if not raw_line.startswith(b"data: "):
                     continue
                 if raw_line.startswith(b"data: [DONE]"):
+                    raw_events.append("[DONE]")
                     break
+                raw_events.append(raw_line[6:].decode("utf-8", errors="replace").strip())
                 try:
                     event_payload = json.loads(raw_line[6:])
                 except ValueError:
@@ -1074,7 +1192,6 @@ class ChatGPTWebClient:
                     if on_token is not None:
                         on_token(token)
                     self._emit_event(on_event, "assistant_token", token=token)
-            stderr_text = ""
             if process.stderr is not None:
                 stderr_text = process.stderr.read().decode("utf-8", errors="replace")
             return_code = process.wait()
@@ -1082,11 +1199,29 @@ class ChatGPTWebClient:
             self._update_cookies_from_text(header_text)
             status = self._extract_status_code(header_text)
             if status >= 400:
-                raise RequestError(f"backend status={status}")
+                error_text = f"backend status={status}"
+                raise RequestError(error_text)
             if return_code != 0:
-                raise RequestError(f"curl failed: {stderr_text.strip() or return_code}")
+                error_text = f"curl failed: {stderr_text.strip() or return_code}"
+                raise RequestError(error_text)
             return latest_conversation_id, latest_message_id, "".join(full_chunks)
         finally:
+            self._write_debug_trace(
+                "stream",
+                {
+                    "method": "POST",
+                    "url": CHAT_BACKEND_URL,
+                    "request_headers": self._sanitize_headers_mapping(headers),
+                    "request_body": self._trace_text_repr(json.dumps(payload, ensure_ascii=False)),
+                    "response_status": status,
+                    "response_headers": self._sanitize_header_lines(header_text),
+                    "events": raw_events,
+                    "stream_text": "".join(full_chunks) if "full_chunks" in locals() else "",
+                    "stderr": stderr_text or None,
+                    "return_code": return_code,
+                    "error": error_text,
+                },
+            )
             self._cleanup_process(process)
             try:
                 Path(header_path).unlink(missing_ok=True)
@@ -1581,6 +1716,12 @@ class ChatGPTWebClient:
         started_at = time.perf_counter()
         payload_path: str | None = None
         process: subprocess.Popen | None = None
+        header_text = ""
+        stderr_text = ""
+        status = 0
+        return_code = 0
+        error_text: str | None = None
+        raw_events: list[str] = []
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
@@ -1608,7 +1749,9 @@ class ChatGPTWebClient:
                 if not raw_line.startswith(b"data: "):
                     continue
                 if raw_line.startswith(b"data: [DONE]"):
+                    raw_events.append("[DONE]")
                     break
+                raw_events.append(raw_line[6:].decode("utf-8", errors="replace").strip())
                 try:
                     event_payload = json.loads(raw_line[6:])
                 except ValueError:
@@ -1626,7 +1769,6 @@ class ChatGPTWebClient:
                     full_chunks.append(token)
                     if on_token is not None:
                         on_token(token)
-            stderr_text = ""
             if process.stderr is not None:
                 stderr_text = process.stderr.read().decode("utf-8", errors="replace")
             return_code = process.wait()
@@ -1635,10 +1777,28 @@ class ChatGPTWebClient:
             status = self._extract_status_code(header_text)
             if status >= 400:
                 body_text = b"".join(error_body).decode("utf-8", errors="replace")
-                raise RequestError(f"backend status={status}: {body_text[:300]}")
+                error_text = f"backend status={status}: {body_text[:300]}"
+                raise RequestError(error_text)
             if return_code != 0:
-                raise RequestError(f"curl failed: {stderr_text.strip() or return_code}")
+                error_text = f"curl failed: {stderr_text.strip() or return_code}"
+                raise RequestError(error_text)
         finally:
+            self._write_debug_trace(
+                "stream",
+                {
+                    "method": "POST",
+                    "url": CHAT_BACKEND_URL,
+                    "request_headers": self._sanitize_headers_mapping(headers),
+                    "request_body": self._trace_text_repr(json.dumps(payload, ensure_ascii=False)),
+                    "response_status": status,
+                    "response_headers": self._sanitize_header_lines(header_text),
+                    "events": raw_events,
+                    "stream_text": "".join(full_chunks),
+                    "stderr": stderr_text or None,
+                    "return_code": return_code,
+                    "error": error_text,
+                },
+            )
             self._cleanup_process(process)
             try:
                 Path(header_path).unlink(missing_ok=True)
