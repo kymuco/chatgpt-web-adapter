@@ -425,6 +425,8 @@ The SDK uses `conversation_id` plus the previous message identifiers to continue
 
 There are now three approval-related entry points. Use the narrowest one that matches your workflow.
 
+All approval helpers in this section are experimental. They are best-effort wrappers around reverse-engineered ChatGPT web approval flows and should not be treated as a stable compatibility contract of the SDK.
+
 - `approve_pending_action()`
   - low-level
   - approve one currently pending tool action in an existing conversation
@@ -435,7 +437,7 @@ There are now three approval-related entry points. Use the narrowest one that ma
   - high-level
   - send a prompt first, then wait for and approve follow-up tool actions
 
-For most GitHub connector automation flows, start with `send_and_auto_approve()`.
+For most GitHub connector automation flows, start with experimental `send_and_auto_approve()`.
 
 All three approval helpers are quiet by default. If you want terminal-visible progress, use:
 

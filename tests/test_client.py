@@ -152,7 +152,7 @@ def _make_chat_handler(
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.end_headers()
-                events = [
+                events = state.get("stream_events") or [
                     {
                         "v": {
                             "conversation_id": "conv-123",
@@ -404,6 +404,87 @@ def test_send_backend_error_raises_request_error(monkeypatch: pytest.MonkeyPatch
 
         with pytest.raises(adapter.RequestError, match="backend status=500"):
             client.send("fail please")
+
+
+def test_send_handles_richer_live_like_sse_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    streamed_tokens: list[str] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "stream_events": [
+            {"type": "resume_conversation_token", "kind": "topic", "token": "resume-token"},
+            {
+                "v": {
+                    "conversation_id": "conv-live",
+                    "message": {
+                        "author": {"role": "user"},
+                        "id": "user-1",
+                        "recipient": "all",
+                    },
+                }
+            },
+            {
+                "v": {
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "id": "system-ctx",
+                        "recipient": "all",
+                        "content": {"content_type": "text", "parts": [""]},
+                        "metadata": {
+                            "is_user_system_message": True,
+                            "model_slug": "gpt-5-3-mini",
+                        },
+                    },
+                    "conversation_id": "conv-live",
+                }
+            },
+            {
+                "type": "input_message",
+                "input_message": {
+                    "id": "user-1",
+                    "author": {"role": "user"},
+                },
+            },
+            {
+                "v": {
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "id": "assistant-final",
+                        "recipient": "all",
+                        "channel": "final",
+                    },
+                    "conversation_id": "conv-live",
+                }
+            },
+            {"type": "title_generation", "title": "Live-like title"},
+            {"type": "message_marker", "conversation_id": "conv-live", "message_id": "assistant-final"},
+            {
+                "v": [
+                    {"p": "/message/content/parts/0", "v": "scan-"},
+                    {"p": "/message/content/parts/0", "v": "ok"},
+                    {"p": "/message/metadata", "v": {"finish_details": {"type": "stop"}}},
+                ]
+            },
+            {"type": "server_ste_metadata", "metadata": {"message_id": "assistant-final"}},
+            {"type": "message_stream_complete", "conversation_id": "conv-live"},
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: scan-ok", on_token=streamed_tokens.append)
+
+    assert streamed_tokens == ["scan-", "ok"]
+    assert response.text == "scan-ok"
+    assert response.title == "Live-like title"
+    assert response.conversation.conversation_id == "conv-live"
+    assert response.conversation.message_id == "assistant-final"
+    assert response.conversation.finish_reason == "stop"
 
 
 def test_approve_pending_action_posts_prepare_and_polls_conversation(

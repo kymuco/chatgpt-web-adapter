@@ -161,7 +161,7 @@ Other common APIs:
 - read conversation messages with `client.get_messages(...)`
 - poll conversation status with `client.get_status(...)`
 - wait for completion with `client.wait_until_completed(...)`
-- approve selected tool flows with `client.send_and_auto_approve(...)`
+- approve selected tool flows with experimental `client.send_and_auto_approve(...)`
 - inspect request latency with [examples/diagnose_latency.py](examples/diagnose_latency.py)
 
 ## Examples
@@ -185,6 +185,8 @@ The SDK includes experimental browserless helpers for web-agent/tool approval fl
 - `send_and_auto_approve()`
 
 These APIs are useful for ChatGPT web connector flows such as GitHub file creation, but they rely on reverse-engineered web behavior and should be treated as less stable than the base `send()` API.
+
+Approval helpers are not a stable contract of this SDK. They are best-effort compatibility layers over changing ChatGPT web approval behavior and may require updates even when the base send/continue flows still work.
 
 See [USAGE.md](USAGE.md) and [examples/github_auto_approve.py](examples/github_auto_approve.py).
 

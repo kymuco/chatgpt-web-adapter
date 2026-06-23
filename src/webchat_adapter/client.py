@@ -1114,9 +1114,13 @@ class ChatGPTWebClient:
     ) -> ChatResponse:
         """Approve the latest pending tool action in a web conversation.
 
-        This is an experimental browserless flow that mirrors the ChatGPT web UI
-        approval card by synthesizing a ``jit_plugin_data.from_client.allow`` tool
-        message and sending it through the same conversation backend.
+        Experimental best-effort browserless flow that mirrors the ChatGPT web
+        UI approval card by synthesizing a
+        ``jit_plugin_data.from_client.allow`` tool message and sending it
+        through the same conversation backend.
+
+        This helper is not a stable compatibility contract of the SDK and may
+        require updates when ChatGPT web approval behavior changes.
         """
         conversation_dict = self._conversation_to_dict(conversation)
         if not isinstance(conversation_dict, dict):
