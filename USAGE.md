@@ -941,3 +941,5 @@ For operational verification and release hygiene, see:
 
 - [docs/live_smoke_checklist.md](docs/live_smoke_checklist.md)
 - [docs/release_checklist.md](docs/release_checklist.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/building_on_top.md](docs/building_on_top.md)
