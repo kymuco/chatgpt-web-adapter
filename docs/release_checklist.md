@@ -6,6 +6,13 @@ Use this checklist before cutting a release or publishing a new package version.
 
 - Run the full test suite:
   - `pytest -q`
+- Build release artifacts:
+  - `python -m build`
+- Validate package metadata:
+  - `python -m twine check dist/*`
+- Smoke test the built wheel in a clean environment:
+  - `python -m pip install --force-reinstall dist/*.whl`
+  - `python -c "from webchat_adapter import ChatGPTWebClient"`
 - If public exports changed, recheck API-surface tests.
 - If transport/parsing changed, recheck client/status/message tests.
 
@@ -38,6 +45,8 @@ Use this checklist before cutting a release or publishing a new package version.
 ## Exit Criteria
 
 - Tests pass.
+- Build artifacts pass `twine check`.
+- Built wheel installs and imports cleanly.
 - Stable-core live smoke passes.
 - Docs are in sync with behavior.
 - Experimental caveats are still explicit.

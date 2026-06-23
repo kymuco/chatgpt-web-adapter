@@ -8,13 +8,13 @@ version = "0.1.3"
 description = "Minimal dependency-free Python adapter for chatgpt.com web sessions."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "kymuco" }
 ]
 keywords = ["chatgpt", "adapter", "sdk", "webchat"]
 classifiers = [
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
@@ -25,6 +25,12 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/kymuco/webchat-adapter"
+Repository = "https://github.com/kymuco/webchat-adapter"
+Issues = "https://github.com/kymuco/webchat-adapter/issues"
+Changelog = "https://github.com/kymuco/webchat-adapter/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
