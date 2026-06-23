@@ -7,6 +7,8 @@ This document covers the public API exposed by the package today and only descri
 ## Contents
 
 - [What This SDK Does](#what-this-sdk-does)
+- [Stable vs Experimental](#stable-vs-experimental)
+- [Compatibility Policy](#compatibility-policy)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Authentication](#authentication)
@@ -56,6 +58,38 @@ Non-goals of this package:
 - no auth capture flow
 - no local chat-history storage
 - no async client
+
+## Stable vs Experimental
+
+The SDK has two support levels.
+
+Stable core:
+
+- `ChatGPTWebClient.send()`
+- `send_to_conversation()`
+- `attach_conversation()`
+- `get_messages()`
+- `get_status()`
+- `wait_until_completed()`
+- image upload for multimodal prompts
+
+Experimental features:
+
+- `approve_pending_action()`
+- `wait_and_approve_pending_actions()`
+- `send_and_auto_approve()`
+- `PayloadBuilder`
+- `validate_payload()`
+- `send_payload()`
+
+The stable core is the main surface intended for tools and applications that want a reusable ChatGPT web-session transport layer. Experimental features are exposed because they are useful, but they rely more directly on changing web-client behavior and should be adopted more cautiously.
+
+## Compatibility Policy
+
+- Stable core APIs are the main compatibility target of the package.
+- Experimental APIs may need faster iteration when the ChatGPT web client changes.
+- A package release does not guarantee that undocumented web behavior on `chatgpt.com` has remained unchanged.
+- When the site changes, experimental flows are expected to break before the stable core send/continue/read flows.
 
 ## Requirements
 

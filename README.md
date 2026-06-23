@@ -39,6 +39,38 @@ The package intentionally does not include the CLI, localization, auth capture, 
 - a browser automation framework
 - a stable contract for undocumented ChatGPT web internals
 
+## Stable vs Experimental
+
+The SDK has two support levels.
+
+Stable core:
+
+- `ChatGPTWebClient.send()`
+- `send_to_conversation()`
+- `attach_conversation()`
+- `get_messages()`
+- `get_status()`
+- `wait_until_completed()`
+- image upload for multimodal prompts
+
+Experimental features:
+
+- `approve_pending_action()`
+- `wait_and_approve_pending_actions()`
+- `send_and_auto_approve()`
+- `PayloadBuilder`
+- `validate_payload()`
+- `send_payload()`
+
+The stable core is the main surface intended for building tools on top of an existing ChatGPT web session. Experimental features are exposed because they are useful, but they rely more directly on changing web-client behavior.
+
+## Compatibility Policy
+
+- Stable core APIs are the main compatibility target of the package.
+- Experimental APIs may need faster iteration when the ChatGPT web client changes.
+- A package release does not guarantee that undocumented web behavior on `chatgpt.com` has remained unchanged.
+- When the site changes, experimental flows are expected to break before the stable core send/continue/read flows.
+
 ## Features
 
 - zero runtime Python dependencies
