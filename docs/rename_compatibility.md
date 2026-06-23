@@ -1,14 +1,14 @@
 # Rename Compatibility Plan
 
-This project may later move to the clearer public name `chatgpt-web-adapter`, with the Python import package `chatgpt_web_adapter`.
+The repository is now named `chatgpt-web-adapter`. The Python distribution package and import package have not been renamed yet.
 
-The rename is planned for a future milestone. It is not implemented today.
+This document tracks the remaining package/import rename plan and the compatibility policy for the existing `webchat_adapter` import.
 
 ## Current Name
 
-Today, only the current package exists:
+Today, the repository has the new public name, while the install/import surface remains unchanged:
 
-- Repository: `webchat-adapter`
+- Repository: `chatgpt-web-adapter`
 - Distribution package: `webchat-adapter`
 - Python import package: `webchat_adapter`
 
@@ -20,7 +20,7 @@ from webchat_adapter import ChatGPTWebClient
 
 ## Future Name
 
-The future naming target is:
+The future package naming target is:
 
 - Repository: `chatgpt-web-adapter`
 - Distribution package: `chatgpt-web-adapter`
@@ -36,7 +36,7 @@ That future import is not available yet.
 
 ## Compatibility Import
 
-The existing `webchat_adapter` import path will remain the compatibility import after the future rename:
+The existing `webchat_adapter` import path will remain the compatibility import after the future package/import rename:
 
 ```python
 from webchat_adapter import ChatGPTWebClient
@@ -46,8 +46,8 @@ The compatibility import should remain available for multiple minor releases aft
 
 ## Policy
 
-- Do not rename before the SDK has enough user-facing value.
-- Do not rename before the early value milestones are complete.
+- Do not rename the distribution package or import package before the SDK has enough user-facing value.
+- Do not rename the distribution package or import package before the early value milestones are complete.
 - Keep `webchat_adapter` as the old compatibility import after the future rename.
 - Do not remove `webchat_adapter` without a documented deprecation period.
 - Do not add deprecation warnings until `chatgpt_web_adapter` exists and migration is actually possible.
@@ -57,7 +57,7 @@ The compatibility import should remain available for multiple minor releases aft
 
 ### Phase 0 - Current
 
-Only `webchat_adapter` exists. Documentation and examples must continue to use:
+The repository is already `chatgpt-web-adapter`, but only `webchat_adapter` exists as an import package. Documentation and examples must continue to use:
 
 ```python
 from webchat_adapter import ChatGPTWebClient
@@ -65,7 +65,7 @@ from webchat_adapter import ChatGPTWebClient
 
 ### Phase 1 - Dual Import
 
-After the future rename package is introduced, both imports should work:
+After the future import package is introduced, both imports should work:
 
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
@@ -97,6 +97,6 @@ If removal is ever considered, it should require:
 
 ## Out of Scope for the Current Milestone
 
-This plan does not rename the repository, package, distribution metadata, source directory, examples, or documentation imports.
+This plan does not rename the distribution package, source directory, examples, documentation imports, or Python import package.
 
 For now, use `webchat_adapter`.
