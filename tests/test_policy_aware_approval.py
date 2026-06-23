@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
-import webchat_adapter
-from webchat_adapter import (
+import chatgpt_web_adapter
+from chatgpt_web_adapter import (
     ApprovalDeniedError,
     ApprovalPolicy,
     ChatConversation,
@@ -14,7 +14,7 @@ from webchat_adapter import (
     ChatMetrics,
     ChatResponse,
 )
-from webchat_adapter.approval_types import APPROVAL_EVENT_TYPES
+from chatgpt_web_adapter.approval_types import APPROVAL_EVENT_TYPES
 
 
 def _confirm_action_payload(*, recipient: str = "python") -> dict[str, Any]:
@@ -91,8 +91,8 @@ def _canonical_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def test_approval_denied_error_is_exported() -> None:
-    assert webchat_adapter.ApprovalDeniedError is ApprovalDeniedError
-    assert "ApprovalDeniedError" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.ApprovalDeniedError is ApprovalDeniedError
+    assert "ApprovalDeniedError" in chatgpt_web_adapter.__all__
 
 
 def test_wait_and_approve_pending_actions_default_policy_blocks_before_prepare_or_stream() -> None:

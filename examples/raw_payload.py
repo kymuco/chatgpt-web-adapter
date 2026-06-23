@@ -13,7 +13,7 @@ ChatGPT web messages in the account behind your existing web-session auth data.
 import argparse
 from typing import Any
 
-from webchat_adapter import ChatGPTWebClient, PayloadBuilder, validate_payload
+from chatgpt_web_adapter import ChatGPTWebClient, PayloadBuilder, validate_payload
 
 
 DEFAULT_PROMPT = "Reply with one short sentence from a raw payload."

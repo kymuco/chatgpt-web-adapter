@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from webchat_adapter import RequestError
+from chatgpt_web_adapter import RequestError
 
 
 def test_request_error_preserves_string_message() -> None:

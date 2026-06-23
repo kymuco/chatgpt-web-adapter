@@ -1,6 +1,6 @@
 # Security
 
-`webchat-adapter` works with existing `chatgpt.com` session material. Treat that material as sensitive.
+`chatgpt-web-adapter` works with existing `chatgpt.com` session material. Treat that material as sensitive.
 
 ## Sensitive Data
 

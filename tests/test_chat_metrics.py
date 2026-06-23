@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import webchat_adapter
-from webchat_adapter import ChatMetrics, ChatResponse
-from webchat_adapter.types import ChatMetrics as TypesChatMetrics
+import chatgpt_web_adapter
+from chatgpt_web_adapter import ChatMetrics, ChatResponse
+from chatgpt_web_adapter.types import ChatMetrics as TypesChatMetrics
 
 
 def test_chat_metrics_positional_compatibility() -> None:
@@ -94,9 +94,9 @@ def test_chat_metrics_from_dict_reads_expanded_fields() -> None:
 
 
 def test_chat_metrics_export_is_shared_with_types_module() -> None:
-    assert webchat_adapter.ChatMetrics is ChatMetrics
+    assert chatgpt_web_adapter.ChatMetrics is ChatMetrics
     assert TypesChatMetrics is ChatMetrics
-    assert "ChatMetrics" in webchat_adapter.__all__
+    assert "ChatMetrics" in chatgpt_web_adapter.__all__
 
 
 def test_chat_response_default_metrics_uses_expanded_metrics() -> None:

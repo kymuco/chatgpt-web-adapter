@@ -8,7 +8,7 @@ Prerequisites: valid ``auth_data.json``, an enabled GitHub connector, and a test
 repository where automated file creation is acceptable.
 """
 
-from webchat_adapter import ChatConversation, ChatGPTWebClient
+from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
 
 
 REPO_SLUG = "your-user-or-org/your-repo"

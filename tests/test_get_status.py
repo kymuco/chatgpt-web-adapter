@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from webchat_adapter import ChatGPTWebClient, ConversationStatus
+from chatgpt_web_adapter import ChatGPTWebClient, ConversationStatus
 
 
 def _message(

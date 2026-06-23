@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from webchat_adapter import ChatGPTWebClient, ChatMessage
+from chatgpt_web_adapter import ChatGPTWebClient, ChatMessage
 
 
 def _client(messages: list[ChatMessage]) -> ChatGPTWebClient:
@@ -76,11 +76,11 @@ def test_export_conversation_jsonl_formats_messages() -> None:
 
 
 def test_export_conversation_jsonl_preserves_unicode() -> None:
-    client = _client([ChatMessage(role="user", text="Привет こんにちは")])
+    client = _client([ChatMessage(role="user", text="РџСЂРёРІРµС‚ гЃ“г‚“гЃ«гЃЎгЃЇ")])
 
     output = client.export_conversation("conversation-1", format="jsonl")
 
-    assert "Привет こんにちは" in output
+    assert "РџСЂРёРІРµС‚ гЃ“г‚“гЃ«гЃЎгЃЇ" in output
     assert "\\u041f" not in output
 
 

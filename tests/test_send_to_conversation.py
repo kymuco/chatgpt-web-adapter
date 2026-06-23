@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-import webchat_adapter as adapter
-from webchat_adapter.client import DEFAULT_MODEL
+import chatgpt_web_adapter as adapter
+from chatgpt_web_adapter.client import DEFAULT_MODEL
 
 
 CONVERSATION_ID = "conv-123"
@@ -57,13 +57,13 @@ def test_send_to_conversation_attaches_and_sends_with_detected_model() -> None:
     attached = _attached(detected_model="gpt-5-5-thinking")
     client, attach_calls, send_calls, response = _client_with_attach_and_send(attached)
 
-    result = client.send_to_conversation(CONVERSATION_ID, "Продолжи")
+    result = client.send_to_conversation(CONVERSATION_ID, "РџСЂРѕРґРѕР»Р¶Рё")
 
     assert result is response
     assert attach_calls == [CONVERSATION_ID]
     assert send_calls == [
         {
-            "prompt": "Продолжи",
+            "prompt": "РџСЂРѕРґРѕР»Р¶Рё",
             "model": "gpt-5-5-thinking",
             "system": None,
             "web_search": False,
@@ -81,7 +81,7 @@ def test_send_to_conversation_passes_url_to_attach_unchanged() -> None:
     client, attach_calls, _send_calls, _response = _client_with_attach_and_send(attached)
     url = f"https://chatgpt.com/c/{CONVERSATION_ID}"
 
-    client.send_to_conversation(url, "Продолжи")
+    client.send_to_conversation(url, "РџСЂРѕРґРѕР»Р¶Рё")
 
     assert attach_calls == [url]
 
@@ -92,7 +92,7 @@ def test_send_to_conversation_explicit_model_wins_over_detected_model() -> None:
 
     client.send_to_conversation(
         CONVERSATION_ID,
-        "Продолжи",
+        "РџСЂРѕРґРѕР»Р¶Рё",
         model="gpt-4.1",
         preserve_model=True,
     )
@@ -106,7 +106,7 @@ def test_send_to_conversation_preserve_model_false_ignores_detected_model() -> N
 
     client.send_to_conversation(
         CONVERSATION_ID,
-        "Продолжи",
+        "РџСЂРѕРґРѕР»Р¶Рё",
         preserve_model=False,
     )
 
@@ -117,7 +117,7 @@ def test_send_to_conversation_unknown_detected_model_uses_default_model() -> Non
     attached = _attached(detected_model=None)
     client, _attach_calls, send_calls, _response = _client_with_attach_and_send(attached)
 
-    client.send_to_conversation(CONVERSATION_ID, "Продолжи")
+    client.send_to_conversation(CONVERSATION_ID, "РџСЂРѕРґРѕР»Р¶Рё")
 
     assert send_calls[0]["model"] == DEFAULT_MODEL
 
@@ -126,7 +126,7 @@ def test_send_to_conversation_default_reasoning_effort_stays_none() -> None:
     attached = _attached()
     client, _attach_calls, send_calls, _response = _client_with_attach_and_send(attached)
 
-    client.send_to_conversation(CONVERSATION_ID, "Продолжи")
+    client.send_to_conversation(CONVERSATION_ID, "РџСЂРѕРґРѕР»Р¶Рё")
 
     assert send_calls[0]["reasoning_effort"] is None
 
@@ -137,7 +137,7 @@ def test_send_to_conversation_passes_explicit_reasoning_effort() -> None:
 
     client.send_to_conversation(
         CONVERSATION_ID,
-        "Продолжи",
+        "РџСЂРѕРґРѕР»Р¶Рё",
         reasoning_effort="extended",
     )
 
@@ -154,7 +154,7 @@ def test_send_to_conversation_passes_send_options_through() -> None:
 
     client.send_to_conversation(
         CONVERSATION_ID,
-        "Продолжи",
+        "РџСЂРѕРґРѕР»Р¶Рё",
         system="system prompt",
         web_search=True,
         temporary=True,
@@ -186,6 +186,6 @@ def test_send_to_conversation_propagates_attach_errors_without_sending() -> None
     client.send = send
 
     with pytest.raises(adapter.RequestError, match="status=404"):
-        client.send_to_conversation(CONVERSATION_ID, "Продолжи")
+        client.send_to_conversation(CONVERSATION_ID, "РџСЂРѕРґРѕР»Р¶Рё")
 
     assert send_called is False

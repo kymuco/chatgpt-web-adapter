@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 
 def _client(message: dict) -> ChatGPTWebClient:

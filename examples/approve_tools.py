@@ -14,7 +14,7 @@ using it, and add your own allowlist checks for repositories, files, or actions.
 import argparse
 from typing import Any
 
-from webchat_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient
 
 
 def print_event(event: dict[str, Any]) -> None:

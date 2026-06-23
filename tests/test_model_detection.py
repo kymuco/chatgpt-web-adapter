@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from webchat_adapter.model_detection import detect_model_from_conversation_payload
+from chatgpt_web_adapter.model_detection import detect_model_from_conversation_payload
 
 
 def _message_node(

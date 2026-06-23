@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
-import webchat_adapter
-from webchat_adapter import ChatGPTWebClient, PendingApproval
+import chatgpt_web_adapter
+from chatgpt_web_adapter import ChatGPTWebClient, PendingApproval
 
 
 def _message(
@@ -196,8 +196,8 @@ def test_pending_approval_from_dict_invalid_returns_none() -> None:
 
 
 def test_pending_approval_is_exported_from_public_package() -> None:
-    assert webchat_adapter.PendingApproval is PendingApproval
-    assert "PendingApproval" in webchat_adapter.__all__
+    assert chatgpt_web_adapter.PendingApproval is PendingApproval
+    assert "PendingApproval" in chatgpt_web_adapter.__all__
 
 
 def test_get_pending_approval_method_is_available() -> None:

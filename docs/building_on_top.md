@@ -30,7 +30,7 @@ They are useful, but they should not be the foundation of a product architecture
 
 ## Suggested Product Boundary for gptty
 
-`webchat-adapter` should remain responsible for:
+`chatgpt-web-adapter` should remain responsible for:
 
 - auth consumption
 - transport
@@ -75,4 +75,4 @@ Recommended approach:
 
 ## Practical Recommendation
 
-If `gptty` needs richer workflows, prefer adding product-side orchestration first. Only promote logic into `webchat-adapter` when it is clearly reusable, application-agnostic, and justified for the stable core.
+If `gptty` needs richer workflows, prefer adding product-side orchestration first. Only promote logic into `chatgpt-web-adapter` when it is clearly reusable, application-agnostic, and justified for the stable core.

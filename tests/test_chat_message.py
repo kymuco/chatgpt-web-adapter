@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from webchat_adapter import ChatMessage
+from chatgpt_web_adapter import ChatMessage
 
 
 def test_chat_message_basic_construction() -> None:

@@ -42,7 +42,7 @@ Start with `PayloadBuilder`, optionally modify the payload, validate obvious
 top-level fields, and then send the payload.
 
 ```python
-from webchat_adapter import ChatGPTWebClient, PayloadBuilder, validate_payload
+from chatgpt_web_adapter import ChatGPTWebClient, PayloadBuilder, validate_payload
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 
@@ -72,7 +72,7 @@ it does not promise backend stability.
 ### Build a new-chat payload
 
 ```python
-from webchat_adapter import PayloadBuilder
+from chatgpt_web_adapter import PayloadBuilder
 
 payload = PayloadBuilder.new_chat(
     "Summarize this in one sentence.",
@@ -169,7 +169,7 @@ It does not validate:
 - all ChatGPT web backend fields
 
 ```python
-from webchat_adapter import PayloadValidationError, validate_payload
+from chatgpt_web_adapter import PayloadValidationError, validate_payload
 
 try:
     validate_payload(payload)
@@ -236,7 +236,7 @@ helper APIs.
 ## Error handling
 
 ```python
-from webchat_adapter import PayloadValidationError, RequestError
+from chatgpt_web_adapter import PayloadValidationError, RequestError
 
 try:
     response = client.send_payload(payload)

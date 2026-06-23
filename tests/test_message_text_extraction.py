@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from webchat_adapter.message_text import extract_message_text
+from chatgpt_web_adapter.message_text import extract_message_text
 
 
 def test_extract_message_text_reads_content_text() -> None:

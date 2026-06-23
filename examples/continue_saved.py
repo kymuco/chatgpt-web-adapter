@@ -11,7 +11,7 @@ import argparse
 import json
 from pathlib import Path
 
-from webchat_adapter import ChatConversation, ChatGPTWebClient
+from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
 
 
 DEFAULT_FIRST_PROMPT = "Start a short conversation about SQLite."

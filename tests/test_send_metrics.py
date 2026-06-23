@@ -9,8 +9,8 @@ from typing import Any, Iterator
 
 import pytest
 
-import webchat_adapter as adapter
-import webchat_adapter.client as client_mod
+import chatgpt_web_adapter as adapter
+import chatgpt_web_adapter.client as client_mod
 
 
 def _live_like_metrics_stream_events(
