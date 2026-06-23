@@ -13,6 +13,53 @@ import webchat_adapter as adapter
 import webchat_adapter.client as client_mod
 
 
+def _live_like_metrics_stream_events(
+    *,
+    conversation_id: str = "conv-123",
+    assistant_message_id: str = "assistant-1",
+    text_parts: tuple[str, ...] = ("Hi", " there"),
+    finish_reason: str = "stop",
+) -> list[dict[str, Any]]:
+    return [
+        {"type": "resume_conversation_token", "kind": "topic", "token": "resume-token"},
+        {
+            "v": {
+                "conversation_id": conversation_id,
+                "message": {
+                    "author": {"role": "assistant"},
+                    "id": "service-msg",
+                    "recipient": "all",
+                    "content": {"content_type": "text", "parts": [""]},
+                    "metadata": {"is_user_system_message": True},
+                },
+            }
+        },
+        {
+            "v": {
+                "conversation_id": conversation_id,
+                "message": {
+                    "author": {"role": "assistant"},
+                    "id": assistant_message_id,
+                    "recipient": "all",
+                },
+            }
+        },
+        {"type": "delta_encoding", "encoding": "v1"},
+        {"type": "message_marker", "conversation_id": conversation_id, "message_id": assistant_message_id},
+        {
+            "v": [
+                *(
+                    {"p": "/message/content/parts/0", "v": part}
+                    for part in text_parts
+                ),
+                {"p": "/message/metadata", "v": {"finish_details": {"type": finish_reason}}},
+            ]
+        },
+        {"type": "server_ste_metadata", "metadata": {"message_id": assistant_message_id}},
+        {"type": "message_stream_complete", "conversation_id": conversation_id},
+    ]
+
+
 def _build_client() -> adapter.ChatGPTWebClient:
     client = object.__new__(adapter.ChatGPTWebClient)
     client.auth = adapter.AuthData(cookies={})
@@ -91,25 +138,7 @@ def _make_metrics_handler(state: dict[str, Any]) -> type[BaseHTTPRequestHandler]
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.end_headers()
-                events = [
-                    {
-                        "v": {
-                            "conversation_id": "conv-123",
-                            "message": {
-                                "author": {"role": "assistant"},
-                                "id": "assistant-1",
-                                "recipient": "all",
-                            },
-                        }
-                    },
-                    {"v": "Hi"},
-                    {
-                        "v": [
-                            {"p": "/message/content/parts/0", "v": " there"},
-                            {"p": "/message/metadata", "v": {"finish_details": {"type": "stop"}}},
-                        ]
-                    },
-                ]
+                events = _live_like_metrics_stream_events()
                 for event in events:
                     self.wfile.write(f"data: {json.dumps(event)}\n\n".encode("utf-8"))
                     self.wfile.flush()
