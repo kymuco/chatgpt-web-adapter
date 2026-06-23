@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Read messages from the current branch of a conversation.
+
+Purpose: inspect conversation history with optional role filtering.
+Surface: stable
+Prerequisites: valid ``auth_data.json`` and an existing conversation.
+"""
+
 import argparse
 
 from webchat_adapter import ChatGPTWebClient

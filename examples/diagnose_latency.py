@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Print live request, stream, and latency diagnostics for one prompt.
+
+Purpose: reference example for ``on_event`` usage and metrics inspection.
+Surface: stable
+Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
+"""
+
 import argparse
 import time
 from typing import Any
@@ -37,7 +44,7 @@ def _event_line(event: dict[str, Any], *, started_at: float) -> str:
         parts.append(f"token={event.get('token')!r}")
     elif event_type == "assistant_token":
         parts.append(f"len={len(str(event.get('token') or ''))}")
-    elif event_type == "stream_done":
+    elif event_type in {"stream_completed", "stream_done"}:
         parts.append(f"text_length={event.get('text_length')}")
     elif event_type == "request_completed":
         parts.append(f"finish_reason={event.get('finish_reason')}")

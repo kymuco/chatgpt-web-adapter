@@ -2,6 +2,11 @@ from __future__ import annotations
 
 """Approve pending tool actions from a ChatGPT web conversation.
 
+Purpose: demonstrate approval helpers for pending tool actions.
+Surface: experimental
+Prerequisites: valid ``auth_data.json`` plus a conversation that can enter
+``awaiting_tool_approval``.
+
 This example approves pending tool actions. Review the target conversation before
 using it, and add your own allowlist checks for repositories, files, or actions.
 """
@@ -9,7 +14,7 @@ using it, and add your own allowlist checks for repositories, files, or actions.
 import argparse
 from typing import Any
 
-from webchat_adapter import ChatConversation, ChatGPTWebClient
+from webchat_adapter import ChatGPTWebClient
 
 
 def print_event(event: dict[str, Any]) -> None:

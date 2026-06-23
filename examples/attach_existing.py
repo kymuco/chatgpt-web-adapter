@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Attach to an existing ChatGPT web conversation.
+
+Purpose: inspect conversation metadata for a URL or raw conversation id.
+Surface: stable
+Prerequisites: valid ``auth_data.json`` and an existing conversation.
+"""
+
 import argparse
 
 from webchat_adapter import ChatGPTWebClient

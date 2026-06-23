@@ -2,6 +2,10 @@ from __future__ import annotations
 
 """Experimental raw ChatGPT web backend payload example.
 
+Purpose: demonstrate direct payload construction and validation.
+Surface: experimental
+Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
+
 Not the official OpenAI API. Web backend behavior may change. This creates real
 ChatGPT web messages in the account behind your existing web-session auth data.
 """

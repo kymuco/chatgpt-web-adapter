@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""Send one prompt through the stable ChatGPT web send flow.
+
+Purpose: minimal reference example for a new chat request with optional token
+streaming.
+Surface: stable
+Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
+"""
+
 import argparse
 
 from webchat_adapter import ChatGPTWebClient

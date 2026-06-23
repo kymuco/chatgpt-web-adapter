@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Poll the lifecycle status of an existing conversation.
+
+Purpose: reference example for ``get_status()`` and pending approval discovery.
+Surface: stable
+Prerequisites: valid ``auth_data.json`` and an existing conversation.
+"""
+
 import argparse
 import time
 

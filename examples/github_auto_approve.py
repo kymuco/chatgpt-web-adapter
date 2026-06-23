@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""Run an experimental GitHub connector auto-approval workflow.
+
+Purpose: demonstrate repeated approval rounds for GitHub tool actions.
+Surface: experimental
+Prerequisites: valid ``auth_data.json``, an enabled GitHub connector, and a test
+repository where automated file creation is acceptable.
+"""
+
 from webchat_adapter import ChatConversation, ChatGPTWebClient
 
 

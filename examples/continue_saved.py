@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Persist and continue a conversation across separate runs.
+
+Purpose: show how to save ``ChatConversation`` state and reuse it later.
+Surface: stable
+Prerequisites: valid ``auth_data.json`` and write access to a local state file.
+"""
+
 import argparse
 import json
 from pathlib import Path
