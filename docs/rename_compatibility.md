@@ -2,6 +2,8 @@
 
 The repository is now named `chatgpt-web-adapter`. The Python distribution package and import package have not been renamed yet.
 
+The rename is planned for a future milestone. In this document, "the rename" now means the remaining distribution package and Python import package rename, not the already-completed repository rename.
+
 This document tracks the remaining package/import rename plan and the compatibility policy for the existing `webchat_adapter` import.
 
 ## Current Name
