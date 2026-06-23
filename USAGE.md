@@ -783,7 +783,56 @@ except RequestError as error:
 
 ## Public Exports
 
-The package exports the main types directly:
+The package exports its public surface directly from `webchat_adapter`.
+
+Stable core:
+
+- `ChatGPTWebClient`
+- `WebChatClient`
+- `ChatConversation`
+- `AttachedConversation`
+- `ChatMessage`
+- `ConversationStatus`
+- `PendingApproval`
+- `ChatResponse`
+- `ChatMetrics`
+- `AuthData`
+- `errors`
+
+Stable direct error exports:
+
+- `WebChatAdapterError`
+- `AuthError`
+- `ConversationTimeoutError`
+- `MediaError`
+- `PayloadValidationError`
+- `RequestError`
+
+Advanced helpers:
+
+- `ConversationRef`
+- `WaitResult`
+- `MediaItem`
+- `MediaSource`
+
+Experimental exports:
+
+- `ApprovalDecision`
+- `ApprovalDeniedError`
+- `ApprovalEvent`
+- `ApprovalPolicy`
+- `ApprovalResult`
+- `ApprovalRound`
+- `PayloadBuilder`
+- `validate_payload`
+
+Support exports:
+
+- `DEFAULT_AUTH_FILE`
+- `DEFAULT_MODEL`
+- `load_auth_data`
+
+Example import:
 
 ```python
 from webchat_adapter import (

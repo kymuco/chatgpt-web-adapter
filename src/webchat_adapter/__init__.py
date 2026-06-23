@@ -65,8 +65,7 @@ ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pen
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
 WebChatClient = ChatGPTWebClient
 
-__all__ = [
-    # Stable core API
+CORE_PUBLIC_API = [
     "ChatGPTWebClient",
     "WebChatClient",
     "ChatConversation",
@@ -78,31 +77,53 @@ __all__ = [
     "ChatMetrics",
     "AuthData",
     "errors",
-    # Stable errors, kept for direct-import compatibility
+]
+
+ERROR_EXPORTS = [
     "WebChatAdapterError",
     "AuthError",
     "ConversationTimeoutError",
     "MediaError",
     "PayloadValidationError",
     "RequestError",
-    # Advanced conversation/status helpers
+]
+
+ADVANCED_HELPERS = [
     "ConversationRef",
     "WaitResult",
-    # Media types
+]
+
+MEDIA_EXPORTS = [
     "MediaItem",
     "MediaSource",
-    # Experimental approvals
+]
+
+EXPERIMENTAL_APPROVAL_EXPORTS = [
     "ApprovalDecision",
     "ApprovalDeniedError",
     "ApprovalEvent",
     "ApprovalPolicy",
     "ApprovalResult",
     "ApprovalRound",
-    # Experimental raw payload
+]
+
+EXPERIMENTAL_RAW_PAYLOAD_EXPORTS = [
     "PayloadBuilder",
     "validate_payload",
-    # Support helpers/constants
+]
+
+SUPPORT_EXPORTS = [
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
     "load_auth_data",
+]
+
+__all__ = [
+    *CORE_PUBLIC_API,
+    *ERROR_EXPORTS,
+    *ADVANCED_HELPERS,
+    *MEDIA_EXPORTS,
+    *EXPERIMENTAL_APPROVAL_EXPORTS,
+    *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
+    *SUPPORT_EXPORTS,
 ]
