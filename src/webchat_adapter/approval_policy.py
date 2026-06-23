@@ -138,7 +138,39 @@ class ApprovalPolicy:
         object.__setattr__(self, "allowed_recipients", allowed_recipients)
         object.__setattr__(self, "denied_recipients", denied_recipients)
 
+    @staticmethod
+    def _is_read_only_metadata(metadata_preview: dict[str, Any] | None) -> bool:
+        if not isinstance(metadata_preview, dict):
+            return False
+
+        for key in ("read_only", "is_read_only"):
+            if metadata_preview.get(key) is True:
+                return True
+
+        for key in ("operation", "operation_type", "action_type", "capability", "intent"):
+            value = _optional_str(metadata_preview.get(key))
+            if value in {
+                "read",
+                "read_only",
+                "readonly",
+                "search",
+                "fetch",
+                "list",
+                "inspect",
+                "view",
+                "preview",
+            }:
+                return True
+        return False
+
     def evaluate(self, approval: PendingApproval) -> ApprovalDecision:
+        return self.evaluate_with_metadata(approval)
+
+    def evaluate_with_metadata(
+        self,
+        approval: PendingApproval,
+        metadata_preview: dict[str, Any] | None = None,
+    ) -> ApprovalDecision:
         if not isinstance(approval, PendingApproval):
             raise TypeError("approval must be a PendingApproval")
 
@@ -159,12 +191,31 @@ class ApprovalPolicy:
                 manual_required=False,
             )
 
+        is_read_only = self._is_read_only_metadata(metadata_preview)
+        if is_read_only and self.auto_approve_read_only:
+            return ApprovalDecision(
+                allowed=True,
+                reason="read_only_auto_approved",
+                recipient=recipient,
+                manual_required=False,
+                metadata_preview=metadata_preview,
+            )
+        if is_read_only and not self.auto_approve_read_only:
+            return ApprovalDecision(
+                allowed=False,
+                reason="read_only_auto_approve_disabled",
+                recipient=recipient,
+                manual_required=True,
+                metadata_preview=metadata_preview,
+            )
+
         if self.require_manual_for_unknown:
             return ApprovalDecision(
                 allowed=False,
                 reason="manual_required_for_unknown_recipient",
                 recipient=recipient,
                 manual_required=True,
+                metadata_preview=metadata_preview,
             )
 
         return ApprovalDecision(
@@ -172,6 +223,7 @@ class ApprovalPolicy:
             reason="unknown_recipient_denied",
             recipient=recipient,
             manual_required=False,
+            metadata_preview=metadata_preview,
         )
 
     @classmethod

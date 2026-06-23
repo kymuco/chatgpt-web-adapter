@@ -134,7 +134,7 @@ client = ChatGPTWebClient(auth_file="auth_data.json")
 
 response = client.send_to_conversation(
     "https://chatgpt.com/c/...",
-    "Продолжи с этого места.",
+    "Continue from this point.",
 )
 
 print(response.text)

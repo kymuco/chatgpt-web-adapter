@@ -67,17 +67,51 @@ def _current_message(payload: dict[str, Any]) -> dict[str, Any] | None:
     return _message_from_node(_conversation_mapping(payload).get(current_node))
 
 
-def _latest_message(
+def _current_branch_messages(
     payload: dict[str, Any],
+    *,
+    role: str | None = None,
+) -> list[dict[str, Any]]:
+    mapping = _conversation_mapping(payload)
+    current_node = payload.get("current_node")
+    if not isinstance(current_node, str) or not current_node.strip():
+        return []
+
+    messages: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    node_id = current_node
+    while isinstance(node_id, str) and node_id.strip():
+        if node_id in seen:
+            break
+        seen.add(node_id)
+
+        node = mapping.get(node_id)
+        if not isinstance(node, dict):
+            break
+
+        message = _message_from_node(node)
+        if isinstance(message, dict):
+            if role is None:
+                messages.append(message)
+            else:
+                author = message.get("author")
+                if isinstance(author, dict) and author.get("role") == role:
+                    messages.append(message)
+
+        parent = node.get("parent")
+        node_id = parent if isinstance(parent, str) else ""
+
+    messages.reverse()
+    return messages
+
+
+def _latest_message(
+    messages: list[dict[str, Any]],
     *,
     role: str | None = None,
 ) -> dict[str, Any] | None:
     candidates: list[tuple[float, dict[str, Any]]] = []
-    for node in _conversation_mapping(payload).values():
-        message = _message_from_node(node)
-        if message is None:
-            continue
-
+    for message in messages:
         if role is not None:
             author = message.get("author")
             if not isinstance(author, dict) or author.get("role") != role:
@@ -100,6 +134,15 @@ def _latest_message(
     return message
 
 
+def _all_messages(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    for node in _conversation_mapping(payload).values():
+        message = _message_from_node(node)
+        if isinstance(message, dict):
+            messages.append(message)
+    return messages
+
+
 def _model_from_message(message: dict[str, Any] | None) -> str | None:
     if not isinstance(message, dict):
         return None
@@ -118,10 +161,13 @@ def detect_model_from_conversation_payload(payload: Any) -> str | None:
     if not isinstance(payload, dict):
         return None
 
+    branch_messages = _current_branch_messages(payload)
     for message in (
         _current_message(payload),
-        _latest_message(payload, role="assistant"),
-        _latest_message(payload),
+        _latest_message(branch_messages, role="assistant"),
+        _latest_message(branch_messages),
+        _latest_message(_all_messages(payload), role="assistant"),
+        _latest_message(_all_messages(payload)),
     ):
         model = _model_from_message(message)
         if model:

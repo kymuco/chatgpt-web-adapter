@@ -41,6 +41,20 @@ def _pending_approval(
     )
 
 
+def _approval_metadata_preview(payload: dict[str, Any], target_message_id: str) -> dict[str, Any]:
+    mapping = payload.get("mapping")
+    if not isinstance(mapping, dict):
+        return {}
+    target_node = mapping.get(target_message_id)
+    if not isinstance(target_node, dict):
+        return {}
+    message = target_node.get("message")
+    if not isinstance(message, dict):
+        return {}
+    metadata = message.get("metadata")
+    return dict(metadata) if isinstance(metadata, dict) else {}
+
+
 def approve_pending_action(original: Callable[..., ChatResponse]) -> Callable[..., ChatResponse]:
     def wrapper(
         self: Any,
@@ -73,7 +87,10 @@ def approve_pending_action(original: Callable[..., ChatResponse]) -> Callable[..
             if not isinstance(conversation_id, str):
                 conversation_id = None
             approval = _pending_approval(tool_id, target_message_id, recipient)
-            decision = approval_policy.evaluate(approval)
+            decision = approval_policy.evaluate_with_metadata(
+                approval,
+                metadata_preview=_approval_metadata_preview(payload, target_message_id),
+            )
             approval_state["approval"] = approval
             approval_state["decision"] = decision
             approval_state["conversation_id"] = conversation_id

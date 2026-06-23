@@ -165,7 +165,15 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             self._build_curl_command = original_build_curl_command
 
         previous_metrics = getattr(response, "metrics", None)
-        stream_duration = getattr(previous_metrics, "total", None)
+        total_latency = getattr(previous_metrics, "total", None)
+        if (
+            total_latency is not None
+            and requirements_latency is not None
+            and total_latency >= requirements_latency
+        ):
+            stream_duration = total_latency - requirements_latency
+        else:
+            stream_duration = total_latency
         text = getattr(response, "text", "")
         if text is None:
             text = ""
@@ -174,7 +182,7 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
         response.metrics = ChatMetrics(
             first_token=getattr(previous_metrics, "first_token", None),
             last_token=getattr(previous_metrics, "last_token", None),
-            total=getattr(previous_metrics, "total", None),
+            total=total_latency,
             requirements_latency=requirements_latency,
             stream_duration=stream_duration,
             chars_per_second=_chars_per_second(text, stream_duration),

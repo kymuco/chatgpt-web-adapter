@@ -306,6 +306,34 @@ def test_approval_policy_auto_approve_read_only_does_not_allow_without_evidence(
     assert decision.manual_required is True
 
 
+def test_approval_policy_auto_approve_read_only_allows_with_explicit_read_only_flag() -> None:
+    policy = ApprovalPolicy(auto_approve_read_only=True)
+
+    decision = policy.evaluate_with_metadata(
+        _approval("python"),
+        {"read_only": True},
+    )
+
+    assert decision.allowed is True
+    assert decision.reason == "read_only_auto_approved"
+    assert decision.manual_required is False
+    assert decision.metadata_preview == {"read_only": True}
+
+
+def test_approval_policy_read_only_without_auto_approve_requires_manual() -> None:
+    policy = ApprovalPolicy(auto_approve_read_only=False)
+
+    decision = policy.evaluate_with_metadata(
+        _approval("python"),
+        {"operation_type": "read"},
+    )
+
+    assert decision.allowed is False
+    assert decision.reason == "read_only_auto_approve_disabled"
+    assert decision.manual_required is True
+    assert decision.metadata_preview == {"operation_type": "read"}
+
+
 def test_approval_policy_evaluate_rejects_non_pending_approval() -> None:
     with pytest.raises(TypeError, match="approval must be a PendingApproval"):
         ApprovalPolicy().evaluate("bad")

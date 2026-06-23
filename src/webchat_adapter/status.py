@@ -59,6 +59,28 @@ def _conversation_mapping(payload: dict[str, Any]) -> dict[str, Any]:
     return mapping if isinstance(mapping, dict) else {}
 
 
+def _current_branch_nodes(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    mapping = _conversation_mapping(payload)
+    node_id = _current_node_id(payload)
+    branch: list[tuple[str, dict[str, Any]]] = []
+    seen: set[str] = set()
+
+    while node_id:
+        if node_id in seen:
+            break
+        seen.add(node_id)
+
+        node = mapping.get(node_id)
+        if not isinstance(node, dict):
+            break
+
+        branch.append((node_id, node))
+        node_id = _optional_str(node.get("parent"))
+
+    branch.reverse()
+    return branch
+
+
 def _current_node_id(payload: dict[str, Any]) -> str | None:
     return _optional_str(payload.get("current_node"))
 
@@ -208,7 +230,7 @@ def _approval_from_confirm_action_node(
 
 def _find_pending_approval(payload: dict[str, Any]) -> PendingApproval | None:
     candidates: list[tuple[float, PendingApproval]] = []
-    for node in _conversation_mapping(payload).values():
+    for _node_id, node in _current_branch_nodes(payload):
         if not isinstance(node, dict) or node.get("children"):
             continue
         approval = _approval_from_confirm_action_node(payload, node)

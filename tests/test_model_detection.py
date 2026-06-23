@@ -65,6 +65,42 @@ def test_detect_model_falls_back_to_latest_assistant_metadata() -> None:
     assert detect_model_from_conversation_payload(payload) == "gpt-assistant"
 
 
+def test_detect_model_prefers_current_branch_assistant_over_newer_other_branch() -> None:
+    payload = {
+        "conversation_id": "conv-123",
+        "current_node": "user-live",
+        "mapping": {
+            "root": {"parent": None},
+            "assistant-live": {
+                "parent": "root",
+                **_message_node(
+                    "assistant-live",
+                    create_time=1.0,
+                    metadata={"model_slug": "gpt-live"},
+                ),
+            },
+            "user-live": {
+                "parent": "assistant-live",
+                **_message_node(
+                    "user-live",
+                    role="user",
+                    create_time=2.0,
+                ),
+            },
+            "assistant-other": {
+                "parent": "root",
+                **_message_node(
+                    "assistant-other",
+                    create_time=3.0,
+                    metadata={"model_slug": "gpt-other"},
+                ),
+            },
+        },
+    }
+
+    assert detect_model_from_conversation_payload(payload) == "gpt-live"
+
+
 def test_detect_model_falls_back_to_latest_any_message_metadata() -> None:
     payload = {
         "conversation_id": "conv-123",

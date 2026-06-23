@@ -279,6 +279,55 @@ def test_get_pending_approval_chooses_latest_confirm_action_leaf() -> None:
     )
 
 
+def test_get_pending_approval_ignores_leaf_from_non_current_branch() -> None:
+    mapping = {
+        "root": _node("root", None, children=["branch-live", "branch-stale"]),
+        "branch-live": _node(
+            "branch-live",
+            _message("assistant", message_id="live-target-msg", recipient="python"),
+            parent="root",
+            children=["tool-live"],
+        ),
+        "tool-live": _node(
+            "tool-live",
+            _message(
+                "tool",
+                message_id="tool-live-msg",
+                metadata=_confirm_action_metadata("branch-live"),
+                create_time=1.0,
+            ),
+            parent="branch-live",
+            children=[],
+        ),
+        "branch-stale": _node(
+            "branch-stale",
+            _message("assistant", message_id="stale-target-msg", recipient="browser"),
+            parent="root",
+            children=["tool-stale"],
+        ),
+        "tool-stale": _node(
+            "tool-stale",
+            _message(
+                "tool",
+                message_id="tool-stale-msg",
+                metadata=_confirm_action_metadata("branch-stale"),
+                create_time=2.0,
+            ),
+            parent="branch-stale",
+            children=[],
+        ),
+    }
+    client = _client(_payload(mapping, current_node="tool-live"))
+
+    approval = client.get_pending_approval("conversation-1")
+
+    assert approval == PendingApproval(
+        tool_message_id="tool-live-msg",
+        target_message_id="branch-live",
+        recipient="python",
+    )
+
+
 def test_get_pending_approval_ignores_non_leaf_confirm_action() -> None:
     client = _client(_approval_payload(tool_children=["allow-node"]))
 
@@ -363,6 +412,46 @@ def test_get_status_still_detects_confirm_action_as_pending_approval() -> None:
 
     assert status.status == "awaiting_tool_approval"
     assert status.pending_approval is True
+
+
+def test_get_status_ignores_pending_approval_from_non_current_branch() -> None:
+    mapping = {
+        "root": _node("root", None, children=["assistant-live", "assistant-stale"]),
+        "assistant-live": _node(
+            "assistant-live",
+            _message(
+                "assistant",
+                message_id="live-msg",
+                recipient="all",
+                metadata={"finish_details": {"type": "stop"}},
+            ),
+            parent="root",
+            children=[],
+        ),
+        "assistant-stale": _node(
+            "assistant-stale",
+            _message("assistant", message_id="stale-msg", recipient="browser"),
+            parent="root",
+            children=["tool-stale"],
+        ),
+        "tool-stale": _node(
+            "tool-stale",
+            _message(
+                "tool",
+                message_id="tool-stale-msg",
+                metadata=_confirm_action_metadata("assistant-stale"),
+                create_time=2.0,
+            ),
+            parent="assistant-stale",
+            children=[],
+        ),
+    }
+    client = _client(_payload(mapping, current_node="assistant-live"))
+
+    status = client.get_status("conversation-1")
+
+    assert status.status == "completed"
+    assert status.pending_approval is False
 
 
 def test_generic_pending_status_does_not_create_pending_approval_descriptor() -> None:
