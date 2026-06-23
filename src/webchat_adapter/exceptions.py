@@ -51,30 +51,31 @@ def _status_code_from_message(message: str) -> int | None:
 
 
 def _body_preview_from_message(message: str) -> str | None:
-    if "status=" not in message or ":" not in message:
+    match = re.search(r"\bstatus=\d+\s*:\s*(.+)$", message, re.DOTALL)
+    if match is None:
         return None
-    _prefix, body = message.split(":", 1)
-    return _body_preview(body)
+    return _body_preview(match.group(1))
 
 
 def _request_stage_from_message(message: str) -> str | None:
-    if message.startswith("chat-requirements"):
+    normalized = message.strip().lower()
+    if normalized.startswith("chat-requirements"):
         return "chat_requirements"
-    if message.startswith("backend status="):
+    if normalized.startswith("backend status="):
         return "conversation_stream"
-    if message.startswith("conversation prepare"):
+    if normalized.startswith("conversation prepare"):
         return "conversation_prepare"
-    if message.startswith("conversation status="):
+    if normalized.startswith("conversation status="):
         return "conversation_fetch"
-    if message.startswith("conversations status="):
+    if normalized.startswith("conversations status="):
         return "conversation_list"
-    if message.startswith("Create file"):
+    if normalized.startswith("create file") or normalized.startswith("file create"):
         return "file_create"
-    if message.startswith("Upload file"):
+    if normalized.startswith("upload file") or normalized.startswith("file upload"):
         return "file_upload"
-    if message.startswith("Finalize file"):
+    if normalized.startswith("finalize file") or normalized.startswith("file finalize"):
         return "file_finalize"
-    if message.startswith("curl failed"):
+    if normalized.startswith("curl failed"):
         return "transport"
     return None
 

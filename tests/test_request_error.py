@@ -37,7 +37,7 @@ def test_request_error_infers_fields_from_legacy_backend_message() -> None:
 
 
 def test_request_error_infers_fields_from_legacy_requirements_message() -> None:
-    error = RequestError("chat-requirements status=403")
+    error = RequestError("chat-requirements request rejected: status=403")
 
     assert error.status_code == 403
     assert error.endpoint == "chat-requirements"

@@ -200,6 +200,7 @@ def test_send_emits_event_callback_sequence(monkeypatch: pytest.MonkeyPatch) -> 
         "first_token",
         "assistant_token",
         "assistant_token",
+        "stream_completed",
         "stream_done",
         "request_completed",
     ]

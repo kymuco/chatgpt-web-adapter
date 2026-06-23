@@ -190,6 +190,13 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
         )
         _emit_event(
             on_event,
+            "stream_completed",
+            conversation_id=getattr(response.conversation, "conversation_id", None),
+            message_id=getattr(response.conversation, "message_id", None),
+            text_length=len(text),
+        )
+        _emit_event(
+            on_event,
             "stream_done",
             conversation_id=getattr(response.conversation, "conversation_id", None),
             message_id=getattr(response.conversation, "message_id", None),

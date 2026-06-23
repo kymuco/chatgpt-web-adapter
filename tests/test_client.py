@@ -686,6 +686,38 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
     assert response.conversation.finish_reason == "stop"
 
 
+def test_approve_pending_action_missing_pending_descriptor_raises_stage_specific_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "prepare_payloads": [],
+        "conversation_get_calls": 0,
+        "approval_stream_payloads": [],
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "mapping": {},
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        with pytest.raises(
+            adapter.RequestError,
+            match="pending tool approval not found in conversation payload",
+        ):
+            client.approve_pending_action(
+                adapter.ChatConversation(conversation_id="conv-123"),
+                poll=False,
+            )
+
+
 def test_approve_pending_action_can_skip_polling(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _build_client()
     client.auth.accessToken = "test-token"

@@ -580,11 +580,11 @@ class ChatGPTWebClient:
         headers = self._build_headers({"accept": "*/*", "content-type": "application/json"})
         status, data = self._json_request("POST", CHAT_REQUIREMENTS_URL, {"p": req_input}, headers)
         if status in {401, 403}:
-            raise RequestError(f"chat-requirements status={status}")
+            raise RequestError(f"chat-requirements request rejected: status={status}")
         if status >= 400:
-            raise RequestError(f"chat-requirements status={status}: {data}")
+            raise RequestError(f"chat-requirements request failed: status={status}: {data}")
         if not isinstance(data, dict):
-            raise RequestError("chat-requirements response is not a dict")
+            raise RequestError("chat-requirements response expected JSON object")
         return data
 
     def _build_proof_header(self, requirements: dict[str, Any]) -> str | None:
@@ -664,13 +664,13 @@ class ChatGPTWebClient:
             }
             status, created = self._json_request("POST", CHAT_FILES_URL, create_payload, create_headers)
             if status >= 400 or not isinstance(created, dict):
-                raise RequestError(f"Create file failed: status={status} body={created}")
+                raise RequestError(f"file create failed: status={status} body={created}")
             upload_url = created.get("upload_url")
             file_id = created.get("file_id")
             if not isinstance(upload_url, str) or not upload_url:
-                raise RequestError(f"Create file response missing upload_url: {created}")
+                raise RequestError(f"file create response missing upload_url: {created}")
             if not isinstance(file_id, str) or not file_id:
-                raise RequestError(f"Create file response missing file_id: {created}")
+                raise RequestError(f"file create response missing file_id: {created}")
             upload_headers = {
                 **UPLOAD_HEADERS,
                 "content-type": mime_type,
@@ -689,7 +689,7 @@ class ChatGPTWebClient:
             if upload_status >= 400:
                 body_text = upload_body.decode("utf-8", errors="replace")
                 raise RequestError(
-                    f"Upload file failed: status={upload_status} body={body_text[:300]}"
+                    f"file upload failed: status={upload_status} body={body_text[:300]}"
                 )
             finalize_status, finalized = self._json_request(
                 "POST",
@@ -699,7 +699,7 @@ class ChatGPTWebClient:
             )
             if finalize_status >= 400:
                 raise RequestError(
-                    f"Finalize file failed: status={finalize_status} body={finalized}"
+                    f"file finalize failed: status={finalize_status} body={finalized}"
                 )
             payload = {
                 **create_payload,
@@ -1004,7 +1004,7 @@ class ChatGPTWebClient:
         if status >= 400:
             raise RequestError(f"conversation status={status}: {data}")
         if not isinstance(data, dict):
-            raise RequestError("conversation response is not a dict")
+            raise RequestError("conversation response expected JSON object")
         return data
 
     def _list_recent_conversations(self, *, limit: int = 10) -> list[dict[str, Any]]:
@@ -1018,7 +1018,7 @@ class ChatGPTWebClient:
         if status >= 400:
             raise RequestError(f"conversations status={status}: {data}")
         if not isinstance(data, dict):
-            raise RequestError("conversations response is not a dict")
+            raise RequestError("conversations response expected JSON object")
         items = data.get("items")
         if not isinstance(items, list):
             return []
@@ -1268,7 +1268,9 @@ class ChatGPTWebClient:
         conversation_payload = self._get_conversation_payload(conversation_id)
         tool_id, target_message_id, recipient = self._latest_confirm_action_leaf(conversation_payload)
         if not (tool_id and target_message_id and recipient):
-            raise RequestError("No pending confirm_action tool approval was found")
+            raise RequestError(
+                f"pending tool approval not found in conversation payload: conversation_id={conversation_id}"
+            )
         self._emit_event(
             on_event,
             "pending_approval_detected",
@@ -1313,10 +1315,10 @@ class ChatGPTWebClient:
         if status >= 400:
             raise RequestError(f"conversation prepare status={status}: {data}")
         if not isinstance(data, dict) or data.get("status") != "ok":
-            raise RequestError(f"conversation prepare failed: {data}")
+            raise RequestError(f"conversation prepare response expected status=ok: {data}")
         conduit_token = data.get("conduit_token")
         if not isinstance(conduit_token, str) or not conduit_token:
-            raise RequestError("conversation prepare response is missing conduit_token")
+            raise RequestError("conversation prepare response missing conduit_token")
         self._emit_event(
             on_event,
             "approval_prepare_succeeded",
