@@ -918,3 +918,8 @@ print(follow_up.text)
 - `response.metrics` values are measured in seconds.
 - If the backend requires a Turnstile token and your auth data does not contain one, the request can fail.
 - This package is intentionally small; if you need auth capture or a CLI workflow, use a separate tool and feed its auth output into this SDK.
+
+For operational verification and release hygiene, see:
+
+- [docs/live_smoke_checklist.md](docs/live_smoke_checklist.md)
+- [docs/release_checklist.md](docs/release_checklist.md)

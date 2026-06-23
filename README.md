@@ -271,6 +271,11 @@ This repository only consumes existing auth data. If you still need browser-base
 
 For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `web_search`, `reasoning_effort`, conversation continuation, image inputs, response objects, and error handling, see [USAGE.md](USAGE.md).
 
+Operational docs:
+
+- [docs/live_smoke_checklist.md](docs/live_smoke_checklist.md)
+- [docs/release_checklist.md](docs/release_checklist.md)
+
 ## Future Rename
 
 The project may later move to the clearer name `chatgpt-web-adapter`, with Python package import `chatgpt_web_adapter`.
