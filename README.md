@@ -288,3 +288,9 @@ The current `webchat_adapter` import remains the only supported import today. Se
 
 Initial SDK baseline. The repository is intentionally small and focused on the transport layer first.
 GitHub Actions validates tests on Python 3.10-3.13 across Ubuntu and Windows, and also checks that the package builds successfully.
+
+Repository docs:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [SECURITY.md](SECURITY.md)
+- [CHANGELOG.md](CHANGELOG.md)
