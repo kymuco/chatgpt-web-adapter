@@ -6,7 +6,10 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+## 0.1.5 - 2026-06-24
+
 - feat: added experimental required-action detection for connector OAuth/linking cards such as Gmail connect prompts
+- docs: documented required-action handling and its distinction from browserless tool approvals
 
 ## 0.1.4 - 2026-06-24
 
