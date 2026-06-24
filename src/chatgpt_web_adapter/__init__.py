@@ -25,6 +25,8 @@ from .policy_approval import approve_pending_action as _policy_approve_pending_a
 from .policy_approval import send_and_auto_approve as _policy_send_and_auto_approve
 from .policy_approval import wait_and_approve_pending_actions as _policy_wait_and_approve_pending_actions
 from .raw_payload import send_payload as _send_payload
+from .required_action import RequiredAction, find_required_action
+from .required_action import get_required_action as _get_required_action
 from .status import get_pending_approval as _get_pending_approval
 from .status import get_status as _get_status
 from .types import (
@@ -54,6 +56,7 @@ ChatGPTWebClient.attach_conversation = _attach_conversation
 ChatGPTWebClient.export_conversation = _export_conversation
 ChatGPTWebClient.get_messages = _get_messages
 ChatGPTWebClient.get_pending_approval = _get_pending_approval
+ChatGPTWebClient.get_required_action = _get_required_action
 ChatGPTWebClient.get_status = _get_status
 ChatGPTWebClient.send = _send_with_expanded_metrics(_original_send)
 ChatGPTWebClient.send_and_auto_approve = _policy_send_and_auto_approve(
@@ -107,6 +110,11 @@ EXPERIMENTAL_APPROVAL_EXPORTS = [
     "ApprovalRound",
 ]
 
+EXPERIMENTAL_REQUIRED_ACTION_EXPORTS = [
+    "RequiredAction",
+    "find_required_action",
+]
+
 EXPERIMENTAL_RAW_PAYLOAD_EXPORTS = [
     "PayloadBuilder",
     "validate_payload",
@@ -124,6 +132,7 @@ __all__ = [
     *ADVANCED_HELPERS,
     *MEDIA_EXPORTS,
     *EXPERIMENTAL_APPROVAL_EXPORTS,
+    *EXPERIMENTAL_REQUIRED_ACTION_EXPORTS,
     *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
     *SUPPORT_EXPORTS,
 ]
