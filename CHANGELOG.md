@@ -6,6 +6,8 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- feat: added experimental required-action detection for connector OAuth/linking cards such as Gmail connect prompts
+
 ## 0.1.4 - 2026-06-24
 
 - breaking: renamed the canonical Python import package to `chatgpt_web_adapter` and removed the old `webchat_adapter` import path
