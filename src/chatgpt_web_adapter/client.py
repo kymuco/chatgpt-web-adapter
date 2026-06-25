@@ -23,6 +23,7 @@ from .model_detection import (
     detect_model_from_conversation_payload,
     detect_reasoning_effort_from_conversation_payload,
 )
+from .status import _status_from_payload
 from .types import AuthData, ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
 
 CHAT_REQUIREMENTS_URL = "https://chatgpt.com/backend-api/sentinel/chat-requirements"
@@ -1121,6 +1122,125 @@ class ChatGPTWebClient:
         message = node.get("message")
         return message if isinstance(message, dict) else None
 
+    @staticmethod
+    def _message_role(message: dict[str, Any] | None) -> str | None:
+        if not isinstance(message, dict):
+            return None
+        author = message.get("author")
+        if not isinstance(author, dict):
+            return None
+        role = author.get("role")
+        return role if isinstance(role, str) and role else None
+
+    @staticmethod
+    def _message_recipient(message: dict[str, Any] | None) -> str | None:
+        if not isinstance(message, dict):
+            return None
+        recipient = message.get("recipient")
+        return recipient if isinstance(recipient, str) and recipient else None
+
+    @classmethod
+    def _current_branch_messages_from_conversation(
+        cls,
+        payload: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        mapping = payload.get("mapping")
+        current_node = payload.get("current_node")
+        if not isinstance(mapping, dict) or not isinstance(current_node, str) or not current_node.strip():
+            return []
+        messages: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        node_id = current_node
+        while isinstance(node_id, str) and node_id.strip():
+            if node_id in seen:
+                break
+            seen.add(node_id)
+            node = mapping.get(node_id)
+            if not isinstance(node, dict):
+                break
+            message = node.get("message")
+            if isinstance(message, dict):
+                messages.append(message)
+            parent = node.get("parent")
+            node_id = parent if isinstance(parent, str) else ""
+        messages.reverse()
+        return messages
+
+    @classmethod
+    def _latest_branch_assistant_response(
+        cls,
+        payload: dict[str, Any],
+        *,
+        previous_message_id: str | None = None,
+    ) -> tuple[dict[str, Any] | None, str]:
+        branch_messages = cls._current_branch_messages_from_conversation(payload)
+        for message in reversed(branch_messages):
+            message_id = message.get("id")
+            if not isinstance(message_id, str) or not message_id or message_id == previous_message_id:
+                continue
+            if cls._message_role(message) != "assistant":
+                continue
+            recipient = cls._message_recipient(message)
+            if recipient not in {None, "all"}:
+                continue
+            text = cls._conversation_message_text(message)
+            if not text:
+                continue
+            return message, text
+        if branch_messages:
+            return None, ""
+        message, text = cls._latest_assistant_from_conversation(payload)
+        message_id = message.get("id") if isinstance(message, dict) else None
+        if isinstance(message_id, str) and message_id and message_id != previous_message_id and text:
+            return message, text
+        return None, ""
+
+    @classmethod
+    def _build_recovery_response_from_conversation_payload(
+        cls,
+        payload: dict[str, Any],
+        *,
+        fallback_conversation_id: str,
+        fallback_user_id: str | None = None,
+        previous_message_id: str | None = None,
+    ) -> ChatResponse | None:
+        status = _status_from_payload(payload)
+        selected_message, text = cls._latest_branch_assistant_response(
+            payload,
+            previous_message_id=previous_message_id,
+        )
+        if selected_message is None:
+            return None
+        message_id = selected_message.get("id") if isinstance(selected_message.get("id"), str) else None
+        metadata = selected_message.get("metadata") if isinstance(selected_message, dict) else None
+        finish_reason = status.finish_reason or "stop"
+        if isinstance(metadata, dict):
+            finish_details = metadata.get("finish_details")
+            if isinstance(finish_details, dict) and isinstance(finish_details.get("type"), str):
+                finish_reason = finish_details["type"]
+        is_completed = status.status == "completed" and status.message_id != previous_message_id
+        has_completed_message_fallback = (
+            status.status == "unknown"
+            and isinstance(message_id, str)
+            and message_id != previous_message_id
+            and isinstance(finish_reason, str)
+            and bool(finish_reason)
+        )
+        if not is_completed and not has_completed_message_fallback:
+            return None
+        return ChatResponse(
+            text=text,
+            conversation=ChatConversation(
+                conversation_id=str(payload.get("conversation_id") or fallback_conversation_id),
+                message_id=message_id,
+                user_id=fallback_user_id,
+                finish_reason=finish_reason,
+                parent_message_id=message_id,
+                is_thinking=False,
+            ),
+            metrics=ChatMetrics(),
+        )
+
     @classmethod
     def _build_response_from_conversation_payload(
         cls,
@@ -1159,12 +1279,22 @@ class ChatGPTWebClient:
         *,
         conversation_id: str,
         fallback_user_id: str | None = None,
+        previous_message_id: str | None = None,
     ) -> tuple[str | None, str | None, str, str | None, str | None]:
-        response = cls._build_response_from_conversation_payload(
+        response = cls._build_recovery_response_from_conversation_payload(
             payload,
             fallback_conversation_id=conversation_id,
             fallback_user_id=fallback_user_id,
+            previous_message_id=previous_message_id,
         )
+        if response is None:
+            return (
+                str(payload.get("conversation_id") or conversation_id),
+                None,
+                "",
+                detect_model_from_conversation_payload(payload),
+                detect_reasoning_effort_from_conversation_payload(payload),
+            )
         return (
             response.conversation.conversation_id,
             response.conversation.message_id,
@@ -1243,22 +1373,40 @@ class ChatGPTWebClient:
                 time.sleep(max(0.5, interval))
                 continue
             last_payload = payload
-            message, text = self._latest_assistant_from_conversation(payload)
+            status = _status_from_payload(payload)
+            message, text = self._latest_branch_assistant_response(
+                payload,
+                previous_message_id=previous_message_id,
+            )
+            metadata = message.get("metadata") if isinstance(message, dict) else None
+            finish_details = metadata.get("finish_details") if isinstance(metadata, dict) else None
+            finish_type = finish_details.get("type") if isinstance(finish_details, dict) else None
+            completed_via_status = status.status == "completed"
+            completed_via_fallback = (
+                status.status == "unknown"
+                and isinstance(message, dict)
+                and isinstance(finish_type, str)
+                and bool(finish_type)
+            )
             self._emit_event(
                 on_event,
                 "conversation_poll_attempt",
                 conversation_id=conversation_id,
                 previous_message_id=previous_message_id,
                 attempt=attempt,
+                current_message_id=status.message_id,
+                lifecycle_status=status.status,
+                async_status=status.async_status,
+                finish_reason=status.finish_reason,
                 latest_message_id=message.get("id") if isinstance(message, dict) else None,
                 text_length=len(text),
                 reason=reason,
             )
-            if message is not None:
+            if (completed_via_status or completed_via_fallback) and message is not None:
                 last_message = message
                 last_text = text
                 message_id = message.get("id")
-                if isinstance(message_id, str) and message_id != previous_message_id:
+                if isinstance(message_id, str) and message_id:
                     self._emit_event(
                         on_event,
                         "conversation_poll_completed",
@@ -1266,6 +1414,8 @@ class ChatGPTWebClient:
                         message_id=message_id,
                         attempt=attempt,
                         text_length=len(text),
+                        lifecycle_status=status.status,
+                        async_status=status.async_status,
                         reason=reason,
                     )
                     return message, text, payload
@@ -2036,6 +2186,7 @@ class ChatGPTWebClient:
                     conversation_payload,
                     conversation_id=recovered_conversation_id,
                     fallback_user_id=user_id,
+                    previous_message_id=parent_message_id,
                 )
                 if recovered_observed_model is None:
                     recovered_observed_model = recovered_payload_model
@@ -2084,6 +2235,7 @@ class ChatGPTWebClient:
                         polled_payload,
                         conversation_id=recovered_conversation_id,
                         fallback_user_id=user_id,
+                        previous_message_id=parent_message_id,
                     )
                     if isinstance(polled_payload_message_id, str) and polled_payload_message_id:
                         recovered_message_id = polled_payload_message_id

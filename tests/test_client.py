@@ -965,6 +965,132 @@ def test_send_polls_conversation_until_handoff_reply_appears(
     assert "conversation_poll_completed" in event_types
 
 
+def test_send_to_existing_conversation_does_not_return_stale_assistant_reply_after_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-old",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stale-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    }
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "user-new",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stale-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["fresh prompt"]},
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stale-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["fresh prompt"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 3,
+                            "content": {"content_type": "text", "parts": ["fresh-final-reply"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "finish_details": {"type": "stop"},
+                            },
+                        }
+                    },
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "fresh prompt",
+            conversation=adapter.ChatConversation(
+                conversation_id="conv-123",
+                message_id="assistant-old",
+                parent_message_id="assistant-old",
+            ),
+            model="gpt-5-5-thinking",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert state["conversation_get_calls"] >= 3
+    assert response.text == "fresh-final-reply"
+    assert response.conversation.message_id == "assistant-final"
+    event_types = [event["type"] for event in events]
+    assert "conversation_poll_started" in event_types
+    assert "conversation_poll_completed" in event_types
+    attempt_events = [event for event in events if event["type"] == "conversation_poll_attempt"]
+    assert attempt_events
+    assert attempt_events[0]["lifecycle_status"] == "user_last_message"
+
+
 def test_send_retries_after_conversation_inaccessible_during_handoff_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
