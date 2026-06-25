@@ -1196,22 +1196,90 @@ class ChatGPTWebClient:
         previous_message_id: str | None,
         timeout: float,
         interval: float,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+        reason: str = "approval_poll",
     ) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
+        self._emit_event(
+            on_event,
+            "conversation_poll_started",
+            conversation_id=conversation_id,
+            previous_message_id=previous_message_id,
+            timeout=timeout,
+            interval=interval,
+            reason=reason,
+        )
         deadline = time.monotonic() + max(0.0, timeout)
         last_message: dict[str, Any] | None = None
         last_text = ""
         last_payload: dict[str, Any] | None = None
+        attempt = 0
         while True:
-            payload = self._get_conversation_payload(conversation_id)
+            attempt += 1
+            try:
+                payload = self._get_conversation_payload(conversation_id)
+            except RequestError as error:
+                self._emit_event(
+                    on_event,
+                    "conversation_poll_error",
+                    conversation_id=conversation_id,
+                    previous_message_id=previous_message_id,
+                    attempt=attempt,
+                    reason=reason,
+                    status_code=getattr(error, "status_code", None),
+                    message=str(error),
+                )
+                if time.monotonic() >= deadline:
+                    self._emit_event(
+                        on_event,
+                        "conversation_poll_timeout",
+                        conversation_id=conversation_id,
+                        previous_message_id=previous_message_id,
+                        attempt=attempt,
+                        latest_message_id=last_message.get("id") if isinstance(last_message, dict) else None,
+                        text_length=len(last_text),
+                        reason=reason,
+                    )
+                    return last_message, last_text, last_payload
+                time.sleep(max(0.5, interval))
+                continue
             last_payload = payload
             message, text = self._latest_assistant_from_conversation(payload)
+            self._emit_event(
+                on_event,
+                "conversation_poll_attempt",
+                conversation_id=conversation_id,
+                previous_message_id=previous_message_id,
+                attempt=attempt,
+                latest_message_id=message.get("id") if isinstance(message, dict) else None,
+                text_length=len(text),
+                reason=reason,
+            )
             if message is not None:
                 last_message = message
                 last_text = text
                 message_id = message.get("id")
                 if isinstance(message_id, str) and message_id != previous_message_id:
+                    self._emit_event(
+                        on_event,
+                        "conversation_poll_completed",
+                        conversation_id=conversation_id,
+                        message_id=message_id,
+                        attempt=attempt,
+                        text_length=len(text),
+                        reason=reason,
+                    )
                     return message, text, payload
             if time.monotonic() >= deadline:
+                self._emit_event(
+                    on_event,
+                    "conversation_poll_timeout",
+                    conversation_id=conversation_id,
+                    previous_message_id=previous_message_id,
+                    attempt=attempt,
+                    latest_message_id=last_message.get("id") if isinstance(last_message, dict) else None,
+                    text_length=len(last_text),
+                    reason=reason,
+                )
                 return last_message, last_text, last_payload
             time.sleep(max(0.5, interval))
 
@@ -1469,6 +1537,8 @@ class ChatGPTWebClient:
                 previous_message_id=tool_id,
                 timeout=poll_timeout,
                 interval=poll_interval,
+                on_event=on_event,
+                reason="approval_poll",
             )
             if isinstance(message, dict):
                 next_message_id = message.get("id")
@@ -1738,6 +1808,7 @@ class ChatGPTWebClient:
         conversation: ChatConversation | dict[str, Any] | None = None,
         media: Sequence[MediaItem] | None = None,
         on_token: Callable[[str], None] | None = None,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> ChatResponse:
         normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
         resolved_model = self._resolve_model(model, reasoning_effort)
@@ -1785,6 +1856,11 @@ class ChatGPTWebClient:
             payload["system_hints"] = ["search"]
         if normalized_effort is not None:
             payload["thinking_effort"] = normalized_effort
+        self._emit_event(
+            on_event,
+            "request_payload_prepared",
+            payload=json.loads(json.dumps(payload, ensure_ascii=False)),
+        )
 
         headers = self._build_headers(
             {
@@ -1847,12 +1923,34 @@ class ChatGPTWebClient:
                     continue
                 if raw_line.startswith(b"data: [DONE]"):
                     raw_events.append("[DONE]")
+                    self._emit_event(on_event, "raw_sse_done")
                     break
-                raw_events.append(raw_line[6:].decode("utf-8", errors="replace").strip())
+                raw_text = raw_line[6:].decode("utf-8", errors="replace").strip()
+                raw_events.append(raw_text)
                 try:
                     event_payload = json.loads(raw_line[6:])
                 except ValueError:
+                    self._emit_event(
+                        on_event,
+                        "raw_sse_event",
+                        raw=raw_text,
+                        parsed=None,
+                    )
                     continue
+                self._emit_event(
+                    on_event,
+                    "raw_sse_event",
+                    raw=raw_text,
+                    parsed=event_payload,
+                )
+                if isinstance(event_payload, dict) and event_payload.get("type") == "stream_handoff":
+                    self._emit_event(
+                        on_event,
+                        "stream_handoff",
+                        conversation_id=event_payload.get("conversation_id"),
+                        turn_exchange_id=event_payload.get("turn_exchange_id"),
+                        options=event_payload.get("options"),
+                    )
                 tokens, maybe_title = self._parse_event(event_payload, state)
                 if maybe_title and title_update is None:
                     title_update = maybe_title
@@ -1918,7 +2016,14 @@ class ChatGPTWebClient:
         ):
             try:
                 conversation_payload = self._get_conversation_payload(recovered_conversation_id)
-            except RequestError:
+            except RequestError as error:
+                self._emit_event(
+                    on_event,
+                    "conversation_recovery_fetch_error",
+                    conversation_id=recovered_conversation_id,
+                    status_code=getattr(error, "status_code", None),
+                    message=str(error),
+                )
                 conversation_payload = None
             if isinstance(conversation_payload, dict):
                 (
@@ -1945,8 +2050,13 @@ class ChatGPTWebClient:
                 recovered_message, polled_text, polled_payload = self._poll_conversation_after_prepare(
                     recovered_conversation_id,
                     previous_message_id=parent_message_id,
-                    timeout=DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
+                    timeout=max(
+                        DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
+                        float(self.timeout),
+                    ),
                     interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
+                    on_event=on_event,
+                    reason="stream_handoff_recovery",
                 )
             except RequestError:
                 recovered_message, polled_text, polled_payload = None, "", None

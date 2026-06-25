@@ -49,7 +49,7 @@ def _fill_request_error(
 
 def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..., Any]:
     def send(self: Any, *args: Any, **kwargs: Any) -> Any:
-        on_event = kwargs.pop("on_event", None)
+        on_event = kwargs.get("on_event")
         on_token = kwargs.get("on_token")
         requirements_latency: float | None = None
         backend_status: int | None = None

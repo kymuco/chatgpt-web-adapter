@@ -48,6 +48,7 @@ def send_to_conversation(
     reasoning_effort: str | None = None,
     media: Sequence[MediaItem] | None = None,
     on_token: Callable[[str], None] | None = None,
+    on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> ChatResponse:
     """Send a prompt to an existing chatgpt.com conversation by URL or id."""
 
@@ -73,4 +74,5 @@ def send_to_conversation(
         conversation=attached.conversation,
         media=media,
         on_token=on_token,
+        on_event=on_event,
     )

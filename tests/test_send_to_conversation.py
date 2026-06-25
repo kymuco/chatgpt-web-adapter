@@ -77,6 +77,7 @@ def test_send_to_conversation_attaches_and_sends_with_detected_model() -> None:
             "conversation": attached.conversation,
             "media": None,
             "on_token": None,
+            "on_event": None,
         }
     ]
 
@@ -198,6 +199,9 @@ def test_send_to_conversation_passes_send_options_through() -> None:
     def on_token(token: str) -> None:
         assert token
 
+    def on_event(event: dict[str, Any]) -> None:
+        assert event is not None
+
     client.send_to_conversation(
         CONVERSATION_ID,
         "РџСЂРѕРґРѕР»Р¶Рё",
@@ -206,6 +210,7 @@ def test_send_to_conversation_passes_send_options_through() -> None:
         temporary=True,
         media=media,
         on_token=on_token,
+        on_event=on_event,
     )
 
     call = send_calls[0]
@@ -214,6 +219,7 @@ def test_send_to_conversation_passes_send_options_through() -> None:
     assert call["temporary"] is True
     assert call["media"] == media
     assert call["on_token"] is on_token
+    assert call["on_event"] is on_event
 
 
 def test_send_to_conversation_propagates_attach_errors_without_sending() -> None:

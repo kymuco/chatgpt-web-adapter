@@ -338,6 +338,12 @@ def _make_chat_handler(
                 return
             if self.path == "/backend-api/conversation/conv-123":
                 state["conversation_get_calls"] = state.get("conversation_get_calls", 0) + 1
+                conversation_statuses = state.get("conversation_get_statuses")
+                if isinstance(conversation_statuses, list) and conversation_statuses:
+                    status_entry = conversation_statuses.pop(0)
+                    if isinstance(status_entry, dict):
+                        self._write_json(int(status_entry.get("status", 200)), status_entry.get("payload") or {})
+                        return
                 conversation_payloads = state.get("conversation_get_payloads")
                 if isinstance(conversation_payloads, list) and conversation_payloads:
                     conversation_payload = conversation_payloads.pop(0)
@@ -731,20 +737,22 @@ def test_send_event_callback_tolerates_live_like_sse_metadata(monkeypatch: pytes
     assert response.title == "Live callback title"
     assert streamed_tokens == ["alpha-", "beta", "-done"]
     event_types = [event["type"] for event in events]
-    assert event_types == [
+    assert event_types[0:4] == [
         "request_started",
         "requirements_ready",
+        "request_payload_prepared",
         "stream_started",
-        "first_token",
-        "assistant_token",
-        "assistant_token",
-        "assistant_token",
+    ]
+    assert event_types.count("raw_sse_event") >= 1
+    assert event_types.count("assistant_token") == 3
+    assert event_types[-3:] == [
         "stream_completed",
         "stream_done",
         "request_completed",
     ]
     assert events[0]["requested_model"] is None
     assert events[0]["requested_reasoning_effort"] is None
+    assert events[2]["payload"]["model"] == "gpt-5-3-mini"
     assert events[-3]["text_length"] == len("alpha-beta-done")
     assert events[-1]["sent_model"] == "gpt-5-3-mini"
     assert events[-1]["observed_model"] == "gpt-5-3-mini"
@@ -829,11 +837,67 @@ def test_send_recovers_message_id_text_and_metadata_after_stream_handoff(
     assert response.request.observed_reasoning_effort == "extended"
 
 
+def test_send_emits_handoff_and_poll_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["handoff-events-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+    events: list[dict[str, Any]] = []
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Reply with exactly: handoff-events-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "handoff-events-ok"
+    event_types = [event["type"] for event in events]
+    assert "request_payload_prepared" in event_types
+    assert "raw_sse_event" in event_types
+    assert "raw_sse_done" in event_types
+    assert "stream_handoff" in event_types
+    handoff_event = next(event for event in events if event["type"] == "stream_handoff")
+    assert handoff_event["conversation_id"] == "conv-123"
+    assert handoff_event["turn_exchange_id"] == "turn-123"
+
+
 def test_send_polls_conversation_until_handoff_reply_appears(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = _build_client()
     client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
     state = {
         "requirements_calls": 0,
         "file_create_payloads": [],
@@ -883,7 +947,11 @@ def test_send_polls_conversation_until_handoff_reply_appears(
 
     with _serve(_make_chat_handler(state)) as base_url:
         _patch_chat_endpoints(monkeypatch, base_url)
-        response = client.send("Reply with exactly: polled-ok", reasoning_effort="high")
+        response = client.send(
+            "Reply with exactly: polled-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
 
     assert state["conversation_get_calls"] >= 2
     assert response.text == "polled-ok"
@@ -891,6 +959,74 @@ def test_send_polls_conversation_until_handoff_reply_appears(
     assert response.conversation.message_id == "assistant-final"
     assert response.request.observed_model == "gpt-5-5-thinking"
     assert response.request.observed_reasoning_effort == "extended"
+    event_types = [event["type"] for event in events]
+    assert "conversation_poll_started" in event_types
+    assert "conversation_poll_attempt" in event_types
+    assert "conversation_poll_completed" in event_types
+
+
+def test_send_retries_after_conversation_inaccessible_during_handoff_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_statuses": [
+            {
+                "status": 404,
+                "payload": {
+                    "detail": {
+                        "message": "conversation not ready yet",
+                        "code": "conversation_inaccessible",
+                        "can_retry": False,
+                        "conversation_id": "conv-123",
+                    }
+                },
+            }
+        ],
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["retry-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Reply with exactly: retry-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert state["conversation_get_calls"] >= 2
+    assert response.text == "retry-ok"
+    event_types = [event["type"] for event in events]
+    assert "conversation_recovery_fetch_error" in event_types
+    assert "conversation_poll_completed" in event_types
 
 
 def test_approve_pending_action_posts_prepare_and_polls_conversation(
@@ -1010,14 +1146,18 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
     }
     assert state["conversation_get_calls"] == 2
     assert streamed_tokens == ["Hello ", "world"]
-    assert [event["type"] for event in events] == [
+    event_types = [event["type"] for event in events]
+    assert event_types[:5] == [
         "pending_approval_detected",
         "approval_prepare_succeeded",
         "assistant_token",
         "assistant_token",
         "approval_sent",
-        "approval_completed",
     ]
+    assert "conversation_poll_started" in event_types
+    assert "conversation_poll_attempt" in event_types
+    assert "conversation_poll_completed" in event_types
+    assert event_types[-1] == "approval_completed"
     assert response.text == "approved result"
     assert response.conversation.conversation_id == "conv-123"
     assert response.conversation.message_id == "assistant-new"
