@@ -19,6 +19,22 @@ def _resolve_send_model(
     return DEFAULT_MODEL
 
 
+def _resolve_reasoning_effort(
+    *,
+    attached: AttachedConversation,
+    preserve_model: bool,
+    model: str | None,
+    reasoning_effort: str | None,
+) -> str | None:
+    if reasoning_effort is not None:
+        return reasoning_effort
+    if model is not None:
+        return None
+    if preserve_model and attached.detected_model and attached.detected_reasoning_effort:
+        return attached.detected_reasoning_effort
+    return None
+
+
 def send_to_conversation(
     self: Any,
     url_or_id: ConversationRef | ChatConversation | dict[str, Any] | str,
@@ -41,13 +57,19 @@ def send_to_conversation(
         preserve_model=preserve_model,
         model=model,
     )
+    resolved_reasoning_effort = _resolve_reasoning_effort(
+        attached=attached,
+        preserve_model=preserve_model,
+        model=model,
+        reasoning_effort=reasoning_effort,
+    )
     return self.send(
         prompt,
         model=resolved_model,
         system=system,
         web_search=web_search,
         temporary=temporary,
-        reasoning_effort=reasoning_effort,
+        reasoning_effort=resolved_reasoning_effort,
         conversation=attached.conversation,
         media=media,
         on_token=on_token,

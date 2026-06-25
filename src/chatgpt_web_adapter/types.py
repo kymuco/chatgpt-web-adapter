@@ -269,6 +269,7 @@ class AttachedConversation:
     conversation: ChatConversation
     current_node: str | None = None
     detected_model: str | None = None
+    detected_reasoning_effort: str | None = None
     title: str | None = None
     raw_status: dict[str, Any] = field(default_factory=dict)
 
@@ -281,6 +282,7 @@ class AttachedConversation:
         self.conversation = ChatConversation.from_dict(conversation_dict)
         self.current_node = _optional_str(self.current_node)
         self.detected_model = _optional_str(self.detected_model)
+        self.detected_reasoning_effort = _optional_str(self.detected_reasoning_effort)
         self.title = _optional_str(self.title)
         if self.raw_status is None:
             self.raw_status = {}
@@ -301,6 +303,7 @@ class AttachedConversation:
         *,
         conversation: ChatConversation | None = None,
         detected_model: str | None = None,
+        detected_reasoning_effort: str | None = None,
         title: str | None = None,
         raw_status: dict[str, Any] | None = None,
     ) -> "AttachedConversation":
@@ -333,6 +336,7 @@ class AttachedConversation:
             conversation=conversation,
             current_node=_optional_str(payload.get("current_node")),
             detected_model=detected_model,
+            detected_reasoning_effort=detected_reasoning_effort,
             title=title if title is not None else _optional_str(payload.get("title")),
             raw_status=raw_status
             if raw_status is not None
@@ -356,6 +360,7 @@ class AttachedConversation:
             "conversation_id": self.conversation_id,
             "current_node": self.current_node,
             "detected_model": self.detected_model,
+            "detected_reasoning_effort": self.detected_reasoning_effort,
             "title": self.title,
             "raw_status": dict(self.raw_status),
         }

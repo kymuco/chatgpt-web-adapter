@@ -18,6 +18,10 @@ NESTED_MODEL_KEYS = (
     "name",
     "id",
 )
+REASONING_EFFORT_KEYS = (
+    "thinking_effort",
+    "reasoning_effort",
+)
 
 
 def _clean_model(value: Any) -> str | None:
@@ -45,6 +49,16 @@ def _model_from_mapping(value: Any) -> str | None:
             if model:
                 return model
 
+    return None
+
+
+def _reasoning_effort_from_mapping(value: Any) -> str | None:
+    if not isinstance(value, dict):
+        return None
+    for key in REASONING_EFFORT_KEYS:
+        effort = _clean_model(value.get(key))
+        if effort:
+            return effort
     return None
 
 
@@ -149,6 +163,12 @@ def _model_from_message(message: dict[str, Any] | None) -> str | None:
     return _model_from_mapping(message.get("metadata"))
 
 
+def _reasoning_effort_from_message(message: dict[str, Any] | None) -> str | None:
+    if not isinstance(message, dict):
+        return None
+    return _reasoning_effort_from_mapping(message.get("metadata"))
+
+
 def detect_model_from_conversation_payload(payload: Any) -> str | None:
     """Best-effort model extraction from a chatgpt.com conversation payload.
 
@@ -178,3 +198,28 @@ def detect_model_from_conversation_payload(payload: Any) -> str | None:
         return model
 
     return _model_from_mapping(payload)
+
+
+def detect_reasoning_effort_from_conversation_payload(payload: Any) -> str | None:
+    """Best-effort reasoning-effort extraction from a chatgpt.com payload."""
+
+    if not isinstance(payload, dict):
+        return None
+
+    branch_messages = _current_branch_messages(payload)
+    for message in (
+        _current_message(payload),
+        _latest_message(branch_messages, role="assistant"),
+        _latest_message(branch_messages),
+        _latest_message(_all_messages(payload), role="assistant"),
+        _latest_message(_all_messages(payload)),
+    ):
+        effort = _reasoning_effort_from_message(message)
+        if effort:
+            return effort
+
+    effort = _reasoning_effort_from_mapping(payload.get("metadata"))
+    if effort:
+        return effort
+
+    return _reasoning_effort_from_mapping(payload)

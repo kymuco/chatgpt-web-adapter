@@ -129,6 +129,7 @@ def test_attached_conversation_to_dict_includes_convenience_conversation_id() ->
         "conversation_id": CONVERSATION_ID,
         "current_node": "node-current",
         "detected_model": "gpt-5-5-thinking",
+        "detected_reasoning_effort": None,
         "title": "Existing chat",
         "raw_status": {"async_status": None},
     }

@@ -11,7 +11,11 @@ from chatgpt_web_adapter.client import DEFAULT_MODEL
 CONVERSATION_ID = "conv-123"
 
 
-def _attached(*, detected_model: str | None = "gpt-5-5-thinking") -> adapter.AttachedConversation:
+def _attached(
+    *,
+    detected_model: str | None = "gpt-5-5-thinking",
+    detected_reasoning_effort: str | None = None,
+) -> adapter.AttachedConversation:
     return adapter.AttachedConversation(
         conversation=adapter.ChatConversation(
             conversation_id=CONVERSATION_ID,
@@ -19,6 +23,7 @@ def _attached(*, detected_model: str | None = "gpt-5-5-thinking") -> adapter.Att
             parent_message_id="message-123",
         ),
         detected_model=detected_model,
+        detected_reasoning_effort=detected_reasoning_effort,
     )
 
 
@@ -122,13 +127,22 @@ def test_send_to_conversation_unknown_detected_model_uses_default_model() -> Non
     assert send_calls[0]["model"] == DEFAULT_MODEL
 
 
-def test_send_to_conversation_default_reasoning_effort_stays_none() -> None:
+def test_send_to_conversation_default_reasoning_effort_stays_none_when_not_detected() -> None:
     attached = _attached()
     client, _attach_calls, send_calls, _response = _client_with_attach_and_send(attached)
 
     client.send_to_conversation(CONVERSATION_ID, "РџСЂРѕРґРѕР»Р¶Рё")
 
     assert send_calls[0]["reasoning_effort"] is None
+
+
+def test_send_to_conversation_preserves_detected_reasoning_effort() -> None:
+    attached = _attached(detected_reasoning_effort="extended")
+    client, _attach_calls, send_calls, _response = _client_with_attach_and_send(attached)
+
+    client.send_to_conversation(CONVERSATION_ID, "Р СџРЎР‚Р С•Р Т‘Р С•Р В»Р В¶Р С‘")
+
+    assert send_calls[0]["reasoning_effort"] == "extended"
 
 
 def test_send_to_conversation_passes_explicit_reasoning_effort() -> None:
@@ -142,6 +156,38 @@ def test_send_to_conversation_passes_explicit_reasoning_effort() -> None:
     )
 
     assert send_calls[0]["reasoning_effort"] == "extended"
+
+
+def test_send_to_conversation_explicit_model_does_not_carry_detected_reasoning_effort() -> None:
+    attached = _attached(
+        detected_model="gpt-5-5-thinking",
+        detected_reasoning_effort="extended",
+    )
+    client, _attach_calls, send_calls, _response = _client_with_attach_and_send(attached)
+
+    client.send_to_conversation(
+        CONVERSATION_ID,
+        "Р СџРЎР‚Р С•Р Т‘Р С•Р В»Р В¶Р С‘",
+        model="gpt-4.1",
+    )
+
+    assert send_calls[0]["reasoning_effort"] is None
+
+
+def test_send_to_conversation_preserve_model_false_does_not_carry_detected_reasoning_effort() -> None:
+    attached = _attached(
+        detected_model="gpt-5-5-thinking",
+        detected_reasoning_effort="extended",
+    )
+    client, _attach_calls, send_calls, _response = _client_with_attach_and_send(attached)
+
+    client.send_to_conversation(
+        CONVERSATION_ID,
+        "Р СџРЎР‚Р С•Р Т‘Р С•Р В»Р В¶Р С‘",
+        preserve_model=False,
+    )
+
+    assert send_calls[0]["reasoning_effort"] is None
 
 
 def test_send_to_conversation_passes_send_options_through() -> None:
