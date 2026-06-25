@@ -122,6 +122,32 @@ def _top_level_id_only_stream_events(
     ]
 
 
+def _handoff_only_stream_events(
+    *,
+    conversation_id: str = "conv-123",
+) -> list[dict[str, Any]]:
+    return [
+        "v1",
+        {
+            "type": "resume_conversation_token",
+            "kind": "topic",
+            "token": "resume-token",
+            "conversation_id": conversation_id,
+        },
+        {
+            "type": "stream_handoff",
+            "conversation_id": conversation_id,
+            "turn_exchange_id": "turn-123",
+            "options": [
+                {
+                    "type": "resume_sse_endpoint",
+                    "topic_id": "conversation-turn-123",
+                }
+            ],
+        },
+    ]
+
+
 def _build_client() -> adapter.ChatGPTWebClient:
     client = object.__new__(adapter.ChatGPTWebClient)
     client.auth = adapter.AuthData(cookies={})
@@ -312,6 +338,12 @@ def _make_chat_handler(
                 return
             if self.path == "/backend-api/conversation/conv-123":
                 state["conversation_get_calls"] = state.get("conversation_get_calls", 0) + 1
+                conversation_payloads = state.get("conversation_get_payloads")
+                if isinstance(conversation_payloads, list) and conversation_payloads:
+                    conversation_payload = conversation_payloads.pop(0)
+                    if isinstance(conversation_payload, dict):
+                        self._write_json(200, conversation_payload)
+                        return
                 conversation_payload = state.get("conversation_get_payload")
                 if isinstance(conversation_payload, dict):
                     self._write_json(200, conversation_payload)
@@ -744,6 +776,121 @@ def test_send_recovers_conversation_id_from_top_level_sse_fields(
     assert response.request.conversation_id == "conv-top-level"
     assert response.request.sent_model == "gpt-5-5-thinking"
     assert response.request.sent_reasoning_effort == "extended"
+
+
+def test_send_recovers_message_id_text_and_metadata_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["handoff-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: handoff-ok", reasoning_effort="high")
+
+    assert state["conversation_get_calls"] == 1
+    assert response.text == "handoff-ok"
+    assert response.conversation.conversation_id == "conv-123"
+    assert response.conversation.message_id == "assistant-final"
+    assert response.conversation.parent_message_id == "assistant-final"
+    assert response.request.conversation_id == "conv-123"
+    assert response.request.sent_model == "gpt-5-5-thinking"
+    assert response.request.sent_reasoning_effort == "extended"
+    assert response.request.observed_model == "gpt-5-5-thinking"
+    assert response.request.observed_reasoning_effort == "extended"
+
+
+def test_send_polls_conversation_until_handoff_reply_appears(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "user-new",
+                "mapping": {
+                    "user-new": {
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["Reply with exactly: polled-ok"]},
+                        }
+                    }
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-final": {
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["polled-ok"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "finish_details": {"type": "stop"},
+                            },
+                        }
+                    }
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: polled-ok", reasoning_effort="high")
+
+    assert state["conversation_get_calls"] >= 2
+    assert response.text == "polled-ok"
+    assert response.conversation.conversation_id == "conv-123"
+    assert response.conversation.message_id == "assistant-final"
+    assert response.request.observed_model == "gpt-5-5-thinking"
+    assert response.request.observed_reasoning_effort == "extended"
 
 
 def test_approve_pending_action_posts_prepare_and_polls_conversation(

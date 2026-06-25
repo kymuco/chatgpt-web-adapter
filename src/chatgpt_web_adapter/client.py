@@ -19,6 +19,10 @@ from urllib.parse import urlparse
 
 from .auth import CHAT_URL, DEFAULT_AUTH_FILE, build_base_headers, load_auth_data
 from .exceptions import MediaError, RequestError
+from .model_detection import (
+    detect_model_from_conversation_payload,
+    detect_reasoning_effort_from_conversation_payload,
+)
 from .types import AuthData, ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
 
 CHAT_REQUIREMENTS_URL = "https://chatgpt.com/backend-api/sentinel/chat-requirements"
@@ -35,6 +39,8 @@ DEFAULT_APPROVAL_POLL_TIMEOUT_SECONDS = 90.0
 DEFAULT_APPROVAL_POLL_INTERVAL_SECONDS = 2.0
 DEFAULT_PENDING_POLL_INTERVAL_SECONDS = 3.0
 DEFAULT_APPROVAL_SETTLE_DELAY_SECONDS = 2.0
+DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS = 15.0
+DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS = 1.0
 TRACE_REDACTED = "<redacted>"
 TRACE_HEADER_REDACT_KEYS = {
     "authorization",
@@ -1146,6 +1152,27 @@ class ChatGPTWebClient:
             metrics=ChatMetrics(),
         )
 
+    @classmethod
+    def _recover_stream_result_from_conversation(
+        cls,
+        payload: dict[str, Any],
+        *,
+        conversation_id: str,
+        fallback_user_id: str | None = None,
+    ) -> tuple[str | None, str | None, str, str | None, str | None]:
+        response = cls._build_response_from_conversation_payload(
+            payload,
+            fallback_conversation_id=conversation_id,
+            fallback_user_id=fallback_user_id,
+        )
+        return (
+            response.conversation.conversation_id,
+            response.conversation.message_id,
+            response.text,
+            detect_model_from_conversation_payload(payload),
+            detect_reasoning_effort_from_conversation_payload(payload),
+        )
+
     def _is_conversation_idle(
         self,
         conversation_id: str,
@@ -1169,21 +1196,23 @@ class ChatGPTWebClient:
         previous_message_id: str | None,
         timeout: float,
         interval: float,
-    ) -> tuple[dict[str, Any] | None, str]:
+    ) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
         deadline = time.monotonic() + max(0.0, timeout)
         last_message: dict[str, Any] | None = None
         last_text = ""
+        last_payload: dict[str, Any] | None = None
         while True:
             payload = self._get_conversation_payload(conversation_id)
+            last_payload = payload
             message, text = self._latest_assistant_from_conversation(payload)
             if message is not None:
                 last_message = message
                 last_text = text
                 message_id = message.get("id")
                 if isinstance(message_id, str) and message_id != previous_message_id:
-                    return message, text
+                    return message, text, payload
             if time.monotonic() >= deadline:
-                return last_message, last_text
+                return last_message, last_text, last_payload
             time.sleep(max(0.5, interval))
 
     def _stream_backend_payload(
@@ -1435,7 +1464,7 @@ class ChatGPTWebClient:
         message_id = tool_id
         finish_reason = None
         if poll:
-            message, text = self._poll_conversation_after_prepare(
+            message, text, _payload = self._poll_conversation_after_prepare(
                 conversation_id,
                 previous_message_id=tool_id,
                 timeout=poll_timeout,
@@ -1879,18 +1908,93 @@ class ChatGPTWebClient:
                     pass
 
         total_latency = time.perf_counter() - started_at
+        recovered_text = "".join(full_chunks)
+        recovered_conversation_id = state.get("conversation_id")
+        recovered_message_id = state.get("message_id") or state.get("parent_message_id")
+        recovered_observed_model = state.get("observed_model")
+        recovered_observed_reasoning_effort = state.get("observed_reasoning_effort")
+        if isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
+            not recovered_text or not recovered_message_id
+        ):
+            try:
+                conversation_payload = self._get_conversation_payload(recovered_conversation_id)
+            except RequestError:
+                conversation_payload = None
+            if isinstance(conversation_payload, dict):
+                (
+                    recovered_conversation_id,
+                    recovered_message_id,
+                    recovered_text,
+                    recovered_payload_model,
+                    recovered_payload_reasoning_effort,
+                ) = self._recover_stream_result_from_conversation(
+                    conversation_payload,
+                    conversation_id=recovered_conversation_id,
+                    fallback_user_id=user_id,
+                )
+                if recovered_observed_model is None:
+                    recovered_observed_model = recovered_payload_model
+                if recovered_observed_reasoning_effort is None:
+                    recovered_observed_reasoning_effort = recovered_payload_reasoning_effort
+        if isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
+            not recovered_text
+            or not recovered_message_id
+            or recovered_message_id == parent_message_id
+        ):
+            try:
+                recovered_message, polled_text, polled_payload = self._poll_conversation_after_prepare(
+                    recovered_conversation_id,
+                    previous_message_id=parent_message_id,
+                    timeout=DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
+                    interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
+                )
+            except RequestError:
+                recovered_message, polled_text, polled_payload = None, "", None
+            if isinstance(recovered_message, dict):
+                polled_message_id = recovered_message.get("id")
+                if isinstance(polled_message_id, str) and polled_message_id:
+                    recovered_message_id = polled_message_id
+                if polled_text:
+                    recovered_text = polled_text
+                poll_state: dict[str, Any] = {}
+                self._capture_message_diagnostics(recovered_message, poll_state)
+                if recovered_observed_model is None:
+                    recovered_observed_model = poll_state.get("observed_model")
+                if recovered_observed_reasoning_effort is None:
+                    recovered_observed_reasoning_effort = poll_state.get("observed_reasoning_effort")
+            if isinstance(polled_payload, dict):
+                if not recovered_text or recovered_message_id == parent_message_id:
+                    (
+                        _polled_conversation_id,
+                        polled_payload_message_id,
+                        polled_payload_text,
+                        polled_payload_model,
+                        polled_payload_reasoning_effort,
+                    ) = self._recover_stream_result_from_conversation(
+                        polled_payload,
+                        conversation_id=recovered_conversation_id,
+                        fallback_user_id=user_id,
+                    )
+                    if isinstance(polled_payload_message_id, str) and polled_payload_message_id:
+                        recovered_message_id = polled_payload_message_id
+                    if polled_payload_text:
+                        recovered_text = polled_payload_text
+                    if recovered_observed_model is None:
+                        recovered_observed_model = polled_payload_model
+                    if recovered_observed_reasoning_effort is None:
+                        recovered_observed_reasoning_effort = polled_payload_reasoning_effort
         self.prefetched_requirements = None
         self.prefetched_proof_header = None
         self.prefetched_ts = 0.0
         return ChatResponse(
-            text="".join(full_chunks),
+            text=recovered_text,
             title=title_update,
             conversation=ChatConversation(
-                conversation_id=state.get("conversation_id"),
-                message_id=state.get("message_id") or state.get("parent_message_id"),
+                conversation_id=recovered_conversation_id,
+                message_id=recovered_message_id,
                 user_id=user_id,
                 finish_reason=state.get("finish_reason"),
-                parent_message_id=state.get("parent_message_id"),
+                parent_message_id=recovered_message_id,
                 is_thinking=False,
             ),
             metrics=ChatMetrics(
@@ -1914,7 +2018,7 @@ class ChatGPTWebClient:
                 message_count=len(payload.get("messages", []))
                 if isinstance(payload.get("messages"), list)
                 else None,
-                observed_model=state.get("observed_model"),
-                observed_reasoning_effort=state.get("observed_reasoning_effort"),
+                observed_model=recovered_observed_model,
+                observed_reasoning_effort=recovered_observed_reasoning_effort,
             ),
         )
