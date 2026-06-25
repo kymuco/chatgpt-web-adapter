@@ -1091,6 +1091,142 @@ def test_send_to_existing_conversation_does_not_return_stale_assistant_reply_aft
     assert attempt_events[0]["lifecycle_status"] == "user_last_message"
 
 
+def test_send_to_existing_conversation_ignores_older_branch_assistant_before_parent_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-old-current",
+                "mapping": {
+                    "assistant-older": {
+                        "message": {
+                            "id": "assistant-older",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["very-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-old": {
+                        "parent": "assistant-older",
+                        "message": {
+                            "id": "user-old",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["old prompt"]},
+                        }
+                    },
+                    "assistant-old-current": {
+                        "parent": "user-old",
+                        "message": {
+                            "id": "assistant-old-current",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 3,
+                            "content": {"content_type": "text", "parts": ["previous-visible-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-older": {
+                        "message": {
+                            "id": "assistant-older",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["very-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-old": {
+                        "parent": "assistant-older",
+                        "message": {
+                            "id": "user-old",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["old prompt"]},
+                        }
+                    },
+                    "assistant-old-current": {
+                        "parent": "user-old",
+                        "message": {
+                            "id": "assistant-old-current",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 3,
+                            "content": {"content_type": "text", "parts": ["previous-visible-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old-current",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 4,
+                            "content": {"content_type": "text", "parts": ["fresh prompt"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 5,
+                            "content": {"content_type": "text", "parts": ["fresh-final-reply-2"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "fresh prompt",
+            conversation=adapter.ChatConversation(
+                conversation_id="conv-123",
+                message_id="assistant-old-current",
+                parent_message_id="assistant-old-current",
+            ),
+            model="gpt-5-5-thinking",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "fresh-final-reply-2"
+    assert response.conversation.message_id == "assistant-final"
+    attempt_events = [event for event in events if event["type"] == "conversation_poll_attempt"]
+    assert attempt_events
+    latest_ids = {event.get("latest_message_id") for event in attempt_events}
+    assert "assistant-older" not in latest_ids
+    assert "assistant-old-current" not in latest_ids
+
+
 def test_send_retries_after_conversation_inaccessible_during_handoff_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

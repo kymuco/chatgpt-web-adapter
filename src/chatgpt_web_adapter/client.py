@@ -1166,6 +1166,20 @@ class ChatGPTWebClient:
         messages.reverse()
         return messages
 
+    @staticmethod
+    def _branch_messages_after(
+        messages: list[dict[str, Any]],
+        *,
+        previous_message_id: str | None,
+    ) -> list[dict[str, Any]]:
+        if not previous_message_id:
+            return messages
+        for index, message in enumerate(messages):
+            message_id = message.get("id")
+            if isinstance(message_id, str) and message_id == previous_message_id:
+                return messages[index + 1 :]
+        return []
+
     @classmethod
     def _latest_branch_assistant_response(
         cls,
@@ -1173,15 +1187,20 @@ class ChatGPTWebClient:
         *,
         previous_message_id: str | None = None,
     ) -> tuple[dict[str, Any] | None, str]:
-        branch_messages = cls._current_branch_messages_from_conversation(payload)
+        branch_messages = cls._branch_messages_after(
+            cls._current_branch_messages_from_conversation(payload),
+            previous_message_id=previous_message_id,
+        )
         for message in reversed(branch_messages):
             message_id = message.get("id")
-            if not isinstance(message_id, str) or not message_id or message_id == previous_message_id:
+            if not isinstance(message_id, str) or not message_id:
                 continue
             if cls._message_role(message) != "assistant":
                 continue
             recipient = cls._message_recipient(message)
             if recipient not in {None, "all"}:
+                continue
+            if message.get("channel") == "commentary":
                 continue
             text = cls._conversation_message_text(message)
             if not text:
