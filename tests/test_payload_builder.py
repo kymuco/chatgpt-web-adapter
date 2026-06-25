@@ -109,13 +109,13 @@ def test_text_message_rejects_invalid_metadata() -> None:
 def test_new_chat_builds_minimal_payload() -> None:
     payload = PayloadBuilder.new_chat(
         "hello",
-        model="gpt-4o-mini",
+        model="gpt-5-3-mini",
         parent_message_id="parent-1",
     )
 
     assert payload["action"] == "next"
     assert payload["parent_message_id"] == "parent-1"
-    assert payload["model"] == "gpt-4o-mini"
+    assert payload["model"] == "gpt-5-3-mini"
     assert payload["conversation_mode"] == {"kind": "primary_assistant"}
     assert payload["enable_message_followups"] is False
     assert payload["supports_buffering"] is True
@@ -178,6 +178,41 @@ def test_new_chat_reasoning_effort(reasoning_effort: str) -> None:
     )
 
     assert payload["thinking_effort"] == reasoning_effort
+
+
+def test_new_chat_instant_mode_omits_thinking_effort_and_uses_instant_model() -> None:
+    payload = PayloadBuilder.new_chat(
+        "think",
+        reasoning_effort="instant",
+        parent_message_id="parent-1",
+    )
+
+    assert payload["model"] == "gpt-5-3-mini"
+    assert "thinking_effort" not in payload
+    assert len(payload["messages"]) == 1
+    assert payload["messages"][0]["author"] == {"role": "user"}
+
+
+@pytest.mark.parametrize(
+    ("reasoning_effort", "expected_model", "expected_effort"),
+    [
+        ("medium", "gpt-5-5-thinking", "standard"),
+        ("high", "gpt-5-5-thinking", "extended"),
+    ],
+)
+def test_new_chat_ui_reasoning_modes_map_to_current_backend_values(
+    reasoning_effort: str,
+    expected_model: str,
+    expected_effort: str,
+) -> None:
+    payload = PayloadBuilder.new_chat(
+        "think",
+        reasoning_effort=reasoning_effort,
+        parent_message_id="parent-1",
+    )
+
+    assert payload["model"] == expected_model
+    assert payload["thinking_effort"] == expected_effort
 
 
 @pytest.mark.parametrize("reasoning_effort", [None, "", "off", "none", "-"])

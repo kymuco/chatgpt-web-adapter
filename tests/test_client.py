@@ -525,6 +525,64 @@ def test_send_with_warmup_media_and_flags_uses_prefetched_requirements(
     assert response.metrics.total is not None
 
 
+def test_send_instant_mode_uses_minimal_payload_without_thinking_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: instant", reasoning_effort="instant")
+
+    payload = state["conversation_payloads"][0]
+    assert response.text == "Hello world"
+    assert payload["model"] == "gpt-5-3-mini"
+    assert "thinking_effort" not in payload
+    assert "system_hints" not in payload
+    assert [message["author"]["role"] for message in payload["messages"]] == ["user"]
+
+
+@pytest.mark.parametrize(
+    ("reasoning_effort", "expected_model", "expected_effort"),
+    [
+        ("medium", "gpt-5-5-thinking", "standard"),
+        ("high", "gpt-5-5-thinking", "extended"),
+    ],
+)
+def test_send_ui_reasoning_modes_map_to_current_backend_values(
+    monkeypatch: pytest.MonkeyPatch,
+    reasoning_effort: str,
+    expected_model: str,
+    expected_effort: str,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: mapped", reasoning_effort=reasoning_effort)
+
+    payload = state["conversation_payloads"][0]
+    assert response.text == "Hello world"
+    assert payload["model"] == expected_model
+    assert payload["thinking_effort"] == expected_effort
+
+
 def test_send_backend_error_raises_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _build_client()
     client.auth.accessToken = "test-token"

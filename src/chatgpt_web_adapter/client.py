@@ -27,7 +27,8 @@ CHAT_CONVERSATION_PREPARE_URL = "https://chatgpt.com/backend-api/f/conversation/
 CHAT_CONVERSATION_URL = "https://chatgpt.com/backend-api/conversation/{conversation_id}"
 CHAT_CONVERSATIONS_URL = "https://chatgpt.com/backend-api/conversations"
 CHAT_FILES_URL = "https://chatgpt.com/backend-api/files"
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5-3-mini"
+DEFAULT_THINKING_MODEL = "gpt-5-5-thinking"
 DEFAULT_TIMEOUT_SECONDS = 90
 PREFETCH_TTL_SECONDS = 20.0
 DEFAULT_APPROVAL_POLL_TIMEOUT_SECONDS = 90.0
@@ -44,6 +45,8 @@ TRACE_HEADER_REDACT_KEYS = {
     "openai-sentinel-turnstile-token",
 }
 MODEL_ALIASES = {
+    "instant": DEFAULT_MODEL,
+    "thinking": DEFAULT_THINKING_MODEL,
     "gpt-5.1": "gpt-5-1",
     "gpt-4.1": "gpt-4.1",
     "gpt-4.1-mini": "gpt-4.1-mini",
@@ -1034,11 +1037,33 @@ class ChatGPTWebClient:
     @staticmethod
     def _normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
         normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
-        if normalized_effort in {"", "off", "none", "-"}:
+        if normalized_effort == "medium":
+            normalized_effort = "standard"
+        elif normalized_effort == "high":
+            normalized_effort = "extended"
+        elif normalized_effort in {"", "off", "none", "-", "instant"}:
             normalized_effort = None
         if normalized_effort not in {None, "standard", "extended"}:
-            raise ValueError("reasoning_effort must be one of: standard, extended, off/none/-")
+            raise ValueError(
+                "reasoning_effort must be one of: instant, medium, high, standard, extended, off/none/-"
+            )
         return normalized_effort
+
+    @staticmethod
+    def _resolve_model(model: str | None, reasoning_effort: str | None) -> str:
+        normalized_model = None
+        if isinstance(model, str):
+            model = model.strip()
+            if not model:
+                raise ValueError("model must not be empty")
+            normalized_model = MODEL_ALIASES.get(model.lower(), MODEL_ALIASES.get(model, model))
+
+        requested_mode = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
+        if normalized_model is not None:
+            return normalized_model
+        if requested_mode in {"medium", "high", "standard", "extended"}:
+            return DEFAULT_THINKING_MODEL
+        return DEFAULT_MODEL
 
     @staticmethod
     def _current_message_from_conversation(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -1638,7 +1663,7 @@ class ChatGPTWebClient:
         self,
         prompt: str,
         *,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         system: str | None = None,
         web_search: bool = False,
         temporary: bool = False,
@@ -1648,6 +1673,7 @@ class ChatGPTWebClient:
         on_token: Callable[[str], None] | None = None,
     ) -> ChatResponse:
         normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
+        resolved_model = self._resolve_model(model, reasoning_effort)
 
         normalized_media = self._normalize_media_items(media)
         image_requests = self._upload_media_files(normalized_media) if normalized_media else None
@@ -1672,7 +1698,7 @@ class ChatGPTWebClient:
         payload: dict[str, Any] = {
             "action": "next",
             "parent_message_id": parent_message_id,
-            "model": MODEL_ALIASES.get(model, model),
+            "model": resolved_model,
             "conversation_mode": {"kind": "primary_assistant"},
             "enable_message_followups": False,
             "supports_buffering": True,
