@@ -635,8 +635,78 @@ class ChatMetrics:
 
 
 @dataclass
+class ChatRequestDiagnostics:
+    requested_model: str | None = None
+    requested_reasoning_effort: str | None = None
+    sent_model: str | None = None
+    sent_reasoning_effort: str | None = None
+    conversation_id: str | None = None
+    parent_message_id: str | None = None
+    is_continuation: bool = False
+    web_search: bool = False
+    temporary: bool = False
+    has_media: bool = False
+    message_count: int | None = None
+    observed_model: str | None = None
+    observed_reasoning_effort: str | None = None
+
+    def __post_init__(self) -> None:
+        self.requested_model = _optional_str(self.requested_model)
+        self.requested_reasoning_effort = _optional_str(self.requested_reasoning_effort)
+        self.sent_model = _optional_str(self.sent_model)
+        self.sent_reasoning_effort = _optional_str(self.sent_reasoning_effort)
+        self.conversation_id = _optional_str(self.conversation_id)
+        self.parent_message_id = _optional_str(self.parent_message_id)
+        self.is_continuation = bool(self.is_continuation)
+        self.web_search = bool(self.web_search)
+        self.temporary = bool(self.temporary)
+        self.has_media = bool(self.has_media)
+        self.message_count = _optional_positive_int(self.message_count)
+        self.observed_model = _optional_str(self.observed_model)
+        self.observed_reasoning_effort = _optional_str(self.observed_reasoning_effort)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any] | None) -> "ChatRequestDiagnostics":
+        if not isinstance(payload, dict):
+            return cls()
+        return cls(
+            requested_model=payload.get("requested_model"),
+            requested_reasoning_effort=payload.get("requested_reasoning_effort"),
+            sent_model=payload.get("sent_model"),
+            sent_reasoning_effort=payload.get("sent_reasoning_effort"),
+            conversation_id=payload.get("conversation_id"),
+            parent_message_id=payload.get("parent_message_id"),
+            is_continuation=payload.get("is_continuation", False),
+            web_search=payload.get("web_search", False),
+            temporary=payload.get("temporary", False),
+            has_media=payload.get("has_media", False),
+            message_count=payload.get("message_count"),
+            observed_model=payload.get("observed_model"),
+            observed_reasoning_effort=payload.get("observed_reasoning_effort"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "requested_model": self.requested_model,
+            "requested_reasoning_effort": self.requested_reasoning_effort,
+            "sent_model": self.sent_model,
+            "sent_reasoning_effort": self.sent_reasoning_effort,
+            "conversation_id": self.conversation_id,
+            "parent_message_id": self.parent_message_id,
+            "is_continuation": self.is_continuation,
+            "web_search": self.web_search,
+            "temporary": self.temporary,
+            "has_media": self.has_media,
+            "message_count": self.message_count,
+            "observed_model": self.observed_model,
+            "observed_reasoning_effort": self.observed_reasoning_effort,
+        }
+
+
+@dataclass
 class ChatResponse:
     text: str
     title: str | None = None
     conversation: ChatConversation = field(default_factory=ChatConversation)
     metrics: ChatMetrics = field(default_factory=ChatMetrics)
+    request: ChatRequestDiagnostics = field(default_factory=ChatRequestDiagnostics)

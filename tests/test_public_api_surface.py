@@ -13,6 +13,7 @@ CORE_PUBLIC_API = [
     "PendingApproval",
     "ChatResponse",
     "ChatMetrics",
+    "ChatRequestDiagnostics",
     "AuthData",
     "errors",
 ]

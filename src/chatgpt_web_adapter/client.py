@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from .auth import CHAT_URL, DEFAULT_AUTH_FILE, build_base_headers, load_auth_data
 from .exceptions import MediaError, RequestError
-from .types import AuthData, ChatConversation, ChatMetrics, ChatResponse, MediaItem
+from .types import AuthData, ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
 
 CHAT_REQUIREMENTS_URL = "https://chatgpt.com/backend-api/sentinel/chat-requirements"
 CHAT_BACKEND_URL = "https://chatgpt.com/backend-api/f/conversation"
@@ -798,6 +798,7 @@ class ChatGPTWebClient:
                 state["conversation_id"] = conversation_id
             message = value.get("message")
             if isinstance(message, dict):
+                ChatGPTWebClient._capture_message_diagnostics(message, state)
                 recipient = message.get("recipient")
                 if isinstance(recipient, str):
                     state["recipient"] = recipient
@@ -822,11 +823,36 @@ class ChatGPTWebClient:
                     if isinstance(token, str):
                         output.append(token)
                 elif item.get("p") == "/message/metadata" and state.get("recipient", "all") == "all":
-                    finish_reason = item.get("v", {}).get("finish_details", {}).get("type")
+                    metadata = item.get("v")
+                    ChatGPTWebClient._capture_metadata_diagnostics(metadata, state)
+                    finish_reason = metadata.get("finish_details", {}).get("type") if isinstance(metadata, dict) else None
                     if finish_reason:
                         state["finish_reason"] = finish_reason
             return output, None
+        if payload.get("type") == "server_ste_metadata":
+            ChatGPTWebClient._capture_metadata_diagnostics(payload.get("metadata"), state)
         return output, None
+
+    @staticmethod
+    def _capture_message_diagnostics(message: Any, state: dict[str, Any]) -> None:
+        if not isinstance(message, dict):
+            return
+        ChatGPTWebClient._capture_metadata_diagnostics(message.get("metadata"), state)
+
+    @staticmethod
+    def _capture_metadata_diagnostics(metadata: Any, state: dict[str, Any]) -> None:
+        if not isinstance(metadata, dict):
+            return
+        for key in ("model_slug", "model", "default_model_slug", "selected_model"):
+            model = metadata.get(key)
+            if isinstance(model, str) and model.strip():
+                state["observed_model"] = model.strip()
+                break
+        for key in ("thinking_effort", "reasoning_effort"):
+            effort = metadata.get(key)
+            if isinstance(effort, str) and effort.strip():
+                state["observed_reasoning_effort"] = effort.strip()
+                break
 
     @staticmethod
     def _conversation_to_dict(
@@ -1736,6 +1762,8 @@ class ChatGPTWebClient:
             "message_id": conversation_dict.get("message_id") if isinstance(conversation_dict, dict) else None,
             "parent_message_id": parent_message_id,
             "finish_reason": "stop",
+            "observed_model": None,
+            "observed_reasoning_effort": None,
         }
         first_token_latency: float | None = None
         last_token_latency: float | None = None
@@ -1857,5 +1885,24 @@ class ChatGPTWebClient:
                 first_token=first_token_latency,
                 last_token=last_token_latency,
                 total=total_latency,
+            ),
+            request=ChatRequestDiagnostics(
+                requested_model=model.strip() if isinstance(model, str) and model.strip() else None,
+                requested_reasoning_effort=reasoning_effort.strip()
+                if isinstance(reasoning_effort, str) and reasoning_effort.strip()
+                else None,
+                sent_model=payload.get("model"),
+                sent_reasoning_effort=payload.get("thinking_effort"),
+                conversation_id=state.get("conversation_id"),
+                parent_message_id=parent_message_id,
+                is_continuation=bool(conversation_id),
+                web_search=web_search,
+                temporary=temporary,
+                has_media=bool(normalized_media),
+                message_count=len(payload.get("messages", []))
+                if isinstance(payload.get("messages"), list)
+                else None,
+                observed_model=state.get("observed_model"),
+                observed_reasoning_effort=state.get("observed_reasoning_effort"),
             ),
         )

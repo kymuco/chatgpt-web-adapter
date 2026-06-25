@@ -544,6 +544,8 @@ def test_send_instant_mode_uses_minimal_payload_without_thinking_effort(
 
     payload = state["conversation_payloads"][0]
     assert response.text == "Hello world"
+    assert response.request.sent_model == "gpt-5-3-mini"
+    assert response.request.sent_reasoning_effort is None
     assert payload["model"] == "gpt-5-3-mini"
     assert "thinking_effort" not in payload
     assert "system_hints" not in payload
@@ -579,6 +581,9 @@ def test_send_ui_reasoning_modes_map_to_current_backend_values(
 
     payload = state["conversation_payloads"][0]
     assert response.text == "Hello world"
+    assert response.request.requested_reasoning_effort == reasoning_effort
+    assert response.request.sent_model == expected_model
+    assert response.request.sent_reasoning_effort == expected_effort
     assert payload["model"] == expected_model
     assert payload["thinking_effort"] == expected_effort
 
@@ -624,6 +629,9 @@ def test_send_handles_richer_live_like_sse_stream(monkeypatch: pytest.MonkeyPatc
     assert response.conversation.conversation_id == "conv-live"
     assert response.conversation.message_id == "assistant-final"
     assert response.conversation.finish_reason == "stop"
+    assert response.request.sent_model == "gpt-5-3-mini"
+    assert response.request.sent_reasoning_effort is None
+    assert response.request.observed_model == "gpt-5-3-mini"
 
 
 def test_send_event_callback_tolerates_live_like_sse_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -667,7 +675,11 @@ def test_send_event_callback_tolerates_live_like_sse_metadata(monkeypatch: pytes
         "stream_done",
         "request_completed",
     ]
+    assert events[0]["requested_model"] is None
+    assert events[0]["requested_reasoning_effort"] is None
     assert events[-3]["text_length"] == len("alpha-beta-done")
+    assert events[-1]["sent_model"] == "gpt-5-3-mini"
+    assert events[-1]["observed_model"] == "gpt-5-3-mini"
     assert events[-1]["conversation_id"] == "conv-live"
     assert events[-1]["message_id"] == "assistant-final"
 
