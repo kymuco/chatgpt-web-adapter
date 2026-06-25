@@ -86,6 +86,42 @@ def _live_like_stream_events(
     ]
 
 
+def _top_level_id_only_stream_events(
+    *,
+    conversation_id: str = "conv-top-level",
+    assistant_message_id: str = "assistant-top-level",
+    text_parts: tuple[str, ...] = ("top-", "level"),
+) -> list[dict[str, Any]]:
+    return [
+        {"type": "resume_conversation_token", "kind": "topic", "token": "resume-token"},
+        {
+            "v": {
+                "message": {
+                    "author": {"role": "assistant"},
+                    "id": "assistant-ephemeral",
+                    "recipient": "all",
+                    "content": {"content_type": "text", "parts": [""]},
+                }
+            }
+        },
+        {
+            "type": "message_marker",
+            "conversation_id": conversation_id,
+            "message_id": assistant_message_id,
+        },
+        {
+            "v": [
+                *(
+                    {"p": "/message/content/parts/0", "v": part}
+                    for part in text_parts
+                ),
+                {"p": "/message/metadata", "v": {"finish_details": {"type": "stop"}}},
+            ]
+        },
+        {"type": "message_stream_complete", "conversation_id": conversation_id},
+    ]
+
+
 def _build_client() -> adapter.ChatGPTWebClient:
     client = object.__new__(adapter.ChatGPTWebClient)
     client.auth = adapter.AuthData(cookies={})
@@ -682,6 +718,32 @@ def test_send_event_callback_tolerates_live_like_sse_metadata(monkeypatch: pytes
     assert events[-1]["observed_model"] == "gpt-5-3-mini"
     assert events[-1]["conversation_id"] == "conv-live"
     assert events[-1]["message_id"] == "assistant-final"
+
+
+def test_send_recovers_conversation_id_from_top_level_sse_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "stream_events": _top_level_id_only_stream_events(),
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: top-level", reasoning_effort="high")
+
+    assert response.text == "top-level"
+    assert response.conversation.conversation_id == "conv-top-level"
+    assert response.conversation.message_id == "assistant-top-level"
+    assert response.request.conversation_id == "conv-top-level"
+    assert response.request.sent_model == "gpt-5-5-thinking"
+    assert response.request.sent_reasoning_effort == "extended"
 
 
 def test_approve_pending_action_posts_prepare_and_polls_conversation(

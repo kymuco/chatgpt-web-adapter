@@ -789,6 +789,7 @@ class ChatGPTWebClient:
         if payload.get("type") == "title_generation":
             title = payload.get("title")
             return [], title.strip() if isinstance(title, str) and title.strip() else None
+        ChatGPTWebClient._capture_event_ids(payload, state)
         output: list[str] = []
         value = payload.get("v")
         path = payload.get("p")
@@ -832,6 +833,17 @@ class ChatGPTWebClient:
         if payload.get("type") == "server_ste_metadata":
             ChatGPTWebClient._capture_metadata_diagnostics(payload.get("metadata"), state)
         return output, None
+
+    @staticmethod
+    def _capture_event_ids(payload: Any, state: dict[str, Any]) -> None:
+        if not isinstance(payload, dict):
+            return
+        conversation_id = payload.get("conversation_id")
+        if isinstance(conversation_id, str) and conversation_id.strip():
+            state["conversation_id"] = conversation_id.strip()
+        message_id = payload.get("message_id")
+        if isinstance(message_id, str) and message_id.strip():
+            state["message_id"] = message_id.strip()
 
     @staticmethod
     def _capture_message_diagnostics(message: Any, state: dict[str, Any]) -> None:
