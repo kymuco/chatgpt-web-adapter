@@ -246,6 +246,19 @@ def _get_image_size(data: bytes, mime_type: str) -> tuple[int | None, int | None
 
 
 class ChatGPTWebClient:
+    @staticmethod
+    def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
+        if not isinstance(token, str) or token.count(".") < 2:
+            return None
+        try:
+            _header, payload, _signature = token.split(".", 2)
+            padded = payload + "=" * (-len(payload) % 4)
+            decoded = base64.urlsafe_b64decode(padded.encode("ascii"))
+            data = json.loads(decoded.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        return data if isinstance(data, dict) else None
+
     """Minimal sync adapter for chatgpt.com web sessions."""
 
     def __init__(
@@ -796,6 +809,22 @@ class ChatGPTWebClient:
         if payload.get("type") == "title_generation":
             title = payload.get("title")
             return [], title.strip() if isinstance(title, str) and title.strip() else None
+        if payload.get("type") == "resume_conversation_token":
+            kind = payload.get("kind")
+            token = payload.get("token")
+            if isinstance(kind, str) and kind.strip():
+                state["resume_kind"] = kind.strip()
+            if isinstance(token, str) and token.strip():
+                state["resume_token"] = token.strip()
+                decoded = ChatGPTWebClient._decode_jwt_payload(token.strip())
+                if isinstance(decoded, dict):
+                    turn_topic_id = decoded.get("turn_topic_id")
+                    if isinstance(turn_topic_id, str) and turn_topic_id.strip():
+                        state["resume_turn_topic_id"] = turn_topic_id.strip()
+            conversation_id = payload.get("conversation_id")
+            if isinstance(conversation_id, str) and conversation_id:
+                state["conversation_id"] = conversation_id
+            return [], None
         ChatGPTWebClient._capture_event_ids(payload, state)
         output: list[str] = []
         value = payload.get("v")
@@ -872,6 +901,11 @@ class ChatGPTWebClient:
             if isinstance(effort, str) and effort.strip():
                 state["observed_reasoning_effort"] = effort.strip()
                 break
+        turn_exchange_id = metadata.get("turn_exchange_id")
+        if isinstance(turn_exchange_id, str) and turn_exchange_id.strip():
+            state["turn_exchange_id"] = turn_exchange_id.strip()
+        if "resume_with_websockets" in metadata:
+            state["resume_with_websockets"] = bool(metadata.get("resume_with_websockets"))
 
     @staticmethod
     def _conversation_to_dict(
@@ -2113,12 +2147,27 @@ class ChatGPTWebClient:
                     parsed=event_payload,
                 )
                 if isinstance(event_payload, dict) and event_payload.get("type") == "stream_handoff":
+                    options = event_payload.get("options")
+                    if isinstance(options, list):
+                        state["stream_handoff_options"] = options
+                        for option in options:
+                            if not isinstance(option, dict):
+                                continue
+                            if option.get("type") != "resume_sse_endpoint":
+                                continue
+                            topic_id = option.get("topic_id")
+                            if isinstance(topic_id, str) and topic_id.strip():
+                                state["resume_turn_topic_id"] = topic_id.strip()
+                                break
                     self._emit_event(
                         on_event,
                         "stream_handoff",
                         conversation_id=event_payload.get("conversation_id"),
                         turn_exchange_id=event_payload.get("turn_exchange_id"),
                         options=event_payload.get("options"),
+                        resume_kind=state.get("resume_kind"),
+                        resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                        resume_token_present=bool(state.get("resume_token")),
                     )
                 tokens, maybe_title = self._parse_event(event_payload, state)
                 if maybe_title and title_update is None:
@@ -2195,6 +2244,10 @@ class ChatGPTWebClient:
                 )
                 conversation_payload = None
             if isinstance(conversation_payload, dict):
+                self._capture_message_diagnostics(
+                    self._current_message_from_conversation(conversation_payload),
+                    state,
+                )
                 (
                     recovered_conversation_id,
                     recovered_message_id,
@@ -2243,6 +2296,10 @@ class ChatGPTWebClient:
                 if recovered_observed_reasoning_effort is None:
                     recovered_observed_reasoning_effort = poll_state.get("observed_reasoning_effort")
             if isinstance(polled_payload, dict):
+                self._capture_message_diagnostics(
+                    self._current_message_from_conversation(polled_payload),
+                    state,
+                )
                 if not recovered_text or recovered_message_id == parent_message_id:
                     (
                         _polled_conversation_id,
@@ -2301,5 +2358,10 @@ class ChatGPTWebClient:
                 else None,
                 observed_model=recovered_observed_model,
                 observed_reasoning_effort=recovered_observed_reasoning_effort,
+                resume_kind=state.get("resume_kind"),
+                resume_token_present=bool(state.get("resume_token")),
+                resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                resume_with_websockets=bool(state.get("resume_with_websockets")),
+                turn_exchange_id=state.get("turn_exchange_id"),
             ),
         )

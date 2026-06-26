@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import base64
 import json
 import shutil
 import threading
@@ -14,6 +15,12 @@ import chatgpt_web_adapter.client as client_mod
 import pytest
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 40
+
+
+def _resume_topic_token(topic_id: str = "conversation-turn-123") -> str:
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "ES256", "typ": "JWT"}).encode("utf-8")).decode("ascii").rstrip("=")
+    payload = base64.urlsafe_b64encode(json.dumps({"turn_topic_id": topic_id}).encode("utf-8")).decode("ascii").rstrip("=")
+    return f"{header}.{payload}.signature"
 
 
 def _live_like_stream_events(
@@ -131,7 +138,7 @@ def _handoff_only_stream_events(
         {
             "type": "resume_conversation_token",
             "kind": "topic",
-            "token": "resume-token",
+            "token": _resume_topic_token(),
             "conversation_id": conversation_id,
         },
         {
@@ -890,6 +897,58 @@ def test_send_emits_handoff_and_poll_events(
     handoff_event = next(event for event in events if event["type"] == "stream_handoff")
     assert handoff_event["conversation_id"] == "conv-123"
     assert handoff_event["turn_exchange_id"] == "turn-123"
+    assert handoff_event["resume_kind"] == "topic"
+    assert handoff_event["resume_turn_topic_id"] == "conversation-turn-123"
+    assert handoff_event["resume_token_present"] is True
+
+
+def test_send_exposes_resume_diagnostics_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["resume-diagnostics-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "turn_exchange_id": "turn-123",
+                            "resume_with_websockets": True,
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: resume-diagnostics-ok", reasoning_effort="high")
+
+    assert response.text == "resume-diagnostics-ok"
+    assert response.request.resume_kind == "topic"
+    assert response.request.resume_token_present is True
+    assert response.request.resume_turn_topic_id == "conversation-turn-123"
+    assert response.request.resume_with_websockets is True
+    assert response.request.turn_exchange_id == "turn-123"
 
 
 def test_send_polls_conversation_until_handoff_reply_appears(

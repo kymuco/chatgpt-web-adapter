@@ -649,6 +649,11 @@ class ChatRequestDiagnostics:
     message_count: int | None = None
     observed_model: str | None = None
     observed_reasoning_effort: str | None = None
+    resume_kind: str | None = None
+    resume_token_present: bool = False
+    resume_turn_topic_id: str | None = None
+    resume_with_websockets: bool = False
+    turn_exchange_id: str | None = None
 
     def __post_init__(self) -> None:
         self.requested_model = _optional_str(self.requested_model)
@@ -664,6 +669,11 @@ class ChatRequestDiagnostics:
         self.message_count = _optional_positive_int(self.message_count)
         self.observed_model = _optional_str(self.observed_model)
         self.observed_reasoning_effort = _optional_str(self.observed_reasoning_effort)
+        self.resume_kind = _optional_str(self.resume_kind)
+        self.resume_token_present = bool(self.resume_token_present)
+        self.resume_turn_topic_id = _optional_str(self.resume_turn_topic_id)
+        self.resume_with_websockets = bool(self.resume_with_websockets)
+        self.turn_exchange_id = _optional_str(self.turn_exchange_id)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any] | None) -> "ChatRequestDiagnostics":
@@ -683,6 +693,11 @@ class ChatRequestDiagnostics:
             message_count=payload.get("message_count"),
             observed_model=payload.get("observed_model"),
             observed_reasoning_effort=payload.get("observed_reasoning_effort"),
+            resume_kind=payload.get("resume_kind"),
+            resume_token_present=payload.get("resume_token_present", False),
+            resume_turn_topic_id=payload.get("resume_turn_topic_id"),
+            resume_with_websockets=payload.get("resume_with_websockets", False),
+            turn_exchange_id=payload.get("turn_exchange_id"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -700,6 +715,11 @@ class ChatRequestDiagnostics:
             "message_count": self.message_count,
             "observed_model": self.observed_model,
             "observed_reasoning_effort": self.observed_reasoning_effort,
+            "resume_kind": self.resume_kind,
+            "resume_token_present": self.resume_token_present,
+            "resume_turn_topic_id": self.resume_turn_topic_id,
+            "resume_with_websockets": self.resume_with_websockets,
+            "turn_exchange_id": self.turn_exchange_id,
         }
 
 
