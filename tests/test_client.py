@@ -239,6 +239,7 @@ def _patch_chat_endpoints(monkeypatch: pytest.MonkeyPatch, base_url: str) -> Non
     monkeypatch.setattr(client_mod, "CHAT_CONVERSATION_URL", f"{base_url}/backend-api/conversation/{{conversation_id}}")
     monkeypatch.setattr(client_mod, "CHAT_CONVERSATIONS_URL", f"{base_url}/backend-api/conversations")
     monkeypatch.setattr(client_mod, "CHAT_FILES_URL", f"{base_url}/backend-api/files")
+    monkeypatch.setattr(client_mod, "CELSIUS_WS_USER_URL", f"{base_url}/celsius/ws/user")
 
 
 def _make_chat_handler(
@@ -344,6 +345,14 @@ def _make_chat_handler(
             self.end_headers()
 
         def do_GET(self) -> None:
+            if self.path == "/celsius/ws/user":
+                self._write_json(
+                    200,
+                    {
+                        "websocket_url": "wss://pubsub.chatgpt.com/v1/socket?token=test-token",
+                    },
+                )
+                return
             if self.path.startswith("/backend-api/conversations"):
                 state["conversations_get_calls"] = state.get("conversations_get_calls", 0) + 1
                 self._write_json(
@@ -978,8 +987,69 @@ def test_send_exposes_resume_diagnostics_after_stream_handoff(
     assert response.request.resume_conduit_uuid == "conduit-123"
     assert response.request.resume_conduit_location == "10.0.0.1:8305"
     assert response.request.resume_conduit_cluster == "unified-123"
+    assert response.request.resume_ws_url_present is True
+    assert response.request.resume_ws_url_scheme == "wss"
+    assert response.request.resume_ws_url_host == "pubsub.chatgpt.com"
     assert response.request.resume_with_websockets is True
     assert response.request.turn_exchange_id == "turn-123"
+
+
+def test_send_emits_ws_transport_probe_event_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["transport-probe-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "turn_exchange_id": "turn-123",
+                            "resume_with_websockets": True,
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        monkeypatch.setattr(client_mod, "CELSIUS_WS_USER_URL", f"{base_url}/celsius/ws/user")
+        response = client.send(
+            "Reply with exactly: transport-probe-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "transport-probe-ok"
+    event_types = [event["type"] for event in events]
+    assert "stream_handoff_transport_probe" in event_types
+    probe_event = next(event for event in events if event["type"] == "stream_handoff_transport_probe")
+    assert probe_event["transport"] == "ws_topic"
+    assert probe_event["success"] is True
+    assert probe_event["websocket_url_present"] is True
+    assert probe_event["websocket_url_scheme"] == "wss"
+    assert probe_event["websocket_url_host"] == "pubsub.chatgpt.com"
 
 
 def test_send_polls_conversation_until_handoff_reply_appears(

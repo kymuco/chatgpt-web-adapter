@@ -32,6 +32,7 @@ CHAT_CONVERSATION_PREPARE_URL = "https://chatgpt.com/backend-api/f/conversation/
 CHAT_CONVERSATION_URL = "https://chatgpt.com/backend-api/conversation/{conversation_id}"
 CHAT_CONVERSATIONS_URL = "https://chatgpt.com/backend-api/conversations"
 CHAT_FILES_URL = "https://chatgpt.com/backend-api/files"
+CELSIUS_WS_USER_URL = "https://chatgpt.com/celsius/ws/user"
 DEFAULT_MODEL = "gpt-5-3-mini"
 DEFAULT_THINKING_MODEL = "gpt-5-5-thinking"
 DEFAULT_TIMEOUT_SECONDS = 90
@@ -308,6 +309,17 @@ class ChatGPTWebClient:
             state["resume_transport_preference"] = "ws_topic"
         elif state.get("resume_sse_topic_id"):
             state["resume_transport_preference"] = "sse_topic"
+
+    @staticmethod
+    def _capture_ws_url_diagnostics(ws_url: str, state: dict[str, Any]) -> None:
+        parsed = urlparse(ws_url)
+        scheme = parsed.scheme.strip() if isinstance(parsed.scheme, str) else ""
+        hostname = parsed.hostname.strip() if isinstance(parsed.hostname, str) else ""
+        state["resume_ws_url_present"] = True
+        if scheme:
+            state["resume_ws_url_scheme"] = scheme
+        if hostname:
+            state["resume_ws_url_host"] = hostname
 
     """Minimal sync adapter for chatgpt.com web sessions."""
 
@@ -658,6 +670,18 @@ class ChatGPTWebClient:
             raise RequestError(f"chat-requirements request failed: status={status}: {data}")
         if not isinstance(data, dict):
             raise RequestError("chat-requirements response expected JSON object")
+        return data
+
+    def _probe_celsius_ws_user(self) -> dict[str, Any] | None:
+        headers = self._build_headers({"accept": "application/json, text/plain, */*"})
+        status, data = self._json_request("GET", CELSIUS_WS_USER_URL, None, headers)
+        if status >= 400:
+            raise RequestError(f"celsius ws user request failed: status={status}: {data}")
+        if not isinstance(data, dict):
+            raise RequestError("celsius ws user response expected JSON object")
+        websocket_url = data.get("websocket_url")
+        if not isinstance(websocket_url, str) or not websocket_url.strip():
+            raise RequestError("celsius ws user response missing websocket_url")
         return data
 
     def _build_proof_header(self, requirements: dict[str, Any]) -> str | None:
@@ -2226,6 +2250,33 @@ class ChatGPTWebClient:
                 if isinstance(event_payload, dict) and event_payload.get("type") == "stream_handoff":
                     options = event_payload.get("options")
                     self._capture_handoff_option_diagnostics(options, state)
+                    if (
+                        state.get("resume_transport_preference") == "ws_topic"
+                        and not bool(state.get("resume_ws_url_present"))
+                    ):
+                        try:
+                            ws_payload = self._probe_celsius_ws_user()
+                        except RequestError as error:
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_transport_probe",
+                                transport="ws_topic",
+                                success=False,
+                                error=str(error),
+                            )
+                        else:
+                            websocket_url = ws_payload.get("websocket_url")
+                            if isinstance(websocket_url, str) and websocket_url.strip():
+                                self._capture_ws_url_diagnostics(websocket_url.strip(), state)
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_transport_probe",
+                                transport="ws_topic",
+                                success=True,
+                                websocket_url_present=bool(state.get("resume_ws_url_present")),
+                                websocket_url_scheme=state.get("resume_ws_url_scheme"),
+                                websocket_url_host=state.get("resume_ws_url_host"),
+                            )
                     self._emit_event(
                         on_event,
                         "stream_handoff",
@@ -2239,6 +2290,9 @@ class ChatGPTWebClient:
                         handoff_option_types=list(state.get("handoff_option_types", ()) or ()),
                         resume_transport_preference=state.get("resume_transport_preference"),
                         resume_token_present=bool(state.get("resume_token")),
+                        resume_ws_url_present=bool(state.get("resume_ws_url_present")),
+                        resume_ws_url_scheme=state.get("resume_ws_url_scheme"),
+                        resume_ws_url_host=state.get("resume_ws_url_host"),
                     )
                 tokens, maybe_title = self._parse_event(event_payload, state)
                 if maybe_title and title_update is None:
@@ -2480,5 +2534,8 @@ class ChatGPTWebClient:
                 resume_conduit_uuid=state.get("resume_conduit_uuid"),
                 resume_conduit_location=state.get("resume_conduit_location"),
                 resume_conduit_cluster=state.get("resume_conduit_cluster"),
+                resume_ws_url_present=bool(state.get("resume_ws_url_present")),
+                resume_ws_url_scheme=state.get("resume_ws_url_scheme"),
+                resume_ws_url_host=state.get("resume_ws_url_host"),
             ),
         )

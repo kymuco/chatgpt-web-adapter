@@ -662,6 +662,9 @@ class ChatRequestDiagnostics:
     resume_conduit_uuid: str | None = None
     resume_conduit_location: str | None = None
     resume_conduit_cluster: str | None = None
+    resume_ws_url_present: bool = False
+    resume_ws_url_scheme: str | None = None
+    resume_ws_url_host: str | None = None
 
     def __post_init__(self) -> None:
         self.requested_model = _optional_str(self.requested_model)
@@ -694,6 +697,9 @@ class ChatRequestDiagnostics:
         self.resume_conduit_uuid = _optional_str(self.resume_conduit_uuid)
         self.resume_conduit_location = _optional_str(self.resume_conduit_location)
         self.resume_conduit_cluster = _optional_str(self.resume_conduit_cluster)
+        self.resume_ws_url_present = bool(self.resume_ws_url_present)
+        self.resume_ws_url_scheme = _optional_str(self.resume_ws_url_scheme)
+        self.resume_ws_url_host = _optional_str(self.resume_ws_url_host)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any] | None) -> "ChatRequestDiagnostics":
@@ -726,6 +732,9 @@ class ChatRequestDiagnostics:
             resume_conduit_uuid=payload.get("resume_conduit_uuid"),
             resume_conduit_location=payload.get("resume_conduit_location"),
             resume_conduit_cluster=payload.get("resume_conduit_cluster"),
+            resume_ws_url_present=payload.get("resume_ws_url_present", False),
+            resume_ws_url_scheme=payload.get("resume_ws_url_scheme"),
+            resume_ws_url_host=payload.get("resume_ws_url_host"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -756,6 +765,9 @@ class ChatRequestDiagnostics:
             "resume_conduit_uuid": self.resume_conduit_uuid,
             "resume_conduit_location": self.resume_conduit_location,
             "resume_conduit_cluster": self.resume_conduit_cluster,
+            "resume_ws_url_present": self.resume_ws_url_present,
+            "resume_ws_url_scheme": self.resume_ws_url_scheme,
+            "resume_ws_url_host": self.resume_ws_url_host,
         }
 
 
