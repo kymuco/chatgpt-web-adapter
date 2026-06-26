@@ -143,6 +143,28 @@ def test_attach_conversation_detects_model_from_current_message_metadata() -> No
     assert attached.detected_model == "gpt-5-5-thinking"
 
 
+def test_attach_conversation_detects_reasoning_effort_from_current_message_metadata() -> None:
+    client, _calls = _client_with_payload(
+        {
+            "conversation_id": CONVERSATION_ID,
+            "current_node": "assistant-1",
+            "mapping": {
+                "assistant-1": _message_node(
+                    "assistant-1",
+                    metadata={
+                        "model_slug": "gpt-5-5-thinking",
+                        "thinking_effort": "extended",
+                    },
+                ),
+            },
+        }
+    )
+
+    attached = client.attach_conversation(CONVERSATION_ID)
+
+    assert attached.detected_reasoning_effort == "extended"
+
+
 def test_attach_conversation_detects_model_from_latest_assistant_metadata() -> None:
     client, _calls = _client_with_payload(
         {
@@ -176,6 +198,20 @@ def test_attach_conversation_detects_model_from_payload_metadata() -> None:
     attached = client.attach_conversation(CONVERSATION_ID)
 
     assert attached.detected_model == "gpt-4.1-mini"
+
+
+def test_attach_conversation_detects_reasoning_effort_from_payload_metadata() -> None:
+    client, _calls = _client_with_payload(
+        {
+            "conversation_id": CONVERSATION_ID,
+            "mapping": {},
+            "metadata": {"thinking_effort": "standard"},
+        }
+    )
+
+    attached = client.attach_conversation(CONVERSATION_ID)
+
+    assert attached.detected_reasoning_effort == "standard"
 
 
 def test_attach_conversation_uses_hardened_nested_model_detection() -> None:

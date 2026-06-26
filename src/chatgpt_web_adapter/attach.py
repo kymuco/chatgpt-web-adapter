@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from .model_detection import detect_model_from_conversation_payload
+from .model_detection import (
+    detect_model_from_conversation_payload,
+    detect_reasoning_effort_from_conversation_payload,
+)
 from .types import AttachedConversation, ChatConversation, ConversationRef
 
 
@@ -65,4 +68,5 @@ def attach_conversation(
         payload,
         conversation=conversation,
         detected_model=detect_model_from_conversation_payload(payload),
+        detected_reasoning_effort=detect_reasoning_effort_from_conversation_payload(payload),
     )
