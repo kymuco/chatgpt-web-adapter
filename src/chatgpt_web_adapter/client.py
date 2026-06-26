@@ -304,6 +304,10 @@ class ChatGPTWebClient:
                 state.setdefault("resume_turn_topic_id", normalized_topic_id)
         if option_types:
             state["handoff_option_types"] = tuple(option_types)
+        if state.get("resume_ws_topic_id"):
+            state["resume_transport_preference"] = "ws_topic"
+        elif state.get("resume_sse_topic_id"):
+            state["resume_transport_preference"] = "sse_topic"
 
     """Minimal sync adapter for chatgpt.com web sessions."""
 
@@ -2233,6 +2237,7 @@ class ChatGPTWebClient:
                         resume_sse_topic_id=state.get("resume_sse_topic_id"),
                         resume_ws_topic_id=state.get("resume_ws_topic_id"),
                         handoff_option_types=list(state.get("handoff_option_types", ()) or ()),
+                        resume_transport_preference=state.get("resume_transport_preference"),
                         resume_token_present=bool(state.get("resume_token")),
                     )
                 tokens, maybe_title = self._parse_event(event_payload, state)
@@ -2328,6 +2333,25 @@ class ChatGPTWebClient:
                     previous_message_id=parent_message_id,
                     allow_global_fallback=allow_global_recovery_fallback,
                 )
+                if recovered_text or (
+                    isinstance(recovered_message_id, str)
+                    and recovered_message_id
+                    and recovered_message_id != parent_message_id
+                ):
+                    preferred_transport = state.get("resume_transport_preference")
+                    if isinstance(preferred_transport, str) and preferred_transport:
+                        state["handoff_recovery_mode"] = "conversation_snapshot"
+                        self._emit_event(
+                            on_event,
+                            "stream_handoff_recovery_mode",
+                            conversation_id=recovered_conversation_id,
+                            preferred_transport=preferred_transport,
+                            recovery_mode="conversation_snapshot",
+                            reason="conversation_payload_recovered",
+                            resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                            resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                            resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                        )
                 if recovered_observed_model is None:
                     recovered_observed_model = recovered_payload_model
                 if recovered_observed_reasoning_effort is None:
@@ -2337,6 +2361,20 @@ class ChatGPTWebClient:
             or not recovered_message_id
             or recovered_message_id == parent_message_id
         ):
+            preferred_transport = state.get("resume_transport_preference")
+            if isinstance(preferred_transport, str) and preferred_transport:
+                state["handoff_recovery_mode"] = "poll_recovery"
+                self._emit_event(
+                    on_event,
+                    "stream_handoff_recovery_mode",
+                    conversation_id=recovered_conversation_id,
+                    preferred_transport=preferred_transport,
+                    recovery_mode="poll_recovery",
+                    reason="topic_transport_not_implemented",
+                    resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                    resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                    resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                )
             try:
                 recovered_message, polled_text, polled_payload = self._poll_conversation_after_prepare(
                     recovered_conversation_id,
@@ -2435,6 +2473,8 @@ class ChatGPTWebClient:
                 resume_sse_topic_id=state.get("resume_sse_topic_id"),
                 resume_ws_topic_id=state.get("resume_ws_topic_id"),
                 handoff_option_types=tuple(state.get("handoff_option_types", ()) or ()),
+                resume_transport_preference=state.get("resume_transport_preference"),
+                handoff_recovery_mode=state.get("handoff_recovery_mode"),
                 resume_with_websockets=bool(state.get("resume_with_websockets")),
                 turn_exchange_id=state.get("turn_exchange_id"),
                 resume_conduit_uuid=state.get("resume_conduit_uuid"),

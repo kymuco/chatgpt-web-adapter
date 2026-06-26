@@ -655,6 +655,8 @@ class ChatRequestDiagnostics:
     resume_sse_topic_id: str | None = None
     resume_ws_topic_id: str | None = None
     handoff_option_types: tuple[str, ...] = ()
+    resume_transport_preference: str | None = None
+    handoff_recovery_mode: str | None = None
     resume_with_websockets: bool = False
     turn_exchange_id: str | None = None
     resume_conduit_uuid: str | None = None
@@ -685,6 +687,8 @@ class ChatRequestDiagnostics:
             for value in self.handoff_option_types
             if isinstance(value, str) and value.strip()
         )
+        self.resume_transport_preference = _optional_str(self.resume_transport_preference)
+        self.handoff_recovery_mode = _optional_str(self.handoff_recovery_mode)
         self.resume_with_websockets = bool(self.resume_with_websockets)
         self.turn_exchange_id = _optional_str(self.turn_exchange_id)
         self.resume_conduit_uuid = _optional_str(self.resume_conduit_uuid)
@@ -715,6 +719,8 @@ class ChatRequestDiagnostics:
             resume_sse_topic_id=payload.get("resume_sse_topic_id"),
             resume_ws_topic_id=payload.get("resume_ws_topic_id"),
             handoff_option_types=tuple(payload.get("handoff_option_types", ()) or ()),
+            resume_transport_preference=payload.get("resume_transport_preference"),
+            handoff_recovery_mode=payload.get("handoff_recovery_mode"),
             resume_with_websockets=payload.get("resume_with_websockets", False),
             turn_exchange_id=payload.get("turn_exchange_id"),
             resume_conduit_uuid=payload.get("resume_conduit_uuid"),
@@ -743,6 +749,8 @@ class ChatRequestDiagnostics:
             "resume_sse_topic_id": self.resume_sse_topic_id,
             "resume_ws_topic_id": self.resume_ws_topic_id,
             "handoff_option_types": list(self.handoff_option_types),
+            "resume_transport_preference": self.resume_transport_preference,
+            "handoff_recovery_mode": self.handoff_recovery_mode,
             "resume_with_websockets": self.resume_with_websockets,
             "turn_exchange_id": self.turn_exchange_id,
             "resume_conduit_uuid": self.resume_conduit_uuid,

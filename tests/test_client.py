@@ -918,6 +918,7 @@ def test_send_emits_handoff_and_poll_events(
         "resume_sse_endpoint",
         "subscribe_ws_topic",
     ]
+    assert handoff_event["resume_transport_preference"] == "ws_topic"
     assert handoff_event["resume_token_present"] is True
 
 
@@ -972,6 +973,8 @@ def test_send_exposes_resume_diagnostics_after_stream_handoff(
         "resume_sse_endpoint",
         "subscribe_ws_topic",
     )
+    assert response.request.resume_transport_preference == "ws_topic"
+    assert response.request.handoff_recovery_mode == "conversation_snapshot"
     assert response.request.resume_conduit_uuid == "conduit-123"
     assert response.request.resume_conduit_location == "10.0.0.1:8305"
     assert response.request.resume_conduit_cluster == "unified-123"
@@ -1047,9 +1050,14 @@ def test_send_polls_conversation_until_handoff_reply_appears(
     assert response.request.observed_model == "gpt-5-5-thinking"
     assert response.request.observed_reasoning_effort == "extended"
     event_types = [event["type"] for event in events]
+    assert "stream_handoff_recovery_mode" in event_types
     assert "conversation_poll_started" in event_types
     assert "conversation_poll_attempt" in event_types
     assert "conversation_poll_completed" in event_types
+    recovery_mode_event = next(event for event in events if event["type"] == "stream_handoff_recovery_mode")
+    assert recovery_mode_event["preferred_transport"] == "ws_topic"
+    assert recovery_mode_event["recovery_mode"] == "poll_recovery"
+    assert recovery_mode_event["reason"] == "topic_transport_not_implemented"
 
 
 def test_send_streams_poll_recovery_text_deltas_after_handoff(
