@@ -19,7 +19,16 @@ PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 40
 
 def _resume_topic_token(topic_id: str = "conversation-turn-123") -> str:
     header = base64.urlsafe_b64encode(json.dumps({"alg": "ES256", "typ": "JWT"}).encode("utf-8")).decode("ascii").rstrip("=")
-    payload = base64.urlsafe_b64encode(json.dumps({"turn_topic_id": topic_id}).encode("utf-8")).decode("ascii").rstrip("=")
+    payload = base64.urlsafe_b64encode(
+        json.dumps(
+            {
+                "turn_topic_id": topic_id,
+                "conduit_uuid": "conduit-123",
+                "conduit_location": "10.0.0.1:8305",
+                "cluster": "unified-123",
+            }
+        ).encode("utf-8")
+    ).decode("ascii").rstrip("=")
     return f"{header}.{payload}.signature"
 
 
@@ -149,7 +158,11 @@ def _handoff_only_stream_events(
                 {
                     "type": "resume_sse_endpoint",
                     "topic_id": "conversation-turn-123",
-                }
+                },
+                {
+                    "type": "subscribe_ws_topic",
+                    "topic_id": "conversation-turn-123",
+                },
             ],
         },
     ]
@@ -899,6 +912,12 @@ def test_send_emits_handoff_and_poll_events(
     assert handoff_event["turn_exchange_id"] == "turn-123"
     assert handoff_event["resume_kind"] == "topic"
     assert handoff_event["resume_turn_topic_id"] == "conversation-turn-123"
+    assert handoff_event["resume_sse_topic_id"] == "conversation-turn-123"
+    assert handoff_event["resume_ws_topic_id"] == "conversation-turn-123"
+    assert handoff_event["handoff_option_types"] == [
+        "resume_sse_endpoint",
+        "subscribe_ws_topic",
+    ]
     assert handoff_event["resume_token_present"] is True
 
 
@@ -947,6 +966,15 @@ def test_send_exposes_resume_diagnostics_after_stream_handoff(
     assert response.request.resume_kind == "topic"
     assert response.request.resume_token_present is True
     assert response.request.resume_turn_topic_id == "conversation-turn-123"
+    assert response.request.resume_sse_topic_id == "conversation-turn-123"
+    assert response.request.resume_ws_topic_id == "conversation-turn-123"
+    assert response.request.handoff_option_types == (
+        "resume_sse_endpoint",
+        "subscribe_ws_topic",
+    )
+    assert response.request.resume_conduit_uuid == "conduit-123"
+    assert response.request.resume_conduit_location == "10.0.0.1:8305"
+    assert response.request.resume_conduit_cluster == "unified-123"
     assert response.request.resume_with_websockets is True
     assert response.request.turn_exchange_id == "turn-123"
 

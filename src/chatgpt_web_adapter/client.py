@@ -259,6 +259,52 @@ class ChatGPTWebClient:
             return None
         return data if isinstance(data, dict) else None
 
+    @staticmethod
+    def _capture_resume_token_diagnostics(token: str, state: dict[str, Any]) -> None:
+        decoded = ChatGPTWebClient._decode_jwt_payload(token)
+        if not isinstance(decoded, dict):
+            return
+        turn_topic_id = decoded.get("turn_topic_id")
+        if isinstance(turn_topic_id, str) and turn_topic_id.strip():
+            state["resume_turn_topic_id"] = turn_topic_id.strip()
+        conduit_uuid = decoded.get("conduit_uuid")
+        if isinstance(conduit_uuid, str) and conduit_uuid.strip():
+            state["resume_conduit_uuid"] = conduit_uuid.strip()
+        conduit_location = decoded.get("conduit_location")
+        if isinstance(conduit_location, str) and conduit_location.strip():
+            state["resume_conduit_location"] = conduit_location.strip()
+        cluster = decoded.get("cluster")
+        if isinstance(cluster, str) and cluster.strip():
+            state["resume_conduit_cluster"] = cluster.strip()
+
+    @staticmethod
+    def _capture_handoff_option_diagnostics(options: Any, state: dict[str, Any]) -> None:
+        if not isinstance(options, list):
+            return
+        state["stream_handoff_options"] = options
+        option_types: list[str] = []
+        for option in options:
+            if not isinstance(option, dict):
+                continue
+            option_type = option.get("type")
+            if isinstance(option_type, str) and option_type.strip():
+                normalized_type = option_type.strip()
+                option_types.append(normalized_type)
+            else:
+                normalized_type = ""
+            topic_id = option.get("topic_id")
+            if not isinstance(topic_id, str) or not topic_id.strip():
+                continue
+            normalized_topic_id = topic_id.strip()
+            if normalized_type == "resume_sse_endpoint":
+                state["resume_sse_topic_id"] = normalized_topic_id
+                state.setdefault("resume_turn_topic_id", normalized_topic_id)
+            elif normalized_type == "subscribe_ws_topic":
+                state["resume_ws_topic_id"] = normalized_topic_id
+                state.setdefault("resume_turn_topic_id", normalized_topic_id)
+        if option_types:
+            state["handoff_option_types"] = tuple(option_types)
+
     """Minimal sync adapter for chatgpt.com web sessions."""
 
     def __init__(
@@ -816,11 +862,7 @@ class ChatGPTWebClient:
                 state["resume_kind"] = kind.strip()
             if isinstance(token, str) and token.strip():
                 state["resume_token"] = token.strip()
-                decoded = ChatGPTWebClient._decode_jwt_payload(token.strip())
-                if isinstance(decoded, dict):
-                    turn_topic_id = decoded.get("turn_topic_id")
-                    if isinstance(turn_topic_id, str) and turn_topic_id.strip():
-                        state["resume_turn_topic_id"] = turn_topic_id.strip()
+                ChatGPTWebClient._capture_resume_token_diagnostics(token.strip(), state)
             conversation_id = payload.get("conversation_id")
             if isinstance(conversation_id, str) and conversation_id:
                 state["conversation_id"] = conversation_id
@@ -2148,17 +2190,7 @@ class ChatGPTWebClient:
                 )
                 if isinstance(event_payload, dict) and event_payload.get("type") == "stream_handoff":
                     options = event_payload.get("options")
-                    if isinstance(options, list):
-                        state["stream_handoff_options"] = options
-                        for option in options:
-                            if not isinstance(option, dict):
-                                continue
-                            if option.get("type") != "resume_sse_endpoint":
-                                continue
-                            topic_id = option.get("topic_id")
-                            if isinstance(topic_id, str) and topic_id.strip():
-                                state["resume_turn_topic_id"] = topic_id.strip()
-                                break
+                    self._capture_handoff_option_diagnostics(options, state)
                     self._emit_event(
                         on_event,
                         "stream_handoff",
@@ -2167,6 +2199,9 @@ class ChatGPTWebClient:
                         options=event_payload.get("options"),
                         resume_kind=state.get("resume_kind"),
                         resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                        resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                        resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                        handoff_option_types=list(state.get("handoff_option_types", ()) or ()),
                         resume_token_present=bool(state.get("resume_token")),
                     )
                 tokens, maybe_title = self._parse_event(event_payload, state)
@@ -2361,7 +2396,13 @@ class ChatGPTWebClient:
                 resume_kind=state.get("resume_kind"),
                 resume_token_present=bool(state.get("resume_token")),
                 resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                handoff_option_types=tuple(state.get("handoff_option_types", ()) or ()),
                 resume_with_websockets=bool(state.get("resume_with_websockets")),
                 turn_exchange_id=state.get("turn_exchange_id"),
+                resume_conduit_uuid=state.get("resume_conduit_uuid"),
+                resume_conduit_location=state.get("resume_conduit_location"),
+                resume_conduit_cluster=state.get("resume_conduit_cluster"),
             ),
         )

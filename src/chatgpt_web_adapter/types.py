@@ -652,8 +652,14 @@ class ChatRequestDiagnostics:
     resume_kind: str | None = None
     resume_token_present: bool = False
     resume_turn_topic_id: str | None = None
+    resume_sse_topic_id: str | None = None
+    resume_ws_topic_id: str | None = None
+    handoff_option_types: tuple[str, ...] = ()
     resume_with_websockets: bool = False
     turn_exchange_id: str | None = None
+    resume_conduit_uuid: str | None = None
+    resume_conduit_location: str | None = None
+    resume_conduit_cluster: str | None = None
 
     def __post_init__(self) -> None:
         self.requested_model = _optional_str(self.requested_model)
@@ -672,8 +678,18 @@ class ChatRequestDiagnostics:
         self.resume_kind = _optional_str(self.resume_kind)
         self.resume_token_present = bool(self.resume_token_present)
         self.resume_turn_topic_id = _optional_str(self.resume_turn_topic_id)
+        self.resume_sse_topic_id = _optional_str(self.resume_sse_topic_id)
+        self.resume_ws_topic_id = _optional_str(self.resume_ws_topic_id)
+        self.handoff_option_types = tuple(
+            value.strip()
+            for value in self.handoff_option_types
+            if isinstance(value, str) and value.strip()
+        )
         self.resume_with_websockets = bool(self.resume_with_websockets)
         self.turn_exchange_id = _optional_str(self.turn_exchange_id)
+        self.resume_conduit_uuid = _optional_str(self.resume_conduit_uuid)
+        self.resume_conduit_location = _optional_str(self.resume_conduit_location)
+        self.resume_conduit_cluster = _optional_str(self.resume_conduit_cluster)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any] | None) -> "ChatRequestDiagnostics":
@@ -696,8 +712,14 @@ class ChatRequestDiagnostics:
             resume_kind=payload.get("resume_kind"),
             resume_token_present=payload.get("resume_token_present", False),
             resume_turn_topic_id=payload.get("resume_turn_topic_id"),
+            resume_sse_topic_id=payload.get("resume_sse_topic_id"),
+            resume_ws_topic_id=payload.get("resume_ws_topic_id"),
+            handoff_option_types=tuple(payload.get("handoff_option_types", ()) or ()),
             resume_with_websockets=payload.get("resume_with_websockets", False),
             turn_exchange_id=payload.get("turn_exchange_id"),
+            resume_conduit_uuid=payload.get("resume_conduit_uuid"),
+            resume_conduit_location=payload.get("resume_conduit_location"),
+            resume_conduit_cluster=payload.get("resume_conduit_cluster"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -718,8 +740,14 @@ class ChatRequestDiagnostics:
             "resume_kind": self.resume_kind,
             "resume_token_present": self.resume_token_present,
             "resume_turn_topic_id": self.resume_turn_topic_id,
+            "resume_sse_topic_id": self.resume_sse_topic_id,
+            "resume_ws_topic_id": self.resume_ws_topic_id,
+            "handoff_option_types": list(self.handoff_option_types),
             "resume_with_websockets": self.resume_with_websockets,
             "turn_exchange_id": self.turn_exchange_id,
+            "resume_conduit_uuid": self.resume_conduit_uuid,
+            "resume_conduit_location": self.resume_conduit_location,
+            "resume_conduit_cluster": self.resume_conduit_cluster,
         }
 
 
