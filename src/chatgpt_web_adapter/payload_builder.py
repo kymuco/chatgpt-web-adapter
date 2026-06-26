@@ -5,7 +5,7 @@ import time
 import uuid
 from typing import Any
 
-from .client import DEFAULT_MODEL, MODEL_ALIASES
+from .client import DEFAULT_MODEL, DEFAULT_THINKING_MODEL, MODEL_ALIASES
 from .types import ChatConversation
 
 
@@ -25,17 +25,28 @@ def _required_str(value: Any, field_name: str) -> str:
     return value
 
 
-def _normalize_model(model: str) -> str:
-    model_name = _required_str(model, "model")
-    return MODEL_ALIASES.get(model_name, model_name)
+def _normalize_model(model: str | None, reasoning_effort: str | None) -> str:
+    if isinstance(model, str):
+        model_name = _required_str(model, "model")
+        return MODEL_ALIASES.get(model_name.lower(), MODEL_ALIASES.get(model_name, model_name))
+    normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
+    if normalized_effort in {"medium", "high", "standard", "extended"}:
+        return DEFAULT_THINKING_MODEL
+    return DEFAULT_MODEL
 
 
 def _normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
     normalized = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
-    if normalized in {"", "off", "none", "-"}:
+    if normalized == "medium":
+        normalized = "standard"
+    elif normalized == "high":
+        normalized = "extended"
+    elif normalized in {"", "off", "none", "-", "instant"}:
         normalized = None
     if normalized not in {None, "standard", "extended"}:
-        raise ValueError("reasoning_effort must be one of: standard, extended, off/none/-")
+        raise ValueError(
+            "reasoning_effort must be one of: instant, medium, high, standard, extended, off/none/-"
+        )
     return normalized
 
 
@@ -72,7 +83,7 @@ def _conversation_to_dict(
 def _base_payload(
     *,
     prompt: str,
-    model: str,
+    model: str | None,
     parent_message_id: str,
     system: str | None = None,
     web_search: bool = False,
@@ -96,7 +107,7 @@ def _base_payload(
     payload: dict[str, Any] = {
         "action": "next",
         "parent_message_id": parent_message_id,
-        "model": _normalize_model(model),
+        "model": _normalize_model(model, reasoning_effort),
         "conversation_mode": {"kind": "primary_assistant"},
         "enable_message_followups": False,
         "supports_buffering": True,
@@ -144,7 +155,7 @@ class PayloadBuilder:
     def new_chat(
         prompt: Any,
         *,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         system: str | None = None,
         web_search: bool = False,
         temporary: bool = False,
@@ -169,7 +180,7 @@ class PayloadBuilder:
         conversation: ChatConversation | dict[str, Any] | None = None,
         conversation_id: str | None = None,
         parent_message_id: str | None = None,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         web_search: bool = False,
         reasoning_effort: str | None = None,
     ) -> dict[str, Any]:

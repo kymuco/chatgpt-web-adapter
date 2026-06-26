@@ -35,6 +35,7 @@ from .types import (
     ChatConversation,
     ChatMessage,
     ChatMetrics,
+    ChatRequestDiagnostics,
     ChatResponse,
     ConversationRef,
     ConversationStatus,
@@ -78,6 +79,7 @@ CORE_PUBLIC_API = [
     "PendingApproval",
     "ChatResponse",
     "ChatMetrics",
+    "ChatRequestDiagnostics",
     "AuthData",
     "errors",
 ]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import base64
 import json
 import shutil
 import threading
@@ -14,6 +15,21 @@ import chatgpt_web_adapter.client as client_mod
 import pytest
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 40
+
+
+def _resume_topic_token(topic_id: str = "conversation-turn-123") -> str:
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "ES256", "typ": "JWT"}).encode("utf-8")).decode("ascii").rstrip("=")
+    payload = base64.urlsafe_b64encode(
+        json.dumps(
+            {
+                "turn_topic_id": topic_id,
+                "conduit_uuid": "conduit-123",
+                "conduit_location": "10.0.0.1:8305",
+                "cluster": "unified-123",
+            }
+        ).encode("utf-8")
+    ).decode("ascii").rstrip("=")
+    return f"{header}.{payload}.signature"
 
 
 def _live_like_stream_events(
@@ -83,6 +99,72 @@ def _live_like_stream_events(
         },
         {"type": "server_ste_metadata", "metadata": {"message_id": assistant_message_id}},
         {"type": "message_stream_complete", "conversation_id": conversation_id},
+    ]
+
+
+def _top_level_id_only_stream_events(
+    *,
+    conversation_id: str = "conv-top-level",
+    assistant_message_id: str = "assistant-top-level",
+    text_parts: tuple[str, ...] = ("top-", "level"),
+) -> list[dict[str, Any]]:
+    return [
+        {"type": "resume_conversation_token", "kind": "topic", "token": "resume-token"},
+        {
+            "v": {
+                "message": {
+                    "author": {"role": "assistant"},
+                    "id": "assistant-ephemeral",
+                    "recipient": "all",
+                    "content": {"content_type": "text", "parts": [""]},
+                }
+            }
+        },
+        {
+            "type": "message_marker",
+            "conversation_id": conversation_id,
+            "message_id": assistant_message_id,
+        },
+        {
+            "v": [
+                *(
+                    {"p": "/message/content/parts/0", "v": part}
+                    for part in text_parts
+                ),
+                {"p": "/message/metadata", "v": {"finish_details": {"type": "stop"}}},
+            ]
+        },
+        {"type": "message_stream_complete", "conversation_id": conversation_id},
+    ]
+
+
+def _handoff_only_stream_events(
+    *,
+    conversation_id: str = "conv-123",
+) -> list[dict[str, Any]]:
+    return [
+        "v1",
+        {
+            "type": "resume_conversation_token",
+            "kind": "topic",
+            "token": _resume_topic_token(),
+            "conversation_id": conversation_id,
+        },
+        {
+            "type": "stream_handoff",
+            "conversation_id": conversation_id,
+            "turn_exchange_id": "turn-123",
+            "options": [
+                {
+                    "type": "resume_sse_endpoint",
+                    "topic_id": "conversation-turn-123",
+                },
+                {
+                    "type": "subscribe_ws_topic",
+                    "topic_id": "conversation-turn-123",
+                },
+            ],
+        },
     ]
 
 
@@ -157,6 +239,7 @@ def _patch_chat_endpoints(monkeypatch: pytest.MonkeyPatch, base_url: str) -> Non
     monkeypatch.setattr(client_mod, "CHAT_CONVERSATION_URL", f"{base_url}/backend-api/conversation/{{conversation_id}}")
     monkeypatch.setattr(client_mod, "CHAT_CONVERSATIONS_URL", f"{base_url}/backend-api/conversations")
     monkeypatch.setattr(client_mod, "CHAT_FILES_URL", f"{base_url}/backend-api/files")
+    monkeypatch.setattr(client_mod, "CELSIUS_WS_USER_URL", f"{base_url}/celsius/ws/user")
 
 
 def _make_chat_handler(
@@ -262,6 +345,14 @@ def _make_chat_handler(
             self.end_headers()
 
         def do_GET(self) -> None:
+            if self.path == "/celsius/ws/user":
+                self._write_json(
+                    200,
+                    {
+                        "websocket_url": "wss://pubsub.chatgpt.com/v1/socket?token=test-token",
+                    },
+                )
+                return
             if self.path.startswith("/backend-api/conversations"):
                 state["conversations_get_calls"] = state.get("conversations_get_calls", 0) + 1
                 self._write_json(
@@ -276,6 +367,18 @@ def _make_chat_handler(
                 return
             if self.path == "/backend-api/conversation/conv-123":
                 state["conversation_get_calls"] = state.get("conversation_get_calls", 0) + 1
+                conversation_statuses = state.get("conversation_get_statuses")
+                if isinstance(conversation_statuses, list) and conversation_statuses:
+                    status_entry = conversation_statuses.pop(0)
+                    if isinstance(status_entry, dict):
+                        self._write_json(int(status_entry.get("status", 200)), status_entry.get("payload") or {})
+                        return
+                conversation_payloads = state.get("conversation_get_payloads")
+                if isinstance(conversation_payloads, list) and conversation_payloads:
+                    conversation_payload = conversation_payloads.pop(0)
+                    if isinstance(conversation_payload, dict):
+                        self._write_json(200, conversation_payload)
+                        return
                 conversation_payload = state.get("conversation_get_payload")
                 if isinstance(conversation_payload, dict):
                     self._write_json(200, conversation_payload)
@@ -525,6 +628,69 @@ def test_send_with_warmup_media_and_flags_uses_prefetched_requirements(
     assert response.metrics.total is not None
 
 
+def test_send_instant_mode_uses_minimal_payload_without_thinking_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: instant", reasoning_effort="instant")
+
+    payload = state["conversation_payloads"][0]
+    assert response.text == "Hello world"
+    assert response.request.sent_model == "gpt-5-3-mini"
+    assert response.request.sent_reasoning_effort is None
+    assert payload["model"] == "gpt-5-3-mini"
+    assert "thinking_effort" not in payload
+    assert "system_hints" not in payload
+    assert [message["author"]["role"] for message in payload["messages"]] == ["user"]
+
+
+@pytest.mark.parametrize(
+    ("reasoning_effort", "expected_model", "expected_effort"),
+    [
+        ("medium", "gpt-5-5-thinking", "standard"),
+        ("high", "gpt-5-5-thinking", "extended"),
+    ],
+)
+def test_send_ui_reasoning_modes_map_to_current_backend_values(
+    monkeypatch: pytest.MonkeyPatch,
+    reasoning_effort: str,
+    expected_model: str,
+    expected_effort: str,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: mapped", reasoning_effort=reasoning_effort)
+
+    payload = state["conversation_payloads"][0]
+    assert response.text == "Hello world"
+    assert response.request.requested_reasoning_effort == reasoning_effort
+    assert response.request.sent_model == expected_model
+    assert response.request.sent_reasoning_effort == expected_effort
+    assert payload["model"] == expected_model
+    assert payload["thinking_effort"] == expected_effort
+
+
 def test_send_backend_error_raises_request_error(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _build_client()
     client.auth.accessToken = "test-token"
@@ -566,6 +732,9 @@ def test_send_handles_richer_live_like_sse_stream(monkeypatch: pytest.MonkeyPatc
     assert response.conversation.conversation_id == "conv-live"
     assert response.conversation.message_id == "assistant-final"
     assert response.conversation.finish_reason == "stop"
+    assert response.request.sent_model == "gpt-5-3-mini"
+    assert response.request.sent_reasoning_effort is None
+    assert response.request.observed_model == "gpt-5-3-mini"
 
 
 def test_send_event_callback_tolerates_live_like_sse_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -597,21 +766,933 @@ def test_send_event_callback_tolerates_live_like_sse_metadata(monkeypatch: pytes
     assert response.title == "Live callback title"
     assert streamed_tokens == ["alpha-", "beta", "-done"]
     event_types = [event["type"] for event in events]
-    assert event_types == [
+    assert event_types[0:4] == [
         "request_started",
         "requirements_ready",
+        "request_payload_prepared",
         "stream_started",
-        "first_token",
-        "assistant_token",
-        "assistant_token",
-        "assistant_token",
+    ]
+    assert event_types.count("raw_sse_event") >= 1
+    assert event_types.count("assistant_token") == 3
+    assert event_types[-3:] == [
         "stream_completed",
         "stream_done",
         "request_completed",
     ]
+    assert events[0]["requested_model"] is None
+    assert events[0]["requested_reasoning_effort"] is None
+    assert events[2]["payload"]["model"] == "gpt-5-3-mini"
     assert events[-3]["text_length"] == len("alpha-beta-done")
+    assert events[-1]["sent_model"] == "gpt-5-3-mini"
+    assert events[-1]["observed_model"] == "gpt-5-3-mini"
     assert events[-1]["conversation_id"] == "conv-live"
     assert events[-1]["message_id"] == "assistant-final"
+
+
+def test_send_recovers_conversation_id_from_top_level_sse_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "stream_events": _top_level_id_only_stream_events(),
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: top-level", reasoning_effort="high")
+
+    assert response.text == "top-level"
+    assert response.conversation.conversation_id == "conv-top-level"
+    assert response.conversation.message_id == "assistant-top-level"
+    assert response.request.conversation_id == "conv-top-level"
+    assert response.request.sent_model == "gpt-5-5-thinking"
+    assert response.request.sent_reasoning_effort == "extended"
+
+
+def test_send_recovers_message_id_text_and_metadata_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["handoff-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: handoff-ok", reasoning_effort="high")
+
+    assert state["conversation_get_calls"] == 1
+    assert response.text == "handoff-ok"
+    assert response.conversation.conversation_id == "conv-123"
+    assert response.conversation.message_id == "assistant-final"
+    assert response.conversation.parent_message_id == "assistant-final"
+    assert response.request.conversation_id == "conv-123"
+    assert response.request.sent_model == "gpt-5-5-thinking"
+    assert response.request.sent_reasoning_effort == "extended"
+    assert response.request.observed_model == "gpt-5-5-thinking"
+    assert response.request.observed_reasoning_effort == "extended"
+
+
+def test_send_emits_handoff_and_poll_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["handoff-events-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+    events: list[dict[str, Any]] = []
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Reply with exactly: handoff-events-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "handoff-events-ok"
+    event_types = [event["type"] for event in events]
+    assert "request_payload_prepared" in event_types
+    assert "raw_sse_event" in event_types
+    assert "raw_sse_done" in event_types
+    assert "stream_handoff" in event_types
+    handoff_event = next(event for event in events if event["type"] == "stream_handoff")
+    assert handoff_event["conversation_id"] == "conv-123"
+    assert handoff_event["turn_exchange_id"] == "turn-123"
+    assert handoff_event["resume_kind"] == "topic"
+    assert handoff_event["resume_turn_topic_id"] == "conversation-turn-123"
+    assert handoff_event["resume_sse_topic_id"] == "conversation-turn-123"
+    assert handoff_event["resume_ws_topic_id"] == "conversation-turn-123"
+    assert handoff_event["handoff_option_types"] == [
+        "resume_sse_endpoint",
+        "subscribe_ws_topic",
+    ]
+    assert handoff_event["resume_transport_preference"] == "ws_topic"
+    assert handoff_event["resume_token_present"] is True
+
+
+def test_send_exposes_resume_diagnostics_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["resume-diagnostics-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "turn_exchange_id": "turn-123",
+                            "resume_with_websockets": True,
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Reply with exactly: resume-diagnostics-ok", reasoning_effort="high")
+
+    assert response.text == "resume-diagnostics-ok"
+    assert response.request.resume_kind == "topic"
+    assert response.request.resume_token_present is True
+    assert response.request.resume_turn_topic_id == "conversation-turn-123"
+    assert response.request.resume_sse_topic_id == "conversation-turn-123"
+    assert response.request.resume_ws_topic_id == "conversation-turn-123"
+    assert response.request.handoff_option_types == (
+        "resume_sse_endpoint",
+        "subscribe_ws_topic",
+    )
+    assert response.request.resume_transport_preference == "ws_topic"
+    assert response.request.handoff_recovery_mode == "conversation_snapshot"
+    assert response.request.resume_conduit_uuid == "conduit-123"
+    assert response.request.resume_conduit_location == "10.0.0.1:8305"
+    assert response.request.resume_conduit_cluster == "unified-123"
+    assert response.request.resume_ws_url_present is True
+    assert response.request.resume_ws_url_scheme == "wss"
+    assert response.request.resume_ws_url_host == "pubsub.chatgpt.com"
+    assert response.request.resume_with_websockets is True
+    assert response.request.turn_exchange_id == "turn-123"
+
+
+def test_send_emits_ws_transport_probe_event_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["transport-probe-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "turn_exchange_id": "turn-123",
+                            "resume_with_websockets": True,
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        monkeypatch.setattr(client_mod, "CELSIUS_WS_USER_URL", f"{base_url}/celsius/ws/user")
+        response = client.send(
+            "Reply with exactly: transport-probe-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "transport-probe-ok"
+    event_types = [event["type"] for event in events]
+    assert "stream_handoff_transport_probe" in event_types
+    probe_event = next(event for event in events if event["type"] == "stream_handoff_transport_probe")
+    assert probe_event["transport"] == "ws_topic"
+    assert probe_event["success"] is True
+    assert probe_event["websocket_url_present"] is True
+    assert probe_event["websocket_url_scheme"] == "wss"
+    assert probe_event["websocket_url_host"] == "pubsub.chatgpt.com"
+
+
+def test_parse_encoded_stream_item_extracts_last_sse_event() -> None:
+    parsed = adapter.ChatGPTWebClient._parse_encoded_stream_item(
+        "event: delta\n"
+        'data: {"p":"/message/content/parts/0","v":"hello"}\n'
+        "\n"
+        "event: done\n"
+        "data: [DONE]\n"
+        "\n"
+    )
+
+    assert parsed == {"event": "done", "data": "[DONE]"}
+
+
+def test_send_uses_ws_topic_stream_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+    }
+
+    def fake_ws_stream(
+        self: adapter.ChatGPTWebClient,
+        topic_id: str,
+        *,
+        state: dict[str, Any],
+        on_event: Any,
+        on_token: Any,
+    ) -> None:
+        state["conversation_id"] = "conv-123"
+        state["message_id"] = "assistant-ws"
+        state["parent_message_id"] = "assistant-ws"
+        state["observed_model"] = "gpt-5-5-thinking"
+        state["observed_reasoning_effort"] = "extended"
+        state["finish_reason"] = "stop"
+        if on_event is not None:
+            on_event({"type": "stream_handoff_ws_connected", "topic_id": topic_id})
+            on_event({"type": "raw_ws_event", "topic_id": topic_id, "raw": '{"mock":true}', "parsed": {"mock": True}})
+            on_event({"type": "raw_ws_done", "topic_id": topic_id})
+        if on_token is not None:
+            on_token("ws-")
+            on_token("stream-ok")
+
+    monkeypatch.setattr(adapter.ChatGPTWebClient, "_stream_handoff_via_ws_topic", fake_ws_stream)
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Reply with exactly: ws-stream-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "ws-stream-ok"
+    assert response.conversation.conversation_id == "conv-123"
+    assert response.conversation.message_id == "assistant-ws"
+    assert response.request.handoff_recovery_mode == "ws_topic_stream"
+    assert response.request.resume_transport_preference == "ws_topic"
+    assert state["conversation_get_calls"] == 0
+    event_types = [event["type"] for event in events]
+    assert "stream_handoff_ws_connected" in event_types
+    assert "raw_ws_event" in event_types
+    assert "raw_ws_done" in event_types
+    recovery_mode_event = next(event for event in events if event["type"] == "stream_handoff_recovery_mode")
+    assert recovery_mode_event["preferred_transport"] == "ws_topic"
+    assert recovery_mode_event["recovery_mode"] == "ws_topic_stream"
+
+
+def test_send_polls_conversation_until_handoff_reply_appears(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "user-new",
+                "mapping": {
+                    "user-new": {
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["Reply with exactly: polled-ok"]},
+                        }
+                    }
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-final": {
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["polled-ok"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "finish_details": {"type": "stop"},
+                            },
+                        }
+                    }
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Reply with exactly: polled-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert state["conversation_get_calls"] >= 2
+    assert response.text == "polled-ok"
+    assert response.conversation.conversation_id == "conv-123"
+    assert response.conversation.message_id == "assistant-final"
+    assert response.request.observed_model == "gpt-5-5-thinking"
+    assert response.request.observed_reasoning_effort == "extended"
+    event_types = [event["type"] for event in events]
+    assert "stream_handoff_recovery_mode" in event_types
+    assert "conversation_poll_started" in event_types
+    assert "conversation_poll_attempt" in event_types
+    assert "conversation_poll_completed" in event_types
+    recovery_mode_event = next(event for event in events if event["type"] == "stream_handoff_recovery_mode")
+    assert recovery_mode_event["preferred_transport"] == "ws_topic"
+    assert recovery_mode_event["recovery_mode"] == "poll_recovery"
+    assert recovery_mode_event["reason"] == "topic_transport_not_implemented"
+
+
+def test_send_streams_poll_recovery_text_deltas_after_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    streamed_tokens: list[str] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 0,
+                            "content": {"content_type": "text", "parts": ["old reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stream me"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["partial"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "async_status": "running",
+                            },
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 0,
+                            "content": {"content_type": "text", "parts": ["old reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stream me"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["partial"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "async_status": "running",
+                            },
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 0,
+                            "content": {"content_type": "text", "parts": ["old reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stream me"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["partial done"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "finish_details": {"type": "stop"},
+                            },
+                        }
+                    },
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "stream me",
+            conversation=adapter.ChatConversation(
+                conversation_id="conv-123",
+                message_id="assistant-old",
+                parent_message_id="assistant-old",
+            ),
+            model="gpt-5-5-thinking",
+            reasoning_effort="high",
+            on_token=streamed_tokens.append,
+            on_event=events.append,
+        )
+
+    assert response.text == "partial done"
+    assert streamed_tokens == ["partial", " done"]
+    delta_events = [event for event in events if event["type"] == "conversation_poll_stream_delta"]
+    assert [event["delta"] for event in delta_events] == ["partial", " done"]
+
+
+def test_send_to_existing_conversation_does_not_return_stale_assistant_reply_after_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-old",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stale-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    }
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "user-new",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stale-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["fresh prompt"]},
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stale-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["fresh prompt"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 3,
+                            "content": {"content_type": "text", "parts": ["fresh-final-reply"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "finish_details": {"type": "stop"},
+                            },
+                        }
+                    },
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "fresh prompt",
+            conversation=adapter.ChatConversation(
+                conversation_id="conv-123",
+                message_id="assistant-old",
+                parent_message_id="assistant-old",
+            ),
+            model="gpt-5-5-thinking",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert state["conversation_get_calls"] >= 3
+    assert response.text == "fresh-final-reply"
+    assert response.conversation.message_id == "assistant-final"
+    event_types = [event["type"] for event in events]
+    assert "conversation_poll_started" in event_types
+    assert "conversation_poll_completed" in event_types
+    attempt_events = [event for event in events if event["type"] == "conversation_poll_attempt"]
+    assert attempt_events
+    assert attempt_events[0]["lifecycle_status"] == "user_last_message"
+
+
+def test_send_to_existing_conversation_ignores_older_branch_assistant_before_parent_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-old-current",
+                "mapping": {
+                    "assistant-older": {
+                        "message": {
+                            "id": "assistant-older",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["very-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-old": {
+                        "parent": "assistant-older",
+                        "message": {
+                            "id": "user-old",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["old prompt"]},
+                        }
+                    },
+                    "assistant-old-current": {
+                        "parent": "user-old",
+                        "message": {
+                            "id": "assistant-old-current",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 3,
+                            "content": {"content_type": "text", "parts": ["previous-visible-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-older": {
+                        "message": {
+                            "id": "assistant-older",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["very-old-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-old": {
+                        "parent": "assistant-older",
+                        "message": {
+                            "id": "user-old",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["old prompt"]},
+                        }
+                    },
+                    "assistant-old-current": {
+                        "parent": "user-old",
+                        "message": {
+                            "id": "assistant-old-current",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 3,
+                            "content": {"content_type": "text", "parts": ["previous-visible-reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old-current",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 4,
+                            "content": {"content_type": "text", "parts": ["fresh prompt"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 5,
+                            "content": {"content_type": "text", "parts": ["fresh-final-reply-2"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "fresh prompt",
+            conversation=adapter.ChatConversation(
+                conversation_id="conv-123",
+                message_id="assistant-old-current",
+                parent_message_id="assistant-old-current",
+            ),
+            model="gpt-5-5-thinking",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "fresh-final-reply-2"
+    assert response.conversation.message_id == "assistant-final"
+    attempt_events = [event for event in events if event["type"] == "conversation_poll_attempt"]
+    assert attempt_events
+    latest_ids = {event.get("latest_message_id") for event in attempt_events}
+    assert "assistant-older" not in latest_ids
+    assert "assistant-old-current" not in latest_ids
+
+
+def test_send_retries_after_conversation_inaccessible_during_handoff_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_statuses": [
+            {
+                "status": 404,
+                "payload": {
+                    "detail": {
+                        "message": "conversation not ready yet",
+                        "code": "conversation_inaccessible",
+                        "can_retry": False,
+                        "conversation_id": "conv-123",
+                    }
+                },
+            }
+        ],
+        "conversation_get_payload": {
+            "conversation_id": "conv-123",
+            "current_node": "assistant-final",
+            "mapping": {
+                "assistant-final": {
+                    "message": {
+                        "id": "assistant-final",
+                        "author": {"role": "assistant"},
+                        "recipient": "all",
+                        "create_time": 2,
+                        "content": {"content_type": "text", "parts": ["retry-ok"]},
+                        "metadata": {
+                            "model_slug": "gpt-5-5-thinking",
+                            "thinking_effort": "extended",
+                            "finish_details": {"type": "stop"},
+                        },
+                    }
+                }
+            },
+        },
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Reply with exactly: retry-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert state["conversation_get_calls"] >= 2
+    assert response.text == "retry-ok"
+    event_types = [event["type"] for event in events]
+    assert "conversation_recovery_fetch_error" in event_types
+    assert "conversation_poll_completed" in event_types
 
 
 def test_approve_pending_action_posts_prepare_and_polls_conversation(
@@ -731,14 +1812,18 @@ def test_approve_pending_action_posts_prepare_and_polls_conversation(
     }
     assert state["conversation_get_calls"] == 2
     assert streamed_tokens == ["Hello ", "world"]
-    assert [event["type"] for event in events] == [
+    event_types = [event["type"] for event in events]
+    assert event_types[:5] == [
         "pending_approval_detected",
         "approval_prepare_succeeded",
         "assistant_token",
         "assistant_token",
         "approval_sent",
-        "approval_completed",
     ]
+    assert "conversation_poll_started" in event_types
+    assert "conversation_poll_attempt" in event_types
+    assert "conversation_poll_completed" in event_types
+    assert event_types[-1] == "approval_completed"
     assert response.text == "approved result"
     assert response.conversation.conversation_id == "conv-123"
     assert response.conversation.message_id == "assistant-new"

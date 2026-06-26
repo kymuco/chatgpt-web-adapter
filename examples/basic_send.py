@@ -20,7 +20,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Send one prompt through a ChatGPT web session.")
     parser.add_argument("prompt", nargs="?", default=DEFAULT_PROMPT)
     parser.add_argument("--auth-file", default="auth_data.json")
-    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--model", default="gpt-5-3-mini")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--no-stream", action="store_true")
     args = parser.parse_args()

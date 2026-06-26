@@ -178,6 +178,9 @@ def test_send_populates_expanded_metrics(monkeypatch: pytest.MonkeyPatch) -> Non
     assert response.metrics.total >= response.metrics.stream_duration
     assert response.metrics.chars_per_second == len(response.text) / response.metrics.stream_duration
     assert response.metrics.backend_status == 200
+    assert response.request.requested_model == "gpt-4o-mini"
+    assert response.request.sent_model == "gpt-4o-mini"
+    assert response.request.observed_model is None
 
 
 def test_send_metrics_to_dict_contains_expanded_values(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -222,23 +225,31 @@ def test_send_emits_event_callback_sequence(monkeypatch: pytest.MonkeyPatch) -> 
     assert response.text == "Hi there"
     assert tokens == ["Hi", " there"]
     event_types = [event["type"] for event in events]
-    assert event_types == [
+    assert event_types[0:4] == [
         "request_started",
         "requirements_ready",
+        "request_payload_prepared",
         "stream_started",
-        "first_token",
-        "assistant_token",
-        "assistant_token",
+    ]
+    assert event_types.count("raw_sse_event") >= 1
+    assert event_types.count("assistant_token") == 2
+    assert event_types[-3:] == [
         "stream_completed",
         "stream_done",
         "request_completed",
     ]
-    assert events[0]["model"] == "gpt-4o-mini"
+    assert events[0]["requested_model"] == "gpt-4o-mini"
+    assert events[0]["requested_reasoning_effort"] is None
     assert events[1]["token_present"] is True
-    assert events[3]["token"] == "Hi"
-    assert events[4]["token"] == "Hi"
-    assert events[5]["token"] == " there"
+    assert events[2]["payload"]["model"] == "gpt-4o-mini"
+    first_token_event = next(event for event in events if event["type"] == "first_token")
+    assistant_token_events = [event for event in events if event["type"] == "assistant_token"]
+    assert first_token_event["token"] == "Hi"
+    assert assistant_token_events[0]["token"] == "Hi"
+    assert assistant_token_events[1]["token"] == " there"
     assert events[-2]["text_length"] == len("Hi there")
+    assert events[-1]["sent_model"] == "gpt-4o-mini"
+    assert events[-1]["observed_model"] is None
     assert events[-1]["conversation_id"] == "conv-123"
     assert events[-1]["message_id"] == "assistant-1"
     assert events[-1]["finish_reason"] == "stop"
@@ -267,12 +278,13 @@ def test_send_emits_error_event_on_failure(monkeypatch: pytest.MonkeyPatch) -> N
     assert error.request_stage == "conversation_stream"
 
     event_types = [event["type"] for event in events]
-    assert event_types == [
+    assert event_types[0:4] == [
         "request_started",
         "requirements_ready",
+        "request_payload_prepared",
         "stream_started",
-        "error",
     ]
+    assert event_types[-1] == "error"
     assert events[-1]["error_type"] == "RequestError"
     assert "backend status=500" in events[-1]["message"]
     assert events[-1]["status_code"] == 500

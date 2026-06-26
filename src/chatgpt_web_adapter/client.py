@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -19,7 +20,12 @@ from urllib.parse import urlparse
 
 from .auth import CHAT_URL, DEFAULT_AUTH_FILE, build_base_headers, load_auth_data
 from .exceptions import MediaError, RequestError
-from .types import AuthData, ChatConversation, ChatMetrics, ChatResponse, MediaItem
+from .model_detection import (
+    detect_model_from_conversation_payload,
+    detect_reasoning_effort_from_conversation_payload,
+)
+from .status import _status_from_payload
+from .types import AuthData, ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
 
 CHAT_REQUIREMENTS_URL = "https://chatgpt.com/backend-api/sentinel/chat-requirements"
 CHAT_BACKEND_URL = "https://chatgpt.com/backend-api/f/conversation"
@@ -27,13 +33,17 @@ CHAT_CONVERSATION_PREPARE_URL = "https://chatgpt.com/backend-api/f/conversation/
 CHAT_CONVERSATION_URL = "https://chatgpt.com/backend-api/conversation/{conversation_id}"
 CHAT_CONVERSATIONS_URL = "https://chatgpt.com/backend-api/conversations"
 CHAT_FILES_URL = "https://chatgpt.com/backend-api/files"
-DEFAULT_MODEL = "gpt-4o-mini"
+CELSIUS_WS_USER_URL = "https://chatgpt.com/celsius/ws/user"
+DEFAULT_MODEL = "gpt-5-3-mini"
+DEFAULT_THINKING_MODEL = "gpt-5-5-thinking"
 DEFAULT_TIMEOUT_SECONDS = 90
 PREFETCH_TTL_SECONDS = 20.0
 DEFAULT_APPROVAL_POLL_TIMEOUT_SECONDS = 90.0
 DEFAULT_APPROVAL_POLL_INTERVAL_SECONDS = 2.0
 DEFAULT_PENDING_POLL_INTERVAL_SECONDS = 3.0
 DEFAULT_APPROVAL_SETTLE_DELAY_SECONDS = 2.0
+DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS = 15.0
+DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS = 1.0
 TRACE_REDACTED = "<redacted>"
 TRACE_HEADER_REDACT_KEYS = {
     "authorization",
@@ -44,6 +54,8 @@ TRACE_HEADER_REDACT_KEYS = {
     "openai-sentinel-turnstile-token",
 }
 MODEL_ALIASES = {
+    "instant": DEFAULT_MODEL,
+    "thinking": DEFAULT_THINKING_MODEL,
     "gpt-5.1": "gpt-5-1",
     "gpt-4.1": "gpt-4.1",
     "gpt-4.1-mini": "gpt-4.1-mini",
@@ -236,6 +248,80 @@ def _get_image_size(data: bytes, mime_type: str) -> tuple[int | None, int | None
 
 
 class ChatGPTWebClient:
+    @staticmethod
+    def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
+        if not isinstance(token, str) or token.count(".") < 2:
+            return None
+        try:
+            _header, payload, _signature = token.split(".", 2)
+            padded = payload + "=" * (-len(payload) % 4)
+            decoded = base64.urlsafe_b64decode(padded.encode("ascii"))
+            data = json.loads(decoded.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    @staticmethod
+    def _capture_resume_token_diagnostics(token: str, state: dict[str, Any]) -> None:
+        decoded = ChatGPTWebClient._decode_jwt_payload(token)
+        if not isinstance(decoded, dict):
+            return
+        turn_topic_id = decoded.get("turn_topic_id")
+        if isinstance(turn_topic_id, str) and turn_topic_id.strip():
+            state["resume_turn_topic_id"] = turn_topic_id.strip()
+        conduit_uuid = decoded.get("conduit_uuid")
+        if isinstance(conduit_uuid, str) and conduit_uuid.strip():
+            state["resume_conduit_uuid"] = conduit_uuid.strip()
+        conduit_location = decoded.get("conduit_location")
+        if isinstance(conduit_location, str) and conduit_location.strip():
+            state["resume_conduit_location"] = conduit_location.strip()
+        cluster = decoded.get("cluster")
+        if isinstance(cluster, str) and cluster.strip():
+            state["resume_conduit_cluster"] = cluster.strip()
+
+    @staticmethod
+    def _capture_handoff_option_diagnostics(options: Any, state: dict[str, Any]) -> None:
+        if not isinstance(options, list):
+            return
+        state["stream_handoff_options"] = options
+        option_types: list[str] = []
+        for option in options:
+            if not isinstance(option, dict):
+                continue
+            option_type = option.get("type")
+            if isinstance(option_type, str) and option_type.strip():
+                normalized_type = option_type.strip()
+                option_types.append(normalized_type)
+            else:
+                normalized_type = ""
+            topic_id = option.get("topic_id")
+            if not isinstance(topic_id, str) or not topic_id.strip():
+                continue
+            normalized_topic_id = topic_id.strip()
+            if normalized_type == "resume_sse_endpoint":
+                state["resume_sse_topic_id"] = normalized_topic_id
+                state.setdefault("resume_turn_topic_id", normalized_topic_id)
+            elif normalized_type == "subscribe_ws_topic":
+                state["resume_ws_topic_id"] = normalized_topic_id
+                state.setdefault("resume_turn_topic_id", normalized_topic_id)
+        if option_types:
+            state["handoff_option_types"] = tuple(option_types)
+        if state.get("resume_ws_topic_id"):
+            state["resume_transport_preference"] = "ws_topic"
+        elif state.get("resume_sse_topic_id"):
+            state["resume_transport_preference"] = "sse_topic"
+
+    @staticmethod
+    def _capture_ws_url_diagnostics(ws_url: str, state: dict[str, Any]) -> None:
+        parsed = urlparse(ws_url)
+        scheme = parsed.scheme.strip() if isinstance(parsed.scheme, str) else ""
+        hostname = parsed.hostname.strip() if isinstance(parsed.hostname, str) else ""
+        state["resume_ws_url_present"] = True
+        if scheme:
+            state["resume_ws_url_scheme"] = scheme
+        if hostname:
+            state["resume_ws_url_host"] = hostname
+
     """Minimal sync adapter for chatgpt.com web sessions."""
 
     def __init__(
@@ -587,6 +673,199 @@ class ChatGPTWebClient:
             raise RequestError("chat-requirements response expected JSON object")
         return data
 
+    def _probe_celsius_ws_user(self) -> dict[str, Any] | None:
+        headers = self._build_headers({"accept": "application/json, text/plain, */*"})
+        status, data = self._json_request("GET", CELSIUS_WS_USER_URL, None, headers)
+        if status >= 400:
+            raise RequestError(f"celsius ws user request failed: status={status}: {data}")
+        if not isinstance(data, dict):
+            raise RequestError("celsius ws user response expected JSON object")
+        websocket_url = data.get("websocket_url")
+        if not isinstance(websocket_url, str) or not websocket_url.strip():
+            raise RequestError("celsius ws user response missing websocket_url")
+        data["websocket_url"] = websocket_url.strip()
+        return data
+
+    @staticmethod
+    def _parse_encoded_stream_item(encoded_item: str) -> dict[str, str] | None:
+        if not isinstance(encoded_item, str) or not encoded_item:
+            return None
+        last_event: str | None = None
+        last_data: str | None = None
+        current_event: str | None = None
+        current_data: list[str] = []
+        lines = encoded_item.replace("\r\n", "\n").split("\n")
+        for line in lines:
+            if not line:
+                if current_event is not None or current_data:
+                    last_event = current_event
+                    last_data = "\n".join(current_data)
+                current_event = None
+                current_data = []
+                continue
+            if line.startswith("event:"):
+                current_event = line.split(":", 1)[1].lstrip()
+                continue
+            if line.startswith("data:"):
+                current_data.append(line.split(":", 1)[1].lstrip())
+        if current_event is not None or current_data:
+            last_event = current_event
+            last_data = "\n".join(current_data)
+        if last_data is None:
+            return None
+        return {"event": last_event or "message", "data": last_data}
+
+    async def _stream_handoff_via_ws_topic_async(
+        self,
+        topic_id: str,
+        *,
+        state: dict[str, Any],
+        on_event: Callable[[dict[str, Any]], None] | None,
+        on_token: Callable[[str], None] | None,
+    ) -> None:
+        import websockets
+
+        ws_info = self._probe_celsius_ws_user()
+        websocket_url = ws_info.get("websocket_url")
+        if not isinstance(websocket_url, str) or not websocket_url:
+            raise RequestError("celsius ws user response missing websocket_url")
+        state["resume_ws_url"] = websocket_url
+        self._capture_ws_url_diagnostics(websocket_url, state)
+        headers = self._build_headers({"origin": CHAT_URL.rstrip("/")})
+        connect_command = {"id": 1, "command": {"type": "connect", "presence": {"type": "presence", "state": "foreground"}}}
+        subscribe_command = {"id": 2, "command": {"type": "subscribe", "topic_id": topic_id, "offset": "0"}}
+        completed = False
+
+        def process_ws_message(message: dict[str, Any]) -> None:
+            nonlocal completed
+            payload = message.get("payload")
+            if not isinstance(payload, dict) or payload.get("type") != "conversation-turn-stream":
+                return
+            inner = payload.get("payload")
+            if not isinstance(inner, dict):
+                return
+            inner_type = inner.get("type")
+            if inner_type == "done":
+                completed = True
+                self._emit_event(on_event, "raw_ws_done", topic_id=topic_id)
+                return
+            if inner_type != "stream-item":
+                return
+            encoded_item = inner.get("encoded_item")
+            parsed_item = self._parse_encoded_stream_item(encoded_item)
+            if not parsed_item:
+                return
+            raw_data = parsed_item["data"]
+            if raw_data == "[DONE]":
+                completed = True
+                self._emit_event(on_event, "raw_ws_done", topic_id=topic_id)
+                return
+            try:
+                parsed_payload = json.loads(raw_data)
+            except ValueError:
+                self._emit_event(
+                    on_event,
+                    "raw_ws_event",
+                    topic_id=topic_id,
+                    raw=raw_data,
+                    parsed=None,
+                    event=parsed_item["event"],
+                )
+                return
+            self._emit_event(
+                on_event,
+                "raw_ws_event",
+                topic_id=topic_id,
+                raw=raw_data,
+                parsed=parsed_payload,
+                event=parsed_item["event"],
+            )
+            tokens, maybe_title = self._parse_event(parsed_payload, state)
+            if maybe_title:
+                state.setdefault("title_update", maybe_title)
+            for token in tokens:
+                if token and on_token is not None:
+                    on_token(token)
+
+        async with websockets.connect(
+            websocket_url,
+            additional_headers=headers,
+            open_timeout=10,
+            ping_interval=None,
+            ping_timeout=None,
+            max_size=None,
+        ) as websocket:
+            self._emit_event(
+                on_event,
+                "stream_handoff_ws_connected",
+                topic_id=topic_id,
+                websocket_url_host=state.get("resume_ws_url_host"),
+                websocket_url_scheme=state.get("resume_ws_url_scheme"),
+            )
+            await websocket.send(json.dumps([connect_command, subscribe_command], ensure_ascii=False))
+            while not completed:
+                try:
+                    raw_frame = await asyncio.wait_for(websocket.recv(), timeout=max(float(self.timeout), 30.0))
+                except TimeoutError as error:
+                    raise RequestError("ws topic stream timed out while waiting for a frame") from error
+                if not isinstance(raw_frame, str):
+                    continue
+                self._emit_event(on_event, "raw_ws_frame", topic_id=topic_id, raw=raw_frame)
+                try:
+                    items = json.loads(raw_frame)
+                except ValueError:
+                    continue
+                if not isinstance(items, list):
+                    items = [items]
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("type") == "message" and item.get("topic_id") == topic_id:
+                        process_ws_message(item)
+                        continue
+                    reply = item.get("reply")
+                    if item.get("id") != 2 or not isinstance(reply, dict):
+                        continue
+                    self._emit_event(
+                        on_event,
+                        "stream_handoff_ws_subscribed",
+                        topic_id=topic_id,
+                        recovered=bool(reply.get("recovered")),
+                        catchup_count=len(reply.get("catchups") or ()),
+                        last_offset_present=reply.get("last_offset") is not None,
+                    )
+                    catchups = reply.get("catchups")
+                    if isinstance(catchups, list):
+                        for catchup in catchups:
+                            if isinstance(catchup, dict):
+                                process_ws_message(catchup)
+                if completed:
+                    break
+        if not completed:
+            raise RequestError("ws topic stream ended before a done event was received")
+
+    def _stream_handoff_via_ws_topic(
+        self,
+        topic_id: str,
+        *,
+        state: dict[str, Any],
+        on_event: Callable[[dict[str, Any]], None] | None,
+        on_token: Callable[[str], None] | None,
+    ) -> None:
+        try:
+            asyncio.run(
+                self._stream_handoff_via_ws_topic_async(
+                    topic_id,
+                    state=state,
+                    on_event=on_event,
+                    on_token=on_token,
+                )
+            )
+        except RequestError:
+            raise
+        except Exception as error:
+            raise RequestError(f"ws topic stream failed: {error}") from error
+
     def _build_proof_header(self, requirements: dict[str, Any]) -> str | None:
         proof_block = requirements.get("proofofwork")
         if not isinstance(proof_block, dict):
@@ -786,6 +1065,19 @@ class ChatGPTWebClient:
         if payload.get("type") == "title_generation":
             title = payload.get("title")
             return [], title.strip() if isinstance(title, str) and title.strip() else None
+        if payload.get("type") == "resume_conversation_token":
+            kind = payload.get("kind")
+            token = payload.get("token")
+            if isinstance(kind, str) and kind.strip():
+                state["resume_kind"] = kind.strip()
+            if isinstance(token, str) and token.strip():
+                state["resume_token"] = token.strip()
+                ChatGPTWebClient._capture_resume_token_diagnostics(token.strip(), state)
+            conversation_id = payload.get("conversation_id")
+            if isinstance(conversation_id, str) and conversation_id:
+                state["conversation_id"] = conversation_id
+            return [], None
+        ChatGPTWebClient._capture_event_ids(payload, state)
         output: list[str] = []
         value = payload.get("v")
         path = payload.get("p")
@@ -795,6 +1087,7 @@ class ChatGPTWebClient:
                 state["conversation_id"] = conversation_id
             message = value.get("message")
             if isinstance(message, dict):
+                ChatGPTWebClient._capture_message_diagnostics(message, state)
                 recipient = message.get("recipient")
                 if isinstance(recipient, str):
                     state["recipient"] = recipient
@@ -819,11 +1112,52 @@ class ChatGPTWebClient:
                     if isinstance(token, str):
                         output.append(token)
                 elif item.get("p") == "/message/metadata" and state.get("recipient", "all") == "all":
-                    finish_reason = item.get("v", {}).get("finish_details", {}).get("type")
+                    metadata = item.get("v")
+                    ChatGPTWebClient._capture_metadata_diagnostics(metadata, state)
+                    finish_reason = metadata.get("finish_details", {}).get("type") if isinstance(metadata, dict) else None
                     if finish_reason:
                         state["finish_reason"] = finish_reason
             return output, None
+        if payload.get("type") == "server_ste_metadata":
+            ChatGPTWebClient._capture_metadata_diagnostics(payload.get("metadata"), state)
         return output, None
+
+    @staticmethod
+    def _capture_event_ids(payload: Any, state: dict[str, Any]) -> None:
+        if not isinstance(payload, dict):
+            return
+        conversation_id = payload.get("conversation_id")
+        if isinstance(conversation_id, str) and conversation_id.strip():
+            state["conversation_id"] = conversation_id.strip()
+        message_id = payload.get("message_id")
+        if isinstance(message_id, str) and message_id.strip():
+            state["message_id"] = message_id.strip()
+
+    @staticmethod
+    def _capture_message_diagnostics(message: Any, state: dict[str, Any]) -> None:
+        if not isinstance(message, dict):
+            return
+        ChatGPTWebClient._capture_metadata_diagnostics(message.get("metadata"), state)
+
+    @staticmethod
+    def _capture_metadata_diagnostics(metadata: Any, state: dict[str, Any]) -> None:
+        if not isinstance(metadata, dict):
+            return
+        for key in ("model_slug", "model", "default_model_slug", "selected_model"):
+            model = metadata.get(key)
+            if isinstance(model, str) and model.strip():
+                state["observed_model"] = model.strip()
+                break
+        for key in ("thinking_effort", "reasoning_effort"):
+            effort = metadata.get(key)
+            if isinstance(effort, str) and effort.strip():
+                state["observed_reasoning_effort"] = effort.strip()
+                break
+        turn_exchange_id = metadata.get("turn_exchange_id")
+        if isinstance(turn_exchange_id, str) and turn_exchange_id.strip():
+            state["turn_exchange_id"] = turn_exchange_id.strip()
+        if "resume_with_websockets" in metadata:
+            state["resume_with_websockets"] = bool(metadata.get("resume_with_websockets"))
 
     @staticmethod
     def _conversation_to_dict(
@@ -1034,11 +1368,33 @@ class ChatGPTWebClient:
     @staticmethod
     def _normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
         normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
-        if normalized_effort in {"", "off", "none", "-"}:
+        if normalized_effort == "medium":
+            normalized_effort = "standard"
+        elif normalized_effort == "high":
+            normalized_effort = "extended"
+        elif normalized_effort in {"", "off", "none", "-", "instant"}:
             normalized_effort = None
         if normalized_effort not in {None, "standard", "extended"}:
-            raise ValueError("reasoning_effort must be one of: standard, extended, off/none/-")
+            raise ValueError(
+                "reasoning_effort must be one of: instant, medium, high, standard, extended, off/none/-"
+            )
         return normalized_effort
+
+    @staticmethod
+    def _resolve_model(model: str | None, reasoning_effort: str | None) -> str:
+        normalized_model = None
+        if isinstance(model, str):
+            model = model.strip()
+            if not model:
+                raise ValueError("model must not be empty")
+            normalized_model = MODEL_ALIASES.get(model.lower(), MODEL_ALIASES.get(model, model))
+
+        requested_mode = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
+        if normalized_model is not None:
+            return normalized_model
+        if requested_mode in {"medium", "high", "standard", "extended"}:
+            return DEFAULT_THINKING_MODEL
+        return DEFAULT_MODEL
 
     @staticmethod
     def _current_message_from_conversation(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -1051,6 +1407,147 @@ class ChatGPTWebClient:
             return None
         message = node.get("message")
         return message if isinstance(message, dict) else None
+
+    @staticmethod
+    def _message_role(message: dict[str, Any] | None) -> str | None:
+        if not isinstance(message, dict):
+            return None
+        author = message.get("author")
+        if not isinstance(author, dict):
+            return None
+        role = author.get("role")
+        return role if isinstance(role, str) and role else None
+
+    @staticmethod
+    def _message_recipient(message: dict[str, Any] | None) -> str | None:
+        if not isinstance(message, dict):
+            return None
+        recipient = message.get("recipient")
+        return recipient if isinstance(recipient, str) and recipient else None
+
+    @classmethod
+    def _current_branch_messages_from_conversation(
+        cls,
+        payload: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        mapping = payload.get("mapping")
+        current_node = payload.get("current_node")
+        if not isinstance(mapping, dict) or not isinstance(current_node, str) or not current_node.strip():
+            return []
+        messages: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        node_id = current_node
+        while isinstance(node_id, str) and node_id.strip():
+            if node_id in seen:
+                break
+            seen.add(node_id)
+            node = mapping.get(node_id)
+            if not isinstance(node, dict):
+                break
+            message = node.get("message")
+            if isinstance(message, dict):
+                messages.append(message)
+            parent = node.get("parent")
+            node_id = parent if isinstance(parent, str) else ""
+        messages.reverse()
+        return messages
+
+    @staticmethod
+    def _branch_messages_after(
+        messages: list[dict[str, Any]],
+        *,
+        previous_message_id: str | None,
+    ) -> list[dict[str, Any]]:
+        if not previous_message_id:
+            return messages
+        for index, message in enumerate(messages):
+            message_id = message.get("id")
+            if isinstance(message_id, str) and message_id == previous_message_id:
+                return messages[index + 1 :]
+        return []
+
+    @classmethod
+    def _latest_branch_assistant_response(
+        cls,
+        payload: dict[str, Any],
+        *,
+        previous_message_id: str | None = None,
+        allow_global_fallback: bool = True,
+    ) -> tuple[dict[str, Any] | None, str]:
+        branch_messages = cls._branch_messages_after(
+            cls._current_branch_messages_from_conversation(payload),
+            previous_message_id=previous_message_id,
+        )
+        for message in reversed(branch_messages):
+            message_id = message.get("id")
+            if not isinstance(message_id, str) or not message_id:
+                continue
+            if cls._message_role(message) != "assistant":
+                continue
+            recipient = cls._message_recipient(message)
+            if recipient not in {None, "all"}:
+                continue
+            if message.get("channel") == "commentary":
+                continue
+            text = cls._conversation_message_text(message)
+            if not text:
+                continue
+            return message, text
+        if branch_messages or not allow_global_fallback:
+            return None, ""
+        message, text = cls._latest_assistant_from_conversation(payload)
+        message_id = message.get("id") if isinstance(message, dict) else None
+        if isinstance(message_id, str) and message_id and message_id != previous_message_id and text:
+            return message, text
+        return None, ""
+
+    @classmethod
+    def _build_recovery_response_from_conversation_payload(
+        cls,
+        payload: dict[str, Any],
+        *,
+        fallback_conversation_id: str,
+        fallback_user_id: str | None = None,
+        previous_message_id: str | None = None,
+        allow_global_fallback: bool = True,
+    ) -> ChatResponse | None:
+        status = _status_from_payload(payload)
+        selected_message, text = cls._latest_branch_assistant_response(
+            payload,
+            previous_message_id=previous_message_id,
+            allow_global_fallback=allow_global_fallback,
+        )
+        if selected_message is None:
+            return None
+        message_id = selected_message.get("id") if isinstance(selected_message.get("id"), str) else None
+        metadata = selected_message.get("metadata") if isinstance(selected_message, dict) else None
+        finish_reason = status.finish_reason or "stop"
+        if isinstance(metadata, dict):
+            finish_details = metadata.get("finish_details")
+            if isinstance(finish_details, dict) and isinstance(finish_details.get("type"), str):
+                finish_reason = finish_details["type"]
+        is_completed = status.status == "completed" and status.message_id != previous_message_id
+        has_completed_message_fallback = (
+            status.status == "unknown"
+            and isinstance(message_id, str)
+            and message_id != previous_message_id
+            and isinstance(finish_reason, str)
+            and bool(finish_reason)
+        )
+        if not is_completed and not has_completed_message_fallback:
+            return None
+        return ChatResponse(
+            text=text,
+            conversation=ChatConversation(
+                conversation_id=str(payload.get("conversation_id") or fallback_conversation_id),
+                message_id=message_id,
+                user_id=fallback_user_id,
+                finish_reason=finish_reason,
+                parent_message_id=message_id,
+                is_thinking=False,
+            ),
+            metrics=ChatMetrics(),
+        )
 
     @classmethod
     def _build_response_from_conversation_payload(
@@ -1083,6 +1580,39 @@ class ChatGPTWebClient:
             metrics=ChatMetrics(),
         )
 
+    @classmethod
+    def _recover_stream_result_from_conversation(
+        cls,
+        payload: dict[str, Any],
+        *,
+        conversation_id: str,
+        fallback_user_id: str | None = None,
+        previous_message_id: str | None = None,
+        allow_global_fallback: bool = True,
+    ) -> tuple[str | None, str | None, str, str | None, str | None]:
+        response = cls._build_recovery_response_from_conversation_payload(
+            payload,
+            fallback_conversation_id=conversation_id,
+            fallback_user_id=fallback_user_id,
+            previous_message_id=previous_message_id,
+            allow_global_fallback=allow_global_fallback,
+        )
+        if response is None:
+            return (
+                str(payload.get("conversation_id") or conversation_id),
+                None,
+                "",
+                detect_model_from_conversation_payload(payload),
+                detect_reasoning_effort_from_conversation_payload(payload),
+            )
+        return (
+            response.conversation.conversation_id,
+            response.conversation.message_id,
+            response.text,
+            detect_model_from_conversation_payload(payload),
+            detect_reasoning_effort_from_conversation_payload(payload),
+        )
+
     def _is_conversation_idle(
         self,
         conversation_id: str,
@@ -1106,21 +1636,137 @@ class ChatGPTWebClient:
         previous_message_id: str | None,
         timeout: float,
         interval: float,
-    ) -> tuple[dict[str, Any] | None, str]:
+        on_token: Callable[[str], None] | None = None,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+        reason: str = "approval_poll",
+        allow_global_fallback: bool = True,
+    ) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
+        self._emit_event(
+            on_event,
+            "conversation_poll_started",
+            conversation_id=conversation_id,
+            previous_message_id=previous_message_id,
+            timeout=timeout,
+            interval=interval,
+            reason=reason,
+        )
         deadline = time.monotonic() + max(0.0, timeout)
         last_message: dict[str, Any] | None = None
         last_text = ""
+        last_payload: dict[str, Any] | None = None
+        streamed_message_id: str | None = None
+        streamed_text = ""
+        attempt = 0
         while True:
-            payload = self._get_conversation_payload(conversation_id)
-            message, text = self._latest_assistant_from_conversation(payload)
-            if message is not None:
+            attempt += 1
+            try:
+                payload = self._get_conversation_payload(conversation_id)
+            except RequestError as error:
+                self._emit_event(
+                    on_event,
+                    "conversation_poll_error",
+                    conversation_id=conversation_id,
+                    previous_message_id=previous_message_id,
+                    attempt=attempt,
+                    reason=reason,
+                    status_code=getattr(error, "status_code", None),
+                    message=str(error),
+                )
+                if time.monotonic() >= deadline:
+                    self._emit_event(
+                        on_event,
+                        "conversation_poll_timeout",
+                        conversation_id=conversation_id,
+                        previous_message_id=previous_message_id,
+                        attempt=attempt,
+                        latest_message_id=last_message.get("id") if isinstance(last_message, dict) else None,
+                        text_length=len(last_text),
+                        reason=reason,
+                    )
+                    return last_message, last_text, last_payload
+                time.sleep(max(0.5, interval))
+                continue
+            last_payload = payload
+            status = _status_from_payload(payload)
+            message, text = self._latest_branch_assistant_response(
+                payload,
+                previous_message_id=previous_message_id,
+                allow_global_fallback=allow_global_fallback,
+            )
+            metadata = message.get("metadata") if isinstance(message, dict) else None
+            finish_details = metadata.get("finish_details") if isinstance(metadata, dict) else None
+            finish_type = finish_details.get("type") if isinstance(finish_details, dict) else None
+            completed_via_status = status.status == "completed"
+            completed_via_fallback = (
+                status.status == "unknown"
+                and isinstance(message, dict)
+                and isinstance(finish_type, str)
+                and bool(finish_type)
+            )
+            message_id = message.get("id") if isinstance(message, dict) else None
+            if isinstance(message_id, str) and message_id and text:
+                if message_id != streamed_message_id:
+                    streamed_message_id = message_id
+                    streamed_text = ""
+                delta = text
+                if streamed_text and text.startswith(streamed_text):
+                    delta = text[len(streamed_text) :]
+                if delta:
+                    streamed_text = text
+                    self._emit_event(
+                        on_event,
+                        "conversation_poll_stream_delta",
+                        conversation_id=conversation_id,
+                        message_id=message_id,
+                        attempt=attempt,
+                        delta=delta,
+                        text_length=len(text),
+                        reason=reason,
+                    )
+                    if on_token is not None:
+                        on_token(delta)
+            self._emit_event(
+                on_event,
+                "conversation_poll_attempt",
+                conversation_id=conversation_id,
+                previous_message_id=previous_message_id,
+                attempt=attempt,
+                current_message_id=status.message_id,
+                lifecycle_status=status.status,
+                async_status=status.async_status,
+                finish_reason=status.finish_reason,
+                latest_message_id=message_id,
+                text_length=len(text),
+                reason=reason,
+            )
+            if (completed_via_status or completed_via_fallback) and message is not None:
                 last_message = message
                 last_text = text
-                message_id = message.get("id")
-                if isinstance(message_id, str) and message_id != previous_message_id:
-                    return message, text
+                if isinstance(message_id, str) and message_id:
+                    self._emit_event(
+                        on_event,
+                        "conversation_poll_completed",
+                        conversation_id=conversation_id,
+                        message_id=message_id,
+                        attempt=attempt,
+                        text_length=len(text),
+                        lifecycle_status=status.status,
+                        async_status=status.async_status,
+                        reason=reason,
+                    )
+                    return message, text, payload
             if time.monotonic() >= deadline:
-                return last_message, last_text
+                self._emit_event(
+                    on_event,
+                    "conversation_poll_timeout",
+                    conversation_id=conversation_id,
+                    previous_message_id=previous_message_id,
+                    attempt=attempt,
+                    latest_message_id=last_message.get("id") if isinstance(last_message, dict) else None,
+                    text_length=len(last_text),
+                    reason=reason,
+                )
+                return last_message, last_text, last_payload
             time.sleep(max(0.5, interval))
 
     def _stream_backend_payload(
@@ -1372,11 +2018,13 @@ class ChatGPTWebClient:
         message_id = tool_id
         finish_reason = None
         if poll:
-            message, text = self._poll_conversation_after_prepare(
+            message, text, _payload = self._poll_conversation_after_prepare(
                 conversation_id,
                 previous_message_id=tool_id,
                 timeout=poll_timeout,
                 interval=poll_interval,
+                on_event=on_event,
+                reason="approval_poll",
             )
             if isinstance(message, dict):
                 next_message_id = message.get("id")
@@ -1638,7 +2286,7 @@ class ChatGPTWebClient:
         self,
         prompt: str,
         *,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         system: str | None = None,
         web_search: bool = False,
         temporary: bool = False,
@@ -1646,8 +2294,10 @@ class ChatGPTWebClient:
         conversation: ChatConversation | dict[str, Any] | None = None,
         media: Sequence[MediaItem] | None = None,
         on_token: Callable[[str], None] | None = None,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> ChatResponse:
         normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
+        resolved_model = self._resolve_model(model, reasoning_effort)
 
         normalized_media = self._normalize_media_items(media)
         image_requests = self._upload_media_files(normalized_media) if normalized_media else None
@@ -1672,7 +2322,7 @@ class ChatGPTWebClient:
         payload: dict[str, Any] = {
             "action": "next",
             "parent_message_id": parent_message_id,
-            "model": MODEL_ALIASES.get(model, model),
+            "model": resolved_model,
             "conversation_mode": {"kind": "primary_assistant"},
             "enable_message_followups": False,
             "supports_buffering": True,
@@ -1692,6 +2342,11 @@ class ChatGPTWebClient:
             payload["system_hints"] = ["search"]
         if normalized_effort is not None:
             payload["thinking_effort"] = normalized_effort
+        self._emit_event(
+            on_event,
+            "request_payload_prepared",
+            payload=json.loads(json.dumps(payload, ensure_ascii=False)),
+        )
 
         headers = self._build_headers(
             {
@@ -1710,11 +2365,14 @@ class ChatGPTWebClient:
             "message_id": conversation_dict.get("message_id") if isinstance(conversation_dict, dict) else None,
             "parent_message_id": parent_message_id,
             "finish_reason": "stop",
+            "observed_model": None,
+            "observed_reasoning_effort": None,
         }
         first_token_latency: float | None = None
         last_token_latency: float | None = None
         full_chunks: list[str] = []
         title_update: str | None = None
+        ws_handoff_consumed = False
         started_at = time.perf_counter()
         payload_path: str | None = None
         process: subprocess.Popen | None = None
@@ -1727,6 +2385,18 @@ class ChatGPTWebClient:
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
+            def record_token(token: str) -> None:
+                nonlocal first_token_latency, last_token_latency
+                if not token:
+                    return
+                now = time.perf_counter()
+                if first_token_latency is None:
+                    first_token_latency = now - started_at
+                last_token_latency = now - started_at
+                full_chunks.append(token)
+                if on_token is not None:
+                    on_token(token)
+
             with tempfile.NamedTemporaryFile(delete=False) as payload_file:
                 payload_file.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
                 payload_path = payload_file.name
@@ -1752,25 +2422,117 @@ class ChatGPTWebClient:
                     continue
                 if raw_line.startswith(b"data: [DONE]"):
                     raw_events.append("[DONE]")
+                    self._emit_event(on_event, "raw_sse_done")
                     break
-                raw_events.append(raw_line[6:].decode("utf-8", errors="replace").strip())
+                raw_text = raw_line[6:].decode("utf-8", errors="replace").strip()
+                raw_events.append(raw_text)
                 try:
                     event_payload = json.loads(raw_line[6:])
                 except ValueError:
+                    self._emit_event(
+                        on_event,
+                        "raw_sse_event",
+                        raw=raw_text,
+                        parsed=None,
+                    )
                     continue
+                self._emit_event(
+                    on_event,
+                    "raw_sse_event",
+                    raw=raw_text,
+                    parsed=event_payload,
+                )
+                if isinstance(event_payload, dict) and event_payload.get("type") == "stream_handoff":
+                    options = event_payload.get("options")
+                    self._capture_handoff_option_diagnostics(options, state)
+                    if (
+                        state.get("resume_transport_preference") == "ws_topic"
+                        and not bool(state.get("resume_ws_url_present"))
+                    ):
+                        try:
+                            ws_payload = self._probe_celsius_ws_user()
+                        except RequestError as error:
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_transport_probe",
+                                transport="ws_topic",
+                                success=False,
+                                error=str(error),
+                            )
+                        else:
+                            websocket_url = ws_payload.get("websocket_url")
+                            if isinstance(websocket_url, str) and websocket_url.strip():
+                                self._capture_ws_url_diagnostics(websocket_url.strip(), state)
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_transport_probe",
+                                transport="ws_topic",
+                                success=True,
+                                websocket_url_present=bool(state.get("resume_ws_url_present")),
+                                websocket_url_scheme=state.get("resume_ws_url_scheme"),
+                                websocket_url_host=state.get("resume_ws_url_host"),
+                            )
+                    self._emit_event(
+                        on_event,
+                        "stream_handoff",
+                        conversation_id=event_payload.get("conversation_id"),
+                        turn_exchange_id=event_payload.get("turn_exchange_id"),
+                        options=event_payload.get("options"),
+                        resume_kind=state.get("resume_kind"),
+                        resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                        resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                        resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                        handoff_option_types=list(state.get("handoff_option_types", ()) or ()),
+                        resume_transport_preference=state.get("resume_transport_preference"),
+                        resume_token_present=bool(state.get("resume_token")),
+                        resume_ws_url_present=bool(state.get("resume_ws_url_present")),
+                        resume_ws_url_scheme=state.get("resume_ws_url_scheme"),
+                        resume_ws_url_host=state.get("resume_ws_url_host"),
+                    )
+                    if (
+                        not ws_handoff_consumed
+                        and state.get("resume_transport_preference") == "ws_topic"
+                        and isinstance(state.get("resume_ws_topic_id"), str)
+                        and state.get("resume_ws_topic_id")
+                    ):
+                        topic_id = str(state["resume_ws_topic_id"])
+                        try:
+                            self._stream_handoff_via_ws_topic(
+                                topic_id,
+                                state=state,
+                                on_event=on_event,
+                                on_token=record_token,
+                            )
+                        except RequestError as error:
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_ws_failed",
+                                topic_id=topic_id,
+                                message=str(error),
+                            )
+                        else:
+                            ws_handoff_consumed = True
+                            if title_update is None:
+                                ws_title = state.get("title_update")
+                                if isinstance(ws_title, str) and ws_title.strip():
+                                    title_update = ws_title.strip()
+                            state["handoff_recovery_mode"] = "ws_topic_stream"
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_recovery_mode",
+                                conversation_id=state.get("conversation_id"),
+                                preferred_transport="ws_topic",
+                                recovery_mode="ws_topic_stream",
+                                reason="subscribed_ws_topic",
+                                resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                                resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                                resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                            )
                 tokens, maybe_title = self._parse_event(event_payload, state)
                 if maybe_title and title_update is None:
                     title_update = maybe_title
                 for token in tokens:
-                    if not token:
-                        continue
-                    now = time.perf_counter()
-                    if first_token_latency is None:
-                        first_token_latency = now - started_at
-                    last_token_latency = now - started_at
-                    full_chunks.append(token)
-                    if on_token is not None:
-                        on_token(token)
+                    record_token(token)
             if process.stderr is not None:
                 stderr_text = process.stderr.read().decode("utf-8", errors="replace")
             return_code = process.wait()
@@ -1813,23 +2575,193 @@ class ChatGPTWebClient:
                     pass
 
         total_latency = time.perf_counter() - started_at
+        recovered_text = "".join(full_chunks)
+        recovered_conversation_id = state.get("conversation_id")
+        recovered_message_id = state.get("message_id") or state.get("parent_message_id")
+        recovered_observed_model = state.get("observed_model")
+        recovered_observed_reasoning_effort = state.get("observed_reasoning_effort")
+        allow_global_recovery_fallback = not bool(conversation_id)
+        if not ws_handoff_consumed and isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
+            not recovered_text or not recovered_message_id
+        ):
+            try:
+                conversation_payload = self._get_conversation_payload(recovered_conversation_id)
+            except RequestError as error:
+                self._emit_event(
+                    on_event,
+                    "conversation_recovery_fetch_error",
+                    conversation_id=recovered_conversation_id,
+                    status_code=getattr(error, "status_code", None),
+                    message=str(error),
+                )
+                conversation_payload = None
+            if isinstance(conversation_payload, dict):
+                self._capture_message_diagnostics(
+                    self._current_message_from_conversation(conversation_payload),
+                    state,
+                )
+                (
+                    recovered_conversation_id,
+                    recovered_message_id,
+                    recovered_text,
+                    recovered_payload_model,
+                    recovered_payload_reasoning_effort,
+                ) = self._recover_stream_result_from_conversation(
+                    conversation_payload,
+                    conversation_id=recovered_conversation_id,
+                    fallback_user_id=user_id,
+                    previous_message_id=parent_message_id,
+                    allow_global_fallback=allow_global_recovery_fallback,
+                )
+                if recovered_text or (
+                    isinstance(recovered_message_id, str)
+                    and recovered_message_id
+                    and recovered_message_id != parent_message_id
+                ):
+                    preferred_transport = state.get("resume_transport_preference")
+                    if isinstance(preferred_transport, str) and preferred_transport:
+                        state["handoff_recovery_mode"] = "conversation_snapshot"
+                        self._emit_event(
+                            on_event,
+                            "stream_handoff_recovery_mode",
+                            conversation_id=recovered_conversation_id,
+                            preferred_transport=preferred_transport,
+                            recovery_mode="conversation_snapshot",
+                            reason="conversation_payload_recovered",
+                            resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                            resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                            resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                        )
+                if recovered_observed_model is None:
+                    recovered_observed_model = recovered_payload_model
+                if recovered_observed_reasoning_effort is None:
+                    recovered_observed_reasoning_effort = recovered_payload_reasoning_effort
+        if not ws_handoff_consumed and isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
+            not recovered_text
+            or not recovered_message_id
+            or recovered_message_id == parent_message_id
+        ):
+            preferred_transport = state.get("resume_transport_preference")
+            if isinstance(preferred_transport, str) and preferred_transport:
+                state["handoff_recovery_mode"] = "poll_recovery"
+                self._emit_event(
+                    on_event,
+                    "stream_handoff_recovery_mode",
+                    conversation_id=recovered_conversation_id,
+                    preferred_transport=preferred_transport,
+                    recovery_mode="poll_recovery",
+                    reason="topic_transport_not_implemented",
+                    resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                    resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                    resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                )
+            try:
+                recovered_message, polled_text, polled_payload = self._poll_conversation_after_prepare(
+                    recovered_conversation_id,
+                    previous_message_id=parent_message_id,
+                    timeout=max(
+                        DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
+                        float(self.timeout),
+                    ),
+                    interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
+                    on_token=on_token,
+                    on_event=on_event,
+                    reason="stream_handoff_recovery",
+                    allow_global_fallback=allow_global_recovery_fallback,
+                )
+            except RequestError:
+                recovered_message, polled_text, polled_payload = None, "", None
+            if isinstance(recovered_message, dict):
+                polled_message_id = recovered_message.get("id")
+                if isinstance(polled_message_id, str) and polled_message_id:
+                    recovered_message_id = polled_message_id
+                if polled_text:
+                    recovered_text = polled_text
+                poll_state: dict[str, Any] = {}
+                self._capture_message_diagnostics(recovered_message, poll_state)
+                if recovered_observed_model is None:
+                    recovered_observed_model = poll_state.get("observed_model")
+                if recovered_observed_reasoning_effort is None:
+                    recovered_observed_reasoning_effort = poll_state.get("observed_reasoning_effort")
+            if isinstance(polled_payload, dict):
+                self._capture_message_diagnostics(
+                    self._current_message_from_conversation(polled_payload),
+                    state,
+                )
+                if not recovered_text or recovered_message_id == parent_message_id:
+                    (
+                        _polled_conversation_id,
+                        polled_payload_message_id,
+                        polled_payload_text,
+                        polled_payload_model,
+                        polled_payload_reasoning_effort,
+                    ) = self._recover_stream_result_from_conversation(
+                        polled_payload,
+                        conversation_id=recovered_conversation_id,
+                        fallback_user_id=user_id,
+                        previous_message_id=parent_message_id,
+                        allow_global_fallback=allow_global_recovery_fallback,
+                    )
+                    if isinstance(polled_payload_message_id, str) and polled_payload_message_id:
+                        recovered_message_id = polled_payload_message_id
+                    if polled_payload_text:
+                        recovered_text = polled_payload_text
+                    if recovered_observed_model is None:
+                        recovered_observed_model = polled_payload_model
+                    if recovered_observed_reasoning_effort is None:
+                        recovered_observed_reasoning_effort = polled_payload_reasoning_effort
         self.prefetched_requirements = None
         self.prefetched_proof_header = None
         self.prefetched_ts = 0.0
         return ChatResponse(
-            text="".join(full_chunks),
+            text=recovered_text,
             title=title_update,
             conversation=ChatConversation(
-                conversation_id=state.get("conversation_id"),
-                message_id=state.get("message_id") or state.get("parent_message_id"),
+                conversation_id=recovered_conversation_id,
+                message_id=recovered_message_id,
                 user_id=user_id,
                 finish_reason=state.get("finish_reason"),
-                parent_message_id=state.get("parent_message_id"),
+                parent_message_id=recovered_message_id,
                 is_thinking=False,
             ),
             metrics=ChatMetrics(
                 first_token=first_token_latency,
                 last_token=last_token_latency,
                 total=total_latency,
+            ),
+            request=ChatRequestDiagnostics(
+                requested_model=model.strip() if isinstance(model, str) and model.strip() else None,
+                requested_reasoning_effort=reasoning_effort.strip()
+                if isinstance(reasoning_effort, str) and reasoning_effort.strip()
+                else None,
+                sent_model=payload.get("model"),
+                sent_reasoning_effort=payload.get("thinking_effort"),
+                conversation_id=state.get("conversation_id"),
+                parent_message_id=parent_message_id,
+                is_continuation=bool(conversation_id),
+                web_search=web_search,
+                temporary=temporary,
+                has_media=bool(normalized_media),
+                message_count=len(payload.get("messages", []))
+                if isinstance(payload.get("messages"), list)
+                else None,
+                observed_model=recovered_observed_model,
+                observed_reasoning_effort=recovered_observed_reasoning_effort,
+                resume_kind=state.get("resume_kind"),
+                resume_token_present=bool(state.get("resume_token")),
+                resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                handoff_option_types=tuple(state.get("handoff_option_types", ()) or ()),
+                resume_transport_preference=state.get("resume_transport_preference"),
+                handoff_recovery_mode=state.get("handoff_recovery_mode"),
+                resume_with_websockets=bool(state.get("resume_with_websockets")),
+                turn_exchange_id=state.get("turn_exchange_id"),
+                resume_conduit_uuid=state.get("resume_conduit_uuid"),
+                resume_conduit_location=state.get("resume_conduit_location"),
+                resume_conduit_cluster=state.get("resume_conduit_cluster"),
+                resume_ws_url_present=bool(state.get("resume_ws_url_present")),
+                resume_ws_url_scheme=state.get("resume_ws_url_scheme"),
+                resume_ws_url_host=state.get("resume_ws_url_host"),
             ),
         )

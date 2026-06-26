@@ -49,7 +49,7 @@ def _fill_request_error(
 
 def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..., Any]:
     def send(self: Any, *args: Any, **kwargs: Any) -> Any:
-        on_event = kwargs.pop("on_event", None)
+        on_event = kwargs.get("on_event")
         on_token = kwargs.get("on_token")
         requirements_latency: float | None = None
         backend_status: int | None = None
@@ -131,7 +131,8 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
         _emit_event(
             on_event,
             "request_started",
-            model=kwargs.get("model"),
+            requested_model=kwargs.get("model"),
+            requested_reasoning_effort=kwargs.get("reasoning_effort"),
             has_conversation=kwargs.get("conversation") is not None,
             has_media=bool(kwargs.get("media")),
         )
@@ -194,6 +195,10 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             conversation_id=getattr(response.conversation, "conversation_id", None),
             message_id=getattr(response.conversation, "message_id", None),
             text_length=len(text),
+            sent_model=getattr(response.request, "sent_model", None),
+            sent_reasoning_effort=getattr(response.request, "sent_reasoning_effort", None),
+            observed_model=getattr(response.request, "observed_model", None),
+            observed_reasoning_effort=getattr(response.request, "observed_reasoning_effort", None),
         )
         _emit_event(
             on_event,
@@ -201,6 +206,10 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             conversation_id=getattr(response.conversation, "conversation_id", None),
             message_id=getattr(response.conversation, "message_id", None),
             text_length=len(text),
+            sent_model=getattr(response.request, "sent_model", None),
+            sent_reasoning_effort=getattr(response.request, "sent_reasoning_effort", None),
+            observed_model=getattr(response.request, "observed_model", None),
+            observed_reasoning_effort=getattr(response.request, "observed_reasoning_effort", None),
         )
         _emit_event(
             on_event,
@@ -209,6 +218,10 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             message_id=getattr(response.conversation, "message_id", None),
             finish_reason=getattr(response.conversation, "finish_reason", None),
             total=response.metrics.total,
+            sent_model=getattr(response.request, "sent_model", None),
+            sent_reasoning_effort=getattr(response.request, "sent_reasoning_effort", None),
+            observed_model=getattr(response.request, "observed_model", None),
+            observed_reasoning_effort=getattr(response.request, "observed_reasoning_effort", None),
         )
         return response
 
