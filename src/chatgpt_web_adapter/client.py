@@ -1262,6 +1262,7 @@ class ChatGPTWebClient:
         payload: dict[str, Any],
         *,
         previous_message_id: str | None = None,
+        allow_global_fallback: bool = True,
     ) -> tuple[dict[str, Any] | None, str]:
         branch_messages = cls._branch_messages_after(
             cls._current_branch_messages_from_conversation(payload),
@@ -1282,7 +1283,7 @@ class ChatGPTWebClient:
             if not text:
                 continue
             return message, text
-        if branch_messages:
+        if branch_messages or not allow_global_fallback:
             return None, ""
         message, text = cls._latest_assistant_from_conversation(payload)
         message_id = message.get("id") if isinstance(message, dict) else None
@@ -1298,11 +1299,13 @@ class ChatGPTWebClient:
         fallback_conversation_id: str,
         fallback_user_id: str | None = None,
         previous_message_id: str | None = None,
+        allow_global_fallback: bool = True,
     ) -> ChatResponse | None:
         status = _status_from_payload(payload)
         selected_message, text = cls._latest_branch_assistant_response(
             payload,
             previous_message_id=previous_message_id,
+            allow_global_fallback=allow_global_fallback,
         )
         if selected_message is None:
             return None
@@ -1375,12 +1378,14 @@ class ChatGPTWebClient:
         conversation_id: str,
         fallback_user_id: str | None = None,
         previous_message_id: str | None = None,
+        allow_global_fallback: bool = True,
     ) -> tuple[str | None, str | None, str, str | None, str | None]:
         response = cls._build_recovery_response_from_conversation_payload(
             payload,
             fallback_conversation_id=conversation_id,
             fallback_user_id=fallback_user_id,
             previous_message_id=previous_message_id,
+            allow_global_fallback=allow_global_fallback,
         )
         if response is None:
             return (
@@ -1421,8 +1426,10 @@ class ChatGPTWebClient:
         previous_message_id: str | None,
         timeout: float,
         interval: float,
+        on_token: Callable[[str], None] | None = None,
         on_event: Callable[[dict[str, Any]], None] | None = None,
         reason: str = "approval_poll",
+        allow_global_fallback: bool = True,
     ) -> tuple[dict[str, Any] | None, str, dict[str, Any] | None]:
         self._emit_event(
             on_event,
@@ -1437,6 +1444,8 @@ class ChatGPTWebClient:
         last_message: dict[str, Any] | None = None
         last_text = ""
         last_payload: dict[str, Any] | None = None
+        streamed_message_id: str | None = None
+        streamed_text = ""
         attempt = 0
         while True:
             attempt += 1
@@ -1472,6 +1481,7 @@ class ChatGPTWebClient:
             message, text = self._latest_branch_assistant_response(
                 payload,
                 previous_message_id=previous_message_id,
+                allow_global_fallback=allow_global_fallback,
             )
             metadata = message.get("metadata") if isinstance(message, dict) else None
             finish_details = metadata.get("finish_details") if isinstance(metadata, dict) else None
@@ -1483,6 +1493,28 @@ class ChatGPTWebClient:
                 and isinstance(finish_type, str)
                 and bool(finish_type)
             )
+            message_id = message.get("id") if isinstance(message, dict) else None
+            if isinstance(message_id, str) and message_id and text:
+                if message_id != streamed_message_id:
+                    streamed_message_id = message_id
+                    streamed_text = ""
+                delta = text
+                if streamed_text and text.startswith(streamed_text):
+                    delta = text[len(streamed_text) :]
+                if delta:
+                    streamed_text = text
+                    self._emit_event(
+                        on_event,
+                        "conversation_poll_stream_delta",
+                        conversation_id=conversation_id,
+                        message_id=message_id,
+                        attempt=attempt,
+                        delta=delta,
+                        text_length=len(text),
+                        reason=reason,
+                    )
+                    if on_token is not None:
+                        on_token(delta)
             self._emit_event(
                 on_event,
                 "conversation_poll_attempt",
@@ -1493,14 +1525,13 @@ class ChatGPTWebClient:
                 lifecycle_status=status.status,
                 async_status=status.async_status,
                 finish_reason=status.finish_reason,
-                latest_message_id=message.get("id") if isinstance(message, dict) else None,
+                latest_message_id=message_id,
                 text_length=len(text),
                 reason=reason,
             )
             if (completed_via_status or completed_via_fallback) and message is not None:
                 last_message = message
                 last_text = text
-                message_id = message.get("id")
                 if isinstance(message_id, str) and message_id:
                     self._emit_event(
                         on_event,
@@ -2264,6 +2295,7 @@ class ChatGPTWebClient:
         recovered_message_id = state.get("message_id") or state.get("parent_message_id")
         recovered_observed_model = state.get("observed_model")
         recovered_observed_reasoning_effort = state.get("observed_reasoning_effort")
+        allow_global_recovery_fallback = not bool(conversation_id)
         if isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
             not recovered_text or not recovered_message_id
         ):
@@ -2294,6 +2326,7 @@ class ChatGPTWebClient:
                     conversation_id=recovered_conversation_id,
                     fallback_user_id=user_id,
                     previous_message_id=parent_message_id,
+                    allow_global_fallback=allow_global_recovery_fallback,
                 )
                 if recovered_observed_model is None:
                     recovered_observed_model = recovered_payload_model
@@ -2313,8 +2346,10 @@ class ChatGPTWebClient:
                         float(self.timeout),
                     ),
                     interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
+                    on_token=on_token,
                     on_event=on_event,
                     reason="stream_handoff_recovery",
+                    allow_global_fallback=allow_global_recovery_fallback,
                 )
             except RequestError:
                 recovered_message, polled_text, polled_payload = None, "", None
@@ -2347,6 +2382,7 @@ class ChatGPTWebClient:
                         conversation_id=recovered_conversation_id,
                         fallback_user_id=user_id,
                         previous_message_id=parent_message_id,
+                        allow_global_fallback=allow_global_recovery_fallback,
                     )
                     if isinstance(polled_payload_message_id, str) and polled_payload_message_id:
                         recovered_message_id = polled_payload_message_id

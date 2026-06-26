@@ -1052,6 +1052,169 @@ def test_send_polls_conversation_until_handoff_reply_appears(
     assert "conversation_poll_completed" in event_types
 
 
+def test_send_streams_poll_recovery_text_deltas_after_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    streamed_tokens: list[str] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+        "conversation_get_payloads": [
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 0,
+                            "content": {"content_type": "text", "parts": ["old reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stream me"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["partial"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "async_status": "running",
+                            },
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 0,
+                            "content": {"content_type": "text", "parts": ["old reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stream me"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["partial"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "async_status": "running",
+                            },
+                        }
+                    },
+                },
+            },
+            {
+                "conversation_id": "conv-123",
+                "current_node": "assistant-final",
+                "mapping": {
+                    "assistant-old": {
+                        "message": {
+                            "id": "assistant-old",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 0,
+                            "content": {"content_type": "text", "parts": ["old reply"]},
+                            "metadata": {"finish_details": {"type": "stop"}},
+                        }
+                    },
+                    "user-new": {
+                        "parent": "assistant-old",
+                        "message": {
+                            "id": "user-new",
+                            "author": {"role": "user"},
+                            "recipient": "all",
+                            "create_time": 1,
+                            "content": {"content_type": "text", "parts": ["stream me"]},
+                        }
+                    },
+                    "assistant-final": {
+                        "parent": "user-new",
+                        "message": {
+                            "id": "assistant-final",
+                            "author": {"role": "assistant"},
+                            "recipient": "all",
+                            "create_time": 2,
+                            "content": {"content_type": "text", "parts": ["partial done"]},
+                            "metadata": {
+                                "model_slug": "gpt-5-5-thinking",
+                                "thinking_effort": "extended",
+                                "finish_details": {"type": "stop"},
+                            },
+                        }
+                    },
+                },
+            },
+        ],
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "stream me",
+            conversation=adapter.ChatConversation(
+                conversation_id="conv-123",
+                message_id="assistant-old",
+                parent_message_id="assistant-old",
+            ),
+            model="gpt-5-5-thinking",
+            reasoning_effort="high",
+            on_token=streamed_tokens.append,
+            on_event=events.append,
+        )
+
+    assert response.text == "partial done"
+    assert streamed_tokens == ["partial", " done"]
+    delta_events = [event for event in events if event["type"] == "conversation_poll_stream_delta"]
+    assert [event["delta"] for event in delta_events] == ["partial", " done"]
+
+
 def test_send_to_existing_conversation_does_not_return_stale_assistant_reply_after_handoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
