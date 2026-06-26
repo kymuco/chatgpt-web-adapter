@@ -27,6 +27,7 @@ The package intentionally does not include the CLI, localization, auth capture, 
 - streaming assistant tokens into terminal or app UIs
 - reading messages and polling conversation status from Python
 - uploading images through the web-session flow
+- inspecting live SSE, websocket handoff, and polling events in a terminal
 - experimenting with browserless approval workflows
 
 ## When Not To Use This
@@ -108,6 +109,7 @@ The stable core is the main surface intended for building tools on top of an exi
 - experimental browserless tool-approval helpers for web-agent flows
 - experimental raw payload escape hatch for advanced users
 - local `curl`-based transport for compatibility with stock Python
+- example live watcher for SSE, websocket handoff, polling, and approvals
 
 ## Requirements
 
@@ -220,6 +222,7 @@ Other common APIs:
 - wait for completion with `client.wait_until_completed(...)`
 - approve selected tool flows with experimental `client.send_and_auto_approve(...)`
 - inspect request latency with [examples/diagnose_latency.py](examples/diagnose_latency.py)
+- inspect live transport events with [examples/watch_conversation.py](examples/watch_conversation.py)
 
 ## Examples
 
@@ -231,6 +234,7 @@ Other common APIs:
 - [examples/approve_tools.py](examples/approve_tools.py) - approve pending tool actions after review
 - [examples/raw_payload.py](examples/raw_payload.py) - send an experimental raw web backend payload
 - [examples/diagnose_latency.py](examples/diagnose_latency.py) - print request and streaming diagnostics
+- [examples/watch_conversation.py](examples/watch_conversation.py) - watch SSE, websocket handoff, polling, and approvals live
 - [examples/github_auto_approve.py](examples/github_auto_approve.py) - specialized GitHub connector approval demo
 
 ## Experimental Features

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Watch ChatGPT web request events with optional colorized terminal output.
 
-Purpose: inspect raw SSE, handoff, polling, approvals, and assistant tokens live.
+Purpose: inspect raw SSE, websocket handoff, polling, approvals, and assistant tokens live.
 Surface: stable example built on top of the SDK event callback.
 Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
 """
@@ -57,7 +57,14 @@ STREAM_EVENT_TYPES = {
     "stream_done",
     "raw_sse_event",
     "raw_sse_done",
+    "raw_ws_event",
+    "raw_ws_done",
     "stream_handoff",
+    "stream_handoff_transport_probe",
+    "stream_handoff_ws_connected",
+    "stream_handoff_ws_subscribed",
+    "stream_handoff_ws_failed",
+    "stream_handoff_recovery_mode",
 }
 REQUEST_EVENT_TYPES = {
     "request_started",
@@ -97,7 +104,14 @@ def _event_color(event_type: str) -> str:
         return "blue"
     if event_type in POLL_EVENT_TYPES:
         return "yellow"
-    if event_type == "stream_handoff":
+    if event_type in {
+        "stream_handoff",
+        "stream_handoff_transport_probe",
+        "stream_handoff_ws_connected",
+        "stream_handoff_ws_subscribed",
+        "stream_handoff_ws_failed",
+        "stream_handoff_recovery_mode",
+    }:
         return "magenta"
     if event_type in STREAM_EVENT_TYPES:
         return "cyan"
@@ -113,10 +127,12 @@ def _format_elapsed(started_at: float) -> str:
 
 
 def _compact_payload(event_type: str, payload: dict[str, Any]) -> Any:
-    if event_type == "raw_sse_event":
+    if event_type in {"raw_sse_event", "raw_ws_event"}:
         parsed = payload.get("parsed")
         if parsed is not None:
             return parsed
+        return {"raw": payload.get("raw")}
+    if event_type == "raw_ws_frame":
         return {"raw": payload.get("raw")}
     if event_type == "request_payload_prepared":
         return payload.get("payload")
@@ -179,6 +195,11 @@ def main() -> None:
         help="Print assistant token text inline as it streams.",
     )
     parser.add_argument(
+        "--show-raw-frames",
+        action="store_true",
+        help="Print raw websocket frame blobs. Disabled by default because they are noisy.",
+    )
+    parser.add_argument(
         "--preserve-model",
         action="store_true",
         help="When continuing a conversation, preserve the detected model instead of forcing --model.",
@@ -201,11 +222,13 @@ def main() -> None:
         event_type = str(event.get("type") or "event")
         if event_type == "assistant_token":
             return
+        if event_type == "raw_ws_frame" and not args.show_raw_frames:
+            return
         payload = {key: value for key, value in event.items() if key != "type"}
         color = _event_color(event_type)
         label = _paint(f"[{_format_elapsed(started_at)}] {event_type}", color, enabled=color_enabled)
         compact = _compact_payload(event_type, payload)
-        if event_type in {"raw_sse_event", "request_payload_prepared"}:
+        if event_type in {"raw_sse_event", "raw_ws_event", "request_payload_prepared", "raw_ws_frame"}:
             print()
             _print_json_block(label, compact, color=color, color_enabled=color_enabled)
             return
