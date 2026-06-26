@@ -1052,6 +1052,82 @@ def test_send_emits_ws_transport_probe_event_after_stream_handoff(
     assert probe_event["websocket_url_host"] == "pubsub.chatgpt.com"
 
 
+def test_parse_encoded_stream_item_extracts_last_sse_event() -> None:
+    parsed = adapter.ChatGPTWebClient._parse_encoded_stream_item(
+        "event: delta\n"
+        'data: {"p":"/message/content/parts/0","v":"hello"}\n'
+        "\n"
+        "event: done\n"
+        "data: [DONE]\n"
+        "\n"
+    )
+
+    assert parsed == {"event": "done", "data": "[DONE]"}
+
+
+def test_send_uses_ws_topic_stream_after_stream_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    events: list[dict[str, Any]] = []
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+        "conversation_get_calls": 0,
+        "stream_events": _handoff_only_stream_events(),
+    }
+
+    def fake_ws_stream(
+        self: adapter.ChatGPTWebClient,
+        topic_id: str,
+        *,
+        state: dict[str, Any],
+        on_event: Any,
+        on_token: Any,
+    ) -> None:
+        state["conversation_id"] = "conv-123"
+        state["message_id"] = "assistant-ws"
+        state["parent_message_id"] = "assistant-ws"
+        state["observed_model"] = "gpt-5-5-thinking"
+        state["observed_reasoning_effort"] = "extended"
+        state["finish_reason"] = "stop"
+        if on_event is not None:
+            on_event({"type": "stream_handoff_ws_connected", "topic_id": topic_id})
+            on_event({"type": "raw_ws_event", "topic_id": topic_id, "raw": '{"mock":true}', "parsed": {"mock": True}})
+            on_event({"type": "raw_ws_done", "topic_id": topic_id})
+        if on_token is not None:
+            on_token("ws-")
+            on_token("stream-ok")
+
+    monkeypatch.setattr(adapter.ChatGPTWebClient, "_stream_handoff_via_ws_topic", fake_ws_stream)
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Reply with exactly: ws-stream-ok",
+            reasoning_effort="high",
+            on_event=events.append,
+        )
+
+    assert response.text == "ws-stream-ok"
+    assert response.conversation.conversation_id == "conv-123"
+    assert response.conversation.message_id == "assistant-ws"
+    assert response.request.handoff_recovery_mode == "ws_topic_stream"
+    assert response.request.resume_transport_preference == "ws_topic"
+    assert state["conversation_get_calls"] == 0
+    event_types = [event["type"] for event in events]
+    assert "stream_handoff_ws_connected" in event_types
+    assert "raw_ws_event" in event_types
+    assert "raw_ws_done" in event_types
+    recovery_mode_event = next(event for event in events if event["type"] == "stream_handoff_recovery_mode")
+    assert recovery_mode_event["preferred_transport"] == "ws_topic"
+    assert recovery_mode_event["recovery_mode"] == "ws_topic_stream"
+
+
 def test_send_polls_conversation_until_handoff_reply_appears(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

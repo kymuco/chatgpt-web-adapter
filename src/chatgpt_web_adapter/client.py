@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -682,7 +683,188 @@ class ChatGPTWebClient:
         websocket_url = data.get("websocket_url")
         if not isinstance(websocket_url, str) or not websocket_url.strip():
             raise RequestError("celsius ws user response missing websocket_url")
+        data["websocket_url"] = websocket_url.strip()
         return data
+
+    @staticmethod
+    def _parse_encoded_stream_item(encoded_item: str) -> dict[str, str] | None:
+        if not isinstance(encoded_item, str) or not encoded_item:
+            return None
+        last_event: str | None = None
+        last_data: str | None = None
+        current_event: str | None = None
+        current_data: list[str] = []
+        lines = encoded_item.replace("\r\n", "\n").split("\n")
+        for line in lines:
+            if not line:
+                if current_event is not None or current_data:
+                    last_event = current_event
+                    last_data = "\n".join(current_data)
+                current_event = None
+                current_data = []
+                continue
+            if line.startswith("event:"):
+                current_event = line.split(":", 1)[1].lstrip()
+                continue
+            if line.startswith("data:"):
+                current_data.append(line.split(":", 1)[1].lstrip())
+        if current_event is not None or current_data:
+            last_event = current_event
+            last_data = "\n".join(current_data)
+        if last_data is None:
+            return None
+        return {"event": last_event or "message", "data": last_data}
+
+    async def _stream_handoff_via_ws_topic_async(
+        self,
+        topic_id: str,
+        *,
+        state: dict[str, Any],
+        on_event: Callable[[dict[str, Any]], None] | None,
+        on_token: Callable[[str], None] | None,
+    ) -> None:
+        import websockets
+
+        ws_info = self._probe_celsius_ws_user()
+        websocket_url = ws_info.get("websocket_url")
+        if not isinstance(websocket_url, str) or not websocket_url:
+            raise RequestError("celsius ws user response missing websocket_url")
+        state["resume_ws_url"] = websocket_url
+        self._capture_ws_url_diagnostics(websocket_url, state)
+        headers = self._build_headers({"origin": CHAT_URL.rstrip("/")})
+        connect_command = {"id": 1, "command": {"type": "connect", "presence": {"type": "presence", "state": "foreground"}}}
+        subscribe_command = {"id": 2, "command": {"type": "subscribe", "topic_id": topic_id, "offset": "0"}}
+        completed = False
+
+        def process_ws_message(message: dict[str, Any]) -> None:
+            nonlocal completed
+            payload = message.get("payload")
+            if not isinstance(payload, dict) or payload.get("type") != "conversation-turn-stream":
+                return
+            inner = payload.get("payload")
+            if not isinstance(inner, dict):
+                return
+            inner_type = inner.get("type")
+            if inner_type == "done":
+                completed = True
+                self._emit_event(on_event, "raw_ws_done", topic_id=topic_id)
+                return
+            if inner_type != "stream-item":
+                return
+            encoded_item = inner.get("encoded_item")
+            parsed_item = self._parse_encoded_stream_item(encoded_item)
+            if not parsed_item:
+                return
+            raw_data = parsed_item["data"]
+            if raw_data == "[DONE]":
+                completed = True
+                self._emit_event(on_event, "raw_ws_done", topic_id=topic_id)
+                return
+            try:
+                parsed_payload = json.loads(raw_data)
+            except ValueError:
+                self._emit_event(
+                    on_event,
+                    "raw_ws_event",
+                    topic_id=topic_id,
+                    raw=raw_data,
+                    parsed=None,
+                    event=parsed_item["event"],
+                )
+                return
+            self._emit_event(
+                on_event,
+                "raw_ws_event",
+                topic_id=topic_id,
+                raw=raw_data,
+                parsed=parsed_payload,
+                event=parsed_item["event"],
+            )
+            tokens, maybe_title = self._parse_event(parsed_payload, state)
+            if maybe_title:
+                state.setdefault("title_update", maybe_title)
+            for token in tokens:
+                if token and on_token is not None:
+                    on_token(token)
+
+        async with websockets.connect(
+            websocket_url,
+            additional_headers=headers,
+            open_timeout=10,
+            ping_interval=None,
+            ping_timeout=None,
+            max_size=None,
+        ) as websocket:
+            self._emit_event(
+                on_event,
+                "stream_handoff_ws_connected",
+                topic_id=topic_id,
+                websocket_url_host=state.get("resume_ws_url_host"),
+                websocket_url_scheme=state.get("resume_ws_url_scheme"),
+            )
+            await websocket.send(json.dumps([connect_command, subscribe_command], ensure_ascii=False))
+            while not completed:
+                try:
+                    raw_frame = await asyncio.wait_for(websocket.recv(), timeout=max(float(self.timeout), 30.0))
+                except TimeoutError as error:
+                    raise RequestError("ws topic stream timed out while waiting for a frame") from error
+                if not isinstance(raw_frame, str):
+                    continue
+                self._emit_event(on_event, "raw_ws_frame", topic_id=topic_id, raw=raw_frame)
+                try:
+                    items = json.loads(raw_frame)
+                except ValueError:
+                    continue
+                if not isinstance(items, list):
+                    items = [items]
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("type") == "message" and item.get("topic_id") == topic_id:
+                        process_ws_message(item)
+                        continue
+                    reply = item.get("reply")
+                    if item.get("id") != 2 or not isinstance(reply, dict):
+                        continue
+                    self._emit_event(
+                        on_event,
+                        "stream_handoff_ws_subscribed",
+                        topic_id=topic_id,
+                        recovered=bool(reply.get("recovered")),
+                        catchup_count=len(reply.get("catchups") or ()),
+                        last_offset_present=reply.get("last_offset") is not None,
+                    )
+                    catchups = reply.get("catchups")
+                    if isinstance(catchups, list):
+                        for catchup in catchups:
+                            if isinstance(catchup, dict):
+                                process_ws_message(catchup)
+                if completed:
+                    break
+        if not completed:
+            raise RequestError("ws topic stream ended before a done event was received")
+
+    def _stream_handoff_via_ws_topic(
+        self,
+        topic_id: str,
+        *,
+        state: dict[str, Any],
+        on_event: Callable[[dict[str, Any]], None] | None,
+        on_token: Callable[[str], None] | None,
+    ) -> None:
+        try:
+            asyncio.run(
+                self._stream_handoff_via_ws_topic_async(
+                    topic_id,
+                    state=state,
+                    on_event=on_event,
+                    on_token=on_token,
+                )
+            )
+        except RequestError:
+            raise
+        except Exception as error:
+            raise RequestError(f"ws topic stream failed: {error}") from error
 
     def _build_proof_header(self, requirements: dict[str, Any]) -> str | None:
         proof_block = requirements.get("proofofwork")
@@ -2190,6 +2372,7 @@ class ChatGPTWebClient:
         last_token_latency: float | None = None
         full_chunks: list[str] = []
         title_update: str | None = None
+        ws_handoff_consumed = False
         started_at = time.perf_counter()
         payload_path: str | None = None
         process: subprocess.Popen | None = None
@@ -2202,6 +2385,18 @@ class ChatGPTWebClient:
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
+            def record_token(token: str) -> None:
+                nonlocal first_token_latency, last_token_latency
+                if not token:
+                    return
+                now = time.perf_counter()
+                if first_token_latency is None:
+                    first_token_latency = now - started_at
+                last_token_latency = now - started_at
+                full_chunks.append(token)
+                if on_token is not None:
+                    on_token(token)
+
             with tempfile.NamedTemporaryFile(delete=False) as payload_file:
                 payload_file.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
                 payload_path = payload_file.name
@@ -2294,19 +2489,50 @@ class ChatGPTWebClient:
                         resume_ws_url_scheme=state.get("resume_ws_url_scheme"),
                         resume_ws_url_host=state.get("resume_ws_url_host"),
                     )
+                    if (
+                        not ws_handoff_consumed
+                        and state.get("resume_transport_preference") == "ws_topic"
+                        and isinstance(state.get("resume_ws_topic_id"), str)
+                        and state.get("resume_ws_topic_id")
+                    ):
+                        topic_id = str(state["resume_ws_topic_id"])
+                        try:
+                            self._stream_handoff_via_ws_topic(
+                                topic_id,
+                                state=state,
+                                on_event=on_event,
+                                on_token=record_token,
+                            )
+                        except RequestError as error:
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_ws_failed",
+                                topic_id=topic_id,
+                                message=str(error),
+                            )
+                        else:
+                            ws_handoff_consumed = True
+                            if title_update is None:
+                                ws_title = state.get("title_update")
+                                if isinstance(ws_title, str) and ws_title.strip():
+                                    title_update = ws_title.strip()
+                            state["handoff_recovery_mode"] = "ws_topic_stream"
+                            self._emit_event(
+                                on_event,
+                                "stream_handoff_recovery_mode",
+                                conversation_id=state.get("conversation_id"),
+                                preferred_transport="ws_topic",
+                                recovery_mode="ws_topic_stream",
+                                reason="subscribed_ws_topic",
+                                resume_turn_topic_id=state.get("resume_turn_topic_id"),
+                                resume_sse_topic_id=state.get("resume_sse_topic_id"),
+                                resume_ws_topic_id=state.get("resume_ws_topic_id"),
+                            )
                 tokens, maybe_title = self._parse_event(event_payload, state)
                 if maybe_title and title_update is None:
                     title_update = maybe_title
                 for token in tokens:
-                    if not token:
-                        continue
-                    now = time.perf_counter()
-                    if first_token_latency is None:
-                        first_token_latency = now - started_at
-                    last_token_latency = now - started_at
-                    full_chunks.append(token)
-                    if on_token is not None:
-                        on_token(token)
+                    record_token(token)
             if process.stderr is not None:
                 stderr_text = process.stderr.read().decode("utf-8", errors="replace")
             return_code = process.wait()
@@ -2355,7 +2581,7 @@ class ChatGPTWebClient:
         recovered_observed_model = state.get("observed_model")
         recovered_observed_reasoning_effort = state.get("observed_reasoning_effort")
         allow_global_recovery_fallback = not bool(conversation_id)
-        if isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
+        if not ws_handoff_consumed and isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
             not recovered_text or not recovered_message_id
         ):
             try:
@@ -2410,7 +2636,7 @@ class ChatGPTWebClient:
                     recovered_observed_model = recovered_payload_model
                 if recovered_observed_reasoning_effort is None:
                     recovered_observed_reasoning_effort = recovered_payload_reasoning_effort
-        if isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
+        if not ws_handoff_consumed and isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
             not recovered_text
             or not recovered_message_id
             or recovered_message_id == parent_message_id
