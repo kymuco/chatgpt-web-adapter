@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
 from chatgpt_web_adapter import AuthData, RequestError
-from chatgpt_web_adapter.web_session import bootstrap_web_session, gate_get_ready_requirements
+from chatgpt_web_adapter.web_session import (
+    bootstrap_web_session,
+    gate_get_ready_requirements,
+    redact_web_session_headers,
+)
 
 
 class _FakeClient:
@@ -18,6 +20,7 @@ class _FakeClient:
         self.base_headers = {"content-type": "application/json"}
         self.bootstrap_calls = 0
         self._web_session_bootstrapped = False
+        self.debug_trace_sanitize = True
 
     def _build_headers(self, extra=None):
         headers = dict(self.base_headers)
@@ -36,10 +39,6 @@ class _FakeClient:
         self.bootstrap_calls += 1
         self.auth.cookies["oai-did"] = "server-issued-device"
         return 200, b"", ""
-
-    @staticmethod
-    def _emit_event(*args, **kwargs):
-        return None
 
 
 def test_bootstrap_reuses_existing_oai_did_without_network() -> None:
@@ -106,3 +105,16 @@ def test_turnstile_gate_allows_non_turnstile_requirements() -> None:
 
     assert requirements["turnstile"]["required"] is False
     assert proof == "proof"
+
+
+def test_sensitive_web_session_headers_are_redacted_in_sanitized_traces() -> None:
+    client = _FakeClient()
+
+    def original(_self, key, value):
+        return value
+
+    sanitize = redact_web_session_headers(original)
+
+    assert sanitize(client, "oai-device-id", "device-secret") == "<redacted>"
+    assert sanitize(client, "x-conduit-token", "conduit-secret") == "<redacted>"
+    assert sanitize(client, "accept", "application/json") == "application/json"
