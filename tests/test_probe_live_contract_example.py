@@ -16,6 +16,7 @@ def _load_module():
     if "chatgpt_web_adapter" not in sys.modules:
         stub = types.ModuleType("chatgpt_web_adapter")
         stub.ChatGPTWebClient = object
+        stub.RequestError = RuntimeError
         sys.modules["chatgpt_web_adapter"] = stub
     spec = importlib.util.spec_from_file_location("probe_live_contract_example", MODULE_PATH)
     assert spec is not None
@@ -147,3 +148,15 @@ def test_detector_drift_gets_explicit_verdict() -> None:
     )
 
     assert report["verdict"] == "PRESERVE_MODEL_MISMATCH"
+
+
+def test_attach_only_report_keeps_detected_contract_without_request() -> None:
+    module = _load_module()
+
+    report = module.build_report(attached=_attached(), response=None, events=[])
+
+    assert report["attach"]["detected_model"] == "gpt-5-6-sol-web"
+    assert report["attach"]["detected_reasoning_effort"] == "extended"
+    assert report["probe"]["write_attempted"] is False
+    assert report["request"]["sent_model"] is None
+    assert report["verdict"] == "CONTRACT_OBSERVED"
