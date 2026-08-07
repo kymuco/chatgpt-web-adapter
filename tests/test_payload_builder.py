@@ -196,8 +196,8 @@ def test_new_chat_instant_mode_omits_thinking_effort_and_uses_instant_model() ->
 @pytest.mark.parametrize(
     ("reasoning_effort", "expected_model", "expected_effort"),
     [
-        ("medium", "gpt-5-5-thinking", "standard"),
-        ("high", "gpt-5-5-thinking", "extended"),
+        ("medium", "gpt-5-6-thinking", "standard"),
+        ("high", "gpt-5-6-thinking", "extended"),
     ],
 )
 def test_new_chat_ui_reasoning_modes_map_to_current_backend_values(

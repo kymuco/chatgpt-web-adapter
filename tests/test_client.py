@@ -658,8 +658,8 @@ def test_send_instant_mode_uses_minimal_payload_without_thinking_effort(
 @pytest.mark.parametrize(
     ("reasoning_effort", "expected_model", "expected_effort"),
     [
-        ("medium", "gpt-5-5-thinking", "standard"),
-        ("high", "gpt-5-5-thinking", "extended"),
+        ("medium", "gpt-5-6-thinking", "standard"),
+        ("high", "gpt-5-6-thinking", "extended"),
     ],
 )
 def test_send_ui_reasoning_modes_map_to_current_backend_values(
@@ -811,7 +811,7 @@ def test_send_recovers_conversation_id_from_top_level_sse_fields(
     assert response.conversation.conversation_id == "conv-top-level"
     assert response.conversation.message_id == "assistant-top-level"
     assert response.request.conversation_id == "conv-top-level"
-    assert response.request.sent_model == "gpt-5-5-thinking"
+    assert response.request.sent_model == "gpt-5-6-thinking"
     assert response.request.sent_reasoning_effort == "extended"
 
 
@@ -860,7 +860,7 @@ def test_send_recovers_message_id_text_and_metadata_after_stream_handoff(
     assert response.conversation.message_id == "assistant-final"
     assert response.conversation.parent_message_id == "assistant-final"
     assert response.request.conversation_id == "conv-123"
-    assert response.request.sent_model == "gpt-5-5-thinking"
+    assert response.request.sent_model == "gpt-5-6-thinking"
     assert response.request.sent_reasoning_effort == "extended"
     assert response.request.observed_model == "gpt-5-5-thinking"
     assert response.request.observed_reasoning_effort == "extended"

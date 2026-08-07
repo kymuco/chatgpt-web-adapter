@@ -5,7 +5,10 @@ import time
 import uuid
 from typing import Any
 
-from .client import DEFAULT_MODEL, DEFAULT_THINKING_MODEL, MODEL_ALIASES
+from .model_registry import (
+    normalize_reasoning_effort as _normalize_reasoning_effort_policy,
+    resolve_model as _resolve_model_policy,
+)
 from .types import ChatConversation
 
 
@@ -26,28 +29,11 @@ def _required_str(value: Any, field_name: str) -> str:
 
 
 def _normalize_model(model: str | None, reasoning_effort: str | None) -> str:
-    if isinstance(model, str):
-        model_name = _required_str(model, "model")
-        return MODEL_ALIASES.get(model_name.lower(), MODEL_ALIASES.get(model_name, model_name))
-    normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
-    if normalized_effort in {"medium", "high", "standard", "extended"}:
-        return DEFAULT_THINKING_MODEL
-    return DEFAULT_MODEL
+    return _resolve_model_policy(model, reasoning_effort)
 
 
 def _normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
-    normalized = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
-    if normalized == "medium":
-        normalized = "standard"
-    elif normalized == "high":
-        normalized = "extended"
-    elif normalized in {"", "off", "none", "-", "instant"}:
-        normalized = None
-    if normalized not in {None, "standard", "extended"}:
-        raise ValueError(
-            "reasoning_effort must be one of: instant, medium, high, standard, extended, off/none/-"
-        )
-    return normalized
+    return _normalize_reasoning_effort_policy(reasoning_effort)
 
 
 def _message_metadata(metadata: dict[str, Any] | None, *, system_hints: list[str] | None = None) -> dict[str, Any]:
