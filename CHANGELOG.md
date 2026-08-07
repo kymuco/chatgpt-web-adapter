@@ -6,6 +6,9 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- diagnostics: added a privacy-safe live model/transport contract probe for validating ChatGPT web model rollouts before changing SDK defaults or aliases
+- docs: added the PR7.9 live model contract probe protocol and evidence/exit criteria
+
 ## 0.1.5 - 2026-06-24
 
 - feat: added experimental required-action detection for connector OAuth/linking cards such as Gmail connect prompts
