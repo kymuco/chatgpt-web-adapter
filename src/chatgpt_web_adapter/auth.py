@@ -15,6 +15,7 @@ DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
+CHATGPT_SESSION_COOKIE = "__Secure-next-auth.session-token"
 
 
 def _iter_env_candidates(auth_path: Path) -> list[Path]:
@@ -78,6 +79,34 @@ def _get_access_token_expiry(access_token: str | None) -> datetime | None:
         return None
 
 
+def _has_session_cookie(auth: AuthData) -> bool:
+    return any(
+        name == CHATGPT_SESSION_COOKIE or name.startswith(f"{CHATGPT_SESSION_COOKIE}.")
+        for name in auth.cookies
+    )
+
+
+def _seed_session_cookie_from_auth_file(auth: AuthData, auth_path: Path) -> None:
+    """Best-effort mapping for a raw ``/api/auth/session`` JSON dump.
+
+    ChatGPT's session endpoint exposes ``sessionToken`` while browser requests use
+    the NextAuth session cookie. Explicit cookies always win, including chunked
+    ``.0``/``.1`` variants copied from a browser.
+    """
+
+    if _has_session_cookie(auth) or not auth_path.is_file():
+        return
+    try:
+        payload = json.loads(auth_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(payload, dict):
+        return
+    session_token = payload.get("sessionToken")
+    if isinstance(session_token, str) and session_token.strip():
+        auth.cookies[CHATGPT_SESSION_COOKIE] = session_token.strip()
+
+
 def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
     auth_path = Path(auth_file)
     try:
@@ -88,6 +117,8 @@ def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
         raise AuthError(f"Failed to read auth data from {auth_path}: {error}") from error
     except ValueError as error:
         raise AuthError(f"Failed to parse auth data from {auth_path}: {error}") from error
+
+    _seed_session_cookie_from_auth_file(auth, auth_path)
 
     candidates: list[tuple[str, str]] = []
     if auth.accessToken:
@@ -133,6 +164,9 @@ def build_base_headers(auth: AuthData) -> dict[str, str]:
         if key_str in {"authorization", "cookie"}:
             continue
         headers[key_str] = str(value)
+    device_id = auth.cookies.get("oai-did")
+    if isinstance(device_id, str) and device_id.strip():
+        headers.setdefault("oai-device-id", device_id.strip())
     headers.setdefault("accept", "*/*")
     headers.setdefault("accept-language", "en-US,en;q=0.8")
     headers.setdefault("content-type", "application/json")
