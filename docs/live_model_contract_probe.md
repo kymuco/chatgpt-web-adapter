@@ -131,11 +131,26 @@ Preserve the report and first determine whether the mismatch is caused by model
 routing, automatic switching, stale detector locations, or an actual backend
 contract change.
 
+## Frozen live evidence — 2026-08-07
+
+Attach-only probes against UI-selected GPT-5.6 Sol conversations produced the
+following private web contract:
+
+| UI selection | Private model slug | Private reasoning |
+| --- | --- | --- |
+| Medium | `gpt-5-6-thinking` | `standard` |
+| High | `gpt-5-6-thinking` | `extended` |
+
+PR7.10 promotes `gpt-5-6-thinking` to the convenience thinking default and stores
+these two observed reasoning mappings in the model capability registry.
+
+Extra High and Pro remain unobserved in this evidence set. The registry therefore
+does not invent mappings for them. Unknown explicit model slugs also remain
+pass-through, and model detection remains independent of registry membership so a
+future rollout can be observed before policy is updated.
+
 ## PR7.9 exit criteria
 
-PR7.9 can close when we have sanitized live evidence showing the current web
-contract for at least Medium and High, plus regression fixtures for any new
-metadata locations discovered by the probe.
-
-Only after that evidence should PR7.10 update the model capability registry and
-public convenience modes.
+PR7.9's minimum evidence requirement was satisfied by the Medium and High captures
+above. Additional modes should continue to be probed before they are added to the
+registry or exposed as convenience reasoning aliases.

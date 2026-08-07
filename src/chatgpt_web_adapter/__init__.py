@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from . import client as _client_module
 from . import errors
 from .approval_policy import ApprovalDecision, ApprovalPolicy
 from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
-from .client import DEFAULT_MODEL, ChatGPTWebClient
+from .client import ChatGPTWebClient
 from .conversation_send import send_to_conversation as _send_to_conversation
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .exceptions import (
@@ -18,6 +19,13 @@ from .exceptions import (
 )
 from .export import export_conversation as _export_conversation
 from .messages import get_messages as _get_messages
+from .model_registry import (
+    DEFAULT_MODEL,
+    DEFAULT_THINKING_MODEL,
+    MODEL_ALIASES,
+    normalize_reasoning_effort as _normalize_reasoning_effort,
+    resolve_model as _resolve_model,
+)
 from .payload_builder import PayloadBuilder
 from .payload_validation import validate_payload
 from .policy_approval import ApprovalDeniedError
@@ -49,6 +57,15 @@ from .web_session import (
     gate_get_ready_requirements as _gate_get_ready_requirements,
     redact_web_session_headers as _redact_web_session_headers,
 )
+
+# The registry is the canonical model-policy source. Keep the legacy monolithic
+# client module synchronized at package import time until its policy constants can
+# be physically removed without mixing that refactor into the live-contract PR.
+_client_module.DEFAULT_MODEL = DEFAULT_MODEL
+_client_module.DEFAULT_THINKING_MODEL = DEFAULT_THINKING_MODEL
+_client_module.MODEL_ALIASES = MODEL_ALIASES
+ChatGPTWebClient._normalize_reasoning_effort = staticmethod(_normalize_reasoning_effort)
+ChatGPTWebClient._resolve_model = staticmethod(_resolve_model)
 
 _original_send = ChatGPTWebClient.send
 _original_approve_pending_action = ChatGPTWebClient.approve_pending_action

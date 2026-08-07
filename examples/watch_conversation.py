@@ -403,7 +403,7 @@ def main() -> None:
     parser.add_argument("prompt", nargs="?", help="Prompt to send.")
     parser.add_argument("--conversation", help="Existing conversation URL or raw id.")
     parser.add_argument("--auth-file", default="auth_data.json")
-    parser.add_argument("--model", default="gpt-5-5-thinking")
+    parser.add_argument("--model", default="thinking")
     parser.add_argument("--reasoning-effort", default="high")
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument(
