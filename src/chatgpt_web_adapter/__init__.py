@@ -45,11 +45,23 @@ from .types import (
     WaitResult,
 )
 from .wait import wait_until_completed as _wait_until_completed
+from .web_session import (
+    gate_get_ready_requirements as _gate_get_ready_requirements,
+    redact_web_session_headers as _redact_web_session_headers,
+)
 
 _original_send = ChatGPTWebClient.send
 _original_approve_pending_action = ChatGPTWebClient.approve_pending_action
 _original_send_and_auto_approve = ChatGPTWebClient.send_and_auto_approve
+_original_get_ready_requirements = ChatGPTWebClient._get_ready_requirements
+_original_sanitize_header_value = ChatGPTWebClient._sanitize_header_value
 
+ChatGPTWebClient._get_ready_requirements = _gate_get_ready_requirements(
+    _original_get_ready_requirements
+)
+ChatGPTWebClient._sanitize_header_value = _redact_web_session_headers(
+    _original_sanitize_header_value
+)
 ChatGPTWebClient.approve_pending_action = _policy_approve_pending_action(
     _original_approve_pending_action
 )

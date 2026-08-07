@@ -14,7 +14,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from chatgpt_web_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient, RequestError
 
 
 PROBE_SCHEMA = "chatgpt-web-adapter.live-contract-probe.v1"
@@ -168,12 +168,12 @@ def _verdict(
 def build_report(
     *,
     attached: Any,
-    response: Any,
+    response: Any | None,
     events: list[dict[str, Any]],
 ) -> dict[str, Any]:
     attached_model = getattr(attached, "detected_model", None)
     attached_reasoning = getattr(attached, "detected_reasoning_effort", None)
-    request_contract = _request_contract(response.request)
+    request_contract = _request_contract(getattr(response, "request", None))
     field_evidence: list[dict[str, str]] = []
     event_types: list[str] = []
 
@@ -196,6 +196,7 @@ def build_report(
         "probe": {
             "preserve_model": True,
             "existing_conversation": True,
+            "write_attempted": response is not None,
             "response_text_recorded": False,
             "prompt_text_recorded": False,
             "raw_event_payloads_recorded": False,
@@ -209,6 +210,11 @@ def build_report(
         "request": request_contract,
         "transport": _transport_summary(event_types, request_contract),
         "field_evidence": field_evidence,
+        "write_gate": {
+            "blocked": False,
+            "reason": None,
+            "browser_challenge_token_recorded": False,
+        },
     }
     report["verdict"] = _verdict(
         attached_model=attached_model,
@@ -228,6 +234,11 @@ def main() -> None:
     parser.add_argument("--prompt", default=DEFAULT_PROMPT)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--output", default="live_contract_probe.json")
+    parser.add_argument(
+        "--attach-only",
+        action="store_true",
+        help="Record only the existing conversation contract; do not attempt a write.",
+    )
     args = parser.parse_args()
 
     client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
@@ -238,15 +249,33 @@ def main() -> None:
         if isinstance(event, dict):
             events.append(event)
 
-    response = client.send_to_conversation(
-        args.conversation,
-        args.prompt,
-        model=None,
-        reasoning_effort=None,
-        preserve_model=True,
-        on_event=on_event,
-    )
-    report = build_report(attached=attached, response=response, events=events)
+    if args.attach_only:
+        report = build_report(attached=attached, response=None, events=[])
+        if report["verdict"] != "MODEL_CONTRACT_UNOBSERVED":
+            report["verdict"] = "ATTACH_ONLY_CONTRACT_OBSERVED"
+    else:
+        try:
+            response = client.send_to_conversation(
+                args.conversation,
+                args.prompt,
+                model=None,
+                reasoning_effort=None,
+                preserve_model=True,
+                on_event=on_event,
+            )
+        except RequestError as error:
+            if getattr(error, "request_stage", None) != "turnstile_gate":
+                raise
+            report = build_report(attached=attached, response=None, events=events)
+            report["probe"]["write_attempted"] = True
+            report["write_gate"] = {
+                "blocked": True,
+                "reason": "turnstile_required",
+                "browser_challenge_token_recorded": False,
+            }
+            report["verdict"] = "WRITE_BLOCKED_TURNSTILE"
+        else:
+            report = build_report(attached=attached, response=response, events=events)
 
     output_path = Path(args.output)
     output_path.write_text(
