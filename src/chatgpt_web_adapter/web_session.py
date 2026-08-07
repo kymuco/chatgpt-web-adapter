@@ -54,10 +54,16 @@ def bootstrap_web_session(client: Any) -> bool:
 def gate_get_ready_requirements(
     original_get_ready_requirements: Callable[..., tuple[dict[str, Any], str | None]],
 ) -> Callable[..., tuple[dict[str, Any], str | None]]:
-    """Require legitimate browser challenge evidence before a write proceeds."""
+    """Require legitimate browser challenge evidence before a write proceeds.
+
+    The write gate is deliberately network-neutral apart from the underlying
+    chat-requirements request. It may synchronize an already supplied ``oai-did``
+    into ``oai-device-id``, but acquiring browser/session cookies remains an
+    explicit ``bootstrap_web_session()`` operation.
+    """
 
     def get_ready_requirements(self: Any) -> tuple[dict[str, Any], str | None]:
-        bootstrap_web_session(self)
+        _sync_device_header(self)
         requirements, proof_header = original_get_ready_requirements(self)
         turnstile = requirements.get("turnstile") if isinstance(requirements, dict) else None
         turnstile_required = bool(turnstile.get("required")) if isinstance(turnstile, dict) else False
