@@ -5,6 +5,11 @@ from typing import Any, Callable
 from .auth import CHAT_URL
 from .exceptions import RequestError
 
+SENSITIVE_WEB_SESSION_HEADERS = {
+    "oai-device-id",
+    "x-conduit-token",
+}
+
 
 def _sync_device_header(client: Any) -> bool:
     device_id = getattr(client.auth, "cookies", {}).get("oai-did")
@@ -57,11 +62,6 @@ def gate_get_ready_requirements(
         turnstile = requirements.get("turnstile") if isinstance(requirements, dict) else None
         turnstile_required = bool(turnstile.get("required")) if isinstance(turnstile, dict) else False
         if turnstile_required and not getattr(self.auth, "turnstile_token", None):
-            self._emit_event(
-                None,
-                "web_session_gate_blocked",
-                reason="turnstile_required",
-            )
             raise RequestError(
                 "TURNSTILE_REQUIRED: ChatGPT requires browser-derived Turnstile evidence for this write. "
                 "The adapter will not synthesize or bypass that challenge; provide a legitimate token "
@@ -72,3 +72,19 @@ def gate_get_ready_requirements(
         return requirements, proof_header
 
     return get_ready_requirements
+
+
+def redact_web_session_headers(
+    original_sanitize_header_value: Callable[..., str],
+) -> Callable[..., str]:
+    """Extend sanitized debug traces to cover current web-session credentials."""
+
+    def sanitize_header_value(self: Any, key: str, value: str) -> str:
+        if (
+            bool(getattr(self, "debug_trace_sanitize", True))
+            and key.strip().lower() in SENSITIVE_WEB_SESSION_HEADERS
+        ):
+            return "<redacted>"
+        return original_sanitize_header_value(self, key, value)
+
+    return sanitize_header_value
