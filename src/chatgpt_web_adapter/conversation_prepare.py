@@ -199,7 +199,7 @@ def prepare_text_turn(
         conduit_token = None
     result = PrepareResult(
         status_code=int(status),
-        status_ok=200 <= int(status) < 300 and response.get("status") in {None, "ok"},
+        status_ok=200 <= int(status) < 300 and response.get("status") == "ok",
         conduit_token_present=conduit_token is not None,
         response_keys=tuple(sorted(str(key) for key in response)),
         conduit_token=conduit_token,
