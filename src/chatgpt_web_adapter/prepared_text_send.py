@@ -212,7 +212,9 @@ def send_existing_text_prepared(
         # `_stream_backend_payload()` owns the actual SSE loop and calls
         # `_parse_event()` for every parsed payload. Capture only an allowlisted
         # subset of that real parser state instead of exposing raw SSE events or
-        # sensitive handoff/resume material outside the transport.
+        # sensitive handoff/resume material outside the transport. A handoff is
+        # retained only as a boolean so a partial prefix can never be mistaken
+        # for a completed response.
         original_parse_event = self._parse_event
         instance_dict = getattr(self, "__dict__", None)
         had_instance_parse_event = (
@@ -223,6 +225,8 @@ def send_existing_text_prepared(
         )
 
         def capture_parse_event(event_payload: Any, state: dict[str, Any]):
+            if isinstance(event_payload, dict) and event_payload.get("type") == "stream_handoff":
+                stream_diagnostics["handoff_seen"] = True
             tokens, maybe_title = original_parse_event(event_payload, state)
             _copy_safe_stream_diagnostics(state, stream_diagnostics)
             return tokens, maybe_title
@@ -257,17 +261,21 @@ def send_existing_text_prepared(
         observed_model = stream_diagnostics.get("observed_model")
         observed_reasoning_effort = stream_diagnostics.get("observed_reasoning_effort")
         finish_reason = stream_diagnostics.get("finish_reason")
+        handoff_seen = bool(stream_diagnostics.get("handoff_seen"))
 
         effective_conversation_id = observed_conversation_id or conversation_id
-        if not text or not observed_message_id or observed_message_id == parent_message_id:
+        if handoff_seen or not text or not observed_message_id or observed_message_id == parent_message_id:
+            streamed_prefix = text
             message, polled_text, _polled_payload = self._poll_conversation_after_prepare(
                 effective_conversation_id,
                 previous_message_id=parent_message_id,
                 timeout=max(1.0, float(self.timeout)),
                 interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
-                on_token=None if text else on_token,
+                on_token=None if streamed_prefix else on_token,
                 on_event=on_event,
-                reason="prepared_text_send_recovery",
+                reason="prepared_text_send_handoff_recovery"
+                if handoff_seen
+                else "prepared_text_send_recovery",
                 allow_global_fallback=False,
             )
             if isinstance(message, dict):
@@ -275,6 +283,14 @@ def send_existing_text_prepared(
                 if isinstance(message_id, str) and message_id:
                     observed_message_id = message_id
                 if polled_text:
+                    if (
+                        streamed_prefix
+                        and on_token is not None
+                        and polled_text.startswith(streamed_prefix)
+                    ):
+                        suffix = polled_text[len(streamed_prefix) :]
+                        if suffix:
+                            on_token(suffix)
                     text = polled_text
                 polled_finish_reason = _finish_reason(message)
                 if polled_finish_reason:
@@ -296,6 +312,7 @@ def send_existing_text_prepared(
         conversation_id_present=bool(observed_conversation_id),
         message_id_present=bool(observed_message_id),
         response_text_present=bool(text),
+        handoff_recovery_used=bool(stream_diagnostics.get("handoff_seen")),
     )
     return ChatResponse(
         text=text,
