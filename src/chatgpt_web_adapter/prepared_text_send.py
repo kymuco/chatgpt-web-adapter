@@ -278,6 +278,11 @@ def send_existing_text_prepared(
                 else "prepared_text_send_recovery",
                 allow_global_fallback=False,
             )
+            if handoff_seen and not isinstance(message, dict):
+                raise RequestError(
+                    "prepared stream handoff recovery did not reach a completed assistant message",
+                    request_stage="prepared_stream_handoff_recovery",
+                )
             if isinstance(message, dict):
                 message_id = message.get("id")
                 if isinstance(message_id, str) and message_id:
