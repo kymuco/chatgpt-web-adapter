@@ -5,7 +5,10 @@ import uuid
 from typing import Any, Callable, Sequence
 
 from .auth import CHAT_URL
-from .client import DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS
+from .client import (
+    DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
+    DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
+)
 from .conversation_prepare import prepare_text_turn
 from .exceptions import RequestError
 from .types import ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
@@ -269,7 +272,10 @@ def send_existing_text_prepared(
             message, polled_text, _polled_payload = self._poll_conversation_after_prepare(
                 effective_conversation_id,
                 previous_message_id=parent_message_id,
-                timeout=max(1.0, float(self.timeout)),
+                timeout=max(
+                    DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
+                    float(self.timeout),
+                ),
                 interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
                 on_token=None if streamed_prefix else on_token,
                 on_event=on_event,
