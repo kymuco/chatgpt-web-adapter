@@ -11,6 +11,11 @@ from .exceptions import RequestError
 from .types import ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
 
 CONVERSATION_PATH = "/backend-api/f/conversation"
+_SAFE_STREAM_DIAGNOSTIC_KEYS = (
+    "finish_reason",
+    "observed_model",
+    "observed_reasoning_effort",
+)
 
 
 def _clear_prefetched_requirements(client: Any) -> None:
@@ -35,43 +40,15 @@ def _finish_reason(message: Any) -> str | None:
     return _metadata_finish_reason(message.get("metadata"))
 
 
-def _capture_stream_event_diagnostics(client: Any, event: Any, state: dict[str, Any]) -> None:
-    """Capture only non-secret response metadata already exposed by stream events."""
+def _copy_safe_stream_diagnostics(source: Any, target: dict[str, Any]) -> None:
+    """Copy only response metadata that is safe to retain outside the parser."""
 
-    if not isinstance(event, dict):
+    if not isinstance(source, dict):
         return
-    parsed = event.get("parsed") if event.get("type") == "raw_sse_event" else event
-    if not isinstance(parsed, dict):
-        return
-
-    metadata = parsed.get("metadata")
-    if isinstance(metadata, dict):
-        client._capture_metadata_diagnostics(metadata, state)
-        finish_reason = _metadata_finish_reason(metadata)
-        if finish_reason:
-            state["finish_reason"] = finish_reason
-
-    value = parsed.get("v")
-    if isinstance(value, dict):
-        message = value.get("message")
-        if isinstance(message, dict):
-            client._capture_message_diagnostics(message, state)
-            finish_reason = _finish_reason(message)
-            if finish_reason:
-                state["finish_reason"] = finish_reason
-        return
-
-    if isinstance(value, list):
-        for item in value:
-            if not isinstance(item, dict) or item.get("p") != "/message/metadata":
-                continue
-            item_metadata = item.get("v")
-            if not isinstance(item_metadata, dict):
-                continue
-            client._capture_metadata_diagnostics(item_metadata, state)
-            finish_reason = _metadata_finish_reason(item_metadata)
-            if finish_reason:
-                state["finish_reason"] = finish_reason
+    for key in _SAFE_STREAM_DIAGNOSTIC_KEYS:
+        value = source.get(key)
+        if isinstance(value, str) and value.strip():
+            target[key] = value.strip()
 
 
 def send_existing_text_prepared(
@@ -181,11 +158,6 @@ def send_existing_text_prepared(
     observed_reasoning_effort: str | None = None
     finish_reason: str | None = None
 
-    def capture_stream_event(event: dict[str, Any]) -> None:
-        _capture_stream_event_diagnostics(self, event, stream_diagnostics)
-        if on_event is not None:
-            on_event(event)
-
     try:
         requirements, proof_header = self._get_ready_requirements()
         chat_token = requirements.get("token") if isinstance(requirements, dict) else None
@@ -237,12 +209,38 @@ def send_existing_text_prepared(
             turn_trace_id_present=True,
         )
 
-        observed_conversation_id, observed_message_id, text = self._stream_backend_payload(
-            payload,
-            headers,
-            on_token=on_token,
-            on_event=capture_stream_event,
-        )
+        # `_stream_backend_payload()` owns the actual SSE loop and calls
+        # `_parse_event()` for every parsed payload. Capture only an allowlisted
+        # subset of that real parser state instead of exposing raw SSE events or
+        # sensitive handoff/resume material outside the transport.
+        original_parse_event = self._parse_event
+
+        def capture_parse_event(event_payload: Any, state: dict[str, Any]):
+            tokens, maybe_title = original_parse_event(event_payload, state)
+            _copy_safe_stream_diagnostics(state, stream_diagnostics)
+            return tokens, maybe_title
+
+        # Expanded send instrumentation already emits one structured
+        # `assistant_token` event from the on_token callback. The transport also
+        # emits its own assistant_token event, so suppress only that duplicate
+        # while forwarding any other transport event unchanged.
+        def forward_non_token_stream_event(event: dict[str, Any]) -> None:
+            if isinstance(event, dict) and event.get("type") == "assistant_token":
+                return
+            if on_event is not None:
+                on_event(event)
+
+        self._parse_event = capture_parse_event
+        try:
+            observed_conversation_id, observed_message_id, text = self._stream_backend_payload(
+                payload,
+                headers,
+                on_token=on_token,
+                on_event=forward_non_token_stream_event,
+            )
+        finally:
+            self._parse_event = original_parse_event
+
         observed_model = stream_diagnostics.get("observed_model")
         observed_reasoning_effort = stream_diagnostics.get("observed_reasoning_effort")
         finish_reason = stream_diagnostics.get("finish_reason")
