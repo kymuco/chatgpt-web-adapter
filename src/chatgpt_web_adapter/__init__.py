@@ -8,8 +8,9 @@ from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
-from .conversation_send import send_to_conversation as _send_to_conversation
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
+from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
+from .conversation_send import send_to_conversation as _send_to_conversation
 from .exceptions import (
     AuthError,
     ConversationTimeoutError,
@@ -90,6 +91,9 @@ ChatGPTWebClient.get_pending_approval = _get_pending_approval
 ChatGPTWebClient.get_required_action = _get_required_action
 ChatGPTWebClient.get_status = _get_status
 ChatGPTWebClient.send = _send_with_expanded_metrics(_original_send)
+ChatGPTWebClient._send_existing_text_prepared = _send_with_expanded_metrics(
+    _send_existing_text_prepared
+)
 ChatGPTWebClient.send_and_auto_approve = _policy_send_and_auto_approve(
     _original_send_and_auto_approve
 )
