@@ -7,6 +7,7 @@ from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .client import ChatGPTWebClient
+from .conversation_prepare import PrepareResult, prepare_text_turn
 from .conversation_send import send_to_conversation as _send_to_conversation
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .exceptions import (
@@ -151,6 +152,11 @@ EXPERIMENTAL_RAW_PAYLOAD_EXPORTS = [
     "validate_payload",
 ]
 
+EXPERIMENTAL_PREPARE_EXPORTS = [
+    "PrepareResult",
+    "prepare_text_turn",
+]
+
 SUPPORT_EXPORTS = [
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
@@ -165,5 +171,6 @@ __all__ = [
     *EXPERIMENTAL_APPROVAL_EXPORTS,
     *EXPERIMENTAL_REQUIRED_ACTION_EXPORTS,
     *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
+    *EXPERIMENTAL_PREPARE_EXPORTS,
     *SUPPORT_EXPORTS,
 ]
