@@ -28,9 +28,12 @@ discard any warmup-prefetched requirements
        x-openai-target-route: /backend-api/f/conversation
 ```
 
-The conduit token is retained only in memory. Sanitized debug traces continue to
-redact `x-conduit-token`, and emitted lifecycle events expose only token-presence
-booleans.
+The conduit token is retained only in memory. The credential-bearing raw prepare
+response is never written by the generic HTTP debug tracer; when tracing is
+enabled, it is replaced with a structural prepare trace containing only response
+status, safe key names, token-presence state, and `raw_response_recorded=false`.
+Final-write traces continue to redact `x-conduit-token`, and lifecycle events
+expose only token-presence booleans.
 
 Warmup material is deliberately invalidated before prepare. This prevents a
 prepared turn from pairing a newly minted conduit token with requirements state
@@ -47,8 +50,9 @@ Successful stream metadata is retained without forcing an additional conversatio
 fetch and without exposing raw SSE payloads. During the prepared stream, the
 integration observes the real private `_parse_event()` state and copies only an
 allowlist of `finish_reason`, `observed_model`, and
-`observed_reasoning_effort`. Resume tokens, conduit tokens, handoff identifiers,
-and raw event payloads are not copied into this state.
+`observed_reasoning_effort`. A `stream_handoff` is retained only as a boolean
+completion-risk signal. Resume tokens, conduit tokens, topic identifiers, handoff
+options, and raw event payloads are not copied into this state.
 
 Structured assistant-token events have one owner on the public prepared path: the
 expanded-send instrumentation around `on_token`. The duplicate
@@ -69,14 +73,20 @@ the short-lived transport material required by the current web write contract.
 
 ## Streaming and recovery
 
-The prepared write reuses the existing backend streaming parser. If the initial
-stream/handoff does not yield a usable assistant message, the adapter performs a
-bounded existing-conversation poll using the already-known parent message as the
-recovery boundary.
+The prepared write reuses the existing backend streaming parser. A stream that
+contains `stream_handoff` is never considered complete merely because it already
+contains an assistant message id and a text prefix. PR7.11a deliberately keeps
+WebSocket transport characterization out of scope; instead, any observed handoff
+forces bounded existing-conversation recovery using the already-known parent
+message as the branch boundary.
 
-When the initial stream is already complete, its observed model, reasoning effort,
-and finish reason are propagated directly from the real parser state into the
-returned response diagnostics.
+If a prefix was already delivered through `on_token`, recovery returns the final
+conversation text and emits only the missing suffix when the recovered text extends
+that prefix. This avoids both truncated responses and duplicate streamed output.
+
+When the initial stream has no handoff and is already complete, its observed model,
+reasoning effort, and finish reason are propagated directly from the real parser
+state into the returned response diagnostics.
 
 ## Explicit non-goals
 
