@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from .auth import CHAT_URL
 from .client import DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS
 from .conversation_prepare import prepare_text_turn
 from .exceptions import RequestError
-from .types import ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse
+from .types import ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
 
 CONVERSATION_PATH = "/backend-api/f/conversation"
 
@@ -19,10 +19,7 @@ def _clear_prefetched_requirements(client: Any) -> None:
     client.prefetched_ts = 0.0
 
 
-def _finish_reason(message: Any) -> str | None:
-    if not isinstance(message, dict):
-        return None
-    metadata = message.get("metadata")
+def _metadata_finish_reason(metadata: Any) -> str | None:
     if not isinstance(metadata, dict):
         return None
     finish_details = metadata.get("finish_details")
@@ -32,16 +29,62 @@ def _finish_reason(message: Any) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def _finish_reason(message: Any) -> str | None:
+    if not isinstance(message, dict):
+        return None
+    return _metadata_finish_reason(message.get("metadata"))
+
+
+def _capture_stream_event_diagnostics(client: Any, event: Any, state: dict[str, Any]) -> None:
+    """Capture only non-secret response metadata already exposed by stream events."""
+
+    if not isinstance(event, dict):
+        return
+    parsed = event.get("parsed") if event.get("type") == "raw_sse_event" else event
+    if not isinstance(parsed, dict):
+        return
+
+    metadata = parsed.get("metadata")
+    if isinstance(metadata, dict):
+        client._capture_metadata_diagnostics(metadata, state)
+        finish_reason = _metadata_finish_reason(metadata)
+        if finish_reason:
+            state["finish_reason"] = finish_reason
+
+    value = parsed.get("v")
+    if isinstance(value, dict):
+        message = value.get("message")
+        if isinstance(message, dict):
+            client._capture_message_diagnostics(message, state)
+            finish_reason = _finish_reason(message)
+            if finish_reason:
+                state["finish_reason"] = finish_reason
+        return
+
+    if isinstance(value, list):
+        for item in value:
+            if not isinstance(item, dict) or item.get("p") != "/message/metadata":
+                continue
+            item_metadata = item.get("v")
+            if not isinstance(item_metadata, dict):
+                continue
+            client._capture_metadata_diagnostics(item_metadata, state)
+            finish_reason = _metadata_finish_reason(item_metadata)
+            if finish_reason:
+                state["finish_reason"] = finish_reason
+
+
 def send_existing_text_prepared(
     self: Any,
     prompt: str,
     *,
     model: str,
     conversation: ChatConversation | dict[str, Any],
-    title: str | None = None,
+    system: str | None = None,
     reasoning_effort: str | None = None,
     web_search: bool = False,
     temporary: bool = False,
+    media: Sequence[MediaItem] | None = None,
     on_token: Callable[[str], None] | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> ChatResponse:
@@ -49,8 +92,13 @@ def send_existing_text_prepared(
 
     This path is intentionally scoped to an existing conversation with no media.
     New-chat and multimodal writes continue through the legacy ``send()`` path
-    until they receive independent live-contract evidence.
+    until they receive independent live-contract evidence. ``system`` is accepted
+    for send-surface compatibility but, as before for an existing conversation,
+    is not injected as a new system message.
     """
+
+    if media:
+        raise ValueError("prepared existing-text send does not accept media")
 
     conversation_dict = self._conversation_to_dict(conversation)
     if not isinstance(conversation_dict, dict):
@@ -83,6 +131,10 @@ def send_existing_text_prepared(
             request_stage="conversation_prepare",
         )
 
+    # The live contract is prepare -> fresh requirements -> final write. Discard
+    # any material produced by warmup before prepare so it cannot be reused after
+    # the conduit token is minted.
+    _clear_prefetched_requirements(self)
     self._emit_event(
         on_event,
         "conversation_prepare_started",
@@ -124,9 +176,16 @@ def send_existing_text_prepared(
     observed_conversation_id: str | None = None
     observed_message_id: str | None = None
     text = ""
+    stream_diagnostics: dict[str, Any] = {}
     observed_model: str | None = None
     observed_reasoning_effort: str | None = None
     finish_reason: str | None = None
+
+    def capture_stream_event(event: dict[str, Any]) -> None:
+        _capture_stream_event_diagnostics(self, event, stream_diagnostics)
+        if on_event is not None:
+            on_event(event)
+
     try:
         requirements, proof_header = self._get_ready_requirements()
         chat_token = requirements.get("token") if isinstance(requirements, dict) else None
@@ -182,8 +241,12 @@ def send_existing_text_prepared(
             payload,
             headers,
             on_token=on_token,
-            on_event=on_event,
+            on_event=capture_stream_event,
         )
+        observed_model = stream_diagnostics.get("observed_model")
+        observed_reasoning_effort = stream_diagnostics.get("observed_reasoning_effort")
+        finish_reason = stream_diagnostics.get("finish_reason")
+
         effective_conversation_id = observed_conversation_id or conversation_id
         if not text or not observed_message_id or observed_message_id == parent_message_id:
             message, polled_text, _polled_payload = self._poll_conversation_after_prepare(
@@ -202,11 +265,15 @@ def send_existing_text_prepared(
                     observed_message_id = message_id
                 if polled_text:
                     text = polled_text
-                finish_reason = _finish_reason(message)
+                polled_finish_reason = _finish_reason(message)
+                if polled_finish_reason:
+                    finish_reason = polled_finish_reason
                 diagnostics: dict[str, Any] = {}
                 self._capture_message_diagnostics(message, diagnostics)
-                observed_model = diagnostics.get("observed_model")
-                observed_reasoning_effort = diagnostics.get("observed_reasoning_effort")
+                if diagnostics.get("observed_model") is not None:
+                    observed_model = diagnostics.get("observed_model")
+                if diagnostics.get("observed_reasoning_effort") is not None:
+                    observed_reasoning_effort = diagnostics.get("observed_reasoning_effort")
         observed_conversation_id = effective_conversation_id
     finally:
         _clear_prefetched_requirements(self)
@@ -221,7 +288,6 @@ def send_existing_text_prepared(
     )
     return ChatResponse(
         text=text,
-        title=title,
         conversation=ChatConversation(
             conversation_id=observed_conversation_id or conversation_id,
             message_id=observed_message_id or parent_message_id,
