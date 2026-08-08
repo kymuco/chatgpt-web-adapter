@@ -338,6 +338,22 @@ def test_prepared_text_send_preserves_successful_stream_metadata_from_parser_sta
     assert not any(event.get("type") == "raw_sse_event" for event in client.events)
 
 
+def test_prepared_text_send_restores_parser_lookup_after_stream() -> None:
+    client = PreparedClient()
+    original_parse_event = client._parse_event
+    assert "_parse_event" not in client.__dict__
+
+    send_existing_text_prepared(
+        client,
+        "hello",
+        model="gpt-5-6-thinking",
+        conversation=_conversation(),
+    )
+
+    assert "_parse_event" not in client.__dict__
+    assert client._parse_event is original_parse_event
+
+
 def test_prepared_text_send_polls_when_stream_handoff_has_no_text() -> None:
     client = PreparedClient()
     client.stream_result = ("conv-1", None, "")
@@ -403,9 +419,6 @@ def test_prepared_text_send_emits_each_assistant_token_event_once() -> None:
     assistant_token_events = [
         event for event in events if event.get("type") == "assistant_token"
     ]
-    assert assistant_token_events == [
-        pytest.helpers.anything
-    ] if False else assistant_token_events
     assert len(assistant_token_events) == 1
     assert assistant_token_events[0]["token"] == "ok"
 
