@@ -44,9 +44,16 @@ therefore preserves the established request/requirements/stream lifecycle events
 structured `RequestError` metadata, and expanded latency/backend metrics.
 
 Successful stream metadata is retained without forcing an additional conversation
-fetch. Safe model, reasoning-effort, and finish-reason fields are captured from the
-already-emitted parsed stream events; resume/conduit token values are not copied
-into that diagnostic state.
+fetch and without exposing raw SSE payloads. During the prepared stream, the
+integration observes the real private `_parse_event()` state and copies only an
+allowlist of `finish_reason`, `observed_model`, and
+`observed_reasoning_effort`. Resume tokens, conduit tokens, handoff identifiers,
+and raw event payloads are not copied into this state.
+
+Structured assistant-token events have one owner on the public prepared path: the
+expanded-send instrumentation around `on_token`. The duplicate
+`assistant_token` emitted by the lower-level stream transport is filtered for this
+path, so one streamed token produces one public structured token event.
 
 ## Failure boundaries
 
@@ -68,7 +75,8 @@ bounded existing-conversation poll using the already-known parent message as the
 recovery boundary.
 
 When the initial stream is already complete, its observed model, reasoning effort,
-and finish reason are propagated directly into the returned response diagnostics.
+and finish reason are propagated directly from the real parser state into the
+returned response diagnostics.
 
 ## Explicit non-goals
 
