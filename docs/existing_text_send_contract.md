@@ -11,12 +11,14 @@ previous transport until they receive independent live-contract evidence.
 For `send_to_conversation(..., media=None)` the adapter now performs:
 
 ```text
-build one user message
+discard any warmup-prefetched requirements
+  -> build one user message
   -> POST /backend-api/f/conversation/prepare
        partial_query.id == final messages[0].id
        x-conduit-token: no-token
   -> require successful prepare + conduit token
   -> POST /backend-api/sentinel/chat-requirements
+       fresh material after prepare
        existing PoW / Turnstile governance remains in force
   -> POST /backend-api/f/conversation
        client_prepare_state: success
@@ -29,6 +31,22 @@ build one user message
 The conduit token is retained only in memory. Sanitized debug traces continue to
 redact `x-conduit-token`, and emitted lifecycle events expose only token-presence
 booleans.
+
+Warmup material is deliberately invalidated before prepare. This prevents a
+prepared turn from pairing a newly minted conduit token with requirements state
+that was produced before the prepare boundary.
+
+## Diagnostics contract
+
+The prepared existing-text path is an injectable private client method wrapped by
+the same expanded-send instrumentation used by the legacy `send()` path. It
+therefore preserves the established request/requirements/stream lifecycle events,
+structured `RequestError` metadata, and expanded latency/backend metrics.
+
+Successful stream metadata is retained without forcing an additional conversation
+fetch. Safe model, reasoning-effort, and finish-reason fields are captured from the
+already-emitted parsed stream events; resume/conduit token values are not copied
+into that diagnostic state.
 
 ## Failure boundaries
 
@@ -48,6 +66,9 @@ The prepared write reuses the existing backend streaming parser. If the initial
 stream/handoff does not yield a usable assistant message, the adapter performs a
 bounded existing-conversation poll using the already-known parent message as the
 recovery boundary.
+
+When the initial stream is already complete, its observed model, reasoning effort,
+and finish reason are propagated directly into the returned response diagnostics.
 
 ## Explicit non-goals
 
