@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import chatgpt_web_adapter as adapter
+import pytest
 
 from chatgpt_web_adapter.prepared_text_send import send_existing_text_prepared
 from chatgpt_web_adapter.types import ChatConversation
@@ -119,6 +120,14 @@ class HandoffClient:
         )
 
 
+def _conversation() -> ChatConversation:
+    return ChatConversation(
+        conversation_id="conv-1",
+        message_id="parent-1",
+        user_id="user-1",
+    )
+
+
 def test_partial_stream_handoff_forces_recovery_and_emits_only_suffix() -> None:
     client = HandoffClient()
     tokens: list[str] = []
@@ -128,11 +137,7 @@ def test_partial_stream_handoff_forces_recovery_and_emits_only_suffix() -> None:
         client,
         "hello",
         model="gpt-5-6-thinking",
-        conversation=ChatConversation(
-            conversation_id="conv-1",
-            message_id="parent-1",
-            user_id="user-1",
-        ),
+        conversation=_conversation(),
         reasoning_effort="standard",
         on_token=tokens.append,
         on_event=events.append,
@@ -150,3 +155,27 @@ def test_partial_stream_handoff_forces_recovery_and_emits_only_suffix() -> None:
     ]
     assert completed[-1]["handoff_recovery_used"] is True
     assert "sensitive-topic-id" not in repr(events)
+
+
+def test_partial_stream_handoff_never_returns_prefix_after_recovery_timeout() -> None:
+    class TimeoutClient(HandoffClient):
+        def _poll_conversation_after_prepare(self, *args, **kwargs):
+            self.sequence.append("poll")
+            return None, "", None
+
+    client = TimeoutClient()
+    tokens: list[str] = []
+
+    with pytest.raises(adapter.RequestError) as captured:
+        send_existing_text_prepared(
+            client,
+            "hello",
+            model="gpt-5-6-thinking",
+            conversation=_conversation(),
+            on_token=tokens.append,
+        )
+
+    assert captured.value.request_stage == "prepared_stream_handoff_recovery"
+    assert "completed assistant message" in str(captured.value)
+    assert client.sequence == ["prepare", "requirements", "stream", "poll"]
+    assert tokens == ["prefix"]
