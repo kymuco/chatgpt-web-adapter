@@ -8,6 +8,7 @@ from typing import Any
 from . import client as client_mod
 from .auth import CHAT_URL
 from .types import ChatConversation
+from .web_session import suppress_web_session_debug_trace
 
 PREPARE_PATH = "/backend-api/f/conversation/prepare"
 
@@ -116,28 +117,23 @@ def _prepare_json_request(
     """Issue prepare without ever persisting its credential-bearing raw body.
 
     The shared HTTP tracer records raw response bodies. A prepare response carries
-    the short-lived conduit credential, so this boundary temporarily suppresses
-    the generic trace and replaces it with a structural trace containing only
-    status, safe response keys, and token-presence state.
+    the short-lived conduit credential, so this boundary suppresses generic trace
+    output only for the current execution context and replaces it with a
+    structural trace containing status, safe response keys, and token presence.
     """
 
     trace_dir_marker = object()
     trace_dir = getattr(client, "debug_trace_dir", trace_dir_marker)
-    suppress_raw_trace = trace_dir is not trace_dir_marker and trace_dir is not None
-    if suppress_raw_trace:
-        client.debug_trace_dir = None
-    try:
+    trace_enabled = trace_dir is not trace_dir_marker and trace_dir is not None
+    with suppress_web_session_debug_trace():
         status, data = client._json_request(
             "POST",
             client_mod.CHAT_CONVERSATION_PREPARE_URL,
             payload,
             headers,
         )
-    finally:
-        if suppress_raw_trace:
-            client.debug_trace_dir = trace_dir
 
-    if suppress_raw_trace:
+    if trace_enabled:
         writer = getattr(client, "_write_debug_trace", None)
         if callable(writer):
             response = data if isinstance(data, dict) else {}
