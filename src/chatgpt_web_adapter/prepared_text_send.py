@@ -214,6 +214,13 @@ def send_existing_text_prepared(
         # subset of that real parser state instead of exposing raw SSE events or
         # sensitive handoff/resume material outside the transport.
         original_parse_event = self._parse_event
+        instance_dict = getattr(self, "__dict__", None)
+        had_instance_parse_event = (
+            isinstance(instance_dict, dict) and "_parse_event" in instance_dict
+        )
+        previous_instance_parse_event = (
+            instance_dict.get("_parse_event") if had_instance_parse_event else None
+        )
 
         def capture_parse_event(event_payload: Any, state: dict[str, Any]):
             tokens, maybe_title = original_parse_event(event_payload, state)
@@ -239,7 +246,13 @@ def send_existing_text_prepared(
                 on_event=forward_non_token_stream_event,
             )
         finally:
-            self._parse_event = original_parse_event
+            if had_instance_parse_event:
+                self._parse_event = previous_instance_parse_event
+            else:
+                try:
+                    delattr(self, "_parse_event")
+                except AttributeError:
+                    self._parse_event = original_parse_event
 
         observed_model = stream_diagnostics.get("observed_model")
         observed_reasoning_effort = stream_diagnostics.get("observed_reasoning_effort")
