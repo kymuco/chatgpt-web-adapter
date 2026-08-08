@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Callable, Sequence
 
 from .client import DEFAULT_MODEL
-from .prepared_text_send import send_existing_text_prepared
 from .types import AttachedConversation, ChatConversation, ChatResponse, ConversationRef, MediaItem
 
 
@@ -83,15 +82,19 @@ def send_to_conversation(
             on_token=on_token,
             on_event=on_event,
         )
-    return send_existing_text_prepared(
-        self,
+
+    response = self._send_existing_text_prepared(
         prompt,
         model=resolved_model,
-        title=attached.title,
+        system=system,
         web_search=web_search,
         temporary=temporary,
         reasoning_effort=resolved_reasoning_effort,
         conversation=attached.conversation,
+        media=None,
         on_token=on_token,
         on_event=on_event,
     )
+    if response.title is None and attached.title is not None:
+        response.title = attached.title
+    return response
