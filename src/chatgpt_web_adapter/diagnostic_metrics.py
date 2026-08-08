@@ -59,17 +59,24 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
         first_token_seen = False
         first_token_latency: float | None = None
         last_token_latency: float | None = None
+        token_latency_started_at: float | None = None
         request_started_at = time.perf_counter()
         original_get_ready_requirements = self._get_ready_requirements
         original_extract_status_code = self._extract_status_code
         original_build_curl_command = self._build_curl_command
 
         def timed_get_ready_requirements() -> tuple[dict[str, Any], str | None]:
-            nonlocal requirements_latency, request_stage
+            nonlocal requirements_latency, request_stage, token_latency_started_at
             request_stage = "chat_requirements"
             started_at = time.perf_counter()
             requirements, proof_header = original_get_ready_requirements()
-            requirements_latency = time.perf_counter() - started_at
+            requirements_ready_at = time.perf_counter()
+            requirements_latency = requirements_ready_at - started_at
+            # Prepared sends measure `total` from immediately before requirements.
+            # Use the post-requirements boundary for fallback token metrics so a
+            # potentially slow prepare phase cannot make first_token > total.
+            # Legacy send() keeps its own transport-native first/last-token values.
+            token_latency_started_at = requirements_ready_at
             turnstile = requirements.get("turnstile") if isinstance(requirements, dict) else None
             _emit_event(
                 on_event,
@@ -121,14 +128,17 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
 
         def eventful_on_token(token: str) -> None:
             nonlocal first_token_seen, first_token_latency, last_token_latency
-            elapsed = time.perf_counter() - request_started_at
+            now = time.perf_counter()
+            event_elapsed = now - request_started_at
+            metric_origin = token_latency_started_at or request_started_at
+            metric_elapsed = now - metric_origin
             if first_token_latency is None:
-                first_token_latency = elapsed
-            last_token_latency = elapsed
+                first_token_latency = metric_elapsed
+            last_token_latency = metric_elapsed
             if not first_token_seen:
                 first_token_seen = True
-                _emit_event(on_event, "first_token", token=token, elapsed=elapsed)
-            _emit_event(on_event, "assistant_token", token=token, elapsed=elapsed)
+                _emit_event(on_event, "first_token", token=token, elapsed=event_elapsed)
+            _emit_event(on_event, "assistant_token", token=token, elapsed=event_elapsed)
             if on_token is not None:
                 on_token(token)
 
