@@ -57,6 +57,8 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
         request_stage: str | None = None
         stream_started = False
         first_token_seen = False
+        first_token_latency: float | None = None
+        last_token_latency: float | None = None
         request_started_at = time.perf_counter()
         original_get_ready_requirements = self._get_ready_requirements
         original_extract_status_code = self._extract_status_code
@@ -118,8 +120,11 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             return command
 
         def eventful_on_token(token: str) -> None:
-            nonlocal first_token_seen
+            nonlocal first_token_seen, first_token_latency, last_token_latency
             elapsed = time.perf_counter() - request_started_at
+            if first_token_latency is None:
+                first_token_latency = elapsed
+            last_token_latency = elapsed
             if not first_token_seen:
                 first_token_seen = True
                 _emit_event(on_event, "first_token", token=token, elapsed=elapsed)
@@ -127,7 +132,11 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             if on_token is not None:
                 on_token(token)
 
-        kwargs["on_token"] = eventful_on_token if on_event is not None else on_token
+        # Always observe the token callback internally so timing metrics remain
+        # populated even when callers do not request token/event callbacks. Public
+        # callback behavior is unchanged because _emit_event is a no-op without
+        # on_event and the original on_token is invoked only when supplied.
+        kwargs["on_token"] = eventful_on_token
         _emit_event(
             on_event,
             "request_started",
@@ -180,9 +189,15 @@ def send_with_expanded_metrics(original_send: Callable[..., Any]) -> Callable[..
             text = ""
         else:
             text = str(text)
+        previous_first_token = getattr(previous_metrics, "first_token", None)
+        previous_last_token = getattr(previous_metrics, "last_token", None)
         response.metrics = ChatMetrics(
-            first_token=getattr(previous_metrics, "first_token", None),
-            last_token=getattr(previous_metrics, "last_token", None),
+            first_token=previous_first_token
+            if previous_first_token is not None
+            else first_token_latency,
+            last_token=previous_last_token
+            if previous_last_token is not None
+            else last_token_latency,
             total=total_latency,
             requirements_latency=requirements_latency,
             stream_duration=stream_duration,
