@@ -4,8 +4,11 @@ import argparse
 import json
 from pathlib import Path
 
-from chatgpt_web_adapter import ChatGPTWebClient, DEFAULT_MODEL
-from chatgpt_web_adapter.conversation_prepare import prepare_text_turn
+from chatgpt_web_adapter import (
+    ChatGPTWebClient,
+    DEFAULT_MODEL,
+    prepare_text_turn,
+)
 
 SCHEMA = "chatgpt-web-adapter.prepare-contract-probe.v1"
 DEFAULT_PROMPT = "Reply exactly: prepare-probe-ok"
