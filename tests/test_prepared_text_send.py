@@ -13,6 +13,8 @@ from chatgpt_web_adapter.types import AttachedConversation, ChatConversation, Ch
 
 
 class PreparedClient:
+    _parse_event = staticmethod(adapter.ChatGPTWebClient._parse_event)
+
     def __init__(self) -> None:
         self.sequence: list[str] = []
         self.events: list[dict] = []
@@ -114,22 +116,37 @@ class PreparedClient:
             no_buffer=True,
         )
         self._extract_status_code("HTTP/1.1 200 OK")
-        if self.stream_metadata is not None and on_event is not None:
-            on_event(
+
+        # Mirror production `_stream_backend_payload`: metadata is consumed by
+        # `_parse_event()` into internal parser state; raw parsed SSE payloads are
+        # not forwarded through on_event.
+        if self.stream_metadata is not None:
+            parser_state = {
+                "recipient": "all",
+                "conversation_id": "conv-1",
+                "message_id": "assistant-1",
+                "parent_message_id": "assistant-1",
+                "finish_reason": "stop",
+            }
+            self._parse_event(
                 {
-                    "type": "raw_sse_event",
-                    "parsed": {
-                        "v": [
-                            {
-                                "p": "/message/metadata",
-                                "v": dict(self.stream_metadata),
-                            }
-                        ]
-                    },
-                }
+                    "v": [
+                        {
+                            "p": "/message/metadata",
+                            "v": dict(self.stream_metadata),
+                        }
+                    ]
+                },
+                parser_state,
             )
-        if on_token is not None and self.stream_result[2]:
-            on_token(self.stream_result[2])
+
+        token = self.stream_result[2]
+        if token:
+            if on_token is not None:
+                on_token(token)
+            # Production transport emits this too. The prepared integration must
+            # filter it because expanded metrics owns the public token event.
+            self._emit_event(on_event, "assistant_token", token=token)
         return self.stream_result
 
     def _poll_conversation_after_prepare(
@@ -298,7 +315,7 @@ def test_turnstile_gate_after_prepare_stops_before_final_write() -> None:
     assert client.stream_payload is None
 
 
-def test_prepared_text_send_preserves_successful_stream_metadata() -> None:
+def test_prepared_text_send_preserves_successful_stream_metadata_from_parser_state() -> None:
     client = PreparedClient()
     client.stream_metadata = {
         "model_slug": "gpt-5-6-thinking",
@@ -318,6 +335,7 @@ def test_prepared_text_send_preserves_successful_stream_metadata() -> None:
     assert response.conversation.finish_reason == "max_tokens"
     assert response.request.observed_model == "gpt-5-6-thinking"
     assert response.request.observed_reasoning_effort == "extended"
+    assert not any(event.get("type") == "raw_sse_event" for event in client.events)
 
 
 def test_prepared_text_send_polls_when_stream_handoff_has_no_text() -> None:
@@ -366,6 +384,30 @@ def test_prepared_text_send_uses_expanded_metrics_contract() -> None:
     assert response.metrics.stream_duration is not None
     assert response.metrics.chars_per_second is not None
     assert response.metrics.backend_status == 200
+
+
+def test_prepared_text_send_emits_each_assistant_token_event_once() -> None:
+    client = PreparedClient()
+    events: list[dict] = []
+    instrumented = send_with_expanded_metrics(send_existing_text_prepared)
+
+    response = instrumented(
+        client,
+        "hello",
+        model="gpt-5-6-thinking",
+        conversation=_conversation(),
+        on_event=events.append,
+    )
+
+    assert response.text == "ok"
+    assistant_token_events = [
+        event for event in events if event.get("type") == "assistant_token"
+    ]
+    assert assistant_token_events == [
+        pytest.helpers.anything
+    ] if False else assistant_token_events
+    assert len(assistant_token_events) == 1
+    assert assistant_token_events[0]["token"] == "ok"
 
 
 def test_public_client_prepared_surface_is_instrumented() -> None:
