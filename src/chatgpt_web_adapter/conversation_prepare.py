@@ -108,6 +108,55 @@ def build_prepare_headers(client: Any, *, conversation_id: str | None = None) ->
     )
 
 
+def _prepare_json_request(
+    client: Any,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+) -> tuple[int, Any]:
+    """Issue prepare without ever persisting its credential-bearing raw body.
+
+    The shared HTTP tracer records raw response bodies. A prepare response carries
+    the short-lived conduit credential, so this boundary temporarily suppresses
+    the generic trace and replaces it with a structural trace containing only
+    status, safe response keys, and token-presence state.
+    """
+
+    trace_dir_marker = object()
+    trace_dir = getattr(client, "debug_trace_dir", trace_dir_marker)
+    suppress_raw_trace = trace_dir is not trace_dir_marker and trace_dir is not None
+    if suppress_raw_trace:
+        client.debug_trace_dir = None
+    try:
+        status, data = client._json_request(
+            "POST",
+            client_mod.CHAT_CONVERSATION_PREPARE_URL,
+            payload,
+            headers,
+        )
+    finally:
+        if suppress_raw_trace:
+            client.debug_trace_dir = trace_dir
+
+    if suppress_raw_trace:
+        writer = getattr(client, "_write_debug_trace", None)
+        if callable(writer):
+            response = data if isinstance(data, dict) else {}
+            conduit_token = response.get("conduit_token")
+            writer(
+                "prepare",
+                {
+                    "method": "POST",
+                    "url": client_mod.CHAT_CONVERSATION_PREPARE_URL,
+                    "response_status": int(status),
+                    "response_keys": sorted(str(key) for key in response),
+                    "conduit_token_present": isinstance(conduit_token, str)
+                    and bool(conduit_token.strip()),
+                    "raw_response_recorded": False,
+                },
+            )
+    return int(status), data
+
+
 def prepare_text_turn(
     client: Any,
     prompt: str,
@@ -143,12 +192,7 @@ def prepare_text_turn(
         client,
         conversation_id=conversation_id if isinstance(conversation_id, str) else None,
     )
-    status, data = client._json_request(
-        "POST",
-        client_mod.CHAT_CONVERSATION_PREPARE_URL,
-        payload,
-        headers,
-    )
+    status, data = _prepare_json_request(client, payload, headers)
     response = data if isinstance(data, dict) else {}
     conduit_token = response.get("conduit_token")
     if not isinstance(conduit_token, str) or not conduit_token.strip():
