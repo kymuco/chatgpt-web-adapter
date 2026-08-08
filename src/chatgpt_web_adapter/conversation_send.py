@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, Sequence
 
 from .client import DEFAULT_MODEL
+from .prepared_text_send import send_existing_text_prepared
 from .types import AttachedConversation, ChatConversation, ChatResponse, ConversationRef, MediaItem
 
 
@@ -50,7 +51,12 @@ def send_to_conversation(
     on_token: Callable[[str], None] | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> ChatResponse:
-    """Send a prompt to an existing chatgpt.com conversation by URL or id."""
+    """Send a prompt to an existing chatgpt.com conversation by URL or id.
+
+    Ordinary text turns use the live-observed prepare/conduit path. Multimodal
+    turns deliberately remain on the legacy ``send()`` path until independently
+    characterized.
+    """
 
     attached = self.attach_conversation(url_or_id)
     resolved_model = _resolve_send_model(
@@ -64,15 +70,28 @@ def send_to_conversation(
         model=model,
         reasoning_effort=reasoning_effort,
     )
-    return self.send(
+    if media:
+        return self.send(
+            prompt,
+            model=resolved_model,
+            system=system,
+            web_search=web_search,
+            temporary=temporary,
+            reasoning_effort=resolved_reasoning_effort,
+            conversation=attached.conversation,
+            media=media,
+            on_token=on_token,
+            on_event=on_event,
+        )
+    return send_existing_text_prepared(
+        self,
         prompt,
         model=resolved_model,
-        system=system,
+        title=attached.title,
         web_search=web_search,
         temporary=temporary,
         reasoning_effort=resolved_reasoning_effort,
         conversation=attached.conversation,
-        media=media,
         on_token=on_token,
         on_event=on_event,
     )

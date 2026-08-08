@@ -5,8 +5,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import client as client_mod
 from .auth import CHAT_URL
-from .client import CHAT_CONVERSATION_PREPARE_URL
 from .types import ChatConversation
 
 PREPARE_PATH = "/backend-api/f/conversation/prepare"
@@ -14,11 +14,11 @@ PREPARE_PATH = "/backend-api/f/conversation/prepare"
 
 @dataclass(frozen=True)
 class PrepareResult:
-    """Result of an evidence-only conversation prepare request.
+    """Result of a conversation prepare request.
 
     ``conduit_token`` is intentionally excluded from repr and should never be
-    serialized into diagnostic artifacts. It exists only so a later transport
-    integration can reuse this boundary without reworking the response parser.
+    serialized into diagnostic artifacts. It exists only in memory so prepared
+    write paths can reuse the response safely.
     """
 
     status_code: int
@@ -56,11 +56,7 @@ def build_text_prepare_payload(
     timezone_offset_min: int | None = None,
     partial_query_message_id: str | None = None,
 ) -> dict[str, Any]:
-    """Build the observed ordinary-text ``conversation/prepare`` payload shape.
-
-    This is deliberately separate from ``send()``. PR7.11 uses it to probe the
-    prepare/conduit contract without silently changing the normal write path.
-    """
+    """Build the observed ordinary-text ``conversation/prepare`` payload shape."""
 
     conversation_dict = _conversation_dict(conversation)
     parent_message_id = (
@@ -147,7 +143,12 @@ def prepare_text_turn(
         client,
         conversation_id=conversation_id if isinstance(conversation_id, str) else None,
     )
-    status, data = client._json_request("POST", CHAT_CONVERSATION_PREPARE_URL, payload, headers)
+    status, data = client._json_request(
+        "POST",
+        client_mod.CHAT_CONVERSATION_PREPARE_URL,
+        payload,
+        headers,
+    )
     response = data if isinstance(data, dict) else {}
     conduit_token = response.get("conduit_token")
     if not isinstance(conduit_token, str) or not conduit_token.strip():
