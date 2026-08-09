@@ -7,21 +7,10 @@ from pathlib import Path
 from chatgpt_web_adapter import (
     ChatGPTWebClient,
     probe_sentinel_requirements_prepare,
+    sentinel_requirements as sentinel_contract,
 )
 
 SCHEMA = "chatgpt-web-adapter.sentinel-requirements-contract-probe.v1"
-
-OBSERVED_FINALIZE_REQUEST_KEYS = [
-    "prepare_token",
-    "proofofwork",
-    "turnstile",
-]
-OBSERVED_FINALIZE_RESPONSE_KEYS = [
-    "persona",
-    "token",
-    "expire_after",
-    "expire_at",
-]
 
 
 def build_report(result) -> dict:
@@ -40,6 +29,7 @@ def build_report(result) -> dict:
         "sentinel_prepare": {
             "status_code": result.status_code,
             "status_ok": result.status_ok,
+            "observed_shape_matches": result.observed_shape_matches,
             "persona_present": result.persona_present,
             "prepare_token_present": result.prepare_token_present,
             "response_keys": list(result.response_keys),
@@ -60,8 +50,8 @@ def build_report(result) -> dict:
             },
         },
         "browser_observed_finalize_contract": {
-            "request_keys": OBSERVED_FINALIZE_REQUEST_KEYS,
-            "response_keys": OBSERVED_FINALIZE_RESPONSE_KEYS,
+            "request_keys": list(sentinel_contract.OBSERVED_FINALIZE_REQUEST_KEYS),
+            "response_keys": list(sentinel_contract.OBSERVED_FINALIZE_RESPONSE_KEYS),
             "network_invocation_attempted_by_probe": False,
         },
         "governance": {
@@ -70,22 +60,6 @@ def build_report(result) -> dict:
             "legacy_single_step_current_write_live_validated": False,
         },
     }
-
-
-def verdict(report: dict) -> str:
-    prepare = report["sentinel_prepare"]
-    full_shape = (
-        prepare["status_ok"]
-        and prepare["prepare_token_present"]
-        and prepare["turnstile"]["present"]
-        and prepare["proofofwork"]["present"]
-        and prepare["so"]["present"]
-    )
-    if full_shape:
-        return "TWO_PHASE_SENTINEL_PREPARE_OBSERVED"
-    if prepare["status_ok"]:
-        return "SENTINEL_PREPARE_PARTIAL_SHAPE"
-    return "SENTINEL_PREPARE_REJECTED"
 
 
 def main() -> None:
@@ -106,7 +80,7 @@ def main() -> None:
     client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
     result = probe_sentinel_requirements_prepare(client)
     report = build_report(result)
-    report["verdict"] = verdict(report)
+    report["verdict"] = result.verdict
 
     output = Path(args.output)
     output.write_text(

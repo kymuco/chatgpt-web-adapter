@@ -11,6 +11,16 @@ SENTINEL_PREPARE_PATH = "/backend-api/sentinel/chat-requirements/prepare"
 SENTINEL_FINALIZE_PATH = "/backend-api/sentinel/chat-requirements/finalize"
 
 OBSERVED_PREPARE_REQUEST_KEYS = ("p",)
+OBSERVED_PREPARE_RESPONSE_KEYS = (
+    "persona",
+    "prepare_token",
+    "proofofwork",
+    "so",
+    "turnstile",
+)
+OBSERVED_TURNSTILE_KEYS = ("dx", "required")
+OBSERVED_PROOFOFWORK_KEYS = ("difficulty", "required", "seed")
+OBSERVED_SO_KEYS = ("collector_dx", "required", "snapshot_dx")
 OBSERVED_FINALIZE_REQUEST_KEYS = (
     "prepare_token",
     "proofofwork",
@@ -22,6 +32,13 @@ OBSERVED_FINALIZE_RESPONSE_KEYS = (
     "expire_after",
     "expire_at",
 )
+
+
+def _contains_observed_keys(
+    actual: tuple[str, ...],
+    expected: tuple[str, ...],
+) -> bool:
+    return set(expected).issubset(actual)
 
 
 @dataclass(frozen=True)
@@ -46,6 +63,48 @@ class SentinelPrepareProbeResult:
     so_present: bool
     so_required: bool
     so_keys: tuple[str, ...]
+
+    @property
+    def observed_shape_matches(self) -> bool:
+        """Whether all live-observed structural keys are still present.
+
+        Extra keys are allowed so additive server changes do not cause a false
+        rejection. Challenge ``required`` values are deliberately not frozen:
+        their booleans may vary by current server policy/session risk.
+        """
+
+        return (
+            self.status_ok
+            and self.persona_present
+            and self.prepare_token_present
+            and _contains_observed_keys(
+                self.response_keys,
+                OBSERVED_PREPARE_RESPONSE_KEYS,
+            )
+            and self.turnstile_present
+            and _contains_observed_keys(
+                self.turnstile_keys,
+                OBSERVED_TURNSTILE_KEYS,
+            )
+            and self.proofofwork_present
+            and _contains_observed_keys(
+                self.proofofwork_keys,
+                OBSERVED_PROOFOFWORK_KEYS,
+            )
+            and self.so_present
+            and _contains_observed_keys(
+                self.so_keys,
+                OBSERVED_SO_KEYS,
+            )
+        )
+
+    @property
+    def verdict(self) -> str:
+        if self.observed_shape_matches:
+            return "TWO_PHASE_SENTINEL_PREPARE_OBSERVED"
+        if self.status_ok:
+            return "SENTINEL_PREPARE_PARTIAL_SHAPE"
+        return "SENTINEL_PREPARE_REJECTED"
 
 
 def _mapping_keys(value: Any) -> tuple[str, ...]:
@@ -152,6 +211,7 @@ def probe_sentinel_requirements_prepare(client: Any) -> SentinelPrepareProbeResu
                     "so_present": result.so_present,
                     "so_required": result.so_required,
                     "so_keys": list(result.so_keys),
+                    "observed_shape_matches": result.observed_shape_matches,
                     "raw_request_recorded": False,
                     "raw_response_recorded": False,
                     "challenge_values_recorded": False,

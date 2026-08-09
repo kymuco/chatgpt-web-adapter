@@ -18,7 +18,7 @@ def _response(secret_prefix: str = "secret") -> dict:
         "proofofwork": {
             "required": True,
             "seed": f"{secret_prefix}-pow-seed",
-            "difficulty": "06eb35",
+            "difficulty": f"{secret_prefix}-pow-difficulty",
         },
         "so": {
             "required": True,
@@ -28,10 +28,22 @@ def _response(secret_prefix: str = "secret") -> dict:
     }
 
 
-def test_sentinel_prepare_probe_retains_structure_only(tmp_path: Path) -> None:
+def test_sentinel_prepare_probe_retains_structure_only(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import chatgpt_web_adapter.sentinel_requirements as sentinel
+
+    derived_p = "secret-derived-p"
+    monkeypatch.setattr(
+        sentinel.client_mod,
+        "_get_requirements_token",
+        lambda value: derived_p,
+    )
+
     class TraceClient(adapter.ChatGPTWebClient):
         def __init__(self) -> None:
-            self.auth = SimpleNamespace(proof_token=None)
+            self.auth = SimpleNamespace(proof_token=["browser-fingerprint"])
             self.debug_trace_dir = tmp_path
             self.debug_trace_sanitize = False
             self._debug_trace_counter = 0
@@ -41,6 +53,7 @@ def test_sentinel_prepare_probe_retains_structure_only(tmp_path: Path) -> None:
             return {key: value for key, value in extra.items() if value is not None}
 
         def _json_request(self, method, url, payload, headers):
+            assert payload == {"p": derived_p}
             response = _response()
             self._write_debug_trace(
                 "http",
@@ -54,6 +67,8 @@ def test_sentinel_prepare_probe_retains_structure_only(tmp_path: Path) -> None:
     result = adapter.probe_sentinel_requirements_prepare(TraceClient())
 
     assert result.status_ok is True
+    assert result.observed_shape_matches is True
+    assert result.verdict == "TWO_PHASE_SENTINEL_PREPARE_OBSERVED"
     assert result.prepare_token_present is True
     assert result.turnstile_required is True
     assert result.proofofwork_required is True
@@ -73,15 +88,19 @@ def test_sentinel_prepare_probe_retains_structure_only(tmp_path: Path) -> None:
     assert len(traces) == 1
     rendered = traces[0].read_text(encoding="utf-8")
     for secret in (
+        derived_p,
         "secret-prepare-token",
         "secret-turnstile-dx",
         "secret-pow-seed",
+        "secret-pow-difficulty",
         "secret-collector",
         "secret-snapshot",
     ):
         assert secret not in rendered
 
     payload = json.loads(rendered)
+    assert payload["p_present"] is True
+    assert payload["observed_shape_matches"] is True
     assert payload["raw_request_recorded"] is False
     assert payload["raw_response_recorded"] is False
     assert payload["challenge_values_recorded"] is False
@@ -117,8 +136,10 @@ def test_sentinel_prepare_probe_uses_observed_request_shape(monkeypatch) -> None
         lambda value: "derived-p",
     )
 
-    adapter.probe_sentinel_requirements_prepare(Client())
+    result = adapter.probe_sentinel_requirements_prepare(Client())
 
+    assert result.observed_shape_matches is True
+    assert result.verdict == "TWO_PHASE_SENTINEL_PREPARE_OBSERVED"
     assert captured["method"] == "POST"
     assert captured["url"].endswith(
         "/backend-api/sentinel/chat-requirements/prepare"
@@ -132,8 +153,32 @@ def test_sentinel_prepare_probe_uses_observed_request_shape(monkeypatch) -> None
     )
 
 
-def test_two_phase_finalize_shape_is_observed_not_executed() -> None:
-    import chatgpt_web_adapter.sentinel_requirements as sentinel
+def test_sentinel_prepare_verdict_detects_nested_schema_drift() -> None:
+    response = _response("drift")
+    del response["turnstile"]["dx"]
+
+    class Client:
+        auth = SimpleNamespace(proof_token=None)
+        debug_trace_dir = None
+
+        @staticmethod
+        def _build_headers(extra):
+            return {key: value for key, value in extra.items() if value is not None}
+
+        @staticmethod
+        def _json_request(method, url, payload, headers):
+            return 200, response
+
+    result = adapter.probe_sentinel_requirements_prepare(Client())
+
+    assert result.status_ok is True
+    assert result.turnstile_present is True
+    assert result.observed_shape_matches is False
+    assert result.verdict == "SENTINEL_PREPARE_PARTIAL_SHAPE"
+
+
+def test_two_phase_finalize_shape_is_canonical_in_sentinel_module() -> None:
+    from chatgpt_web_adapter import sentinel_requirements as sentinel
 
     assert sentinel.OBSERVED_FINALIZE_REQUEST_KEYS == (
         "prepare_token",
