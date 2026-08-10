@@ -227,3 +227,18 @@ def test_final_headers_require_consumed_bundle_and_context_resets() -> None:
     )
     assert gated_requirements(client)[0]["token"] == "legacy"
     assert legacy_calls == ["legacy"]
+
+
+def test_prepared_context_syncs_device_header_before_body() -> None:
+    client = SimpleNamespace(
+        auth=SimpleNamespace(cookies={"oai-did": "device-123"}),
+        base_headers={},
+    )
+    seen = {}
+
+    def prepared_body(self):
+        seen["device_header"] = self.base_headers.get("oai-device-id")
+        return "ok"
+
+    assert gate_prepared_text_send(prepared_body)(client) == "ok"
+    assert seen["device_header"] == "device-123"
