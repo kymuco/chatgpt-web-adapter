@@ -147,8 +147,14 @@ def test_finalize_failure_never_restores_one_shot_turnstile() -> None:
 
 
 def test_bundle_credentials_do_not_participate_in_repr_or_equality() -> None:
-    first = FinalizedSentinelBundle("a", "b", "c", 1.0, 2.0)
-    second = FinalizedSentinelBundle("a", "b", "c", 1.0, 2.0)
+    requirements = "UNIQUE_REQUIREMENTS_SECRET_9f47"
+    proof = "UNIQUE_PROOF_SECRET_2a81"
+    turnstile = "UNIQUE_TURNSTILE_SECRET_6c35"
+    first = FinalizedSentinelBundle(requirements, proof, turnstile, 1.0, 2.0)
+    second = FinalizedSentinelBundle(requirements, proof, turnstile, 1.0, 2.0)
     assert first is not second
     assert first != second
-    assert "a" not in repr(first)
+    rendered = repr(first)
+    assert requirements not in rendered
+    assert proof not in rendered
+    assert turnstile not in rendered
