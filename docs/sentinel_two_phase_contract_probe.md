@@ -109,8 +109,11 @@ one structural `sentinel-prepare` trace.
 
 `TWO_PHASE_SENTINEL_PREPARE_OBSERVED`
 
-: HTTP success plus the observed `prepare_token`, `turnstile`, `proofofwork`, and
-  `so` blocks.
+: HTTP success plus a non-empty observed `persona` and `prepare_token`, with
+  every live-observed top-level and nested structural key still present in the
+  `turnstile`, `proofofwork`, and `so` blocks. Additional server keys are allowed.
+  Challenge `required` booleans are recorded but are not frozen into the pass
+  criterion because server policy may vary by session or risk context.
 
 `SENTINEL_PREPARE_PARTIAL_SHAPE`
 

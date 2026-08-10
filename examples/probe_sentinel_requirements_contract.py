@@ -6,8 +6,9 @@ from pathlib import Path
 
 from chatgpt_web_adapter import (
     ChatGPTWebClient,
+    OBSERVED_FINALIZE_REQUEST_KEYS,
+    OBSERVED_FINALIZE_RESPONSE_KEYS,
     probe_sentinel_requirements_prepare,
-    sentinel_requirements as sentinel_contract,
 )
 
 SCHEMA = "chatgpt-web-adapter.sentinel-requirements-contract-probe.v1"
@@ -50,8 +51,8 @@ def build_report(result) -> dict:
             },
         },
         "browser_observed_finalize_contract": {
-            "request_keys": list(sentinel_contract.OBSERVED_FINALIZE_REQUEST_KEYS),
-            "response_keys": list(sentinel_contract.OBSERVED_FINALIZE_RESPONSE_KEYS),
+            "request_keys": list(OBSERVED_FINALIZE_REQUEST_KEYS),
+            "response_keys": list(OBSERVED_FINALIZE_RESPONSE_KEYS),
             "network_invocation_attempted_by_probe": False,
         },
         "governance": {

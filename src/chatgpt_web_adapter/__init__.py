@@ -11,6 +11,8 @@ from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
 from .sentinel_requirements import (
+    OBSERVED_FINALIZE_REQUEST_KEYS,
+    OBSERVED_FINALIZE_RESPONSE_KEYS,
     SentinelPrepareProbeResult,
     probe_sentinel_requirements_prepare,
 )
@@ -171,6 +173,8 @@ EXPERIMENTAL_PREPARE_EXPORTS = [
 ]
 
 EXPERIMENTAL_SENTINEL_EXPORTS = [
+    "OBSERVED_FINALIZE_REQUEST_KEYS",
+    "OBSERVED_FINALIZE_RESPONSE_KEYS",
     "SentinelPrepareProbeResult",
     "probe_sentinel_requirements_prepare",
 ]

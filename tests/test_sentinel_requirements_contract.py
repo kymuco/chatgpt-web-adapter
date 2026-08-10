@@ -177,17 +177,53 @@ def test_sentinel_prepare_verdict_detects_nested_schema_drift() -> None:
     assert result.verdict == "SENTINEL_PREPARE_PARTIAL_SHAPE"
 
 
-def test_two_phase_finalize_shape_is_canonical_in_sentinel_module() -> None:
-    from chatgpt_web_adapter import sentinel_requirements as sentinel
+def test_sentinel_prepare_allows_additive_keys_and_nonrequired_challenges() -> None:
+    response = _response("additive")
+    response["server_extension"] = {"version": 2}
+    response["turnstile"]["required"] = False
+    response["turnstile"]["extra"] = "ignored"
+    response["proofofwork"]["required"] = False
+    response["proofofwork"]["extra"] = "ignored"
+    response["so"]["required"] = False
+    response["so"]["extra"] = "ignored"
 
-    assert sentinel.OBSERVED_FINALIZE_REQUEST_KEYS == (
+    class Client:
+        auth = SimpleNamespace(proof_token=None)
+        debug_trace_dir = None
+
+        @staticmethod
+        def _build_headers(extra):
+            return {key: value for key, value in extra.items() if value is not None}
+
+        @staticmethod
+        def _json_request(method, url, payload, headers):
+            return 200, response
+
+    result = adapter.probe_sentinel_requirements_prepare(Client())
+
+    assert result.status_ok is True
+    assert result.turnstile_required is False
+    assert result.proofofwork_required is False
+    assert result.so_required is False
+    assert "server_extension" in result.response_keys
+    assert "extra" in result.turnstile_keys
+    assert "extra" in result.proofofwork_keys
+    assert "extra" in result.so_keys
+    assert result.observed_shape_matches is True
+    assert result.verdict == "TWO_PHASE_SENTINEL_PREPARE_OBSERVED"
+
+
+def test_two_phase_finalize_shape_is_public_contract() -> None:
+    assert adapter.OBSERVED_FINALIZE_REQUEST_KEYS == (
         "prepare_token",
         "proofofwork",
         "turnstile",
     )
-    assert sentinel.OBSERVED_FINALIZE_RESPONSE_KEYS == (
+    assert adapter.OBSERVED_FINALIZE_RESPONSE_KEYS == (
         "persona",
         "token",
         "expire_after",
         "expire_at",
     )
+    assert "OBSERVED_FINALIZE_REQUEST_KEYS" in adapter.__all__
+    assert "OBSERVED_FINALIZE_RESPONSE_KEYS" in adapter.__all__
