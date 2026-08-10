@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from .exceptions import RequestError
 from .sentinel_transaction import FinalizedSentinelBundle, acquire_finalized_sentinel_bundle
+from .web_session import _sync_device_header
 
 CONVERSATION_PREPARE_PATH = "/backend-api/f/conversation/prepare"
 CONVERSATION_PATH = "/backend-api/f/conversation"
@@ -301,6 +302,8 @@ def gate_prepared_text_send(original_send: Callable[..., Any]) -> Callable[..., 
 
     @wraps(original_send)
     def send(self: Any, *args: Any, **kwargs: Any) -> Any:
+        if getattr(self, "auth", None) is not None:
+            _sync_device_header(self)
         active_token = _PREPARED_SEND_ACTIVE.set(True)
         trace_token = _PREPARED_TURN_TRACE_ID.set(str(uuid.uuid4()))
         event_token = _PREPARED_ON_EVENT.set(kwargs.get("on_event"))
