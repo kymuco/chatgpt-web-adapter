@@ -6,15 +6,18 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- compatibility: prepared ordinary-text writes to existing conversations now consume one current two-phase finalized Sentinel bundle (`requirements` + proof + Turnstile) and never call the legacy single-step requirements path; new-chat and multimodal sends remain unchanged
+- compatibility: finalized Sentinel bundles are monotonic-expiry, exclusive-reservation, one-write-attempt credentials; unknown write outcomes never restore/replay a consumed bundle, and supplied browser Turnstile evidence is one-shot
+- compatibility: conversation prepare and final write now share one `x-oai-turn-trace-id`; local reuse of one user-message id across `partial_query` and the final message is documented as an adapter choice rather than a required browser invariant
+- security: conduit and all three Sentinel write headers are always redacted from debug traces even when ordinary trace sanitization is disabled; Sentinel prepare/finalize raw bodies remain suppressed in favor of structural traces
+- diagnostics: existing prepared-send requirements timing now measures the execution-local finalized-bundle acquisition/consumption boundary while preserving the established `requirements_ready` event shape
 - diagnostics: added a privacy-safe probe for the current two-phase Sentinel `chat-requirements/prepare` contract; it records only status/key/presence structure and stops before challenge finalization or any conversation write
-- compatibility: live browser evidence now records a current `chat-requirements/prepare -> chat-requirements/finalize` Sentinel sequence; the legacy single-step requirements path remains unchanged in production but is not considered live-validated for the current prepared-write contract
-- compatibility: ordinary text writes to existing conversations now use the live-observed `conversation/prepare` -> conduit-token -> fresh chat-requirements/Turnstile -> `/f/conversation` sequence; warmup-prefetched requirements are discarded before prepare, while new-chat and multimodal writes remain unchanged pending independent evidence
-- compatibility: prepared existing-conversation writes reuse one user message id across `partial_query` and the final message, require `client_prepare_state: success`, and fail closed before the final write on prepare/conduit/Turnstile failures
+- compatibility: live browser evidence now records a current `chat-requirements/prepare -> chat-requirements/finalize` Sentinel sequence; the legacy single-step requirements path remains unchanged for legacy sends but is not considered live-validated for the current prepared-write contract
 - compatibility: any `stream_handoff` observed on the prepared existing-text path forces bounded conversation recovery even when the initial stream already contains a text prefix and assistant id; recovered prefix extensions emit only the missing token suffix
 - diagnostics: prepare responses never serialize raw conduit-token credentials into debug traces; credential-bearing generic HTTP tracing is suppressed for prepare and replaced with a structural status/key/presence trace
 - diagnostics: prepared existing-text writes retain the established expanded send instrumentation (request/requirements/stream lifecycle events, structured request errors, and latency/backend metrics); successful streams copy only allowlisted model/reasoning/finish fields from the real private parser state, without exposing raw SSE or handoff credentials
 - diagnostics: prepared existing-text streaming emits each public structured `assistant_token` once by keeping expanded send instrumentation as the token-event owner and filtering the lower-level duplicate transport event
-- diagnostics: prepared-write lifecycle events expose only structural token-presence state, while final-write traces continue to redact `x-conduit-token`
+- diagnostics: prepared-write lifecycle events expose only structural token-presence state
 - diagnostics: added an ordinary-text `conversation/prepare` contract probe that records structural evidence without serializing prompt text, ids, raw responses, or conduit-token values
 - compatibility: added a reusable text prepare/conduit boundary using the observed `partial_query` shape and initial `x-conduit-token: no-token`
 - models: the default reasoning path now uses the live-observed GPT-5.6 web slug `gpt-5-6-thinking`; Medium maps to `standard` and High maps to `extended`
