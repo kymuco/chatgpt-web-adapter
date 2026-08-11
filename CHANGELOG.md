@@ -6,6 +6,8 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- diagnostics: added a privacy-safe probe for the current two-phase Sentinel `chat-requirements/prepare` contract; it records only status/key/presence structure and stops before challenge finalization or any conversation write
+- compatibility: live browser evidence now records a current `chat-requirements/prepare -> chat-requirements/finalize` Sentinel sequence; the legacy single-step requirements path remains unchanged in production but is not considered live-validated for the current prepared-write contract
 - compatibility: ordinary text writes to existing conversations now use the live-observed `conversation/prepare` -> conduit-token -> fresh chat-requirements/Turnstile -> `/f/conversation` sequence; warmup-prefetched requirements are discarded before prepare, while new-chat and multimodal writes remain unchanged pending independent evidence
 - compatibility: prepared existing-conversation writes reuse one user message id across `partial_query` and the final message, require `client_prepare_state: success`, and fail closed before the final write on prepare/conduit/Turnstile failures
 - compatibility: any `stream_handoff` observed on the prepared existing-text path forces bounded conversation recovery even when the initial stream already contains a text prefix and assistant id; recovered prefix extensions emit only the missing token suffix

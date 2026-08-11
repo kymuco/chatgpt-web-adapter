@@ -10,6 +10,12 @@ from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
+from .sentinel_requirements import (
+    OBSERVED_FINALIZE_REQUEST_KEYS,
+    OBSERVED_FINALIZE_RESPONSE_KEYS,
+    SentinelPrepareProbeResult,
+    probe_sentinel_requirements_prepare,
+)
 from .conversation_send import send_to_conversation as _send_to_conversation
 from .exceptions import (
     AuthError,
@@ -166,6 +172,13 @@ EXPERIMENTAL_PREPARE_EXPORTS = [
     "prepare_text_turn",
 ]
 
+EXPERIMENTAL_SENTINEL_EXPORTS = [
+    "OBSERVED_FINALIZE_REQUEST_KEYS",
+    "OBSERVED_FINALIZE_RESPONSE_KEYS",
+    "SentinelPrepareProbeResult",
+    "probe_sentinel_requirements_prepare",
+]
+
 SUPPORT_EXPORTS = [
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
@@ -181,5 +194,6 @@ __all__ = [
     *EXPERIMENTAL_REQUIRED_ACTION_EXPORTS,
     *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
     *EXPERIMENTAL_PREPARE_EXPORTS,
+    *EXPERIMENTAL_SENTINEL_EXPORTS,
     *SUPPORT_EXPORTS,
 ]
