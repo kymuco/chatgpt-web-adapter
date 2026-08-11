@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -103,6 +104,16 @@ def _mapping_has_keys(value: Any, expected: tuple[str, ...]) -> bool:
     return isinstance(value, dict) and set(expected).issubset(value.keys())
 
 
+def _validate_required_flag(block: dict[str, Any], *, name: str, status: int) -> None:
+    if not isinstance(block.get("required"), bool):
+        raise RequestError(
+            f"SENTINEL_PREPARE_CONTRACT_DRIFT: {name}.required is not boolean",
+            status_code=int(status),
+            endpoint=SENTINEL_PREPARE_PATH,
+            request_stage="sentinel_prepare",
+        )
+
+
 def _required_descriptor(value: Any, *, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise RequestError(
@@ -150,9 +161,9 @@ def _challenge_context(
             so.get("snapshot_dx"),
             name="so.snapshot_dx",
         ),
-        turnstile_required=bool(turnstile.get("required")),
-        proofofwork_required=bool(proofofwork.get("required")),
-        so_required=bool(so.get("required")),
+        turnstile_required=turnstile["required"],
+        proofofwork_required=proofofwork["required"],
+        so_required=so["required"],
     )
 
 
@@ -300,6 +311,9 @@ def _validate_prepare_response(status: int, data: Any) -> tuple[dict[str, Any], 
             endpoint=SENTINEL_PREPARE_PATH,
             request_stage="sentinel_prepare",
         )
+    _validate_required_flag(data["turnstile"], name="turnstile", status=status)
+    _validate_required_flag(data["proofofwork"], name="proofofwork", status=status)
+    _validate_required_flag(data["so"], name="so", status=status)
     return data, prepare_token.strip()
 
 
@@ -355,6 +369,13 @@ def _validate_finalize_response(
             request_stage="sentinel_finalize",
         )
     ttl = float(expire_after)
+    if not math.isfinite(ttl):
+        raise RequestError(
+            "SENTINEL_FINALIZE_CONTRACT_DRIFT: expire_after is not finite",
+            status_code=int(status),
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_finalize",
+        )
     if ttl <= SENTINEL_EXPIRY_SAFETY_MARGIN_SECONDS:
         raise RequestError(
             "SENTINEL_FINALIZE_CONTRACT_DRIFT: expire_after is too small",
@@ -397,9 +418,9 @@ def acquire_finalized_sentinel_bundle(
             "response_status": int(prepare_status),
             "response_keys": sorted(str(key) for key in response),
             "prepare_token_present": True,
-            "turnstile_required": bool(turnstile.get("required")),
-            "proofofwork_required": bool(proofofwork.get("required")),
-            "so_required": bool(so.get("required")),
+            "turnstile_required": turnstile["required"],
+            "proofofwork_required": proofofwork["required"],
+            "so_required": so["required"],
             "raw_request_recorded": False,
             "raw_response_recorded": False,
             "challenge_values_recorded": False,
@@ -411,15 +432,15 @@ def acquire_finalized_sentinel_bundle(
         "sentinel_prepare_succeeded",
         status_code=int(prepare_status),
         prepare_token_present=True,
-        turnstile_required=bool(turnstile.get("required")),
-        proofofwork_required=bool(proofofwork.get("required")),
-        so_required=bool(so.get("required")),
+        turnstile_required=turnstile["required"],
+        proofofwork_required=proofofwork["required"],
+        so_required=so["required"],
     )
     if not all(
         (
-            bool(turnstile.get("required")),
-            bool(proofofwork.get("required")),
-            bool(so.get("required")),
+            turnstile["required"] is True,
+            proofofwork["required"] is True,
+            so["required"] is True,
         )
     ):
         raise RequestError(
