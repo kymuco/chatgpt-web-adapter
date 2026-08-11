@@ -114,6 +114,30 @@ def _validate_required_flag(block: dict[str, Any], *, name: str, status: int) ->
         )
 
 
+def _validate_pow_descriptor(block: dict[str, Any], *, status: int) -> None:
+    seed = block.get("seed")
+    difficulty = block.get("difficulty")
+    if not isinstance(seed, str) or not seed.strip():
+        raise RequestError(
+            "SENTINEL_PREPARE_CONTRACT_DRIFT: proofofwork.seed is not a non-empty string",
+            status_code=int(status),
+            endpoint=SENTINEL_PREPARE_PATH,
+            request_stage="sentinel_prepare",
+        )
+    if (
+        not isinstance(difficulty, str)
+        or not difficulty
+        or difficulty != difficulty.strip()
+        or any(character not in "0123456789abcdefABCDEF" for character in difficulty)
+    ):
+        raise RequestError(
+            "SENTINEL_PREPARE_CONTRACT_DRIFT: proofofwork.difficulty is not a non-empty hex string",
+            status_code=int(status),
+            endpoint=SENTINEL_PREPARE_PATH,
+            request_stage="sentinel_prepare",
+        )
+
+
 def _required_descriptor(value: Any, *, name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise RequestError(
@@ -314,6 +338,7 @@ def _validate_prepare_response(status: int, data: Any) -> tuple[dict[str, Any], 
     _validate_required_flag(data["turnstile"], name="turnstile", status=status)
     _validate_required_flag(data["proofofwork"], name="proofofwork", status=status)
     _validate_required_flag(data["so"], name="so", status=status)
+    _validate_pow_descriptor(data["proofofwork"], status=status)
     return data, prepare_token.strip()
 
 
