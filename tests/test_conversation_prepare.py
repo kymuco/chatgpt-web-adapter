@@ -77,7 +77,35 @@ def test_prepare_text_turn_retains_token_only_in_memory() -> None:
     assert payload["partial_query"]["content"]["parts"] == ["secret prompt"]
 
 
-def test_normal_send_is_not_wired_to_prepare_boundary() -> None:
-    source = inspect.getsource(adapter.ChatGPTWebClient.send)
-    assert "prepare_text_turn" not in source
-    assert "CHAT_CONVERSATION_PREPARE_URL" not in source
+def test_normal_send_is_wired_to_prepare_boundary_when_provider_is_installed() -> None:
+    source = inspect.getsource(adapter._original_send)
+    assert "prepare_text_turn" in source
+    assert "CHAT_CONVERSATION_PREPARE_URL" in source
+
+
+def test_new_chat_prepare_omits_partial_query_and_initial_conduit() -> None:
+    class Client:
+        def _build_headers(self, extra):
+            return {key: value for key, value in extra.items() if value is not None}
+
+        def _json_request(self, method, url, payload, headers):
+            assert "partial_query" not in payload
+            assert payload["client_prepare_state"] == "none"
+            assert payload["client_prepare_dispatch"] == "debounced"
+            assert payload["client_prepare_source"] == "window_focus"
+            assert "x-conduit-token" not in headers
+            return 200, {"status": "ok", "conduit_token": "secret-conduit"}
+
+    result, payload = prepare_text_turn(
+        Client(),
+        "hello",
+        model="gpt-5-6-thinking",
+        include_partial_query=False,
+        client_prepare_state="none",
+        client_prepare_dispatch="debounced",
+        client_prepare_source="window_focus",
+        initial_conduit_token=None,
+    )
+
+    assert result.status_ok is True
+    assert "partial_query" not in payload

@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import base64
 import json
 
 import chatgpt_web_adapter as adapter
 import pytest
 
 from chatgpt_web_adapter.auth import build_base_headers
+
+
+def _expired_access_token() -> str:
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').decode("ascii").rstrip("=")
+    payload = base64.urlsafe_b64encode(b'{"exp":1}').decode("ascii").rstrip("=")
+    return f"{header}.{payload}.signature"
 
 
 def test_load_auth_data_uses_env_token_when_auth_file_is_missing(
@@ -120,6 +127,30 @@ def test_explicit_chunked_browser_session_cookies_win_over_session_token(tmp_pat
     assert auth.cookies["__Secure-next-auth.session-token.1"] == "chunk-one"
 
 
+def test_chunked_session_cookies_remove_conflicting_nonchunked_cookie(tmp_path) -> None:
+    auth_file = tmp_path / "auth_data.json"
+    auth_file.write_text(
+        json.dumps(
+            {
+                "accessToken": "not.a.jwt",
+                "sessionToken": "json-fallback",
+                "cookies": {
+                    "__Secure-next-auth.session-token": "conflicting-fallback",
+                    "__Secure-next-auth.session-token.0": "chunk-zero",
+                    "__Secure-next-auth.session-token.1": "chunk-one",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    auth = adapter.load_auth_data(auth_file)
+
+    assert "__Secure-next-auth.session-token" not in auth.cookies
+    assert auth.cookies["__Secure-next-auth.session-token.0"] == "chunk-zero"
+    assert auth.cookies["__Secure-next-auth.session-token.1"] == "chunk-one"
+
+
 def test_oai_did_cookie_seeds_device_header() -> None:
     auth = adapter.AuthData(
         accessToken="token",
@@ -129,3 +160,28 @@ def test_oai_did_cookie_seeds_device_header() -> None:
     headers = build_base_headers(auth)
 
     assert headers["oai-device-id"] == "device-id"
+
+
+def test_expired_access_token_can_be_loaded_only_for_session_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("accessToken", raising=False)
+    auth_file = tmp_path / "auth_data.json"
+    auth_file.write_text(
+        json.dumps(
+            {
+                "accessToken": _expired_access_token(),
+                "sessionToken": "refreshable-session",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(adapter.AuthError, match="expired"):
+        adapter.load_auth_data(auth_file)
+
+    auth = adapter.load_auth_data(auth_file, allow_expired_session_refresh=True)
+    assert auth.accessToken is None
+    assert auth.cookies["__Secure-next-auth.session-token"] == "refreshable-session"

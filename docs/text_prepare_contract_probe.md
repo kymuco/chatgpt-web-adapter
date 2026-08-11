@@ -63,9 +63,10 @@ The live PR7.11 run reproduced `PREPARE_CONTRACT_OBSERVED`: prepare returned HTT
 200 with `status=ok` and a conduit token while the report retained only structural
 evidence.
 
-PR7.11a therefore integrates this contract only into ordinary text writes to an
-existing conversation. The direct new-chat `ChatGPTWebClient.send()` path and
-multimodal writes remain outside that integration pending independent evidence.
+The original PR7.11a integration covered only ordinary text writes to an existing
+conversation. Later live HAR evidence added the distinct new-chat prepare shape,
+and normal new-chat and multimodal `ChatGPTWebClient.send()` writes now use that
+shape whenever a finalized Sentinel bundle provider is installed.
 
 The original PR7.11 regression remains useful: the evidence-only probe itself
 still performs no final conversation write.

@@ -86,6 +86,13 @@ def _has_session_cookie(auth: AuthData) -> bool:
     )
 
 
+def _normalize_session_cookies(auth: AuthData) -> None:
+    """Prefer browser-issued chunked cookies over a non-chunked fallback."""
+
+    if any(name.startswith(f"{CHATGPT_SESSION_COOKIE}.") for name in auth.cookies):
+        auth.cookies.pop(CHATGPT_SESSION_COOKIE, None)
+
+
 def _seed_session_cookie_from_auth_file(auth: AuthData, auth_path: Path) -> None:
     """Best-effort mapping for a raw ``/api/auth/session`` JSON dump.
 
@@ -107,7 +114,11 @@ def _seed_session_cookie_from_auth_file(auth: AuthData, auth_path: Path) -> None
         auth.cookies[CHATGPT_SESSION_COOKIE] = session_token.strip()
 
 
-def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
+def load_auth_data(
+    auth_file: str | Path = DEFAULT_AUTH_FILE,
+    *,
+    allow_expired_session_refresh: bool = False,
+) -> AuthData:
     auth_path = Path(auth_file)
     try:
         auth = AuthData.from_json(auth_path)
@@ -119,6 +130,7 @@ def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
         raise AuthError(f"Failed to parse auth data from {auth_path}: {error}") from error
 
     _seed_session_cookie_from_auth_file(auth, auth_path)
+    _normalize_session_cookies(auth)
 
     candidates: list[tuple[str, str]] = []
     if auth.accessToken:
@@ -127,6 +139,8 @@ def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
     if env_access_token and env_access_token != auth.accessToken:
         candidates.append((".env:accessToken", env_access_token))
 
+    auth.accessToken = None
+    auth.accessTokenSource = None
     expired_sources: list[str] = []
     now_utc = datetime.now(timezone.utc)
     for source, token in candidates:
@@ -142,6 +156,8 @@ def load_auth_data(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthData:
         break
 
     if not auth.accessToken:
+        if allow_expired_session_refresh and _has_session_cookie(auth):
+            return auth
         if expired_sources:
             raise AuthError(
                 "All available access tokens are expired: "

@@ -7,6 +7,9 @@
 Primary files:
 
 - `src/chatgpt_web_adapter/auth.py`
+- `src/chatgpt_web_adapter/auth_browser.py`
+- `src/chatgpt_web_adapter/auth_refresh.py`
+- `src/chatgpt_web_adapter/auth_store.py`
 - `src/chatgpt_web_adapter/types.py`
 
 Responsibilities:
@@ -15,8 +18,16 @@ Responsibilities:
 - fall back to `.env` when needed
 - normalize access token, cookies, and headers
 - detect expired JWT-like access tokens when possible
+- bootstrap the first session through an optional persistent browser profile
+- refresh access/session credentials without browser interaction
+- atomically persist reusable credentials while excluding one-shot Sentinel data
+- preserve structured browser-cookie scope alongside the backward-compatible flat cookie map
+- serialize access to one persistent Chromium profile across processes
 
-This layer should stay narrowly focused on consuming existing auth material. It should not grow into login automation or browser-based capture logic.
+Interactive browser use is confined to auth bootstrap/recovery. Protected writes
+may launch the same profile visibly or headlessly to observe a fresh official
+Sentinel prepare/finalize transaction. The browser's conversation request is
+blocked; the unused one-shot bundle is handed to the SDK in memory.
 
 ## Layer 2: Transport
 

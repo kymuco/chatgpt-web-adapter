@@ -11,13 +11,17 @@ Python SDK for controlling existing ChatGPT web sessions without browser UI.
 
 `chatgpt-web-adapter` is a small Python SDK with a dependency-free core for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
 
-It is designed for tools that already have valid ChatGPT web-session auth data and want to avoid driving the browser UI.
+It is designed for terminal tools that use a reusable ChatGPT web session. The
+optional browser extra can create that session once and recover it later; normal
+requests continue without browser UI.
 
 ## What This Is
 
 `chatgpt-web-adapter` wraps the existing ChatGPT web backend behavior used by a logged-in web session. It focuses on reusable transport, request formatting, response parsing, and conversation helpers.
 
-The package intentionally does not include the CLI, localization, auth capture, or local chat-history management from `webchat-openai-cli`. Browser support is limited to an optional experimental Sentinel provider for current prepared writes.
+The package includes a small auth-management CLI and optional browser bootstrap.
+It does not include localization or local chat-history management from
+`webchat-openai-cli`.
 
 ## When It Is Useful
 
@@ -44,7 +48,6 @@ The package intentionally does not include the CLI, localization, auth capture, 
 
 - the official OpenAI API
 - a replacement for the OpenAI Python SDK
-- a login or auth-capture tool
 - a browser automation framework
 - a stable contract for undocumented ChatGPT web internals
 
@@ -71,23 +74,23 @@ Experimental features:
 - `validate_payload()`
 - `send_payload()`
 
-Current prepared existing-conversation writes can opt into the official-page
-Sentinel path:
+Current new-chat, continuation, and multimodal writes can opt into the
+official-page Sentinel path:
 
 ```bash
 pip install "chatgpt-web-adapter[browser]"
 ```
 
 ```python
-from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
+from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
-client.prefetch_sentinel_bundle()
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
+response = client.send("Start a new chat from the SDK.")
 ```
 
 This provider observes a fresh prepare/finalize bundle produced by ChatGPT's own
-page, never submits a message, and keeps the one-shot credentials in memory only.
+page, blocks the browser's conversation POST, and keeps the unused one-shot
+credentials in memory only.
 It is experimental because the web contract and page behavior are undocumented.
 
 The stable core is the main surface intended for building tools on top of an existing ChatGPT web session. Experimental features are exposed because they are useful, but they rely more directly on changing web-client behavior.
@@ -124,6 +127,7 @@ The stable core is the main surface intended for building tools on top of an exi
 - conversation continuation with returned conversation metadata
 - attach/read/status helpers for existing conversations
 - `auth_data.json` and `.env` auth loading
+- one-time browser login and automatic session refresh
 - image uploads from local paths, `Path`, URL, data URI, or raw bytes
 - experimental browserless tool-approval helpers for web-agent flows
 - experimental raw payload escape hatch for advanced users
@@ -134,7 +138,7 @@ The stable core is the main surface intended for building tools on top of an exi
 
 - Python 3.10+
 - system `curl` available in `PATH`
-- valid `auth_data.json` with `accessToken`, or an optional `.env` fallback with `accessToken`
+- either a valid `auth_data.json`, or the optional browser extra for first login
 
 ## Install
 
@@ -154,7 +158,7 @@ pytest -q
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Give me a short summary of this project.",
@@ -166,7 +170,21 @@ print(response.text)
 
 ## Authentication at a Glance
 
-`chatgpt-web-adapter` does not log you in and does not capture auth by itself. It only reuses existing `chatgpt.com` web-session data.
+Install the browser extra and authorize once:
+
+```bash
+pip install "chatgpt-web-adapter[browser]"
+chatgpt-web-adapter auth login --auth-file auth_data.json
+```
+
+Use `chatgpt-web-adapter auth login --force` when the saved session is rejected
+and you need a completely fresh interactive login.
+
+The command opens a persistent Chromium profile, waits for you to finish the
+normal ChatGPT login, and saves reusable cookies and tokens without sending a
+probe chat message. When the access token is missing or near expiry, the client calls
+`/api/auth/session`, updates the access/session metadata, preserves the
+browser-issued cookie jar, and atomically updates the same `auth_data.json`.
 
 Recommended `auth_data.json` shape:
 
@@ -176,6 +194,15 @@ Recommended `auth_data.json` shape:
   "cookies": {
     "__Secure-next-auth.session-token": "..."
   },
+  "browserCookies": [
+    {
+      "name": "__Secure-next-auth.session-token.0",
+      "value": "...",
+      "domain": ".chatgpt.com",
+      "path": "/",
+      "secure": true
+    }
+  ],
   "headers": {
     "user-agent": "Mozilla/5.0 ..."
   }
@@ -184,9 +211,14 @@ Recommended `auth_data.json` shape:
 
 - `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
 - `cookies` and `headers` should come from the same account/session as the token.
+- `browserCookies` preserves domain/path/expiry metadata needed to recreate a browser session without flattening scoped cookie chunks. Older files without it remain supported.
+- Automatic refresh requires `__Secure-next-auth.session-token` (including chunked variants) or a top-level `sessionToken` in the file.
+- Call `client.refresh_auth()` to refresh immediately. Pass `auto_refresh_auth=False` or `persist_refreshed_auth=False` to opt out of automatic refresh or file updates.
+- Pass `auto_login=True` to `ChatGPTWebClient` to reopen the persistent browser profile only when auth is missing or session refresh fails.
 - `.env` is optional, not required. If present, `accessToken=...` is used only as a fallback when the file token is missing or expired.
 - Older files that still use `api_key` are accepted for backward compatibility, but new examples and new files should use `accessToken`.
-- If you need to generate this file, capture it with `webchat-openai-cli` and then reuse it here.
+- Inspect or refresh auth without exposing tokens with `chatgpt-web-adapter auth status` and `chatgpt-web-adapter auth refresh`.
+- After the first interactive login, `auto_sentinel=True, sentinel_headless=True` can run protected writes without a visible browser window. Chromium is still required as the browser engine.
 
 ## Common Workflows
 
@@ -215,6 +247,16 @@ response = client.send_to_conversation(
     "Continue from this point.",
 )
 
+print(response.text)
+```
+
+### Send an Image in a New Chat
+
+```python
+response = client.send(
+    "What is shown in this image?",
+    media=["screenshot.png"],
+)
 print(response.text)
 ```
 
@@ -288,7 +330,9 @@ The example script includes:
 
 ## Auth Notes
 
-This repository only consumes existing auth data. If you still need browser-based capture, generate `auth_data.json` with `webchat-openai-cli` first and then reuse it here.
+The optional browser extra creates the initial `auth_data.json` itself. Subsequent
+access-token refreshes are browserless while the session cookie remains valid.
+Interactive login is needed again only after ChatGPT rejects the reusable session.
 
 ## Detailed Guide
 

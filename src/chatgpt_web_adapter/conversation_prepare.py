@@ -56,6 +56,10 @@ def build_text_prepare_payload(
     timezone: str | None = None,
     timezone_offset_min: int | None = None,
     partial_query_message_id: str | None = None,
+    include_partial_query: bool = True,
+    client_prepare_state: str = "success",
+    client_prepare_dispatch: str | None = None,
+    client_prepare_source: str | None = None,
 ) -> dict[str, Any]:
     """Build the observed ordinary-text ``conversation/prepare`` payload shape."""
 
@@ -70,14 +74,22 @@ def build_text_prepare_payload(
         "fork_from_shared_post": False,
         "parent_message_id": parent_message_id,
         "model": str(model),
-        "client_prepare_state": "success",
+        "client_prepare_state": client_prepare_state,
         "conversation_mode": {"kind": "primary_assistant"},
         "system_hints": ["search"] if web_search else [],
-        "partial_query": _partial_query(prompt, message_id=partial_query_message_id),
         "supports_buffering": True,
         "supported_encodings": ["v1"],
         "client_contextual_info": {"app_name": "chatgpt.com"},
     }
+    if include_partial_query:
+        payload["partial_query"] = _partial_query(
+            prompt,
+            message_id=partial_query_message_id,
+        )
+    if client_prepare_dispatch is not None:
+        payload["client_prepare_dispatch"] = client_prepare_dispatch
+    if client_prepare_source is not None:
+        payload["client_prepare_source"] = client_prepare_source
     conversation_id = conversation_dict.get("conversation_id")
     if isinstance(conversation_id, str) and conversation_id:
         payload["conversation_id"] = conversation_id
@@ -92,7 +104,12 @@ def build_text_prepare_payload(
     return payload
 
 
-def build_prepare_headers(client: Any, *, conversation_id: str | None = None) -> dict[str, str]:
+def build_prepare_headers(
+    client: Any,
+    *,
+    conversation_id: str | None = None,
+    initial_conduit_token: str | None = "no-token",
+) -> dict[str, str]:
     referer = CHAT_URL
     if conversation_id:
         referer = f"{CHAT_URL.rstrip('/')}/c/{conversation_id}"
@@ -102,7 +119,7 @@ def build_prepare_headers(client: Any, *, conversation_id: str | None = None) ->
             "content-type": "application/json",
             "origin": CHAT_URL.rstrip("/"),
             "referer": referer,
-            "x-conduit-token": "no-token",
+            "x-conduit-token": initial_conduit_token,
             "x-openai-target-path": PREPARE_PATH,
             "x-openai-target-route": PREPARE_PATH,
         }
@@ -165,6 +182,11 @@ def prepare_text_turn(
     timezone: str | None = None,
     timezone_offset_min: int | None = None,
     partial_query_message_id: str | None = None,
+    include_partial_query: bool = True,
+    client_prepare_state: str = "success",
+    client_prepare_dispatch: str | None = None,
+    client_prepare_source: str | None = None,
+    initial_conduit_token: str | None = "no-token",
 ) -> tuple[PrepareResult, dict[str, Any]]:
     """Issue only the prepare request and return structural evidence plus payload.
 
@@ -182,11 +204,16 @@ def prepare_text_turn(
         timezone=timezone,
         timezone_offset_min=timezone_offset_min,
         partial_query_message_id=partial_query_message_id,
+        include_partial_query=include_partial_query,
+        client_prepare_state=client_prepare_state,
+        client_prepare_dispatch=client_prepare_dispatch,
+        client_prepare_source=client_prepare_source,
     )
     conversation_id = payload.get("conversation_id")
     headers = build_prepare_headers(
         client,
         conversation_id=conversation_id if isinstance(conversation_id, str) else None,
+        initial_conduit_token=initial_conduit_token,
     )
     status, data = _prepare_json_request(client, payload, headers)
     response = data if isinstance(data, dict) else {}

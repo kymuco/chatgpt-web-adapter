@@ -178,22 +178,18 @@ captured from the official page's own prepare/finalize transaction. The optional
 message or persisting one-shot credentials:
 
 ```python
-from chatgpt_web_adapter import (
-    ChatGPTWebClient,
-    ZendriverSentinelBundleProvider,
-)
+from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 client.prefetch_sentinel_bundle()
 ```
 
-Install it with `pip install "chatgpt-web-adapter[browser]"`. The provider uses an
-isolated temporary browser profile seeded from `client.auth.cookies`, observes the
-official finalize request/response in memory, synchronizes ordinary ChatGPT cookies
-(including `oai-did`) back into the in-memory client, and closes the browser. It may open
-a visible browser window because `headless=False` is the safe default for browser
-challenge execution.
+Install it with `pip install "chatgpt-web-adapter[browser]"`. The automatic mode
+uses the persistent auth profile under a cross-process lock, observes the official
+finalize request/response in memory, synchronizes scoped ChatGPT cookies (including
+`oai-did`) back into the client and auth file, and closes the browser. It may open a
+visible browser window because `sentinel_headless=False` is the compatibility default;
+after initial login, `sentinel_headless=True` is supported and live-smoke tested.
 
 The lower-level current-prepare evidence boundary remains available for custom
 integrations. It receives a `SentinelChallengeContext` containing the exact
@@ -226,22 +222,21 @@ TTL fields cannot extend a credential beyond either server limit.
 
 ## Turn trace and conversation prepare
 
-PR7.11c creates one turn trace id before `conversation/prepare` and sends the same
-value on the final `/f/conversation` request. The adapter continues to use its
-live-accepted synchronous `x-conduit-token: no-token` prepare model.
+The adapter creates one turn trace id before `conversation/prepare` and sends the
+same value on the final `/f/conversation` request. Existing-conversation text
+prepares use the live-accepted initial `x-conduit-token: no-token`. New-chat and
+multimodal prepares use the separately observed shape without an initial conduit
+header or `partial_query`; their final write uses the conduit returned by prepare.
 
 The adapter may still intentionally reuse its locally created user-message id in
 `partial_query` and in the final payload, but this is an implementation choice,
 not a browser contract invariant.
 
-## Unchanged paths
+## Remaining unchanged paths
 
-The following remain on the legacy requirements/send behavior pending independent
-evidence:
-
-- new-chat `ChatGPTWebClient.send()`;
-- existing-conversation media sends;
-- approval flows.
+New-chat and multimodal `ChatGPTWebClient.send()` writes now share the finalized
+bundle transaction when a Sentinel provider is installed. Approval flows remain
+on their existing behavior pending independent evidence.
 
 `/sentinel/req` integration, Turnstile/SO bypass, and PR7.12 WebSocket work remain
 outside this transaction-layer change.
