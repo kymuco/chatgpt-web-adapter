@@ -6,6 +6,8 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+## 0.1.6 - 2026-08-11
+
 - feat: added an optional `ZendriverSentinelBundleProvider` (`chatgpt-web-adapter[browser]`) that captures a complete unused bundle from the official ChatGPT page without submitting a message or persisting one-shot credentials
 - compatibility: finalized-bundle providers can now bypass SDK-side prepare/finalize entirely, while the lower-level current-prepare challenge-provider boundary remains available for custom integrations
 - compatibility: prepared ordinary-text writes to existing conversations now consume one current two-phase finalized Sentinel bundle (`requirements` + proof + Turnstile) and never call the legacy single-step requirements path; new-chat and multimodal sends remain unchanged
