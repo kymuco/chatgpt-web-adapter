@@ -42,6 +42,7 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 - docs: aligned repository metadata after the `chatgpt-web-adapter` rename
 - docs: defined stable vs experimental SDK surface and compatibility policy
 - docs: clarified approval helpers as experimental and unstable
+- docs: added SDK positioning, failure model, live smoke checklist, release checklist, architecture notes, and build-on-top guidance
 - refactor: grouped public exports by support level
 - refactor: tightened request error messages and stream-completion event naming
 - packaging: added PyPI Trusted Publishing workflow for release-based package publishing
