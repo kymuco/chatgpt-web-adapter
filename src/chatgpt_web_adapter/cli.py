@@ -27,6 +27,11 @@ def _build_parser() -> argparse.ArgumentParser:
     login.add_argument("--profile-dir", type=Path)
     login.add_argument("--timeout", type=float, default=300.0)
     login.add_argument("--browser-executable-path", type=Path)
+    login.add_argument(
+        "--force",
+        action="store_true",
+        help="ignore saved auth and require a fresh interactive browser login",
+    )
 
     status = auth_commands.add_parser("status", help="show authorization health")
     add_auth_file(status)
@@ -45,6 +50,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 profile_dir=args.profile_dir,
                 timeout=args.timeout,
                 browser_executable_path=args.browser_executable_path,
+                reuse_existing_auth=not args.force,
             )
             print(f"Authorization saved to {result.auth_file}")
             print(f"Persistent browser profile: {result.profile_dir}")

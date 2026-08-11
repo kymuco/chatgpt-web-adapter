@@ -67,6 +67,12 @@ def test_zendriver_provider_validates_timeout() -> None:
 def test_zendriver_provider_accepts_persistent_auth_profile(tmp_path) -> None:
     provider = ZendriverSentinelBundleProvider(profile_dir=tmp_path / "profile")
     assert provider.profile_dir == tmp_path / "profile"
+    assert provider.seeds_client_cookies is False
+
+
+def test_zendriver_provider_seeds_only_temporary_profile() -> None:
+    provider = ZendriverSentinelBundleProvider()
+    assert provider.seeds_client_cookies is True
 
 
 def test_sync_chatgpt_cookies_updates_device_binding_only_for_chatgpt() -> None:

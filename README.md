@@ -82,10 +82,16 @@ pip install "chatgpt-web-adapter[browser]"
 ```
 
 ```python
-from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
+from chatgpt_web_adapter import (
+    ChatGPTWebClient,
+    ZendriverSentinelBundleProvider,
+    default_browser_profile_dir,
+)
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
+client.set_sentinel_bundle_provider(
+    ZendriverSentinelBundleProvider(profile_dir=default_browser_profile_dir())
+)
 response = client.send("Start a new chat from the SDK.")
 ```
 
@@ -184,6 +190,9 @@ Install the browser extra and authorize once:
 pip install "chatgpt-web-adapter[browser]"
 chatgpt-web-adapter auth login --auth-file auth_data.json
 ```
+
+Use `chatgpt-web-adapter auth login --force` when the saved session is rejected
+and you need a completely fresh interactive login.
 
 The command opens a persistent Chromium profile, waits for you to finish the
 normal ChatGPT login, and saves reusable cookies and tokens without sending a

@@ -143,6 +143,7 @@ async def _browser_login_async(
     headless: bool,
     browser_executable_path: str | Path | None,
     persist: bool,
+    reuse_existing_auth: bool,
 ) -> BrowserLoginResult:
     zendriver = _import_zendriver()
     profile_dir.mkdir(parents=True, exist_ok=True)
@@ -154,7 +155,7 @@ async def _browser_login_async(
     try:
         seed_cookies: dict[str, str] = {}
         seed_expires: float | None = None
-        if auth_file.is_file():
+        if reuse_existing_auth and auth_file.is_file():
             try:
                 seed_auth = load_auth_data(
                     auth_file, allow_expired_session_refresh=True
@@ -163,7 +164,16 @@ async def _browser_login_async(
                 seed_expires = _session_expiry_timestamp(seed_auth.expires)
             except (AuthError, OSError, ValueError):
                 seed_cookies = {}
-        if seed_cookies:
+        if not reuse_existing_auth:
+            page = await browser.get("about:blank")
+            existing = await page.send(zendriver.cdp.network.get_all_cookies())
+            await _delete_session_cookies(
+                page,
+                zendriver,
+                [getattr(cookie, "name", "") for cookie in existing],
+            )
+            await page.get(CHAT_URL)
+        elif seed_cookies:
             page = await browser.get("about:blank")
             await _delete_session_cookies(page, zendriver, seed_auth.cookies)
             cookie_params = [
@@ -310,6 +320,7 @@ def browser_login(
     headless: bool = False,
     browser_executable_path: str | Path | None = None,
     persist: bool = True,
+    reuse_existing_auth: bool = True,
 ) -> BrowserLoginResult:
     """Open ChatGPT once, wait for sign-in, and persist reusable session auth."""
 
@@ -326,6 +337,7 @@ def browser_login(
                 headless=bool(headless),
                 browser_executable_path=browser_executable_path,
                 persist=bool(persist),
+                reuse_existing_auth=bool(reuse_existing_auth),
             )
         )
     raise AuthError("Synchronous browser_login cannot run inside an active asyncio event loop")

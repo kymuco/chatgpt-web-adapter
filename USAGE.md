@@ -126,6 +126,10 @@ chatgpt-web-adapter auth login --auth-file auth_data.json
 chatgpt-web-adapter auth status --auth-file auth_data.json
 ```
 
+If the saved browser session is inconsistent or revoked, run
+`chatgpt-web-adapter auth login --force --auth-file auth_data.json` and complete
+the fresh login in the SDK browser profile.
+
 You can authenticate in three main ways:
 
 1. Run `chatgpt-web-adapter auth login` once.
@@ -267,10 +271,16 @@ This is intended for local diagnostics and live smoke work. When enabled, the cl
 ## Basic Chat Request
 
 ```python
-from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
+from chatgpt_web_adapter import (
+    ChatGPTWebClient,
+    ZendriverSentinelBundleProvider,
+    default_browser_profile_dir,
+)
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
+client.set_sentinel_bundle_provider(
+    ZendriverSentinelBundleProvider(profile_dir=default_browser_profile_dir())
+)
 
 response = client.send(
     "Give me a short summary of this project.",
@@ -707,10 +717,16 @@ For current protected ChatGPT writes, configure the same
 ```python
 from pathlib import Path
 
-from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
+from chatgpt_web_adapter import (
+    ChatGPTWebClient,
+    ZendriverSentinelBundleProvider,
+    default_browser_profile_dir,
+)
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
+client.set_sentinel_bundle_provider(
+    ZendriverSentinelBundleProvider(profile_dir=default_browser_profile_dir())
+)
 
 response = client.send(
     "Describe what is shown in this image.",

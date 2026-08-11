@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .auth import CHAT_URL
-from .auth_browser import _session_expiry_timestamp
+from .auth_browser import _graceful_browser_stop, _session_expiry_timestamp
 from .auth_store import persist_auth_data
 from .exceptions import RequestError
 from .sentinel_requirements import SENTINEL_FINALIZE_PATH
@@ -88,9 +88,11 @@ def _sync_chatgpt_cookies(client: Any, browser_cookies: Any) -> None:
 class ZendriverSentinelBundleProvider:
     """Capture one unused bundle produced by the official ChatGPT page.
 
-    The provider launches an isolated browser profile, seeds only the client's
-    supplied ChatGPT cookies, observes the official finalize transaction in
-    memory, and closes the browser. It never submits a chat message and never
+    The provider launches a browser profile, observes the official finalize
+    transaction in memory, and closes the browser. Temporary profiles are
+    seeded with the client's supplied ChatGPT cookies. Persistent profiles use
+    their own browser cookie jar so domain-scoped session cookie chunks are not
+    duplicated as host-only cookies. It never submits a chat message and never
     persists the captured one-shot credentials.
     """
 
@@ -120,6 +122,12 @@ class ZendriverSentinelBundleProvider:
             endpoint=SENTINEL_FINALIZE_PATH,
             request_stage="sentinel_bundle_provider",
         )
+
+    @property
+    def seeds_client_cookies(self) -> bool:
+        """Whether this provider must bootstrap an empty temporary profile."""
+
+        return self.profile_dir is None
 
     @staticmethod
     def _import_zendriver() -> Any:
@@ -263,6 +271,7 @@ class ZendriverSentinelBundleProvider:
             if self.profile_dir is not None
             else tempfile.TemporaryDirectory(prefix="chatgpt-web-adapter-")
         )
+
         if self.profile_dir is not None:
             self.profile_dir.mkdir(parents=True, exist_ok=True)
         with profile_context as profile_dir:
@@ -287,25 +296,26 @@ class ZendriverSentinelBundleProvider:
                         ]
                     )
                 )
-                session_expiry = _session_expiry_timestamp(
-                    getattr(getattr(client, "auth", None), "expires", None)
-                )
-                cookie_params = [
-                    cdp.network.CookieParam(
-                        name=str(name),
-                        value=str(value),
-                        url=CHAT_URL,
-                        secure=True,
-                        expires=(
-                            cdp.network.TimeSinceEpoch(session_expiry)
-                            if session_expiry is not None
-                            else None
-                        ),
+                if self.seeds_client_cookies:
+                    session_expiry = _session_expiry_timestamp(
+                        getattr(getattr(client, "auth", None), "expires", None)
                     )
-                    for name, value in cookies.items()
-                    if name is not None and value is not None
-                ]
-                await active_page.send(cdp.network.set_cookies(cookie_params))
+                    cookie_params = [
+                        cdp.network.CookieParam(
+                            name=str(name),
+                            value=str(value),
+                            url=CHAT_URL,
+                            secure=True,
+                            expires=(
+                                cdp.network.TimeSinceEpoch(session_expiry)
+                                if session_expiry is not None
+                                else None
+                            ),
+                        )
+                        for name, value in cookies.items()
+                        if name is not None and value is not None
+                    ]
+                    await active_page.send(cdp.network.set_cookies(cookie_params))
                 await active_page.get(CHAT_URL)
 
                 # The page normally prefetches on its own. A reversible input
@@ -362,4 +372,4 @@ class ZendriverSentinelBundleProvider:
                     request_stage="sentinel_bundle_provider",
                 ) from error
             finally:
-                await browser.stop()
+                await _graceful_browser_stop(browser, zendriver)
