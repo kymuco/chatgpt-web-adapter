@@ -23,7 +23,7 @@ discard any legacy warmup-prefetched requirements
   -> reserve an unexpired finalized Sentinel bundle
        or synchronously perform
        /sentinel/chat-requirements/prepare
-       -> legitimate challenge boundary
+       -> current-prepare browser challenge provider boundary
        -> /sentinel/chat-requirements/finalize
   -> irreversibly consume that bundle
   -> POST /backend-api/f/conversation
@@ -66,19 +66,23 @@ unknown write outcome. This prevents speculative credential replay.
 Legacy warmup material is still invalidated before/after a prepared turn, but it
 is no longer used to service prepared existing-text writes.
 
-## Turnstile boundary
+## Browser challenge boundary
 
-PR7.11c does not add a Turnstile solver or bypass. Current two-phase finalize
-evidence requires a Turnstile string. If no legitimate browser-derived evidence
-has been supplied, the adapter fails closed before finalize/write with
-`SENTINEL_TURNSTILE_EVIDENCE_REQUIRED`.
+PR7.11c does not add a Turnstile/SO solver or bypass. The two-phase path does not
+read `AuthData.turnstile_token`, even if that field was loaded from `auth_data.json`.
+Persisted or restart-resurrected legacy Turnstile material therefore cannot
+implicitly authorize a new two-phase finalize.
 
-Supplied Turnstile evidence is one-shot: it is cleared from `AuthData` when it
-enters a finalize transaction and is never restored if finalize fails.
+A current-prepare challenge provider must receive the exact `prepare_token`,
+Turnstile `dx`, and SO collector/snapshot descriptors returned by the current
+Sentinel prepare. Evidence is accepted only when it is explicitly bound back to
+those same values, includes a Turnstile token, and confirms required SO completion.
+No bundled provider exists in PR7.11c, so the default production outcome at this
+boundary is fail-closed until PR7.11d characterizes and implements legitimate
+browser fulfillment.
 
-The currently observed finalize policy has both Turnstile and PoW required.
-Unobserved required/optional combinations fail closed rather than guessing request
-semantics.
+The currently observed policy has Turnstile, PoW, and SO all required. Unobserved
+required/optional combinations fail closed rather than guessing request semantics.
 
 ## Diagnostics contract
 
@@ -110,7 +114,10 @@ The final conversation write must not occur when:
 - conversation prepare succeeds without a conduit token;
 - no valid finalized Sentinel bundle can be reserved/acquired;
 - current Sentinel prepare/finalize structure drifts from the observed contract;
-- legitimate required Turnstile evidence is absent;
+- no current-prepare browser challenge provider is installed;
+- provider evidence is bound to another prepare/Turnstile/SO descriptor;
+- required Turnstile evidence is absent;
+- required SO completion is absent;
 - the finalized bundle expires before consumption;
 - another prepared send already reserves the single available bundle.
 
@@ -139,7 +146,8 @@ PR7.11c does not characterize or change:
 - existing-conversation sends containing media;
 - `/backend-api/sentinel/req` semantics;
 - automatic post-write Sentinel refill/background threads;
-- Turnstile solving or bypass;
+- browser challenge fulfillment itself;
+- Turnstile/SO solving or bypass;
 - the WebSocket capability contract planned for PR7.12.
 
 See `sentinel_bundle_lifecycle.md` for the evidence and detailed state machine.

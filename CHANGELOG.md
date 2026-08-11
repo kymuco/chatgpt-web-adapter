@@ -7,7 +7,9 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 ## Unreleased
 
 - compatibility: prepared ordinary-text writes to existing conversations now consume one current two-phase finalized Sentinel bundle (`requirements` + proof + Turnstile) and never call the legacy single-step requirements path; new-chat and multimodal sends remain unchanged
-- compatibility: finalized Sentinel bundles are monotonic-expiry, exclusive-reservation, one-write-attempt credentials; unknown write outcomes never restore/replay a consumed bundle, and supplied browser Turnstile evidence is one-shot
+- compatibility: finalized Sentinel bundles are monotonic-expiry, exclusive-reservation, one-write-attempt credentials; unknown write outcomes never restore/replay a consumed bundle
+- security: two-phase Sentinel acquisition no longer trusts persisted `AuthData.turnstile_token`; current-prepare Turnstile/SO evidence must come from an in-memory provider explicitly bound to the exact `prepare_token` and current challenge descriptors, and absent/mismatched provider evidence fails closed before finalize
+- compatibility: `so.required=true` is now an explicit browser-capability gate rather than structural-only evidence; PR7.11c ships no browser fulfillment provider, so current live writes stop at `SENTINEL_BROWSER_CHALLENGE_PROVIDER_REQUIRED` until that boundary is independently characterized
 - compatibility: conversation prepare and final write now share one `x-oai-turn-trace-id`; local reuse of one user-message id across `partial_query` and the final message is documented as an adapter choice rather than a required browser invariant
 - security: conduit and all three Sentinel write headers are always redacted from debug traces even when ordinary trace sanitization is disabled; Sentinel prepare/finalize raw bodies remain suppressed in favor of structural traces
 - diagnostics: existing prepared-send requirements timing now measures the execution-local finalized-bundle acquisition/consumption boundary while preserving the established `requirements_ready` event shape
@@ -40,7 +42,6 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 - docs: aligned repository metadata after the `chatgpt-web-adapter` rename
 - docs: defined stable vs experimental SDK surface and compatibility policy
 - docs: clarified approval helpers as experimental and unstable
-- docs: added SDK positioning, failure model, live smoke checklist, release checklist, architecture notes, and build-on-top guidance
 - refactor: grouped public exports by support level
 - refactor: tightened request error messages and stream-completion event naming
 - packaging: added PyPI Trusted Publishing workflow for release-based package publishing

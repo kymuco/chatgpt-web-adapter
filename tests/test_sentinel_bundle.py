@@ -16,7 +16,11 @@ from chatgpt_web_adapter.sentinel_bundle import (
     prefetch_finalized_sentinel_bundle,
     redact_ephemeral_write_headers,
 )
-from chatgpt_web_adapter.sentinel_transaction import FinalizedSentinelBundle
+from chatgpt_web_adapter.sentinel_transaction import (
+    FinalizedSentinelBundle,
+    SentinelChallengeEvidence,
+    set_sentinel_challenge_provider,
+)
 
 
 def _bundle(*, acquired: float = 100.0, expires: float = 200.0) -> FinalizedSentinelBundle:
@@ -31,9 +35,24 @@ def _bundle(*, acquired: float = 100.0, expires: float = 200.0) -> FinalizedSent
 
 class PrefetchClient:
     def __init__(self) -> None:
-        self.auth = SimpleNamespace(proof_token=None, turnstile_token="secret-turnstile")
+        self.auth = SimpleNamespace(
+            proof_token=None,
+            turnstile_token="legacy-persisted-turnstile",
+        )
         self.debug_trace_dir = None
         self.calls: list[str] = []
+
+        def provider(context):
+            return SentinelChallengeEvidence(
+                prepare_token=context.prepare_token,
+                turnstile_dx=context.turnstile_dx,
+                turnstile_token="current-turnstile",
+                so_collector_dx=context.so_collector_dx,
+                so_snapshot_dx=context.so_snapshot_dx,
+                so_completed=True,
+            )
+
+        set_sentinel_challenge_provider(self, provider)
 
     @staticmethod
     def _build_headers(extra):
@@ -112,14 +131,17 @@ def test_get_prepared_bundle_prefers_valid_prefetch() -> None:
     assert reservation.consume().proof_token == "secret-proof"
 
 
-def test_explicit_prefetch_caches_for_later_write() -> None:
+def test_explicit_prefetch_caches_provider_bound_bundle_for_later_write() -> None:
     client = PrefetchClient()
     assert prefetch_finalized_sentinel_bundle(client) is True
     assert client.calls == ["prepare", "finalize"]
-    assert client.auth.turnstile_token is None
+    # Legacy persisted compatibility material is ignored by two-phase acquisition.
+    assert client.auth.turnstile_token == "legacy-persisted-turnstile"
     reservation = get_prepared_sentinel_bundle(client)
     assert client.calls == ["prepare", "finalize"]
-    assert reservation.consume().requirements_token == "secret-requirements"
+    bundle = reservation.consume()
+    assert bundle.requirements_token == "secret-requirements"
+    assert bundle.turnstile_token == "current-turnstile"
 
 
 def test_ephemeral_headers_are_always_redacted() -> None:

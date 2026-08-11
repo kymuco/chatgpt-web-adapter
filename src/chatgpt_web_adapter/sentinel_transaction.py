@@ -37,6 +37,47 @@ class FinalizedSentinelBundle:
         return current >= self.expires_monotonic
 
 
+@dataclass(frozen=True, eq=False)
+class SentinelChallengeContext:
+    """Opaque current-prepare browser challenge context passed to a provider."""
+
+    prepare_token: str = field(repr=False, compare=False)
+    turnstile_dx: str = field(repr=False, compare=False)
+    so_collector_dx: str = field(repr=False, compare=False)
+    so_snapshot_dx: str = field(repr=False, compare=False)
+    turnstile_required: bool
+    proofofwork_required: bool
+    so_required: bool
+
+
+@dataclass(frozen=True, eq=False)
+class SentinelChallengeEvidence:
+    """One-shot provider evidence explicitly bound to the current prepare."""
+
+    prepare_token: str = field(repr=False, compare=False)
+    turnstile_dx: str = field(repr=False, compare=False)
+    turnstile_token: str = field(repr=False, compare=False)
+    so_collector_dx: str = field(repr=False, compare=False)
+    so_snapshot_dx: str = field(repr=False, compare=False)
+    so_completed: bool
+
+
+SentinelChallengeProvider = Callable[
+    [SentinelChallengeContext], SentinelChallengeEvidence
+]
+
+
+def set_sentinel_challenge_provider(
+    client: Any,
+    provider: SentinelChallengeProvider | None,
+) -> None:
+    """Install an in-memory current-prepare provider; never persists evidence."""
+
+    if provider is not None and not callable(provider):
+        raise TypeError("provider must be callable or None")
+    client._sentinel_challenge_provider = provider
+
+
 def _emit_event(
     client: Any,
     callback: Callable[[dict[str, Any]], None] | None,
@@ -62,6 +103,16 @@ def _mapping_has_keys(value: Any, expected: tuple[str, ...]) -> bool:
     return isinstance(value, dict) and set(expected).issubset(value.keys())
 
 
+def _required_descriptor(value: Any, *, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise RequestError(
+            f"SENTINEL_PREPARE_CONTRACT_DRIFT: required {name} descriptor is missing",
+            endpoint=SENTINEL_PREPARE_PATH,
+            request_stage="sentinel_prepare",
+        )
+    return value.strip()
+
+
 def _derive_prepare_input(client: Any) -> str | None:
     proof_token = getattr(getattr(client, "auth", None), "proof_token", None)
     if not isinstance(proof_token, list):
@@ -77,18 +128,104 @@ def _derive_prepare_input(client: Any) -> str | None:
         ) from error
 
 
-def _take_supplied_turnstile_token(client: Any) -> str:
-    auth = getattr(client, "auth", None)
-    value = getattr(auth, "turnstile_token", None)
-    if not isinstance(value, str) or not value.strip():
+def _challenge_context(
+    response: dict[str, Any],
+    *,
+    prepare_token: str,
+) -> SentinelChallengeContext:
+    turnstile = response["turnstile"]
+    proofofwork = response["proofofwork"]
+    so = response["so"]
+    return SentinelChallengeContext(
+        prepare_token=prepare_token,
+        turnstile_dx=_required_descriptor(
+            turnstile.get("dx"),
+            name="turnstile.dx",
+        ),
+        so_collector_dx=_required_descriptor(
+            so.get("collector_dx"),
+            name="so.collector_dx",
+        ),
+        so_snapshot_dx=_required_descriptor(
+            so.get("snapshot_dx"),
+            name="so.snapshot_dx",
+        ),
+        turnstile_required=bool(turnstile.get("required")),
+        proofofwork_required=bool(proofofwork.get("required")),
+        so_required=bool(so.get("required")),
+    )
+
+
+def _obtain_current_prepare_evidence(
+    client: Any,
+    context: SentinelChallengeContext,
+) -> SentinelChallengeEvidence:
+    provider = getattr(client, "_sentinel_challenge_provider", None)
+    if not callable(provider):
         raise RequestError(
-            "SENTINEL_TURNSTILE_EVIDENCE_REQUIRED: current two-phase Sentinel "
-            "finalize requires legitimate browser-derived Turnstile evidence",
+            "SENTINEL_BROWSER_CHALLENGE_PROVIDER_REQUIRED: current two-phase "
+            "Sentinel finalize requires a provider bound to this prepare challenge",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_challenge_provider",
+        )
+    try:
+        evidence = provider(context)
+    except RequestError:
+        raise
+    except Exception as error:
+        raise RequestError(
+            "SENTINEL_BROWSER_CHALLENGE_PROVIDER_FAILED: provider did not produce "
+            "usable current-prepare evidence",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_challenge_provider",
+        ) from error
+    if not isinstance(evidence, SentinelChallengeEvidence):
+        raise RequestError(
+            "SENTINEL_BROWSER_CHALLENGE_PROVIDER_INVALID: provider returned an "
+            "unsupported evidence object",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_challenge_provider",
+        )
+    if evidence.prepare_token != context.prepare_token:
+        raise RequestError(
+            "SENTINEL_CHALLENGE_BINDING_MISMATCH: provider evidence belongs to a "
+            "different prepare transaction",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_challenge_binding",
+        )
+    if evidence.turnstile_dx != context.turnstile_dx:
+        raise RequestError(
+            "SENTINEL_CHALLENGE_BINDING_MISMATCH: provider Turnstile evidence "
+            "belongs to a different challenge descriptor",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_challenge_binding",
+        )
+    if not isinstance(evidence.turnstile_token, str) or not evidence.turnstile_token.strip():
+        raise RequestError(
+            "SENTINEL_TURNSTILE_EVIDENCE_REQUIRED: current-prepare provider did "
+            "not return Turnstile evidence",
             endpoint=SENTINEL_FINALIZE_PATH,
             request_stage="sentinel_turnstile_gate",
         )
-    auth.turnstile_token = None
-    return value.strip()
+    if context.so_required:
+        if evidence.so_completed is not True:
+            raise RequestError(
+                "SENTINEL_SO_CAPABILITY_REQUIRED: current prepare requires SO "
+                "collector/snapshot completion before finalize",
+                endpoint=SENTINEL_FINALIZE_PATH,
+                request_stage="sentinel_so_gate",
+            )
+        if (
+            evidence.so_collector_dx != context.so_collector_dx
+            or evidence.so_snapshot_dx != context.so_snapshot_dx
+        ):
+            raise RequestError(
+                "SENTINEL_CHALLENGE_BINDING_MISMATCH: provider SO evidence belongs "
+                "to a different current-prepare descriptor",
+                endpoint=SENTINEL_FINALIZE_PATH,
+                request_stage="sentinel_challenge_binding",
+            )
+    return evidence
 
 
 def _finalize_headers(client: Any) -> dict[str, str]:
@@ -236,7 +373,7 @@ def acquire_finalized_sentinel_bundle(
     *,
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> FinalizedSentinelBundle:
-    """Acquire one two-phase bundle without Turnstile solving or replay."""
+    """Acquire one two-phase bundle without challenge solving or credential replay."""
 
     prepare_payload = {"p": _derive_prepare_input(client)}
     _emit_event(client, on_event, "sentinel_prepare_started")
@@ -278,13 +415,22 @@ def acquire_finalized_sentinel_bundle(
         proofofwork_required=bool(proofofwork.get("required")),
         so_required=bool(so.get("required")),
     )
-    if not bool(turnstile.get("required")) or not bool(proofofwork.get("required")):
+    if not all(
+        (
+            bool(turnstile.get("required")),
+            bool(proofofwork.get("required")),
+            bool(so.get("required")),
+        )
+    ):
         raise RequestError(
             "SENTINEL_FINALIZE_POLICY_UNOBSERVED: current finalize challenge "
             "combination has not been live-characterized",
             endpoint=SENTINEL_FINALIZE_PATH,
             request_stage="sentinel_finalize_policy",
         )
+
+    context = _challenge_context(response, prepare_token=prepare_token)
+    evidence = _obtain_current_prepare_evidence(client, context)
 
     proof_header = client._build_proof_header({"proofofwork": proofofwork})
     if not isinstance(proof_header, str) or not proof_header.strip():
@@ -294,14 +440,15 @@ def acquire_finalized_sentinel_bundle(
             request_stage="sentinel_proof",
         )
     proof_header = proof_header.strip()
-    turnstile_token = _take_supplied_turnstile_token(client)
+    turnstile_token = evidence.turnstile_token.strip()
     _emit_event(
         client,
         on_event,
         "sentinel_challenge_ready",
         proof_present=True,
         turnstile_present=True,
-        so_required=bool(so.get("required")),
+        so_completed=True,
+        current_prepare_binding_verified=True,
     )
 
     finalize_payload = {
@@ -347,6 +494,8 @@ def acquire_finalized_sentinel_bundle(
             "requirements_token_present": True,
             "proof_present": True,
             "turnstile_present": True,
+            "so_completed": True,
+            "current_prepare_binding_verified": True,
             "raw_request_recorded": False,
             "raw_response_recorded": False,
             "challenge_values_recorded": False,
