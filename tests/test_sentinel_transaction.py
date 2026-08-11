@@ -237,6 +237,39 @@ def test_unobserved_required_false_policy_fails_closed(block: str) -> None:
     assert client.provider_contexts == []
 
 
+@pytest.mark.parametrize("block", ["turnstile", "proofofwork", "so"])
+@pytest.mark.parametrize("value", ["false", 1, None, [], {}])
+def test_required_policy_type_drift_fails_before_provider(block: str, value) -> None:
+    client = TransactionClient()
+    client.prepare_response[block]["required"] = value
+    client.install_current_provider()
+    with pytest.raises(
+        RequestError,
+        match="SENTINEL_PREPARE_CONTRACT_DRIFT",
+    ) as captured:
+        acquire_finalized_sentinel_bundle(client)
+    assert captured.value.request_stage == "sentinel_prepare"
+    assert client.calls == ["prepare"]
+    assert client.provider_contexts == []
+
+
+@pytest.mark.parametrize(
+    "expire_after",
+    [float("inf"), float("-inf"), float("nan"), 1e309],
+)
+def test_non_finite_finalize_ttl_fails_closed(expire_after: float) -> None:
+    client = TransactionClient()
+    client.install_current_provider()
+    client.finalize_response["expire_after"] = expire_after
+    with pytest.raises(
+        RequestError,
+        match="expire_after is not finite",
+    ) as captured:
+        acquire_finalized_sentinel_bundle(client)
+    assert captured.value.request_stage == "sentinel_finalize"
+    assert client.calls == ["prepare", "finalize"]
+
+
 def test_finalize_failure_does_not_cache_or_restore_provider_evidence() -> None:
     client = TransactionClient()
     client.install_current_provider()
