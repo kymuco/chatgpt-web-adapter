@@ -178,22 +178,18 @@ captured from the official page's own prepare/finalize transaction. The optional
 message or persisting one-shot credentials:
 
 ```python
-from chatgpt_web_adapter import (
-    ChatGPTWebClient,
-    ZendriverSentinelBundleProvider,
-)
+from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 client.prefetch_sentinel_bundle()
 ```
 
-Install it with `pip install "chatgpt-web-adapter[browser]"`. The provider uses an
-isolated temporary browser profile seeded from `client.auth.cookies`, observes the
-official finalize request/response in memory, synchronizes ordinary ChatGPT cookies
-(including `oai-did`) back into the in-memory client, and closes the browser. It may open
-a visible browser window because `headless=False` is the safe default for browser
-challenge execution.
+Install it with `pip install "chatgpt-web-adapter[browser]"`. The automatic mode
+uses the persistent auth profile under a cross-process lock, observes the official
+finalize request/response in memory, synchronizes scoped ChatGPT cookies (including
+`oai-did`) back into the client and auth file, and closes the browser. It may open a
+visible browser window because `sentinel_headless=False` is the compatibility default;
+after initial login, `sentinel_headless=True` is supported and live-smoke tested.
 
 The lower-level current-prepare evidence boundary remains available for custom
 integrations. It receives a `SentinelChallengeContext` containing the exact

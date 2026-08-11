@@ -88,6 +88,7 @@ def test_browser_login_captures_and_persists_reusable_session(tmp_path, monkeypa
     assert saved["sessionToken"] == "browser-session-json"
     assert saved["sessionExpiresAt"] == "2030-01-01T00:00:00.000Z"
     assert saved["headers"]["user-agent"] == "Browser Test Agent"
+    assert saved["browserCookies"][0]["domain"] == ".chatgpt.com"
     assert "proof_token" not in saved
     assert "turnstile_token" not in saved
 

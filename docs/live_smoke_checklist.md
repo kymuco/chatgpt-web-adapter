@@ -20,6 +20,7 @@ Use this checklist when `chatgpt.com` behavior may have changed or before a rele
   - streamed text is correct
   - `conversation_id` is returned
   - `finish_reason` is parsed
+  - a first-turn `system` instruction is honored
 - If broken, inspect:
   - `chat-requirements`
   - send payload shape
@@ -53,21 +54,28 @@ Use this checklist when `chatgpt.com` behavior may have changed or before a rele
 
 ### 4. Image Upload
 
-- Send a tiny PNG with a simple prompt
+- Send PNG, JPEG, GIF, and WebP inputs, including multiple images and an image continuation
 - Confirm:
   - file creation succeeds
   - upload succeeds
   - multimodal request succeeds
   - assistant reply completes normally
+  - continuation preserves the conversation id
 - If broken, inspect:
   - `/backend-api/files`
   - upload/finalize flow
   - attachment metadata
   - multimodal message structure
 
+### 5. Headless Sentinel
+
+- After one interactive login, send a harmless prompt with `sentinel_headless=True`
+- Confirm prepare and finalize are observed and the write completes without a visible browser
+- This validates no-GUI operation; Chromium remains a runtime requirement
+
 ## Experimental Scenarios
 
-### 5. Approval Flow
+### 6. Approval Flow
 
 - Run only if approval helpers are relevant to current work.
 - Use a low-risk, disposable connector target.

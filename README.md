@@ -82,16 +82,9 @@ pip install "chatgpt-web-adapter[browser]"
 ```
 
 ```python
-from chatgpt_web_adapter import (
-    ChatGPTWebClient,
-    ZendriverSentinelBundleProvider,
-    default_browser_profile_dir,
-)
+from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(
-    ZendriverSentinelBundleProvider(profile_dir=default_browser_profile_dir())
-)
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 response = client.send("Start a new chat from the SDK.")
 ```
 
@@ -163,16 +156,9 @@ pytest -q
 ## Quick Start
 
 ```python
-from chatgpt_web_adapter import (
-    ChatGPTWebClient,
-    ZendriverSentinelBundleProvider,
-    default_browser_profile_dir,
-)
+from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(
-    ZendriverSentinelBundleProvider(profile_dir=default_browser_profile_dir())
-)
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Give me a short summary of this project.",
@@ -208,6 +194,15 @@ Recommended `auth_data.json` shape:
   "cookies": {
     "__Secure-next-auth.session-token": "..."
   },
+  "browserCookies": [
+    {
+      "name": "__Secure-next-auth.session-token.0",
+      "value": "...",
+      "domain": ".chatgpt.com",
+      "path": "/",
+      "secure": true
+    }
+  ],
   "headers": {
     "user-agent": "Mozilla/5.0 ..."
   }
@@ -216,12 +211,14 @@ Recommended `auth_data.json` shape:
 
 - `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
 - `cookies` and `headers` should come from the same account/session as the token.
+- `browserCookies` preserves domain/path/expiry metadata needed to recreate a browser session without flattening scoped cookie chunks. Older files without it remain supported.
 - Automatic refresh requires `__Secure-next-auth.session-token` (including chunked variants) or a top-level `sessionToken` in the file.
 - Call `client.refresh_auth()` to refresh immediately. Pass `auto_refresh_auth=False` or `persist_refreshed_auth=False` to opt out of automatic refresh or file updates.
 - Pass `auto_login=True` to `ChatGPTWebClient` to reopen the persistent browser profile only when auth is missing or session refresh fails.
 - `.env` is optional, not required. If present, `accessToken=...` is used only as a fallback when the file token is missing or expired.
 - Older files that still use `api_key` are accepted for backward compatibility, but new examples and new files should use `accessToken`.
 - Inspect or refresh auth without exposing tokens with `chatgpt-web-adapter auth status` and `chatgpt-web-adapter auth refresh`.
+- After the first interactive login, `auto_sentinel=True, sentinel_headless=True` can run protected writes without a visible browser window. Chromium is still required as the browser engine.
 
 ## Common Workflows
 

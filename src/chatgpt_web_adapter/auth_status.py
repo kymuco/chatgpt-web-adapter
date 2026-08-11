@@ -12,6 +12,7 @@ from .auth import (
     _get_access_token_expiry,
 )
 from .auth_refresh import auth_needs_refresh
+from .auth_browser import default_browser_profile_dir
 from .types import AuthData
 
 
@@ -24,12 +25,26 @@ class AuthStatus:
     access_token_needs_refresh: bool
     session_cookie_present: bool
     session_expires_at: Any = None
+    browser_cookie_count: int = 0
+    browser_profile_dir: Path | None = None
+    browser_profile_exists: bool = False
 
 
-def get_auth_status(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthStatus:
+def get_auth_status(
+    auth_file: str | Path = DEFAULT_AUTH_FILE,
+    *,
+    profile_dir: str | Path | None = None,
+) -> AuthStatus:
     path = Path(auth_file)
+    profile = (
+        Path(profile_dir)
+        if profile_dir is not None
+        else default_browser_profile_dir()
+    )
     if not path.is_file():
-        return AuthStatus(path, False, False, None, True, False, None)
+        return AuthStatus(
+            path, False, False, None, True, False, None, 0, profile, profile.is_dir()
+        )
     auth = AuthData.from_json(path)
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -51,4 +66,7 @@ def get_auth_status(auth_file: str | Path = DEFAULT_AUTH_FILE) -> AuthStatus:
         access_token_needs_refresh=auth_needs_refresh(auth.accessToken),
         session_cookie_present=has_session,
         session_expires_at=auth.expires,
+        browser_cookie_count=len(auth.browserCookies),
+        browser_profile_dir=profile,
+        browser_profile_exists=profile.is_dir(),
     )

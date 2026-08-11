@@ -12,6 +12,12 @@ from typing import Any
 from .auth import CHAT_URL
 from .auth_browser import _graceful_browser_stop, _session_expiry_timestamp
 from .auth_store import persist_auth_data
+from .browser_cookies import (
+    browser_cookie_params,
+    flatten_browser_cookies,
+    serialize_browser_cookies,
+)
+from .browser_profile_lock import BrowserProfileLock
 from .exceptions import RequestError
 from .sentinel_requirements import SENTINEL_FINALIZE_PATH
 from .sentinel_transaction import (
@@ -68,20 +74,14 @@ def _bundle_from_finalize_capture(
 
 
 def _sync_chatgpt_cookies(client: Any, browser_cookies: Any) -> None:
-    target = getattr(getattr(client, "auth", None), "cookies", None)
+    auth = getattr(client, "auth", None)
+    target = getattr(auth, "cookies", None)
     if not isinstance(target, dict) or not isinstance(browser_cookies, list):
         return
-    for cookie in browser_cookies:
-        domain = getattr(cookie, "domain", "")
-        name = getattr(cookie, "name", None)
-        value = getattr(cookie, "value", None)
-        if (
-            isinstance(domain, str)
-            and domain.lstrip(".").lower().endswith("chatgpt.com")
-            and isinstance(name, str)
-            and isinstance(value, str)
-        ):
-            target[name] = value
+    records = serialize_browser_cookies(browser_cookies)
+    target.update(flatten_browser_cookies(records))
+    if hasattr(auth, "browserCookies"):
+        auth.browserCookies = records
     _sync_device_header(client)
 
 
@@ -103,13 +103,26 @@ class ZendriverSentinelBundleProvider:
         headless: bool = False,
         browser_executable_path: str | Path | None = None,
         profile_dir: str | Path | None = None,
+        max_attempts: int = 2,
+        retry_delay: float = 1.0,
+        profile_lock_timeout: float = 30.0,
     ) -> None:
         if timeout <= 0:
             raise ValueError("timeout must be positive")
+        if int(max_attempts) <= 0:
+            raise ValueError("max_attempts must be positive")
+        if retry_delay < 0:
+            raise ValueError("retry_delay must be non-negative")
+        if profile_lock_timeout <= 0:
+            raise ValueError("profile_lock_timeout must be positive")
         self.timeout = float(timeout)
         self.headless = bool(headless)
         self.browser_executable_path = browser_executable_path
         self.profile_dir = Path(profile_dir) if profile_dir is not None else None
+        self.max_attempts = int(max_attempts)
+        self.retry_delay = float(retry_delay)
+        self.profile_lock_timeout = float(profile_lock_timeout)
+        self.last_diagnostics: dict[str, Any] = {}
 
     def __call__(self, client: Any) -> FinalizedSentinelBundle:
         try:
@@ -143,19 +156,76 @@ class ZendriverSentinelBundleProvider:
         return zendriver
 
     async def _acquire(self, client: Any) -> FinalizedSentinelBundle:
+        profile_lock = (
+            BrowserProfileLock(self.profile_dir, timeout=self.profile_lock_timeout)
+            if self.profile_dir is not None
+            else None
+        )
+        if profile_lock is not None:
+            try:
+                await asyncio.to_thread(profile_lock.acquire)
+            except TimeoutError as error:
+                raise RequestError(
+                    f"SENTINEL_BROWSER_PROFILE_BUSY: {error}",
+                    endpoint=SENTINEL_FINALIZE_PATH,
+                    request_stage="sentinel_browser_profile_lock",
+                ) from error
+        try:
+            last_error: RequestError | None = None
+            for attempt in range(1, self.max_attempts + 1):
+                try:
+                    return await self._acquire_once(client, attempt=attempt)
+                except RequestError as error:
+                    last_error = error
+                    retryable = getattr(error, "request_stage", None) in {
+                        "sentinel_bundle_provider",
+                        "sentinel_browser_capture",
+                    }
+                    if not retryable or attempt >= self.max_attempts:
+                        raise
+                    if self.retry_delay:
+                        await asyncio.sleep(self.retry_delay * attempt)
+            raise last_error or RequestError(
+                "SENTINEL_BROWSER_PROVIDER_FAILED",
+                request_stage="sentinel_bundle_provider",
+            )
+        finally:
+            if profile_lock is not None:
+                await asyncio.to_thread(profile_lock.release)
+
+    async def _acquire_once(
+        self,
+        client: Any,
+        *,
+        attempt: int,
+    ) -> FinalizedSentinelBundle:
         zendriver = self._import_zendriver()
         cdp = zendriver.cdp
         loop = asyncio.get_running_loop()
         captured: asyncio.Future[FinalizedSentinelBundle] = loop.create_future()
         finalize_requests: dict[Any, dict[str, Any]] = {}
         page: Any = None
+        diagnostics: dict[str, Any] = {
+            "attempt": attempt,
+            "page_loaded": False,
+            "editor_found": False,
+            "submit_clicked": False,
+            "prepare_seen": False,
+            "finalize_request_seen": False,
+            "finalize_response_seen": False,
+        }
+        self.last_diagnostics = diagnostics
 
         def on_request(event: Any, page: Any = None) -> None:
             request = getattr(event, "request", None)
-            if request is None or getattr(request, "url", "") != (
+            url = getattr(request, "url", "") if request is not None else ""
+            if url.endswith("/sentinel/chat-requirements/prepare"):
+                diagnostics["prepare_seen"] = True
+            if request is None or url != (
                 f"{CHAT_URL.rstrip('/')}{SENTINEL_FINALIZE_PATH}"
             ):
                 return
+            diagnostics["finalize_request_seen"] = True
             post_data = getattr(request, "post_data", None)
             if not isinstance(post_data, str):
                 return
@@ -221,6 +291,7 @@ class ZendriverSentinelBundleProvider:
                 f"{CHAT_URL.rstrip('/')}{SENTINEL_FINALIZE_PATH}"
             ):
                 return
+            diagnostics["finalize_response_seen"] = True
             loop.create_task(
                 read_finalize_response(
                     event.request_id,
@@ -300,23 +371,15 @@ class ZendriverSentinelBundleProvider:
                     session_expiry = _session_expiry_timestamp(
                         getattr(getattr(client, "auth", None), "expires", None)
                     )
-                    cookie_params = [
-                        cdp.network.CookieParam(
-                            name=str(name),
-                            value=str(value),
-                            url=CHAT_URL,
-                            secure=True,
-                            expires=(
-                                cdp.network.TimeSinceEpoch(session_expiry)
-                                if session_expiry is not None
-                                else None
-                            ),
-                        )
-                        for name, value in cookies.items()
-                        if name is not None and value is not None
-                    ]
+                    cookie_params = browser_cookie_params(
+                        cdp,
+                        getattr(getattr(client, "auth", None), "browserCookies", []),
+                        cookies,
+                        fallback_expires=session_expiry,
+                    )
                     await active_page.send(cdp.network.set_cookies(cookie_params))
                 await active_page.get(CHAT_URL)
+                diagnostics["page_loaded"] = True
 
                 # The page normally prefetches on its own. A reversible input
                 # event nudges lazy clients without clicking the submit button.
@@ -332,6 +395,7 @@ class ZendriverSentinelBundleProvider:
                             'textarea[placeholder]',
                             timeout=min(10.0, self.timeout),
                         )
+                        diagnostics["editor_found"] = True
                         # Zendriver/CDP emits trusted keyboard events. A synthetic
                         # InputEvent can start finalize without ever receiving a
                         # response on some ChatGPT clients.
@@ -349,6 +413,7 @@ class ZendriverSentinelBundleProvider:
                         # Fetch interception above aborts the actual conversation
                         # POST, leaving the captured bundle unused for the SDK.
                         await submit.click()
+                        diagnostics["submit_clicked"] = True
                     except Exception:
                         pass
                 bundle = await asyncio.wait_for(captured, timeout=self.timeout)
@@ -365,9 +430,13 @@ class ZendriverSentinelBundleProvider:
                         persist_auth_data(client.auth, auth_file)
                 return bundle
             except asyncio.TimeoutError as error:
+                detail = ", ".join(
+                    f"{key}={str(value).lower()}"
+                    for key, value in diagnostics.items()
+                )
                 raise RequestError(
                     "SENTINEL_BROWSER_PROVIDER_TIMEOUT: official ChatGPT page did "
-                    "not produce a finalized bundle before the timeout",
+                    f"not produce a finalized bundle before the timeout ({detail})",
                     endpoint=SENTINEL_FINALIZE_PATH,
                     request_stage="sentinel_bundle_provider",
                 ) from error

@@ -11,6 +11,12 @@ from typing import Any
 
 from .auth import CHATGPT_SESSION_COOKIE, CHAT_URL, DEFAULT_AUTH_FILE, load_auth_data
 from .auth_store import persist_auth_data
+from .browser_cookies import (
+    browser_cookie_params,
+    flatten_browser_cookies,
+    serialize_browser_cookies,
+)
+from .browser_profile_lock import BrowserProfileLock
 from .exceptions import AuthError
 from .types import AuthData
 
@@ -54,21 +60,7 @@ def _import_zendriver() -> Any:
 
 
 def _cookie_dict(browser_cookies: Any) -> dict[str, str]:
-    captured: dict[str, str] = {}
-    if not isinstance(browser_cookies, list):
-        return captured
-    for cookie in browser_cookies:
-        domain = getattr(cookie, "domain", "")
-        name = getattr(cookie, "name", None)
-        value = getattr(cookie, "value", None)
-        if (
-            isinstance(domain, str)
-            and domain.lstrip(".").lower().endswith("chatgpt.com")
-            and isinstance(name, str)
-            and isinstance(value, str)
-        ):
-            captured[name] = value
-    return captured
+    return flatten_browser_cookies(serialize_browser_cookies(browser_cookies))
 
 
 def _valid_session_payload(value: Any) -> dict[str, Any] | None:
@@ -116,6 +108,11 @@ async def _graceful_browser_stop(browser: Any, zendriver: Any) -> None:
             await asyncio.sleep(0.1)
     except Exception:
         pass
+    try:
+        if not bool(getattr(connection, "closed", False)):
+            await connection.aclose()
+    except Exception:
+        pass
     await browser.stop()
 
 
@@ -144,16 +141,24 @@ async def _browser_login_async(
     browser_executable_path: str | Path | None,
     persist: bool,
     reuse_existing_auth: bool,
+    profile_lock_timeout: float,
 ) -> BrowserLoginResult:
     zendriver = _import_zendriver()
     profile_dir.mkdir(parents=True, exist_ok=True)
-    browser = await zendriver.start(
-        user_data_dir=str(profile_dir),
-        headless=headless,
-        browser_executable_path=browser_executable_path,
-    )
+    profile_lock = BrowserProfileLock(profile_dir, timeout=profile_lock_timeout)
     try:
+        await asyncio.to_thread(profile_lock.acquire)
+    except TimeoutError as error:
+        raise AuthError(str(error)) from error
+    browser: Any = None
+    try:
+        browser = await zendriver.start(
+            user_data_dir=str(profile_dir),
+            headless=headless,
+            browser_executable_path=browser_executable_path,
+        )
         seed_cookies: dict[str, str] = {}
+        seed_browser_cookies: list[dict[str, Any]] = []
         seed_expires: float | None = None
         if reuse_existing_auth and auth_file.is_file():
             try:
@@ -161,6 +166,7 @@ async def _browser_login_async(
                     auth_file, allow_expired_session_refresh=True
                 )
                 seed_cookies = seed_auth.cookies
+                seed_browser_cookies = seed_auth.browserCookies
                 seed_expires = _session_expiry_timestamp(seed_auth.expires)
             except (AuthError, OSError, ValueError):
                 seed_cookies = {}
@@ -176,21 +182,12 @@ async def _browser_login_async(
         elif seed_cookies:
             page = await browser.get("about:blank")
             await _delete_session_cookies(page, zendriver, seed_auth.cookies)
-            cookie_params = [
-                zendriver.cdp.network.CookieParam(
-                    name=str(name),
-                    value=str(value),
-                    url=CHAT_URL,
-                    secure=True,
-                    expires=(
-                        zendriver.cdp.network.TimeSinceEpoch(seed_expires)
-                        if seed_expires is not None
-                        else None
-                    ),
-                )
-                for name, value in seed_cookies.items()
-                if name is not None and value is not None
-            ]
+            cookie_params = browser_cookie_params(
+                zendriver.cdp,
+                seed_browser_cookies,
+                seed_cookies,
+                fallback_expires=seed_expires,
+            )
             await page.send(zendriver.cdp.network.set_cookies(cookie_params))
             await page.get(CHAT_URL)
         else:
@@ -228,7 +225,8 @@ async def _browser_login_async(
             )
 
         browser_cookies = await page.send(zendriver.cdp.network.get_all_cookies())
-        cookies = _cookie_dict(browser_cookies)
+        browser_cookie_records = serialize_browser_cookies(browser_cookies)
+        cookies = flatten_browser_cookies(browser_cookie_records)
         if not cookies:
             raise AuthError("Browser login succeeded but no ChatGPT cookies were captured")
         session_expiry = _session_expiry_timestamp(session.get("expires"))
@@ -257,6 +255,11 @@ async def _browser_login_async(
                 cookie
                 for cookie in captured_session_objects
                 if getattr(cookie, "name", "") != CHATGPT_SESSION_COOKIE
+            ]
+            browser_cookie_records = [
+                record
+                for record in browser_cookie_records
+                if record.get("name") != CHATGPT_SESSION_COOKIE
             ]
         user_agent = await page.evaluate(
             "window.navigator.userAgent", return_by_value=True
@@ -292,6 +295,7 @@ async def _browser_login_async(
             accessToken=session["accessToken"].strip(),
             accessTokenSource="browser-login:accessToken",
             cookies=cookies,
+            browserCookies=browser_cookie_records,
             headers=headers,
             expires=session.get("expires"),
         )
@@ -309,7 +313,9 @@ async def _browser_login_async(
             persisted=bool(persist),
         )
     finally:
-        await _graceful_browser_stop(browser, zendriver)
+        if browser is not None:
+            await _graceful_browser_stop(browser, zendriver)
+        await asyncio.to_thread(profile_lock.release)
 
 
 def browser_login(
@@ -321,6 +327,7 @@ def browser_login(
     browser_executable_path: str | Path | None = None,
     persist: bool = True,
     reuse_existing_auth: bool = True,
+    profile_lock_timeout: float = 30.0,
 ) -> BrowserLoginResult:
     """Open ChatGPT once, wait for sign-in, and persist reusable session auth."""
 
@@ -338,6 +345,7 @@ def browser_login(
                 browser_executable_path=browser_executable_path,
                 persist=bool(persist),
                 reuse_existing_auth=bool(reuse_existing_auth),
+                profile_lock_timeout=float(profile_lock_timeout),
             )
         )
     raise AuthError("Synchronous browser_login cannot run inside an active asyncio event loop")

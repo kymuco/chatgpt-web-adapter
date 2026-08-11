@@ -64,6 +64,48 @@ def test_zendriver_provider_validates_timeout() -> None:
         ZendriverSentinelBundleProvider(timeout=0)
 
 
+def test_zendriver_provider_validates_retry_options() -> None:
+    with pytest.raises(ValueError, match="max_attempts"):
+        ZendriverSentinelBundleProvider(max_attempts=0)
+    with pytest.raises(ValueError, match="retry_delay"):
+        ZendriverSentinelBundleProvider(retry_delay=-1)
+
+
+def test_zendriver_provider_retries_transient_capture_error(monkeypatch) -> None:
+    provider = ZendriverSentinelBundleProvider(max_attempts=3, retry_delay=0)
+    expected = _bundle_from_finalize_capture(
+        {
+            "prepare_token": "prepare",
+            "proofofwork": "proof",
+            "turnstile": "turnstile",
+        },
+        200,
+        {
+            "persona": "chatgpt-web",
+            "token": "requirements",
+            "expire_after": 60,
+            "expire_at": 1060,
+        },
+        acquired_monotonic=10,
+        acquired_wallclock=1000,
+    )
+    attempts = []
+
+    async def acquire_once(client, *, attempt):
+        attempts.append(attempt)
+        if attempt < 3:
+            raise RequestError(
+                "transient",
+                request_stage="sentinel_bundle_provider",
+            )
+        return expected
+
+    monkeypatch.setattr(provider, "_acquire_once", acquire_once)
+
+    assert provider(object()) is expected
+    assert attempts == [1, 2, 3]
+
+
 def test_zendriver_provider_accepts_persistent_auth_profile(tmp_path) -> None:
     provider = ZendriverSentinelBundleProvider(profile_dir=tmp_path / "profile")
     assert provider.profile_dir == tmp_path / "profile"

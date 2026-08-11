@@ -338,6 +338,10 @@ class ChatGPTWebClient:
         auto_login: bool = False,
         browser_profile_dir: str | Path | None = None,
         browser_login_timeout: float = 300.0,
+        auto_sentinel: bool = False,
+        sentinel_timeout: float = 60.0,
+        sentinel_max_attempts: int = 2,
+        sentinel_headless: bool = False,
     ) -> None:
         self.auth_file = Path(auth_file)
         try:
@@ -370,6 +374,21 @@ class ChatGPTWebClient:
         self.debug_trace_sanitize = bool(debug_trace_sanitize)
         self._debug_trace_counter = 0
         self.persist_browser_auth = bool(persist_refreshed_auth and auth is None)
+        if auto_sentinel:
+            from .auth_browser import default_browser_profile_dir
+            from .browser_sentinel import ZendriverSentinelBundleProvider
+
+            profile = (
+                Path(browser_profile_dir)
+                if browser_profile_dir is not None
+                else default_browser_profile_dir()
+            )
+            self._sentinel_bundle_provider = ZendriverSentinelBundleProvider(
+                timeout=sentinel_timeout,
+                headless=sentinel_headless,
+                profile_dir=profile,
+                max_attempts=sentinel_max_attempts,
+            )
         if auto_refresh_auth:
             from .auth_refresh import auth_needs_refresh, refresh_auth_session
 

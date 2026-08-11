@@ -130,7 +130,7 @@ If the saved browser session is inconsistent or revoked, run
 `chatgpt-web-adapter auth login --force --auth-file auth_data.json` and complete
 the fresh login in the SDK browser profile.
 
-You can authenticate in three main ways:
+You can authenticate in five main ways:
 
 1. Run `chatgpt-web-adapter auth login` once.
 2. Let the client load and refresh `auth_data.json`.
@@ -158,6 +158,15 @@ Recommended captured shape:
   "cookies": {
     "__Secure-next-auth.session-token": "..."
   },
+  "browserCookies": [
+    {
+      "name": "__Secure-next-auth.session-token.0",
+      "value": "...",
+      "domain": ".chatgpt.com",
+      "path": "/",
+      "secure": true
+    }
+  ],
   "headers": {
     "user-agent": "Mozilla/5.0 ..."
   }
@@ -166,6 +175,7 @@ Recommended captured shape:
 
 - `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
 - `cookies` and `headers` should come from the same account/session as the token.
+- `browserCookies` is written by `auth login` and preserves domain-scoped browser cookie metadata. It is optional for backward compatibility but preferred for portable browser-session restoration.
 - Persisted `proof_token` and `turnstile_token` values are discarded when auth is saved; current Sentinel credentials are one-shot data acquired separately.
 - Older files that still use `api_key` are accepted for backward compatibility, but new files should use `accessToken`.
 
@@ -214,6 +224,17 @@ To make missing or server-revoked auth reopen the persistent browser profile:
 client = ChatGPTWebClient(auth_file="auth_data.json", auto_login=True)
 ```
 
+For protected new-chat, continuation, and media writes, enable automatic use of
+the persistent browser profile:
+
+```python
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
+```
+
 ### Pass a Preloaded `AuthData`
 
 ```python
@@ -252,6 +273,10 @@ Constructor arguments:
 - `auto_login`: open the persistent browser profile when auth is missing or refresh fails, defaults to `False`
 - `browser_profile_dir`: override the per-user persistent browser profile directory
 - `browser_login_timeout`: seconds to wait for interactive login, defaults to `300`
+- `auto_sentinel`: configure the official-page Sentinel provider against the persistent profile, defaults to `False`
+- `sentinel_timeout`: timeout for each browser capture attempt, defaults to `60`
+- `sentinel_max_attempts`: retry count for transient browser capture failures, defaults to `2`
+- `sentinel_headless`: run post-login Sentinel capture without a visible browser window, defaults to `False`
 
 ### Optional Sanitized Debug Traces
 
@@ -271,16 +296,9 @@ This is intended for local diagnostics and live smoke work. When enabled, the cl
 ## Basic Chat Request
 
 ```python
-from chatgpt_web_adapter import (
-    ChatGPTWebClient,
-    ZendriverSentinelBundleProvider,
-    default_browser_profile_dir,
-)
+from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(
-    ZendriverSentinelBundleProvider(profile_dir=default_browser_profile_dir())
-)
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Give me a short summary of this project.",
@@ -291,9 +309,10 @@ print(response.text)
 ```
 
 Install the provider with `pip install "chatgpt-web-adapter[browser]"`. It opens
-an isolated temporary browser, obtains one unused official-page Sentinel bundle,
-and never clicks submit. The ChatGPT web contract is undocumented, so this
-capture layer can require compatibility updates when the site changes.
+the SDK's persistent profile, obtains one unused official-page Sentinel bundle,
+blocks the browser's own conversation write, and keeps one-shot credentials in
+memory only. The ChatGPT web contract is undocumented, so this capture layer can
+require compatibility updates when the site changes.
 
 ## Read the Response Object
 
@@ -708,25 +727,18 @@ The current media helper is image-focused. Supported formats are:
 - GIF
 - WebP
 
-For current protected ChatGPT writes, configure the same
-`ZendriverSentinelBundleProvider` shown in Basic Chat Request before calling
-`send()`; it also protects the file-backed multimodal final write.
+For current protected ChatGPT writes, use the same `auto_sentinel=True` client
+configuration shown in Basic Chat Request; it also protects the file-backed
+multimodal final write.
 
 ### Local Image from `Path`
 
 ```python
 from pathlib import Path
 
-from chatgpt_web_adapter import (
-    ChatGPTWebClient,
-    ZendriverSentinelBundleProvider,
-    default_browser_profile_dir,
-)
+from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
-client.set_sentinel_bundle_provider(
-    ZendriverSentinelBundleProvider(profile_dir=default_browser_profile_dir())
-)
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Describe what is shown in this image.",
@@ -739,7 +751,7 @@ response = client.send(
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Summarize the chart in this image.",
@@ -754,7 +766,7 @@ The SDK follows redirects when downloading remote media before upload.
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
 
@@ -771,7 +783,7 @@ from pathlib import Path
 
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 image_bytes = Path("examples/diagram.webp").read_bytes()
 
 response = client.send(
@@ -787,7 +799,7 @@ from pathlib import Path
 
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Compare these two images.",
@@ -984,7 +996,7 @@ print(follow_up.text)
 - `response.metrics` values are measured in seconds.
 - If the backend requires a Turnstile token and your auth data does not contain one, the request can fail.
 - If `debug_trace_dir` is enabled, the client writes local trace JSON files for transport diagnostics.
-- This package is intentionally small; if you need auth capture or a CLI workflow, use a separate tool and feed its auth output into this SDK.
+- Initial auth capture and token refresh are built in through the optional browser extra and `chatgpt-web-adapter auth` commands.
 
 For operational verification and release hygiene, see:
 

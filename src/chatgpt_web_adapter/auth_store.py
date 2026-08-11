@@ -70,6 +70,11 @@ def persist_auth_data(
 
         access_token = getattr(auth, "accessToken", None)
         cookies = dict(getattr(auth, "cookies", {}) or {})
+        browser_cookies = [
+            dict(item)
+            for item in (getattr(auth, "browserCookies", []) or [])
+            if isinstance(item, dict)
+        ]
         headers = dict(getattr(auth, "headers", {}) or {})
         if isinstance(access_token, str) and access_token.strip():
             current["accessToken"] = access_token.strip()
@@ -91,6 +96,7 @@ def persist_auth_data(
             current["sessionExpiresAt"] = session_expires_at
         current["timestamp"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         current["cookies"] = cookies
+        current["browserCookies"] = browser_cookies
         current["headers"] = headers
         current.pop("proof_token", None)
         current.pop("turnstile_token", None)

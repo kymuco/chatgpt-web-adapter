@@ -68,6 +68,7 @@ class AuthData:
     accessToken: str | None = None
     accessTokenSource: str | None = None
     cookies: dict[str, str] = field(default_factory=dict)
+    browserCookies: list[dict[str, Any]] = field(default_factory=list)
     headers: dict[str, str] = field(default_factory=dict)
     expires: Any = None
     proof_token: Any = None
@@ -78,6 +79,7 @@ class AuthData:
         accessToken: str | None = None,
         accessTokenSource: str | None = None,
         cookies: dict[str, str] | None = None,
+        browserCookies: list[dict[str, Any]] | None = None,
         headers: dict[str, str] | None = None,
         expires: Any = None,
         proof_token: Any = None,
@@ -85,6 +87,7 @@ class AuthData:
         *,
         access_token: str | None = None,
         access_token_source: str | None = None,
+        browser_cookies: list[dict[str, Any]] | None = None,
         api_key: str | None = None,
         api_key_source: str | None = None,
     ) -> None:
@@ -101,6 +104,12 @@ class AuthData:
         self.accessToken = token
         self.accessTokenSource = token_source
         self.cookies = dict(cookies or {})
+        cookie_records = (
+            browserCookies if browserCookies is not None else browser_cookies
+        )
+        self.browserCookies = [
+            dict(item) for item in (cookie_records or []) if isinstance(item, dict)
+        ]
         self.headers = dict(headers or {})
         self.expires = expires
         self.proof_token = proof_token
@@ -138,6 +147,16 @@ class AuthData:
     def api_key_source(self, value: str | None) -> None:
         self.accessTokenSource = value
 
+    @property
+    def browser_cookies(self) -> list[dict[str, Any]]:
+        return self.browserCookies
+
+    @browser_cookies.setter
+    def browser_cookies(self, value: list[dict[str, Any]] | None) -> None:
+        self.browserCookies = [
+            dict(item) for item in (value or []) if isinstance(item, dict)
+        ]
+
     @classmethod
     def from_json(cls, path: str | Path) -> "AuthData":
         import json
@@ -154,6 +173,11 @@ class AuthData:
         return cls(
             accessToken=access_token,
             cookies=payload.get("cookies") or {},
+            browserCookies=(
+                payload.get("browserCookies")
+                or payload.get("browser_cookies")
+                or []
+            ),
             headers=payload.get("headers") or {},
             expires=payload.get("expires"),
             proof_token=payload.get("proof_token"),

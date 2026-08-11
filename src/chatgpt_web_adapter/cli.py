@@ -35,6 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     status = auth_commands.add_parser("status", help="show authorization health")
     add_auth_file(status)
+    status.add_argument("--profile-dir", type=Path)
 
     refresh = auth_commands.add_parser("refresh", help="refresh tokens without browser login")
     add_auth_file(refresh)
@@ -56,7 +57,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Persistent browser profile: {result.profile_dir}")
             return 0
         if args.auth_command == "status":
-            status = get_auth_status(args.auth_file)
+            status = get_auth_status(args.auth_file, profile_dir=args.profile_dir)
             print(
                 json.dumps(
                     {
@@ -71,6 +72,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "access_token_needs_refresh": status.access_token_needs_refresh,
                         "session_cookie_present": status.session_cookie_present,
                         "session_expires_at": status.session_expires_at,
+                        "browser_cookie_count": status.browser_cookie_count,
+                        "browser_profile_dir": str(status.browser_profile_dir),
+                        "browser_profile_exists": status.browser_profile_exists,
                     },
                     indent=2,
                 )
