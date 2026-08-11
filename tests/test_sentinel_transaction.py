@@ -254,6 +254,40 @@ def test_required_policy_type_drift_fails_before_provider(block: str, value) -> 
 
 
 @pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("seed", None),
+        ("seed", ""),
+        ("seed", "   "),
+        ("seed", 1),
+        ("seed", []),
+        ("seed", {}),
+        ("difficulty", None),
+        ("difficulty", ""),
+        ("difficulty", "   "),
+        ("difficulty", 1),
+        ("difficulty", []),
+        ("difficulty", {}),
+        ("difficulty", "not-hex"),
+        ("difficulty", "0x123"),
+        ("difficulty", "06eb35 "),
+    ],
+)
+def test_pow_descriptor_drift_fails_before_provider(field: str, value) -> None:
+    client = TransactionClient()
+    client.prepare_response["proofofwork"][field] = value
+    client.install_current_provider()
+    with pytest.raises(
+        RequestError,
+        match="SENTINEL_PREPARE_CONTRACT_DRIFT",
+    ) as captured:
+        acquire_finalized_sentinel_bundle(client)
+    assert captured.value.request_stage == "sentinel_prepare"
+    assert client.calls == ["prepare"]
+    assert client.provider_contexts == []
+
+
+@pytest.mark.parametrize(
     "expire_after",
     [float("inf"), float("-inf"), float("nan"), 1e309],
 )
