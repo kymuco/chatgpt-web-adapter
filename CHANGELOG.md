@@ -6,8 +6,15 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- compatibility: ordinary text writes to existing conversations now use the live-observed `conversation/prepare` -> conduit-token -> fresh chat-requirements/Turnstile -> `/f/conversation` sequence; warmup-prefetched requirements are discarded before prepare, while new-chat and multimodal writes remain unchanged pending independent evidence
+- compatibility: prepared existing-conversation writes reuse one user message id across `partial_query` and the final message, require `client_prepare_state: success`, and fail closed before the final write on prepare/conduit/Turnstile failures
+- compatibility: any `stream_handoff` observed on the prepared existing-text path forces bounded conversation recovery even when the initial stream already contains a text prefix and assistant id; recovered prefix extensions emit only the missing token suffix
+- diagnostics: prepare responses never serialize raw conduit-token credentials into debug traces; credential-bearing generic HTTP tracing is suppressed for prepare and replaced with a structural status/key/presence trace
+- diagnostics: prepared existing-text writes retain the established expanded send instrumentation (request/requirements/stream lifecycle events, structured request errors, and latency/backend metrics); successful streams copy only allowlisted model/reasoning/finish fields from the real private parser state, without exposing raw SSE or handoff credentials
+- diagnostics: prepared existing-text streaming emits each public structured `assistant_token` once by keeping expanded send instrumentation as the token-event owner and filtering the lower-level duplicate transport event
+- diagnostics: prepared-write lifecycle events expose only structural token-presence state, while final-write traces continue to redact `x-conduit-token`
 - diagnostics: added an ordinary-text `conversation/prepare` contract probe that records structural evidence without serializing prompt text, ids, raw responses, or conduit-token values
-- compatibility: added a reusable text prepare/conduit boundary using the observed `partial_query` shape and initial `x-conduit-token: no-token`, while deliberately leaving normal `send()` unwired pending live validation
+- compatibility: added a reusable text prepare/conduit boundary using the observed `partial_query` shape and initial `x-conduit-token: no-token`
 - models: the default reasoning path now uses the live-observed GPT-5.6 web slug `gpt-5-6-thinking`; Medium maps to `standard` and High maps to `extended`
 - models: added an evidence-backed capability registry and `gpt-5.6` / `thinking` convenience aliases while keeping unknown explicit model slugs pass-through and leaving unobserved Extra High unmapped
 - auth: raw ChatGPT `/api/auth/session` dumps now best-effort map `sessionToken` to the web session cookie while preserving explicit/chunked browser cookies

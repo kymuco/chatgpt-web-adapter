@@ -50,12 +50,14 @@ def _client_with_attach_and_send(
         return response
 
     client.attach_conversation = attach_conversation
+    client._send_existing_text_prepared = send
     client.send = send
     return client, attach_calls, send_calls, response
 
 
 def test_send_to_conversation_is_available_on_public_client_class() -> None:
     assert hasattr(adapter.ChatGPTWebClient, "send_to_conversation")
+    assert hasattr(adapter.ChatGPTWebClient, "_send_existing_text_prepared")
 
 
 def test_send_to_conversation_attaches_and_sends_with_detected_model() -> None:
@@ -235,6 +237,7 @@ def test_send_to_conversation_propagates_attach_errors_without_sending() -> None
         return adapter.ChatResponse(text="unexpected")
 
     client.attach_conversation = attach_conversation
+    client._send_existing_text_prepared = send
     client.send = send
 
     with pytest.raises(adapter.RequestError, match="status=404"):

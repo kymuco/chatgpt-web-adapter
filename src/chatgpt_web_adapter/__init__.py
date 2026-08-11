@@ -8,8 +8,9 @@ from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
-from .conversation_send import send_to_conversation as _send_to_conversation
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
+from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
+from .conversation_send import send_to_conversation as _send_to_conversation
 from .exceptions import (
     AuthError,
     ConversationTimeoutError,
@@ -55,6 +56,7 @@ from .types import (
 )
 from .wait import wait_until_completed as _wait_until_completed
 from .web_session import (
+    gate_debug_trace_writer as _gate_debug_trace_writer,
     gate_get_ready_requirements as _gate_get_ready_requirements,
     redact_web_session_headers as _redact_web_session_headers,
 )
@@ -73,12 +75,16 @@ _original_approve_pending_action = ChatGPTWebClient.approve_pending_action
 _original_send_and_auto_approve = ChatGPTWebClient.send_and_auto_approve
 _original_get_ready_requirements = ChatGPTWebClient._get_ready_requirements
 _original_sanitize_header_value = ChatGPTWebClient._sanitize_header_value
+_original_write_debug_trace = ChatGPTWebClient._write_debug_trace
 
 ChatGPTWebClient._get_ready_requirements = _gate_get_ready_requirements(
     _original_get_ready_requirements
 )
 ChatGPTWebClient._sanitize_header_value = _redact_web_session_headers(
     _original_sanitize_header_value
+)
+ChatGPTWebClient._write_debug_trace = _gate_debug_trace_writer(
+    _original_write_debug_trace
 )
 ChatGPTWebClient.approve_pending_action = _policy_approve_pending_action(
     _original_approve_pending_action
@@ -90,6 +96,9 @@ ChatGPTWebClient.get_pending_approval = _get_pending_approval
 ChatGPTWebClient.get_required_action = _get_required_action
 ChatGPTWebClient.get_status = _get_status
 ChatGPTWebClient.send = _send_with_expanded_metrics(_original_send)
+ChatGPTWebClient._send_existing_text_prepared = _send_with_expanded_metrics(
+    _send_existing_text_prepared
+)
 ChatGPTWebClient.send_and_auto_approve = _policy_send_and_auto_approve(
     _original_send_and_auto_approve
 )

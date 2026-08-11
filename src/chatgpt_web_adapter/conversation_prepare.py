@@ -5,20 +5,21 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import client as client_mod
 from .auth import CHAT_URL
-from .client import CHAT_CONVERSATION_PREPARE_URL
 from .types import ChatConversation
+from .web_session import suppress_web_session_debug_trace
 
 PREPARE_PATH = "/backend-api/f/conversation/prepare"
 
 
 @dataclass(frozen=True)
 class PrepareResult:
-    """Result of an evidence-only conversation prepare request.
+    """Result of a conversation prepare request.
 
     ``conduit_token`` is intentionally excluded from repr and should never be
-    serialized into diagnostic artifacts. It exists only so a later transport
-    integration can reuse this boundary without reworking the response parser.
+    serialized into diagnostic artifacts. It exists only in memory so prepared
+    write paths can reuse the response safely.
     """
 
     status_code: int
@@ -56,11 +57,7 @@ def build_text_prepare_payload(
     timezone_offset_min: int | None = None,
     partial_query_message_id: str | None = None,
 ) -> dict[str, Any]:
-    """Build the observed ordinary-text ``conversation/prepare`` payload shape.
-
-    This is deliberately separate from ``send()``. PR7.11 uses it to probe the
-    prepare/conduit contract without silently changing the normal write path.
-    """
+    """Build the observed ordinary-text ``conversation/prepare`` payload shape."""
 
     conversation_dict = _conversation_dict(conversation)
     parent_message_id = (
@@ -112,6 +109,50 @@ def build_prepare_headers(client: Any, *, conversation_id: str | None = None) ->
     )
 
 
+def _prepare_json_request(
+    client: Any,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+) -> tuple[int, Any]:
+    """Issue prepare without ever persisting its credential-bearing raw body.
+
+    The shared HTTP tracer records raw response bodies. A prepare response carries
+    the short-lived conduit credential, so this boundary suppresses generic trace
+    output only for the current execution context and replaces it with a
+    structural trace containing status, safe response keys, and token presence.
+    """
+
+    trace_dir_marker = object()
+    trace_dir = getattr(client, "debug_trace_dir", trace_dir_marker)
+    trace_enabled = trace_dir is not trace_dir_marker and trace_dir is not None
+    with suppress_web_session_debug_trace():
+        status, data = client._json_request(
+            "POST",
+            client_mod.CHAT_CONVERSATION_PREPARE_URL,
+            payload,
+            headers,
+        )
+
+    if trace_enabled:
+        writer = getattr(client, "_write_debug_trace", None)
+        if callable(writer):
+            response = data if isinstance(data, dict) else {}
+            conduit_token = response.get("conduit_token")
+            writer(
+                "prepare",
+                {
+                    "method": "POST",
+                    "url": client_mod.CHAT_CONVERSATION_PREPARE_URL,
+                    "response_status": int(status),
+                    "response_keys": sorted(str(key) for key in response),
+                    "conduit_token_present": isinstance(conduit_token, str)
+                    and bool(conduit_token.strip()),
+                    "raw_response_recorded": False,
+                },
+            )
+    return int(status), data
+
+
 def prepare_text_turn(
     client: Any,
     prompt: str,
@@ -147,14 +188,14 @@ def prepare_text_turn(
         client,
         conversation_id=conversation_id if isinstance(conversation_id, str) else None,
     )
-    status, data = client._json_request("POST", CHAT_CONVERSATION_PREPARE_URL, payload, headers)
+    status, data = _prepare_json_request(client, payload, headers)
     response = data if isinstance(data, dict) else {}
     conduit_token = response.get("conduit_token")
     if not isinstance(conduit_token, str) or not conduit_token.strip():
         conduit_token = None
     result = PrepareResult(
         status_code=int(status),
-        status_ok=200 <= int(status) < 300 and response.get("status") in {None, "ok"},
+        status_ok=200 <= int(status) < 300 and response.get("status") == "ok",
         conduit_token_present=conduit_token is not None,
         response_keys=tuple(sorted(str(key) for key in response)),
         conduit_token=conduit_token,

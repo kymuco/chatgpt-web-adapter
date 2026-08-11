@@ -1,9 +1,10 @@
 # Ordinary Text Prepare / Conduit Contract Probe
 
-PR7.11 isolates the current ChatGPT Web `conversation/prepare` boundary before
-changing the SDK's ordinary `send()` path.
+PR7.11 isolated the current ChatGPT Web `conversation/prepare` boundary before
+changing the SDK's ordinary write path.
 
-Current browser observations show an ordinary text prepare request shaped around:
+Current browser observations and the live PR7.11 probe show an ordinary text
+prepare request shaped around:
 
 - `POST /backend-api/f/conversation/prepare`
 - `x-conduit-token: no-token` on the initial prepare call
@@ -11,8 +12,8 @@ Current browser observations show an ordinary text prepare request shaped around
 - `client_prepare_state: success`
 - a short-lived `conduit_token` in the response
 
-This PR deliberately does **not** feed that token into normal `send()` yet. The
-probe exists to verify the contract against a current authenticated session first.
+The probe remains evidence-only: it never feeds the returned token into a final
+conversation write.
 
 ## Run
 
@@ -56,12 +57,15 @@ The report never records:
 Only structural booleans, status, safe response key names, and the prepare-state
 label are retained.
 
-## Exit criterion
+## Exit outcome
 
-`PREPARE_CONTRACT_OBSERVED` requires both a successful prepare response and the
-presence of a conduit token. Once that is reproduced on a current live session,
-a follow-up PR can wire prepare into ordinary `send()` and separately validate
-Sentinel/Turnstile ordering and final conversation headers.
+The live PR7.11 run reproduced `PREPARE_CONTRACT_OBSERVED`: prepare returned HTTP
+200 with `status=ok` and a conduit token while the report retained only structural
+evidence.
 
-The explicit regression invariant for PR7.11 is that ordinary `send()` remains
-unwired to the prepare boundary.
+PR7.11a therefore integrates this contract only into ordinary text writes to an
+existing conversation. The direct new-chat `ChatGPTWebClient.send()` path and
+multimodal writes remain outside that integration pending independent evidence.
+
+The original PR7.11 regression remains useful: the evidence-only probe itself
+still performs no final conversation write.

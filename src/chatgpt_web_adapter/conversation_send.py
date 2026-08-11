@@ -50,7 +50,12 @@ def send_to_conversation(
     on_token: Callable[[str], None] | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> ChatResponse:
-    """Send a prompt to an existing chatgpt.com conversation by URL or id."""
+    """Send a prompt to an existing chatgpt.com conversation by URL or id.
+
+    Ordinary text turns use the live-observed prepare/conduit path. Multimodal
+    turns deliberately remain on the legacy ``send()`` path until independently
+    characterized.
+    """
 
     attached = self.attach_conversation(url_or_id)
     resolved_model = _resolve_send_model(
@@ -64,7 +69,21 @@ def send_to_conversation(
         model=model,
         reasoning_effort=reasoning_effort,
     )
-    return self.send(
+    if media:
+        return self.send(
+            prompt,
+            model=resolved_model,
+            system=system,
+            web_search=web_search,
+            temporary=temporary,
+            reasoning_effort=resolved_reasoning_effort,
+            conversation=attached.conversation,
+            media=media,
+            on_token=on_token,
+            on_event=on_event,
+        )
+
+    response = self._send_existing_text_prepared(
         prompt,
         model=resolved_model,
         system=system,
@@ -72,7 +91,10 @@ def send_to_conversation(
         temporary=temporary,
         reasoning_effort=resolved_reasoning_effort,
         conversation=attached.conversation,
-        media=media,
+        media=None,
         on_token=on_token,
         on_event=on_event,
     )
+    if response.title is None and attached.title is not None:
+        response.title = attached.title
+    return response

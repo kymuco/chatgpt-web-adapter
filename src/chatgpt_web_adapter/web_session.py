@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Callable, Iterator
 
 from .auth import CHAT_URL
 from .exceptions import RequestError
@@ -9,6 +11,10 @@ SENSITIVE_WEB_SESSION_HEADERS = {
     "oai-device-id",
     "x-conduit-token",
 }
+_DEBUG_TRACE_SUPPRESSED: ContextVar[bool] = ContextVar(
+    "chatgpt_web_adapter_debug_trace_suppressed",
+    default=False,
+)
 
 
 def _sync_device_header(client: Any) -> bool:
@@ -17,6 +23,30 @@ def _sync_device_header(client: Any) -> bool:
         return False
     client.base_headers["oai-device-id"] = device_id.strip()
     return True
+
+
+@contextmanager
+def suppress_web_session_debug_trace() -> Iterator[None]:
+    """Suppress generic debug tracing only in the current execution context."""
+
+    token = _DEBUG_TRACE_SUPPRESSED.set(True)
+    try:
+        yield
+    finally:
+        _DEBUG_TRACE_SUPPRESSED.reset(token)
+
+
+def gate_debug_trace_writer(
+    original_write_debug_trace: Callable[..., None],
+) -> Callable[..., None]:
+    """Make debug-trace suppression execution-context-local and race-safe."""
+
+    def write_debug_trace(self: Any, kind: str, payload: dict[str, Any]) -> None:
+        if _DEBUG_TRACE_SUPPRESSED.get():
+            return
+        original_write_debug_trace(self, kind, payload)
+
+    return write_debug_trace
 
 
 def bootstrap_web_session(client: Any) -> bool:
@@ -83,12 +113,17 @@ def gate_get_ready_requirements(
 def redact_web_session_headers(
     original_sanitize_header_value: Callable[..., str],
 ) -> Callable[..., str]:
-    """Extend sanitized debug traces to cover current web-session credentials."""
+    """Extend debug-trace redaction to current web-session credentials."""
 
     def sanitize_header_value(self: Any, key: str, value: str) -> str:
+        normalized_key = key.strip().lower()
+        # Conduit tokens are short-lived write credentials and must never be
+        # persisted, even when ordinary debug-trace sanitization is disabled.
+        if normalized_key == "x-conduit-token":
+            return "<redacted>"
         if (
             bool(getattr(self, "debug_trace_sanitize", True))
-            and key.strip().lower() in SENSITIVE_WEB_SESSION_HEADERS
+            and normalized_key in SENSITIVE_WEB_SESSION_HEADERS
         ):
             return "<redacted>"
         return original_sanitize_header_value(self, key, value)
