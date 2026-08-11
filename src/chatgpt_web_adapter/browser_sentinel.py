@@ -5,10 +5,13 @@ import base64
 import json
 import tempfile
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
 from .auth import CHAT_URL
+from .auth_browser import _session_expiry_timestamp
+from .auth_store import persist_auth_data
 from .exceptions import RequestError
 from .sentinel_requirements import SENTINEL_FINALIZE_PATH
 from .sentinel_transaction import (
@@ -97,12 +100,14 @@ class ZendriverSentinelBundleProvider:
         timeout: float = 45.0,
         headless: bool = False,
         browser_executable_path: str | Path | None = None,
+        profile_dir: str | Path | None = None,
     ) -> None:
         if timeout <= 0:
             raise ValueError("timeout must be positive")
         self.timeout = float(timeout)
         self.headless = bool(headless)
         self.browser_executable_path = browser_executable_path
+        self.profile_dir = Path(profile_dir) if profile_dir is not None else None
 
     def __call__(self, client: Any) -> FinalizedSentinelBundle:
         try:
@@ -215,6 +220,36 @@ class ZendriverSentinelBundleProvider:
                 )
             )
 
+        def on_request_paused(event: Any, page: Any = None) -> None:
+            request = getattr(event, "request", None)
+            url = getattr(request, "url", "") if request is not None else ""
+
+            async def resolve_paused_request(command: Any) -> None:
+                try:
+                    await active_page.send(command)
+                except Exception:
+                    # The page may finish/cancel a paused request before the CDP
+                    # continuation task runs, especially during browser shutdown.
+                    pass
+
+            if url.rstrip("/").endswith(
+                ("/backend-api/f/conversation", "/backend-api/conversation")
+            ):
+                loop.create_task(
+                    resolve_paused_request(
+                        cdp.fetch.fail_request(
+                            event.request_id,
+                            cdp.network.ErrorReason.ABORTED,
+                        )
+                    )
+                )
+            else:
+                loop.create_task(
+                    resolve_paused_request(
+                        cdp.fetch.continue_request(event.request_id)
+                    )
+                )
+
         cookies = getattr(getattr(client, "auth", None), "cookies", None)
         if not isinstance(cookies, dict) or not cookies:
             raise RequestError(
@@ -223,7 +258,14 @@ class ZendriverSentinelBundleProvider:
                 request_stage="sentinel_bundle_provider",
             )
 
-        with tempfile.TemporaryDirectory(prefix="chatgpt-web-adapter-") as profile_dir:
+        profile_context = (
+            nullcontext(str(self.profile_dir))
+            if self.profile_dir is not None
+            else tempfile.TemporaryDirectory(prefix="chatgpt-web-adapter-")
+        )
+        if self.profile_dir is not None:
+            self.profile_dir.mkdir(parents=True, exist_ok=True)
+        with profile_context as profile_dir:
             browser = await zendriver.start(
                 user_data_dir=profile_dir,
                 headless=self.headless,
@@ -233,13 +275,32 @@ class ZendriverSentinelBundleProvider:
                 active_page = await browser.get("about:blank")
                 active_page.add_handler(cdp.network.RequestWillBeSent, on_request)
                 active_page.add_handler(cdp.network.ResponseReceived, on_response)
+                active_page.add_handler(cdp.fetch.RequestPaused, on_request_paused)
                 await active_page.send(cdp.network.enable())
+                await active_page.send(
+                    cdp.fetch.enable(
+                        patterns=[
+                            cdp.fetch.RequestPattern(
+                                url_pattern="*://chatgpt.com/backend-api/*conversation*",
+                                request_stage=cdp.fetch.RequestStage.REQUEST,
+                            )
+                        ]
+                    )
+                )
+                session_expiry = _session_expiry_timestamp(
+                    getattr(getattr(client, "auth", None), "expires", None)
+                )
                 cookie_params = [
                     cdp.network.CookieParam(
                         name=str(name),
                         value=str(value),
                         url=CHAT_URL,
                         secure=True,
+                        expires=(
+                            cdp.network.TimeSinceEpoch(session_expiry)
+                            if session_expiry is not None
+                            else None
+                        ),
                     )
                     for name, value in cookies.items()
                     if name is not None and value is not None
@@ -257,15 +318,29 @@ class ZendriverSentinelBundleProvider:
                 if not captured.done():
                     try:
                         probe_input = await active_page.select(
-                            '#prompt-textarea, [contenteditable="true"]',
+                            '#prompt-textarea, [contenteditable="true"], '
+                            'textarea[placeholder]',
                             timeout=min(10.0, self.timeout),
                         )
                         # Zendriver/CDP emits trusted keyboard events. A synthetic
                         # InputEvent can start finalize without ever receiving a
-                        # response on current ChatGPT clients.
+                        # response on some ChatGPT clients.
                         await probe_input.send_keys(".")
                     except Exception:
                         probe_input = None
+                if probe_input is not None and not captured.done():
+                    try:
+                        submit = await active_page.select(
+                            '[data-testid="send-button"], '
+                            '[data-testid="composer-submit-button"]',
+                            timeout=min(10.0, self.timeout),
+                        )
+                        # Current clients start finalize only on a trusted submit.
+                        # Fetch interception above aborts the actual conversation
+                        # POST, leaving the captured bundle unused for the SDK.
+                        await submit.click()
+                    except Exception:
+                        pass
                 bundle = await asyncio.wait_for(captured, timeout=self.timeout)
                 if probe_input is not None:
                     try:
@@ -274,6 +349,10 @@ class ZendriverSentinelBundleProvider:
                         pass
                 browser_cookies = await active_page.send(cdp.network.get_all_cookies())
                 _sync_chatgpt_cookies(client, browser_cookies)
+                if bool(getattr(client, "persist_browser_auth", False)):
+                    auth_file = getattr(client, "auth_file", None)
+                    if auth_file is not None:
+                        persist_auth_data(client.auth, auth_file)
                 return bundle
             except asyncio.TimeoutError as error:
                 raise RequestError(

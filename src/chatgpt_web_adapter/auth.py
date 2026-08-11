@@ -86,6 +86,13 @@ def _has_session_cookie(auth: AuthData) -> bool:
     )
 
 
+def _normalize_session_cookies(auth: AuthData) -> None:
+    """Prefer browser-issued chunked cookies over a non-chunked fallback."""
+
+    if any(name.startswith(f"{CHATGPT_SESSION_COOKIE}.") for name in auth.cookies):
+        auth.cookies.pop(CHATGPT_SESSION_COOKIE, None)
+
+
 def _seed_session_cookie_from_auth_file(auth: AuthData, auth_path: Path) -> None:
     """Best-effort mapping for a raw ``/api/auth/session`` JSON dump.
 
@@ -123,6 +130,7 @@ def load_auth_data(
         raise AuthError(f"Failed to parse auth data from {auth_path}: {error}") from error
 
     _seed_session_cookie_from_auth_file(auth, auth_path)
+    _normalize_session_cookies(auth)
 
     candidates: list[tuple[str, str]] = []
     if auth.accessToken:

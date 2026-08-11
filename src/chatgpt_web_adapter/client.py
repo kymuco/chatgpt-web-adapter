@@ -19,7 +19,7 @@ from typing import Any, Callable, Sequence
 from urllib.parse import urlparse
 
 from .auth import CHAT_URL, DEFAULT_AUTH_FILE, build_base_headers, load_auth_data
-from .exceptions import MediaError, RequestError
+from .exceptions import AuthError, MediaError, RequestError
 from .model_detection import (
     detect_model_from_conversation_payload,
     detect_reasoning_effort_from_conversation_payload,
@@ -335,12 +335,26 @@ class ChatGPTWebClient:
         debug_trace_sanitize: bool = True,
         auto_refresh_auth: bool = True,
         persist_refreshed_auth: bool = True,
+        auto_login: bool = False,
+        browser_profile_dir: str | Path | None = None,
+        browser_login_timeout: float = 300.0,
     ) -> None:
         self.auth_file = Path(auth_file)
-        self.auth = auth or load_auth_data(
-            self.auth_file,
-            allow_expired_session_refresh=bool(auto_refresh_auth),
-        )
+        try:
+            self.auth = auth or load_auth_data(
+                self.auth_file,
+                allow_expired_session_refresh=bool(auto_refresh_auth),
+            )
+        except AuthError:
+            if not auto_login or auth is not None:
+                raise
+            from .auth_browser import browser_login
+
+            self.auth = browser_login(
+                self.auth_file,
+                profile_dir=browser_profile_dir,
+                timeout=browser_login_timeout,
+            ).auth
         self.timeout = max(10, int(timeout))
         self.base_headers = build_base_headers(self.auth)
         self.curl_bin = curl_bin or shutil.which("curl.exe") or shutil.which("curl")
@@ -355,15 +369,28 @@ class ChatGPTWebClient:
         self.debug_trace_dir = Path(debug_trace_dir) if debug_trace_dir is not None else None
         self.debug_trace_sanitize = bool(debug_trace_sanitize)
         self._debug_trace_counter = 0
+        self.persist_browser_auth = bool(persist_refreshed_auth and auth is None)
         if auto_refresh_auth:
             from .auth_refresh import auth_needs_refresh, refresh_auth_session
 
             if auth_needs_refresh(self.auth.accessToken):
-                refresh_auth_session(
-                    self,
-                    persist=bool(persist_refreshed_auth and auth is None),
-                    auth_file=self.auth_file,
-                )
+                try:
+                    refresh_auth_session(
+                        self,
+                        persist=bool(persist_refreshed_auth and auth is None),
+                        auth_file=self.auth_file,
+                    )
+                except AuthError:
+                    if not auto_login or auth is not None:
+                        raise
+                    from .auth_browser import browser_login
+
+                    self.auth = browser_login(
+                        self.auth_file,
+                        profile_dir=browser_profile_dir,
+                        timeout=browser_login_timeout,
+                    ).auth
+                    self.base_headers = build_base_headers(self.auth)
 
     def _build_headers(self, extra: dict[str, str | None] | None = None) -> dict[str, str]:
         headers = dict(self.base_headers)

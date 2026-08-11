@@ -127,6 +127,30 @@ def test_explicit_chunked_browser_session_cookies_win_over_session_token(tmp_pat
     assert auth.cookies["__Secure-next-auth.session-token.1"] == "chunk-one"
 
 
+def test_chunked_session_cookies_remove_conflicting_nonchunked_cookie(tmp_path) -> None:
+    auth_file = tmp_path / "auth_data.json"
+    auth_file.write_text(
+        json.dumps(
+            {
+                "accessToken": "not.a.jwt",
+                "sessionToken": "json-fallback",
+                "cookies": {
+                    "__Secure-next-auth.session-token": "conflicting-fallback",
+                    "__Secure-next-auth.session-token.0": "chunk-zero",
+                    "__Secure-next-auth.session-token.1": "chunk-one",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    auth = adapter.load_auth_data(auth_file)
+
+    assert "__Secure-next-auth.session-token" not in auth.cookies
+    assert auth.cookies["__Secure-next-auth.session-token.0"] == "chunk-zero"
+    assert auth.cookies["__Secure-next-auth.session-token.1"] == "chunk-one"
+
+
 def test_oai_did_cookie_seeds_device_header() -> None:
     auth = adapter.AuthData(
         accessToken="token",

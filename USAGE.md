@@ -115,21 +115,28 @@ pytest -q
 
 ## Authentication
 
-The SDK consumes an existing authenticated web session; it does not perform the
-initial login. If the access token is missing or near expiry and the file contains
-a session cookie/token, client construction refreshes credentials through
-`/api/auth/session` and atomically updates `auth_data.json` by default.
+The SDK can create the initial authenticated session with its optional browser
+extra. After that, client construction refreshes missing or near-expiry access
+tokens through `/api/auth/session`, preserves browser-issued cookies, and
+atomically updates `auth_data.json`.
+
+```bash
+pip install "chatgpt-web-adapter[browser]"
+chatgpt-web-adapter auth login --auth-file auth_data.json
+chatgpt-web-adapter auth status --auth-file auth_data.json
+```
 
 You can authenticate in three main ways:
 
-1. Let the client load `auth_data.json`.
-2. Let the client load `accessToken` from `.env` as an optional fallback.
-3. Pass an `AuthData` object directly.
-4. Call `client.refresh_auth()` when an immediate refresh is required.
+1. Run `chatgpt-web-adapter auth login` once.
+2. Let the client load and refresh `auth_data.json`.
+3. Let the client load `accessToken` from `.env` as an optional fallback.
+4. Pass an `AuthData` object directly.
+5. Call `client.refresh_auth()` when an immediate refresh is required.
 
 ### `auth_data.json`
 
-In practice, the easiest path is to reuse an existing file captured by another tool, for example `webchat-openai-cli`.
+The recommended path is to let the SDK create this file with `auth login`.
 
 Minimal workable shape:
 
@@ -155,7 +162,7 @@ Recommended captured shape:
 
 - `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
 - `cookies` and `headers` should come from the same account/session as the token.
-- If your captured file also includes `proof_token` or `turnstile_token`, keep them. The SDK can use those fields when the backend requires them.
+- Persisted `proof_token` and `turnstile_token` values are discarded when auth is saved; current Sentinel credentials are one-shot data acquired separately.
 - Older files that still use `api_key` are accepted for backward compatibility, but new files should use `accessToken`.
 
 ### `.env`
@@ -197,6 +204,12 @@ from chatgpt_web_adapter import ChatGPTWebClient
 client = ChatGPTWebClient(auth_file="auth_data.json")
 ```
 
+To make missing or server-revoked auth reopen the persistent browser profile:
+
+```python
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_login=True)
+```
+
 ### Pass a Preloaded `AuthData`
 
 ```python
@@ -232,6 +245,9 @@ Constructor arguments:
 - `debug_trace_sanitize`: redact auth/session headers in debug traces, defaults to `True`
 - `auto_refresh_auth`: refresh a missing/near-expiry access token from the session endpoint, defaults to `True`
 - `persist_refreshed_auth`: atomically update `auth_data.json` after automatic refresh, defaults to `True`
+- `auto_login`: open the persistent browser profile when auth is missing or refresh fails, defaults to `False`
+- `browser_profile_dir`: override the per-user persistent browser profile directory
+- `browser_login_timeout`: seconds to wait for interactive login, defaults to `300`
 
 ### Optional Sanitized Debug Traces
 

@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import json
-import os
-import tempfile
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -15,11 +11,11 @@ from .auth import (
     _get_access_token_expiry,
 )
 from .exceptions import AuthError
+from .auth_store import persist_auth_data
 from .web_session import _sync_device_header, suppress_web_session_debug_trace
 
 SESSION_URL = f"{CHAT_URL.rstrip('/')}/api/auth/session"
 AUTH_REFRESH_SKEW_SECONDS = 300
-_AUTH_FILE_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -41,63 +37,17 @@ def auth_needs_refresh(access_token: str | None, *, now: datetime | None = None)
     return expires_at <= current + timedelta(seconds=AUTH_REFRESH_SKEW_SECONDS)
 
 
-def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing_mode: int | None = None
-    try:
-        existing_mode = path.stat().st_mode
-    except OSError:
-        pass
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as stream:
-            json.dump(payload, stream, ensure_ascii=False, indent=2)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-            temporary_path = Path(stream.name)
-        if existing_mode is not None:
-            os.chmod(temporary_path, existing_mode)
-        elif os.name != "nt":
-            os.chmod(temporary_path, 0o600)
-        os.replace(temporary_path, path)
-        temporary_path = None
-    finally:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-
-
 def _persist_refreshed_auth(
     client: Any,
     path: Path,
     response: dict[str, Any],
 ) -> None:
-    with _AUTH_FILE_LOCK:
-        try:
-            current = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-        except (OSError, ValueError) as error:
-            raise AuthError(f"Failed to read auth data before refresh: {error}") from error
-        if not isinstance(current, dict):
-            current = {}
-        current["accessToken"] = response["accessToken"].strip()
-        current["sessionToken"] = response["sessionToken"].strip()
-        if response.get("expires") is not None:
-            current["expires"] = response["expires"]
-        current["cookies"] = dict(getattr(client.auth, "cookies", {}) or {})
-        current["headers"] = dict(getattr(client.auth, "headers", {}) or {})
-        current.pop("proof_token", None)
-        current.pop("turnstile_token", None)
-        _atomic_write_json(path, current)
+    persist_auth_data(
+        client.auth,
+        path,
+        session_token=response["sessionToken"].strip(),
+        session_expires_at=response.get("expires"),
+    )
 
 
 def refresh_auth_session(
@@ -138,10 +88,6 @@ def refresh_auth_session(
     client.auth.accessToken = access_token.strip()
     client.auth.accessTokenSource = "session-refresh:accessToken"
     client.auth.expires = data.get("expires")
-    for name in list(client.auth.cookies):
-        if name == CHATGPT_SESSION_COOKIE or name.startswith(f"{CHATGPT_SESSION_COOKIE}."):
-            del client.auth.cookies[name]
-    client.auth.cookies[CHATGPT_SESSION_COOKIE] = session_token.strip()
     _sync_device_header(client)
 
     target = Path(auth_file) if auth_file is not None else getattr(client, "auth_file", None)

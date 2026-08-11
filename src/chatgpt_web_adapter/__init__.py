@@ -6,10 +6,12 @@ from .approval_policy import ApprovalDecision, ApprovalPolicy
 from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
+from .auth_browser import BrowserLoginResult, browser_login, default_browser_profile_dir
 from .auth_refresh import (
     AuthRefreshResult,
     refresh_auth_session as _refresh_auth_session,
 )
+from .auth_status import AuthStatus, get_auth_status
 from .browser_sentinel import ZendriverSentinelBundleProvider
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
@@ -219,9 +221,14 @@ EXPERIMENTAL_SENTINEL_EXPORTS = [
 ]
 
 SUPPORT_EXPORTS = [
+    "AuthStatus",
     "AuthRefreshResult",
+    "BrowserLoginResult",
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
+    "browser_login",
+    "default_browser_profile_dir",
+    "get_auth_status",
     "load_auth_data",
 ]
 

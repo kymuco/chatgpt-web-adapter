@@ -62,11 +62,11 @@ def test_refresh_auth_rotates_and_atomically_persists_session(tmp_path) -> None:
     assert result.session_token_rotated is True
     assert result.persisted is True
     assert client.auth.accessToken == "new-access"
-    assert client.auth.cookies[CHATGPT_SESSION_COOKIE] == "new-session"
+    assert client.auth.cookies[CHATGPT_SESSION_COOKIE] == "old-session"
     assert saved["accessToken"] == "new-access"
     assert saved["sessionToken"] == "new-session"
     assert saved["account"] == {"id": "preserve-me"}
-    assert saved["cookies"][CHATGPT_SESSION_COOKIE] == "new-session"
+    assert saved["cookies"][CHATGPT_SESSION_COOKIE] == "old-session"
     assert "proof_token" not in saved
     assert "turnstile_token" not in saved
     assert not list(tmp_path.glob("*.tmp"))

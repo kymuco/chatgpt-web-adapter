@@ -69,7 +69,7 @@ class AuthData:
     accessTokenSource: str | None = None
     cookies: dict[str, str] = field(default_factory=dict)
     headers: dict[str, str] = field(default_factory=dict)
-    expires: int | None = None
+    expires: Any = None
     proof_token: Any = None
     turnstile_token: str | None = None
 
@@ -79,7 +79,7 @@ class AuthData:
         accessTokenSource: str | None = None,
         cookies: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
-        expires: int | None = None,
+        expires: Any = None,
         proof_token: Any = None,
         turnstile_token: str | None = None,
         *,

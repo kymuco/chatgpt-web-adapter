@@ -64,6 +64,11 @@ def test_zendriver_provider_validates_timeout() -> None:
         ZendriverSentinelBundleProvider(timeout=0)
 
 
+def test_zendriver_provider_accepts_persistent_auth_profile(tmp_path) -> None:
+    provider = ZendriverSentinelBundleProvider(profile_dir=tmp_path / "profile")
+    assert provider.profile_dir == tmp_path / "profile"
+
+
 def test_sync_chatgpt_cookies_updates_device_binding_only_for_chatgpt() -> None:
     from types import SimpleNamespace
 
