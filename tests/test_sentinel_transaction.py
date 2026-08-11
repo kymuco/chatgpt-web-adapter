@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +11,7 @@ from chatgpt_web_adapter.sentinel_transaction import (
     SentinelChallengeContext,
     SentinelChallengeEvidence,
     acquire_finalized_sentinel_bundle,
+    set_sentinel_bundle_provider,
     set_sentinel_challenge_provider,
 )
 
@@ -47,8 +49,9 @@ class TransactionClient:
             "persona": "chatgpt-paid",
             "token": "secret-requirements",
             "expire_after": 540,
-            "expire_at": 1_800_000_000,
+            "expire_at": time.time() + 540,
         }
+        self.expected_prepare_input = None
 
     @staticmethod
     def _build_headers(extra):
@@ -63,7 +66,7 @@ class TransactionClient:
         assert method == "POST"
         if url.endswith("/sentinel/chat-requirements/prepare"):
             self.calls.append("prepare")
-            assert payload == {"p": None}
+            assert payload == {"p": self.expected_prepare_input}
             return self.prepare_status, self.prepare_response
         if url.endswith("/sentinel/chat-requirements/finalize"):
             self.calls.append("finalize")
@@ -86,9 +89,6 @@ class TransactionClient:
         prepare_token: str | None = None,
         turnstile_dx: str | None = None,
         turnstile_token: str = "current-turnstile-token",
-        so_completed: bool = True,
-        so_collector_dx: str | None = None,
-        so_snapshot_dx: str | None = None,
     ) -> None:
         def provider(context: SentinelChallengeContext) -> SentinelChallengeEvidence:
             self.provider_contexts.append(context)
@@ -100,17 +100,6 @@ class TransactionClient:
                     context.turnstile_dx if turnstile_dx is None else turnstile_dx
                 ),
                 turnstile_token=turnstile_token,
-                so_collector_dx=(
-                    context.so_collector_dx
-                    if so_collector_dx is None
-                    else so_collector_dx
-                ),
-                so_snapshot_dx=(
-                    context.so_snapshot_dx
-                    if so_snapshot_dx is None
-                    else so_snapshot_dx
-                ),
-                so_completed=so_completed,
             )
 
         set_sentinel_challenge_provider(self, provider)
@@ -124,7 +113,9 @@ def test_two_phase_finalize_uses_current_prepare_provider_bundle_only() -> None:
     assert client.calls == ["prepare", "finalize"]
     assert len(client.provider_contexts) == 1
     context = client.provider_contexts[0]
+    assert context.prepare_input is None
     assert context.prepare_token == "secret-prepare-token"
+    assert context.persona == "chatgpt-paid"
     assert context.turnstile_dx == "secret-turnstile-dx"
     assert context.so_collector_dx == "secret-collector-dx"
     assert context.so_snapshot_dx == "secret-snapshot-dx"
@@ -165,6 +156,59 @@ def test_two_phase_finalize_uses_current_prepare_provider_bundle_only() -> None:
     }
 
 
+def test_complete_browser_bundle_provider_skips_sdk_prepare_and_finalize() -> None:
+    client = TransactionClient()
+    captured_bundle = FinalizedSentinelBundle(
+        requirements_token="browser-requirements",
+        proof_token="browser-proof",
+        turnstile_token="browser-turnstile",
+        acquired_monotonic=time.monotonic(),
+        expires_monotonic=time.monotonic() + 60,
+        source="browser_finalize_capture",
+    )
+    seen_clients = []
+    set_sentinel_bundle_provider(
+        client,
+        lambda provider_client: seen_clients.append(provider_client) or captured_bundle,
+    )
+
+    assert acquire_finalized_sentinel_bundle(client) is captured_bundle
+    assert seen_clients == [client]
+    assert client.calls == []
+
+
+def test_complete_browser_bundle_provider_rejects_expired_bundle() -> None:
+    client = TransactionClient()
+    set_sentinel_bundle_provider(
+        client,
+        lambda _client: FinalizedSentinelBundle(
+            "requirements",
+            "proof",
+            "turnstile",
+            time.monotonic() - 20,
+            time.monotonic() - 10,
+        ),
+    )
+
+    with pytest.raises(RequestError, match="PROVIDER_EXPIRED"):
+        acquire_finalized_sentinel_bundle(client)
+
+
+def test_provider_receives_exact_prepare_input(monkeypatch) -> None:
+    client = TransactionClient()
+    client.auth.proof_token = ["browser-proof-material"]
+    client.expected_prepare_input = "current-prepare-input"
+    monkeypatch.setattr(
+        "chatgpt_web_adapter.sentinel_transaction.client_mod._get_requirements_token",
+        lambda proof: "current-prepare-input",
+    )
+    client.install_current_provider()
+
+    acquire_finalized_sentinel_bundle(client)
+
+    assert client.provider_contexts[0].prepare_input == "current-prepare-input"
+
+
 def test_persisted_turnstile_never_authorizes_two_phase_finalize() -> None:
     client = TransactionClient()
     with pytest.raises(
@@ -193,21 +237,13 @@ def test_provider_turnstile_must_match_current_descriptor() -> None:
     assert client.calls == ["prepare"]
 
 
-def test_provider_must_complete_required_so_for_current_prepare() -> None:
+def test_required_so_does_not_block_browser_observed_finalize() -> None:
     client = TransactionClient()
-    client.install_current_provider(so_completed=False)
-    with pytest.raises(RequestError, match="SENTINEL_SO_CAPABILITY_REQUIRED") as captured:
-        acquire_finalized_sentinel_bundle(client)
-    assert captured.value.request_stage == "sentinel_so_gate"
-    assert client.calls == ["prepare"]
-
-
-def test_provider_so_descriptor_must_match_current_prepare() -> None:
-    client = TransactionClient()
-    client.install_current_provider(so_collector_dx="stale-collector")
-    with pytest.raises(RequestError, match="SENTINEL_CHALLENGE_BINDING_MISMATCH"):
-        acquire_finalized_sentinel_bundle(client)
-    assert client.calls == ["prepare"]
+    client.install_current_provider()
+    bundle = acquire_finalized_sentinel_bundle(client)
+    assert bundle.requirements_token == "secret-requirements"
+    assert client.calls == ["prepare", "finalize"]
+    assert client.provider_contexts[0].so_required is True
 
 
 def test_provider_must_return_turnstile_evidence() -> None:
@@ -304,6 +340,34 @@ def test_non_finite_finalize_ttl_fails_closed(expire_after: float) -> None:
     assert client.calls == ["prepare", "finalize"]
 
 
+@pytest.mark.parametrize(
+    "expire_at",
+    [None, True, "1800000000", float("inf"), float("-inf"), float("nan")],
+)
+def test_invalid_absolute_finalize_expiry_fails_closed(expire_at) -> None:
+    client = TransactionClient()
+    client.install_current_provider()
+    client.finalize_response["expire_at"] = expire_at
+    with pytest.raises(
+        RequestError,
+        match="expire_at",
+    ) as captured:
+        acquire_finalized_sentinel_bundle(client)
+    assert captured.value.request_stage == "sentinel_finalize"
+    assert client.calls == ["prepare", "finalize"]
+
+
+def test_absolute_finalize_expiry_clamps_relative_ttl() -> None:
+    client = TransactionClient()
+    client.install_current_provider()
+    client.finalize_response["expire_after"] = 540
+    client.finalize_response["expire_at"] = time.time() + 30
+
+    bundle = acquire_finalized_sentinel_bundle(client)
+
+    assert 20 <= bundle.expires_monotonic - bundle.acquired_monotonic <= 25
+
+
 def test_finalize_failure_does_not_cache_or_restore_provider_evidence() -> None:
     client = TransactionClient()
     client.install_current_provider()
@@ -319,7 +383,9 @@ def test_finalize_failure_does_not_cache_or_restore_provider_evidence() -> None:
 
 def test_challenge_objects_and_bundle_hide_secret_values() -> None:
     context = SentinelChallengeContext(
+        "UNIQUE_PREPARE_INPUT_SECRET_z0",
         "UNIQUE_PREPARE_SECRET_a1",
+        "chatgpt-paid",
         "UNIQUE_DX_SECRET_b2",
         "UNIQUE_COLLECTOR_SECRET_c3",
         "UNIQUE_SNAPSHOT_SECRET_d4",
@@ -331,9 +397,6 @@ def test_challenge_objects_and_bundle_hide_secret_values() -> None:
         "UNIQUE_PREPARE_SECRET_a1",
         "UNIQUE_DX_SECRET_b2",
         "UNIQUE_TURNSTILE_SECRET_e5",
-        "UNIQUE_COLLECTOR_SECRET_c3",
-        "UNIQUE_SNAPSHOT_SECRET_d4",
-        True,
     )
     bundle = FinalizedSentinelBundle(
         "UNIQUE_REQUIREMENTS_SECRET_f6",
@@ -344,6 +407,7 @@ def test_challenge_objects_and_bundle_hide_secret_values() -> None:
     )
     rendered = repr(context) + repr(evidence) + repr(bundle)
     for secret in (
+        "UNIQUE_PREPARE_INPUT_SECRET_z0",
         "UNIQUE_PREPARE_SECRET_a1",
         "UNIQUE_DX_SECRET_b2",
         "UNIQUE_COLLECTOR_SECRET_c3",

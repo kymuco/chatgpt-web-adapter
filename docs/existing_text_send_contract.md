@@ -16,16 +16,14 @@ For `send_to_conversation(..., media=None)` the adapter performs:
 discard any legacy warmup-prefetched requirements
   -> build one user message
   -> create one x-oai-turn-trace-id
+  -> reserve an unexpired finalized Sentinel bundle
+       or synchronously perform two-phase acquisition through the provider
   -> POST /backend-api/f/conversation/prepare
        x-conduit-token: no-token
        x-oai-turn-trace-id: <same turn id used by final write>
   -> require successful prepare + conduit token
-  -> reserve an unexpired finalized Sentinel bundle
-       or synchronously perform
-       /sentinel/chat-requirements/prepare
-       -> current-prepare browser challenge provider boundary
-       -> /sentinel/chat-requirements/finalize
-  -> irreversibly consume that bundle
+  -> select the reserved bundle through the metrics requirements hook
+  -> irreversibly consume that bundle while building final write headers
   -> POST /backend-api/f/conversation
        client_prepare_state: success
        x-conduit-token: <prepare response token>
@@ -33,6 +31,7 @@ discard any legacy warmup-prefetched requirements
        openai-sentinel-chat-requirements-token: <bundle requirements token>
        openai-sentinel-proof-token: <same bundle proof>
        openai-sentinel-turnstile-token: <same bundle Turnstile evidence>
+  -> start one best-effort background refill for the next write
 ```
 
 The adapter currently reuses its own user message id in `partial_query` and the
@@ -73,10 +72,12 @@ read `AuthData.turnstile_token`, even if that field was loaded from `auth_data.j
 Persisted or restart-resurrected legacy Turnstile material therefore cannot
 implicitly authorize a new two-phase finalize.
 
-A current-prepare challenge provider must receive the exact `prepare_token`,
-Turnstile `dx`, and SO collector/snapshot descriptors returned by the current
-Sentinel prepare. Evidence is accepted only when it is explicitly bound back to
-those same values, includes a Turnstile token, and confirms required SO completion.
+A current-prepare challenge provider receives the exact prepare input `p`,
+`prepare_token`, persona, Turnstile `dx`, and SO collector/snapshot descriptors
+returned by the current Sentinel prepare. Evidence is accepted only when it is
+bound back to the prepare/Turnstile transaction and includes a Turnstile token.
+The browser starts required SO collector work without awaiting it; SO is not a
+prerequisite for the observed finalize request.
 No bundled provider exists in PR7.11c, so the default production outcome at this
 boundary is fail-closed until PR7.11d characterizes and implements legitimate
 browser fulfillment.
@@ -88,8 +89,8 @@ required/optional combinations fail closed rather than guessing request semantic
 
 The prepared existing-text path remains wrapped by the same expanded-send
 instrumentation used by the legacy `send()` path. The existing requirements timing
-hook now measures the execution-local finalized-bundle acquisition/consumption
-boundary because the prepared context intercepts `_get_ready_requirements()` before
+hook now measures the execution-local finalized-bundle selection boundary because
+the prepared context intercepts `_get_ready_requirements()` before
 it can reach the legacy single-step network endpoint. The established
 `requirements_ready` event remains structurally compatible with earlier callers.
 
@@ -115,9 +116,8 @@ The final conversation write must not occur when:
 - no valid finalized Sentinel bundle can be reserved/acquired;
 - current Sentinel prepare/finalize structure drifts from the observed contract;
 - no current-prepare browser challenge provider is installed;
-- provider evidence is bound to another prepare/Turnstile/SO descriptor;
+- provider evidence is bound to another prepare/Turnstile descriptor;
 - required Turnstile evidence is absent;
-- required SO completion is absent;
 - the finalized bundle expires before consumption;
 - another prepared send already reserves the single available bundle.
 
@@ -145,7 +145,6 @@ PR7.11c does not characterize or change:
 - `ChatGPTWebClient.send()` for a new conversation;
 - existing-conversation sends containing media;
 - `/backend-api/sentinel/req` semantics;
-- automatic post-write Sentinel refill/background threads;
 - browser challenge fulfillment itself;
 - Turnstile/SO solving or bypass;
 - the WebSocket capability contract planned for PR7.12.

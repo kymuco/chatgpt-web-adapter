@@ -42,7 +42,9 @@ class FinalizedSentinelBundle:
 class SentinelChallengeContext:
     """Opaque current-prepare browser challenge context passed to a provider."""
 
+    prepare_input: str | None = field(repr=False, compare=False)
     prepare_token: str = field(repr=False, compare=False)
+    persona: str
     turnstile_dx: str = field(repr=False, compare=False)
     so_collector_dx: str = field(repr=False, compare=False)
     so_snapshot_dx: str = field(repr=False, compare=False)
@@ -58,14 +60,12 @@ class SentinelChallengeEvidence:
     prepare_token: str = field(repr=False, compare=False)
     turnstile_dx: str = field(repr=False, compare=False)
     turnstile_token: str = field(repr=False, compare=False)
-    so_collector_dx: str = field(repr=False, compare=False)
-    so_snapshot_dx: str = field(repr=False, compare=False)
-    so_completed: bool
 
 
 SentinelChallengeProvider = Callable[
     [SentinelChallengeContext], SentinelChallengeEvidence
 ]
+SentinelBundleProvider = Callable[[Any], FinalizedSentinelBundle]
 
 
 def set_sentinel_challenge_provider(
@@ -77,6 +77,49 @@ def set_sentinel_challenge_provider(
     if provider is not None and not callable(provider):
         raise TypeError("provider must be callable or None")
     client._sentinel_challenge_provider = provider
+
+
+def set_sentinel_bundle_provider(
+    client: Any,
+    provider: SentinelBundleProvider | None,
+) -> None:
+    """Install a provider which captures a complete unused browser bundle."""
+
+    if provider is not None and not callable(provider):
+        raise TypeError("provider must be callable or None")
+    client._sentinel_bundle_provider = provider
+
+
+def _obtain_provider_bundle(client: Any) -> FinalizedSentinelBundle | None:
+    provider = getattr(client, "_sentinel_bundle_provider", None)
+    if not callable(provider):
+        return None
+    try:
+        bundle = provider(client)
+    except RequestError:
+        raise
+    except Exception as error:
+        raise RequestError(
+            "SENTINEL_BROWSER_BUNDLE_PROVIDER_FAILED: browser provider did not "
+            "capture a usable finalized bundle",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_bundle_provider",
+        ) from error
+    if not isinstance(bundle, FinalizedSentinelBundle):
+        raise RequestError(
+            "SENTINEL_BROWSER_BUNDLE_PROVIDER_INVALID: provider returned an "
+            "unsupported bundle object",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_bundle_provider",
+        )
+    if bundle.is_expired():
+        raise RequestError(
+            "SENTINEL_BROWSER_BUNDLE_PROVIDER_EXPIRED: provider returned an "
+            "already expired bundle",
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_bundle_provider",
+        )
+    return bundle
 
 
 def _emit_event(
@@ -166,13 +209,16 @@ def _derive_prepare_input(client: Any) -> str | None:
 def _challenge_context(
     response: dict[str, Any],
     *,
+    prepare_input: str | None,
     prepare_token: str,
 ) -> SentinelChallengeContext:
     turnstile = response["turnstile"]
     proofofwork = response["proofofwork"]
     so = response["so"]
     return SentinelChallengeContext(
+        prepare_input=prepare_input,
         prepare_token=prepare_token,
+        persona=response["persona"].strip(),
         turnstile_dx=_required_descriptor(
             turnstile.get("dx"),
             name="turnstile.dx",
@@ -242,24 +288,6 @@ def _obtain_current_prepare_evidence(
             endpoint=SENTINEL_FINALIZE_PATH,
             request_stage="sentinel_turnstile_gate",
         )
-    if context.so_required:
-        if evidence.so_completed is not True:
-            raise RequestError(
-                "SENTINEL_SO_CAPABILITY_REQUIRED: current prepare requires SO "
-                "collector/snapshot completion before finalize",
-                endpoint=SENTINEL_FINALIZE_PATH,
-                request_stage="sentinel_so_gate",
-            )
-        if (
-            evidence.so_collector_dx != context.so_collector_dx
-            or evidence.so_snapshot_dx != context.so_snapshot_dx
-        ):
-            raise RequestError(
-                "SENTINEL_CHALLENGE_BINDING_MISMATCH: provider SO evidence belongs "
-                "to a different current-prepare descriptor",
-                endpoint=SENTINEL_FINALIZE_PATH,
-                request_stage="sentinel_challenge_binding",
-            )
     return evidence
 
 
@@ -347,6 +375,7 @@ def _validate_finalize_response(
     data: Any,
     *,
     acquired_monotonic: float,
+    acquired_wallclock: float,
 ) -> tuple[str, float]:
     if not 200 <= int(status) < 300:
         raise RequestError(
@@ -372,6 +401,7 @@ def _validate_finalize_response(
     persona = data.get("persona")
     token = data.get("token")
     expire_after = data.get("expire_after")
+    expire_at = data.get("expire_at")
     if not isinstance(persona, str) or not persona.strip():
         raise RequestError(
             "SENTINEL_FINALIZE_CONTRACT_DRIFT: persona is missing",
@@ -401,16 +431,35 @@ def _validate_finalize_response(
             endpoint=SENTINEL_FINALIZE_PATH,
             request_stage="sentinel_finalize",
         )
-    if ttl <= SENTINEL_EXPIRY_SAFETY_MARGIN_SECONDS:
+    if isinstance(expire_at, bool) or not isinstance(expire_at, (int, float)):
         raise RequestError(
-            "SENTINEL_FINALIZE_CONTRACT_DRIFT: expire_after is too small",
+            "SENTINEL_FINALIZE_CONTRACT_DRIFT: expire_at is not numeric",
+            status_code=int(status),
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_finalize",
+        )
+    absolute_expiry = float(expire_at)
+    if not math.isfinite(absolute_expiry):
+        raise RequestError(
+            "SENTINEL_FINALIZE_CONTRACT_DRIFT: expire_at is not finite",
+            status_code=int(status),
+            endpoint=SENTINEL_FINALIZE_PATH,
+            request_stage="sentinel_finalize",
+        )
+    absolute_ttl = absolute_expiry - float(acquired_wallclock)
+    effective_ttl = min(ttl, absolute_ttl)
+    if effective_ttl <= SENTINEL_EXPIRY_SAFETY_MARGIN_SECONDS:
+        raise RequestError(
+            "SENTINEL_FINALIZE_CONTRACT_DRIFT: finalized expiry is too small",
             status_code=int(status),
             endpoint=SENTINEL_FINALIZE_PATH,
             request_stage="sentinel_finalize",
         )
     return (
         token.strip(),
-        acquired_monotonic + ttl - SENTINEL_EXPIRY_SAFETY_MARGIN_SECONDS,
+        acquired_monotonic
+        + effective_ttl
+        - SENTINEL_EXPIRY_SAFETY_MARGIN_SECONDS,
     )
 
 
@@ -419,9 +468,23 @@ def acquire_finalized_sentinel_bundle(
     *,
     on_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> FinalizedSentinelBundle:
-    """Acquire one two-phase bundle without challenge solving or credential replay."""
+    """Acquire one bundle without challenge solving or credential replay."""
 
-    prepare_payload = {"p": _derive_prepare_input(client)}
+    provider_bundle = _obtain_provider_bundle(client)
+    if provider_bundle is not None:
+        _emit_event(
+            client,
+            on_event,
+            "sentinel_bundle_captured",
+            requirements_token_present=True,
+            proof_present=True,
+            turnstile_present=True,
+            source=provider_bundle.source,
+        )
+        return provider_bundle
+
+    prepare_input = _derive_prepare_input(client)
+    prepare_payload = {"p": prepare_input}
     _emit_event(client, on_event, "sentinel_prepare_started")
     with suppress_web_session_debug_trace():
         prepare_status, prepare_data = client._json_request(
@@ -475,7 +538,11 @@ def acquire_finalized_sentinel_bundle(
             request_stage="sentinel_finalize_policy",
         )
 
-    context = _challenge_context(response, prepare_token=prepare_token)
+    context = _challenge_context(
+        response,
+        prepare_input=prepare_input,
+        prepare_token=prepare_token,
+    )
     evidence = _obtain_current_prepare_evidence(client, context)
 
     proof_header = client._build_proof_header({"proofofwork": proofofwork})
@@ -493,7 +560,8 @@ def acquire_finalized_sentinel_bundle(
         "sentinel_challenge_ready",
         proof_present=True,
         turnstile_present=True,
-        so_completed=True,
+        so_required=context.so_required,
+        so_finalize_blocking=False,
         current_prepare_binding_verified=True,
     )
 
@@ -511,10 +579,12 @@ def acquire_finalized_sentinel_bundle(
             _finalize_headers(client),
         )
     acquired_monotonic = time.monotonic()
+    acquired_wallclock = time.time()
     requirements_token, expires_monotonic = _validate_finalize_response(
         int(finalize_status),
         finalize_data,
         acquired_monotonic=acquired_monotonic,
+        acquired_wallclock=acquired_wallclock,
     )
     bundle = FinalizedSentinelBundle(
         requirements_token=requirements_token,
@@ -540,7 +610,8 @@ def acquire_finalized_sentinel_bundle(
             "requirements_token_present": True,
             "proof_present": True,
             "turnstile_present": True,
-            "so_completed": True,
+            "so_required": context.so_required,
+            "so_finalize_blocking": False,
             "current_prepare_binding_verified": True,
             "raw_request_recorded": False,
             "raw_response_recorded": False,

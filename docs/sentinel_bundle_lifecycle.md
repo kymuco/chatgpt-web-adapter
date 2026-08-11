@@ -35,9 +35,9 @@ finalize refill after write #1
   turnstile string -------┘
 ```
 
-This establishes a rolling finalized-bundle model. The browser may prefetch the
-next bundle concurrently with the current turn, but the sync adapter does not need
-to reproduce that timing to preserve the credential lifecycle.
+This establishes a rolling finalized-bundle model. The adapter reserves the next
+bundle before conversation prepare and starts one best-effort background refill
+after the current bundle is consumed for write-header construction.
 
 The same capture also established that:
 
@@ -51,9 +51,9 @@ The same capture also established that:
   its eventual `/f/conversation` write.
 
 The capture did **not** establish that a Turnstile token obtained for one Sentinel
-prepare can be replayed into another prepare/finalize transaction. It also did not
-establish that `so.required=true` can be ignored merely because the observed
-finalize JSON body contains no `so` field.
+prepare can be replayed into another prepare/finalize transaction. Frontend code
+inspection additionally establishes that required SO collector work is started
+fire-and-forget after prepare and is not awaited by finalize.
 
 ## Production bundle model
 
@@ -101,11 +101,13 @@ prepared context remain unchanged.
 The path is:
 
 ```text
-conversation/prepare
+reserve/acquire one finalized Sentinel bundle
+  -> conversation/prepare
   -> require status=ok + conduit token
-  -> reserve/acquire one finalized Sentinel bundle
-  -> consume bundle irreversibly
+  -> select the reserved bundle
+  -> consume bundle irreversibly at final write-header construction
   -> POST /f/conversation
+  -> best-effort background refill for the next write
 ```
 
 Once `consume()` succeeds, any network attempt or unknown outcome permanently
@@ -121,9 +123,10 @@ requirements models.
 ## Two-phase acquisition
 
 An explicit `ChatGPTWebClient.prefetch_sentinel_bundle()` call can acquire and
-cache one bundle only when a current-prepare browser challenge provider has been
-installed. PR7.11c does not ship such a provider and does not schedule acquisition
-automatically.
+cache one bundle when either a complete browser-bundle provider or the lower-level
+current-prepare challenge provider has been installed. After a prepared write
+consumes a bundle, the adapter schedules one best-effort refill automatically.
+The next send blocks on the same acquisition lock if that refill is still running.
 
 When no unexpired prefetched bundle exists, the protocol layer is:
 
@@ -136,8 +139,9 @@ POST /sentinel/chat-requirements/prepare
   -> SO collector/snapshot descriptors
 
 current-prepare challenge provider
-  receives the exact prepare_token + Turnstile/SO descriptors
-  must return evidence bound to those exact values
+  receives the exact prepare input p, prepare_token, persona,
+  and Turnstile/SO descriptors
+  must return Turnstile evidence bound to the current transaction
 
 existing local PoW computation
 
@@ -150,12 +154,11 @@ POST /sentinel/chat-requirements/finalize
   -> token + expiry
 ```
 
-The observed successful finalize request still contains no `so` field. PR7.11c
-therefore keeps SO out of the finalize JSON body, but it no longer treats
-`so.required=true` as ignorable: the provider must explicitly attest completion
-for the exact current SO collector/snapshot descriptors before finalize is allowed.
-`/sentinel/req` remains outside this write transaction until independently
-characterized.
+The observed successful finalize request contains no `so` field. The browser
+starts the SO collector asynchronously immediately after prepare and does not
+await it before PoW/Turnstile finalize. The adapter therefore exposes SO
+descriptors to the provider context but does not use an invented SO-completion
+boolean as a finalize gate. `/sentinel/req` remains outside this write transaction.
 
 PR7.11c only has live finalize evidence for the current policy where
 `turnstile.required`, `proofofwork.required`, and `so.required` are all true.
@@ -169,34 +172,57 @@ transaction no longer reads `AuthData.turnstile_token` at all. That field remain
 legacy compatibility material only and cannot authorize a two-phase finalize,
 including after a process restart reloads `auth_data.json`.
 
-Current-prepare challenge evidence is accepted only from the in-memory provider
-boundary. The provider receives a `SentinelChallengeContext` containing the exact
-current `prepare_token`, Turnstile `dx`, and SO collector/snapshot descriptors. It
-must return `SentinelChallengeEvidence` that echoes those bindings, provides a
-Turnstile token, and marks SO completion for those same descriptors.
+The preferred boundary accepts a complete, unused `FinalizedSentinelBundle`
+captured from the official page's own prepare/finalize transaction. The optional
+`ZendriverSentinelBundleProvider` implements this path without submitting a chat
+message or persisting one-shot credentials:
+
+```python
+from chatgpt_web_adapter import (
+    ChatGPTWebClient,
+    ZendriverSentinelBundleProvider,
+)
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
+client.prefetch_sentinel_bundle()
+```
+
+Install it with `pip install "chatgpt-web-adapter[browser]"`. The provider uses an
+isolated temporary browser profile seeded from `client.auth.cookies`, observes the
+official finalize request/response in memory, synchronizes ordinary ChatGPT cookies
+(including `oai-did`) back into the in-memory client, and closes the browser. It may open
+a visible browser window because `headless=False` is the safe default for browser
+challenge execution.
+
+The lower-level current-prepare evidence boundary remains available for custom
+integrations. It receives a `SentinelChallengeContext` containing the exact
+prepare input `p`, current `prepare_token`, persona, Turnstile `dx`, and SO
+collector/snapshot descriptors. It returns `SentinelChallengeEvidence` that
+echoes the prepare/Turnstile bindings and provides a Turnstile token.
 
 Fail-closed outcomes include:
 
 - no provider: `SENTINEL_BROWSER_CHALLENGE_PROVIDER_REQUIRED`;
-- stale prepare/Turnstile/SO binding: `SENTINEL_CHALLENGE_BINDING_MISMATCH`;
-- missing Turnstile evidence: `SENTINEL_TURNSTILE_EVIDENCE_REQUIRED`;
-- required SO not completed: `SENTINEL_SO_CAPABILITY_REQUIRED`.
+- stale prepare/Turnstile binding: `SENTINEL_CHALLENGE_BINDING_MISMATCH`;
+- missing Turnstile evidence: `SENTINEL_TURNSTILE_EVIDENCE_REQUIRED`.
 
 Provider context/evidence and finalized bundle credentials are memory-only and
 excluded from `repr`/comparison. Evidence is consumed only inside the current
 acquisition call and is not stored for retry or restart. A provider failure or
 finalize failure therefore cannot resurrect evidence through `AuthData`.
 
-PR7.11d is the appropriate place to implement a legitimate active-browser
-provider once the browser fulfillment mechanism is independently characterized.
-It must not be replaced by replay or bypass logic in this transaction layer.
+The browser-bundle provider is intentionally separate from the transaction
+layer: the page performs the challenge and finalize, while the SDK only validates,
+reserves, consumes, and redacts the resulting one-shot bundle. Replay or bypass
+logic remains out of scope.
 
 ## Expiry
 
-The server-provided `expire_after` value is validated at finalize time. It is not
-hard-coded. The adapter converts it to a monotonic deadline and subtracts a small
-safety margin so wall-clock changes cannot revive an expired credential and a
-bundle is not consumed at the exact server expiry boundary.
+The server-provided `expire_after` and `expire_at` values are validated at finalize
+time. The earlier of the relative and absolute deadlines is converted to a
+monotonic deadline with a small safety margin, so clock changes or inconsistent
+TTL fields cannot extend a credential beyond either server limit.
 
 ## Turn trace and conversation prepare
 
@@ -217,6 +243,5 @@ evidence:
 - existing-conversation media sends;
 - approval flows.
 
-Automatic post-write Sentinel refill, `/sentinel/req` integration, browser
-automation, Turnstile/SO solving or bypass, and PR7.12 WebSocket work are explicit
-non-goals of PR7.11c.
+`/sentinel/req` integration, Turnstile/SO bypass, and PR7.12 WebSocket work remain
+outside this transaction-layer change.

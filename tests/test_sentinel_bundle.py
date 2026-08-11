@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +16,7 @@ from chatgpt_web_adapter.sentinel_bundle import (
     get_prepared_sentinel_bundle,
     prefetch_finalized_sentinel_bundle,
     redact_ephemeral_write_headers,
+    start_finalized_sentinel_bundle_refill,
 )
 from chatgpt_web_adapter.sentinel_transaction import (
     FinalizedSentinelBundle,
@@ -47,9 +49,6 @@ class PrefetchClient:
                 prepare_token=context.prepare_token,
                 turnstile_dx=context.turnstile_dx,
                 turnstile_token="current-turnstile",
-                so_collector_dx=context.so_collector_dx,
-                so_snapshot_dx=context.so_snapshot_dx,
-                so_completed=True,
             )
 
         set_sentinel_challenge_provider(self, provider)
@@ -144,6 +143,23 @@ def test_explicit_prefetch_caches_provider_bound_bundle_for_later_write() -> Non
     assert bundle.turnstile_token == "current-turnstile"
 
 
+def test_background_refill_caches_next_provider_bound_bundle() -> None:
+    client = PrefetchClient()
+    completed = threading.Event()
+
+    def on_event(event):
+        if event.get("type") == "sentinel_bundle_prefetched":
+            completed.set()
+
+    assert start_finalized_sentinel_bundle_refill(client, on_event=on_event) is True
+    assert completed.wait(timeout=2.0)
+    assert client.calls == ["prepare", "finalize"]
+
+    reservation = get_prepared_sentinel_bundle(client)
+    assert reservation.consume().turnstile_token == "current-turnstile"
+    assert client.calls == ["prepare", "finalize"]
+
+
 def test_ephemeral_headers_are_always_redacted() -> None:
     sanitize = redact_ephemeral_write_headers(lambda self, key, value: value)
     client = SimpleNamespace(debug_trace_sanitize=False)
@@ -229,18 +245,21 @@ def test_prepared_context_rejects_double_consumption() -> None:
         gated(self)
         gated(self)
 
-    with pytest.raises(RequestError, match="SENTINEL_BUNDLE_ALREADY_CONSUMED"):
+    with pytest.raises(RequestError, match="SENTINEL_BUNDLE_ALREADY_SELECTED"):
         gate_prepared_text_send(prepared_body)(client)
 
 
 def test_final_headers_require_consumed_bundle_and_context_resets() -> None:
     client = SimpleNamespace()
+    store = SentinelBundleStore()
+    store.install(_bundle(acquired=0.0, expires=10**12))
+    client._sentinel_bundle_store = store
     gated_headers = gate_prepared_build_headers(lambda self, extra: dict(extra or {}))
 
     def prepared_body(self):
         gated_headers(self, {"x-openai-target-path": CONVERSATION_PATH})
 
-    with pytest.raises(RequestError, match="SENTINEL_BUNDLE_NOT_CONSUMED"):
+    with pytest.raises(RequestError, match="SENTINEL_BUNDLE_NOT_SELECTED"):
         gate_prepared_text_send(prepared_body)(client)
 
     legacy_calls: list[str] = []
@@ -256,6 +275,9 @@ def test_prepared_context_syncs_device_header_before_body() -> None:
         auth=SimpleNamespace(cookies={"oai-did": "device-123"}),
         base_headers={},
     )
+    store = SentinelBundleStore()
+    store.install(_bundle(acquired=0.0, expires=10**12))
+    client._sentinel_bundle_store = store
     seen = {}
 
     def prepared_body(self):
@@ -264,3 +286,34 @@ def test_prepared_context_syncs_device_header_before_body() -> None:
 
     assert gate_prepared_text_send(prepared_body)(client) == "ok"
     assert seen["device_header"] == "device-123"
+
+
+def test_prepared_context_reserves_before_prepare_and_releases_on_failure() -> None:
+    client = SimpleNamespace(_emit_event=lambda *args, **kwargs: None)
+    store = SentinelBundleStore()
+    store.install(_bundle(acquired=0.0, expires=10**12))
+    client._sentinel_bundle_store = store
+
+    def prepared_body(self):
+        with pytest.raises(RequestError, match="SENTINEL_BUNDLE_BUSY"):
+            store.reserve()
+        raise RequestError("prepare failed", request_stage="conversation_prepare")
+
+    with pytest.raises(RequestError, match="prepare failed"):
+        gate_prepared_text_send(prepared_body)(client)
+
+    reservation = store.reserve()
+    assert reservation is not None
+    assert reservation.consume().requirements_token == "secret-requirements"
+
+
+def test_public_client_exposes_provider_and_refill_api() -> None:
+    import chatgpt_web_adapter as adapter
+
+    assert hasattr(adapter.ChatGPTWebClient, "set_sentinel_challenge_provider")
+    assert hasattr(adapter.ChatGPTWebClient, "set_sentinel_bundle_provider")
+    assert hasattr(adapter.ChatGPTWebClient, "prefetch_sentinel_bundle")
+    assert hasattr(adapter.ChatGPTWebClient, "start_sentinel_bundle_refill")
+    assert "SentinelChallengeContext" in adapter.__all__
+    assert "SentinelChallengeEvidence" in adapter.__all__
+    assert "SentinelChallengeProvider" in adapter.__all__

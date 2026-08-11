@@ -39,6 +39,14 @@ _PREPARED_CONSUMED_BUNDLE: ContextVar[FinalizedSentinelBundle | None] = ContextV
     "chatgpt_web_adapter_prepared_consumed_bundle",
     default=None,
 )
+_PREPARED_BUNDLE_RESERVATION: ContextVar[SentinelBundleReservation | None] = ContextVar(
+    "chatgpt_web_adapter_prepared_bundle_reservation",
+    default=None,
+)
+_PREPARED_REQUIREMENTS_SELECTED: ContextVar[bool] = ContextVar(
+    "chatgpt_web_adapter_prepared_requirements_selected",
+    default=False,
+)
 
 
 @dataclass
@@ -212,6 +220,69 @@ def get_prepared_sentinel_bundle(
         return reservation
 
 
+def start_finalized_sentinel_bundle_refill(
+    client: Any,
+    *,
+    on_event: Callable[[dict[str, Any]], None] | None = None,
+) -> bool:
+    """Start one best-effort background refill after a bundle is consumed."""
+
+    challenge_provider = getattr(client, "_sentinel_challenge_provider", None)
+    bundle_provider = getattr(client, "_sentinel_bundle_provider", None)
+    if not callable(challenge_provider) and not callable(bundle_provider):
+        _emit_event(
+            client,
+            on_event,
+            "sentinel_bundle_refill_skipped",
+            reason="provider_unavailable",
+        )
+        return False
+
+    _client_state(client)
+    already_running = False
+    with _CLIENT_STATE_LOCK:
+        current = getattr(client, "_sentinel_bundle_refill_thread", None)
+        if isinstance(current, threading.Thread) and current.is_alive():
+            already_running = True
+        else:
+
+            def refill() -> None:
+                try:
+                    prefetch_finalized_sentinel_bundle(client, on_event=on_event)
+                except Exception as error:
+                    _emit_event(
+                        client,
+                        on_event,
+                        "sentinel_bundle_refill_failed",
+                        error_type=type(error).__name__,
+                        request_stage=getattr(error, "request_stage", None),
+                    )
+                finally:
+                    with _CLIENT_STATE_LOCK:
+                        if getattr(client, "_sentinel_bundle_refill_thread", None) is thread:
+                            client._sentinel_bundle_refill_thread = None
+
+            thread = threading.Thread(
+                target=refill,
+                name="chatgpt-web-adapter-sentinel-refill",
+                daemon=True,
+            )
+            client._sentinel_bundle_refill_thread = thread
+
+    if already_running:
+        _emit_event(
+            client,
+            on_event,
+            "sentinel_bundle_refill_skipped",
+            reason="already_running",
+        )
+        return False
+
+    _emit_event(client, on_event, "sentinel_bundle_refill_started")
+    thread.start()
+    return True
+
+
 def gate_prepared_get_ready_requirements(
     original_get_ready_requirements: Callable[..., tuple[dict[str, Any], str | None]],
 ) -> Callable[..., tuple[dict[str, Any], str | None]]:
@@ -221,27 +292,24 @@ def gate_prepared_get_ready_requirements(
     def get_ready_requirements(self: Any) -> tuple[dict[str, Any], str | None]:
         if not _PREPARED_SEND_ACTIVE.get():
             return original_get_ready_requirements(self)
-        if _PREPARED_CONSUMED_BUNDLE.get() is not None:
+        if _PREPARED_REQUIREMENTS_SELECTED.get():
             raise RequestError(
-                "SENTINEL_BUNDLE_ALREADY_CONSUMED: prepared write requested "
+                "SENTINEL_BUNDLE_ALREADY_SELECTED: prepared write requested "
                 "requirements more than once",
-                request_stage="sentinel_bundle_consume",
+                request_stage="sentinel_bundle_select",
             )
-        reservation: SentinelBundleReservation | None = None
-        try:
-            reservation = get_prepared_sentinel_bundle(
-                self,
-                on_event=_PREPARED_ON_EVENT.get(),
+        reservation = _PREPARED_BUNDLE_RESERVATION.get()
+        if reservation is None or not reservation.active:
+            raise RequestError(
+                "SENTINEL_BUNDLE_NOT_RESERVED: prepared write has no reserved bundle",
+                request_stage="sentinel_bundle_select",
             )
-            bundle = reservation.consume()
-        finally:
-            if reservation is not None:
-                reservation.release()
-        _PREPARED_CONSUMED_BUNDLE.set(bundle)
+        bundle = reservation.bundle
+        _PREPARED_REQUIREMENTS_SELECTED.set(True)
         _emit_event(
             self,
             _PREPARED_ON_EVENT.get(),
-            "sentinel_bundle_consumed",
+            "sentinel_bundle_selected",
             requirements_token_present=True,
             proof_present=True,
             turnstile_present=True,
@@ -270,10 +338,28 @@ def gate_prepared_build_headers(
             if target_path == CONVERSATION_PATH:
                 bundle = _PREPARED_CONSUMED_BUNDLE.get()
                 if bundle is None:
-                    raise RequestError(
-                        "SENTINEL_BUNDLE_NOT_CONSUMED: final prepared write cannot "
-                        "build headers before bundle consumption",
-                        request_stage="sentinel_bundle_headers",
+                    if not _PREPARED_REQUIREMENTS_SELECTED.get():
+                        raise RequestError(
+                            "SENTINEL_BUNDLE_NOT_SELECTED: final prepared write cannot "
+                            "build headers before requirements selection",
+                            request_stage="sentinel_bundle_headers",
+                        )
+                    reservation = _PREPARED_BUNDLE_RESERVATION.get()
+                    if reservation is None:
+                        raise RequestError(
+                            "SENTINEL_BUNDLE_NOT_RESERVED: final prepared write has no "
+                            "bundle reservation",
+                            request_stage="sentinel_bundle_headers",
+                        )
+                    bundle = reservation.consume()
+                    _PREPARED_CONSUMED_BUNDLE.set(bundle)
+                    _emit_event(
+                        self,
+                        _PREPARED_ON_EVENT.get(),
+                        "sentinel_bundle_consumed",
+                        requirements_token_present=True,
+                        proof_present=True,
+                        turnstile_present=True,
                     )
                 patched["openai-sentinel-chat-requirements-token"] = bundle.requirements_token
                 patched["openai-sentinel-proof-token"] = bundle.proof_token
@@ -304,13 +390,20 @@ def gate_prepared_text_send(original_send: Callable[..., Any]) -> Callable[..., 
     def send(self: Any, *args: Any, **kwargs: Any) -> Any:
         if getattr(self, "auth", None) is not None:
             _sync_device_header(self)
+        on_event = kwargs.get("on_event")
+        reservation = get_prepared_sentinel_bundle(self, on_event=on_event)
         active_token = _PREPARED_SEND_ACTIVE.set(True)
         trace_token = _PREPARED_TURN_TRACE_ID.set(str(uuid.uuid4()))
-        event_token = _PREPARED_ON_EVENT.set(kwargs.get("on_event"))
+        event_token = _PREPARED_ON_EVENT.set(on_event)
         bundle_token = _PREPARED_CONSUMED_BUNDLE.set(None)
+        reservation_token = _PREPARED_BUNDLE_RESERVATION.set(reservation)
+        selected_token = _PREPARED_REQUIREMENTS_SELECTED.set(False)
         try:
             return original_send(self, *args, **kwargs)
         finally:
+            reservation.release()
+            _PREPARED_REQUIREMENTS_SELECTED.reset(selected_token)
+            _PREPARED_BUNDLE_RESERVATION.reset(reservation_token)
             _PREPARED_CONSUMED_BUNDLE.reset(bundle_token)
             _PREPARED_ON_EVENT.reset(event_token)
             _PREPARED_TURN_TRACE_ID.reset(trace_token)

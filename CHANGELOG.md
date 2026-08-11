@@ -6,11 +6,15 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- feat: added an optional `ZendriverSentinelBundleProvider` (`chatgpt-web-adapter[browser]`) that captures a complete unused bundle from the official ChatGPT page without submitting a message or persisting one-shot credentials
+- compatibility: finalized-bundle providers can now bypass SDK-side prepare/finalize entirely, while the lower-level current-prepare challenge-provider boundary remains available for custom integrations
 - compatibility: prepared ordinary-text writes to existing conversations now consume one current two-phase finalized Sentinel bundle (`requirements` + proof + Turnstile) and never call the legacy single-step requirements path; new-chat and multimodal sends remain unchanged
 - compatibility: finalized Sentinel bundles are monotonic-expiry, exclusive-reservation, one-write-attempt credentials; unknown write outcomes never restore/replay a consumed bundle
-- security: two-phase Sentinel acquisition no longer trusts persisted `AuthData.turnstile_token`; current-prepare Turnstile/SO evidence must come from an in-memory provider explicitly bound to the exact `prepare_token` and current challenge descriptors, and absent/mismatched provider evidence fails closed before finalize
-- compatibility: `so.required=true` is now an explicit browser-capability gate rather than structural-only evidence; PR7.11c ships no browser fulfillment provider, so current live writes stop at `SENTINEL_BROWSER_CHALLENGE_PROVIDER_REQUIRED` until that boundary is independently characterized
+- security: two-phase Sentinel acquisition no longer trusts persisted `AuthData.turnstile_token`; current-prepare Turnstile evidence must come from an in-memory provider bound to the exact prepare input, `prepare_token`, and current challenge descriptor, and absent/mismatched provider evidence fails closed before finalize
+- compatibility: prepared writes reserve their rolling finalized bundle before conversation prepare, consume it only at final write-header construction, and start a best-effort background refill after consumption; the public provider boundary remains fail-closed when no legitimate browser provider is installed
+- compatibility: browser frontend evidence establishes required SO collector work as fire-and-forget rather than a finalize blocker; SO descriptors remain available to the provider context, while finalize continues to contain only `prepare_token`, PoW, and Turnstile evidence
 - compatibility: conversation prepare and final write now share one `x-oai-turn-trace-id`; local reuse of one user-message id across `partial_query` and the final message is documented as an adapter choice rather than a required browser invariant
+- compatibility: finalized expiry is clamped by both `expire_after` and `expire_at` before conversion to a monotonic deadline
 - security: conduit and all three Sentinel write headers are always redacted from debug traces even when ordinary trace sanitization is disabled; Sentinel prepare/finalize raw bodies remain suppressed in favor of structural traces
 - diagnostics: existing prepared-send requirements timing now measures the execution-local finalized-bundle acquisition/consumption boundary while preserving the established `requirements_ready` event shape
 - diagnostics: added a privacy-safe probe for the current two-phase Sentinel `chat-requirements/prepare` contract; it records only status/key/presence structure and stops before challenge finalization or any conversation write
