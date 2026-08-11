@@ -1,50 +1,98 @@
 # Existing-Conversation Ordinary-Text Write Contract
 
-PR7.11a integrates the live-observed ChatGPT Web prepare/conduit contract into
-ordinary text writes to an **existing** conversation.
+PR7.11a introduced the live-observed ChatGPT Web prepare/conduit boundary for
+ordinary text writes to an **existing** conversation. PR7.11c replaces the stale
+legacy Sentinel portion of that path with the current finalized two-phase bundle
+lifecycle established by PR7.11b and two-turn browser evidence.
 
-The scope is deliberately narrow. New-chat sends and multimodal sends keep their
-previous transport until they receive independent live-contract evidence.
+The scope remains deliberately narrow. New-chat sends and multimodal sends keep
+their previous transport until they receive independent live-contract evidence.
 
 ## Write sequence
 
-For `send_to_conversation(..., media=None)` the adapter now performs:
+For `send_to_conversation(..., media=None)` the adapter performs:
 
 ```text
-discard any warmup-prefetched requirements
+discard any legacy warmup-prefetched requirements
   -> build one user message
+  -> create one x-oai-turn-trace-id
+  -> reserve an unexpired finalized Sentinel bundle
+       or synchronously perform two-phase acquisition through the provider
   -> POST /backend-api/f/conversation/prepare
-       partial_query.id == final messages[0].id
        x-conduit-token: no-token
+       x-oai-turn-trace-id: <same turn id used by final write>
   -> require successful prepare + conduit token
-  -> POST /backend-api/sentinel/chat-requirements
-       fresh material after prepare
-       existing PoW / Turnstile governance remains in force
+  -> select the reserved bundle through the metrics requirements hook
+  -> irreversibly consume that bundle while building final write headers
   -> POST /backend-api/f/conversation
        client_prepare_state: success
-       x-conduit-token: <prepare token>
-       x-oai-turn-trace-id: <fresh UUID>
-       x-openai-target-path: /backend-api/f/conversation
-       x-openai-target-route: /backend-api/f/conversation
+       x-conduit-token: <prepare response token>
+       x-oai-turn-trace-id: <same turn id>
+       openai-sentinel-chat-requirements-token: <bundle requirements token>
+       openai-sentinel-proof-token: <same bundle proof>
+       openai-sentinel-turnstile-token: <same bundle Turnstile evidence>
+  -> start one best-effort background refill for the next write
 ```
 
-The conduit token is retained only in memory. The credential-bearing raw prepare
-response is never written by the generic HTTP debug tracer; when tracing is
-enabled, it is replaced with a structural prepare trace containing only response
-status, safe key names, token-presence state, and `raw_response_recorded=false`.
-Final-write traces continue to redact `x-conduit-token`, and lifecycle events
-expose only token-presence booleans.
+The adapter currently reuses its own user message id in `partial_query` and the
+final message. This is a local implementation choice that the server has accepted;
+two-turn browser evidence shows that same-id equality is **not** a required browser
+architectural invariant because context-change prepares can precede the final
+message and use a different `partial_query.id`.
 
-Warmup material is deliberately invalidated before prepare. This prevents a
-prepared turn from pairing a newly minted conduit token with requirements state
-that was produced before the prepare boundary.
+## Credential lifecycle and privacy
+
+Conduit and Sentinel credentials remain only in memory. Credential-bearing raw
+conversation-prepare and Sentinel prepare/finalize responses are suppressed from
+the generic HTTP tracer and replaced with structural traces containing only safe
+status/key/presence state.
+
+The following final-write headers are always redacted, even when ordinary local
+debug sanitization is disabled:
+
+- `x-conduit-token`;
+- `openai-sentinel-chat-requirements-token`;
+- `openai-sentinel-proof-token`;
+- `openai-sentinel-turnstile-token`.
+
+Lifecycle events likewise expose only token-presence/required state.
+
+A finalized Sentinel bundle has a monotonic expiry and an exclusive single-slot
+reservation. Once the bundle is consumed for a final write attempt it is never
+restored, including after timeout, connection reset, HTTP rejection, or another
+unknown write outcome. This prevents speculative credential replay.
+
+Legacy warmup material is still invalidated before/after a prepared turn, but it
+is no longer used to service prepared existing-text writes.
+
+## Browser challenge boundary
+
+PR7.11c does not add a Turnstile/SO solver or bypass. The two-phase path does not
+read `AuthData.turnstile_token`, even if that field was loaded from `auth_data.json`.
+Persisted or restart-resurrected legacy Turnstile material therefore cannot
+implicitly authorize a new two-phase finalize.
+
+A current-prepare challenge provider receives the exact prepare input `p`,
+`prepare_token`, persona, Turnstile `dx`, and SO collector/snapshot descriptors
+returned by the current Sentinel prepare. Evidence is accepted only when it is
+bound back to the prepare/Turnstile transaction and includes a Turnstile token.
+The browser starts required SO collector work without awaiting it; SO is not a
+prerequisite for the observed finalize request.
+No bundled provider exists in PR7.11c, so the default production outcome at this
+boundary is fail-closed until PR7.11d characterizes and implements legitimate
+browser fulfillment.
+
+The currently observed policy has Turnstile, PoW, and SO all required. Unobserved
+required/optional combinations fail closed rather than guessing request semantics.
 
 ## Diagnostics contract
 
-The prepared existing-text path is an injectable private client method wrapped by
-the same expanded-send instrumentation used by the legacy `send()` path. It
-therefore preserves the established request/requirements/stream lifecycle events,
-structured `RequestError` metadata, and expanded latency/backend metrics.
+The prepared existing-text path remains wrapped by the same expanded-send
+instrumentation used by the legacy `send()` path. The existing requirements timing
+hook now measures the execution-local finalized-bundle selection boundary because
+the prepared context intercepts `_get_ready_requirements()` before
+it can reach the legacy single-step network endpoint. The established
+`requirements_ready` event remains structurally compatible with earlier callers.
 
 Successful stream metadata is retained without forcing an additional conversation
 fetch and without exposing raw SSE payloads. During the prepared stream, the
@@ -63,53 +111,42 @@ path, so one streamed token produces one public structured token event.
 
 The final conversation write must not occur when:
 
-- prepare is rejected;
-- prepare succeeds without a conduit token;
-- chat requirements do not return a token;
-- the existing Turnstile gate requires browser-derived evidence that is absent.
+- conversation prepare is rejected;
+- conversation prepare succeeds without a conduit token;
+- no valid finalized Sentinel bundle can be reserved/acquired;
+- current Sentinel prepare/finalize structure drifts from the observed contract;
+- no current-prepare browser challenge provider is installed;
+- provider evidence is bound to another prepare/Turnstile descriptor;
+- required Turnstile evidence is absent;
+- the finalized bundle expires before consumption;
+- another prepared send already reserves the single available bundle.
 
 A successful prepare does not weaken the challenge boundary. It only establishes
-the short-lived transport material required by the current web write contract.
+one part of the short-lived transport material needed by the current web write.
 
 ## Streaming and recovery
 
 The prepared write reuses the existing backend streaming parser. A stream that
 contains `stream_handoff` is never considered complete merely because it already
-contains an assistant message id and a text prefix. PR7.11a deliberately keeps
-WebSocket transport characterization out of scope; instead, any observed handoff
-forces bounded existing-conversation recovery using the already-known parent
-message as the branch boundary.
+contains an assistant message id and a text prefix. WebSocket transport
+characterization remains out of scope; any observed handoff forces bounded
+existing-conversation recovery using the already-known parent message as the
+branch boundary.
 
 If a prefix was already delivered through `on_token`, recovery returns the final
 conversation text and emits only the missing suffix when the recovered text extends
-that prefix. This avoids both truncated responses and duplicate streamed output.
-
-When the initial stream has no handoff and is already complete, its observed model,
-reasoning effort, and finish reason are propagated directly from the real parser
-state into the returned response diagnostics.
+that prefix. Recovery does not resend `/f/conversation`, so it does not violate the
+one-shot Sentinel bundle boundary.
 
 ## Explicit non-goals
 
-PR7.11a does not characterize or change:
+PR7.11c does not characterize or change:
 
 - `ChatGPTWebClient.send()` for a new conversation;
 - existing-conversation sends containing media;
-- Turnstile acquisition or bypass;
+- `/backend-api/sentinel/req` semantics;
+- browser challenge fulfillment itself;
+- Turnstile/SO solving or bypass;
 - the WebSocket capability contract planned for PR7.12.
 
-## Live validation
-
-After CI, run the existing privacy-safe live contract probe against a current
-conversation. Because that probe calls `send_to_conversation()`, a successful
-write now validates the integrated prepare/conduit path as well as model and
-reasoning preservation.
-
-```powershell
-python .\examples\probe_live_contract.py `
-  "https://chatgpt.com/c/<conversation-id>" `
-  --output .\gpt56-live-write.json
-```
-
-A Turnstile-gated result remains a valid safety outcome: prepare can succeed and
-the final write must still stop before `/backend-api/f/conversation` when the
-required browser challenge evidence is unavailable.
+See `sentinel_bundle_lifecycle.md` for the evidence and detailed state machine.

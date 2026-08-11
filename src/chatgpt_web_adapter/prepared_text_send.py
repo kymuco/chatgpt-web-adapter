@@ -11,6 +11,7 @@ from .client import (
 )
 from .conversation_prepare import prepare_text_turn
 from .exceptions import RequestError
+from .sentinel_bundle import start_finalized_sentinel_bundle_refill
 from .types import ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
 
 CONVERSATION_PATH = "/backend-api/f/conversation"
@@ -111,9 +112,8 @@ def send_existing_text_prepared(
             request_stage="conversation_prepare",
         )
 
-    # The live contract is prepare -> fresh requirements -> final write. Discard
-    # any material produced by warmup before prepare so it cannot be reused after
-    # the conduit token is minted.
+    # Discard only legacy single-step warmup material. The prepared-send wrapper
+    # has already reserved the rolling two-phase bundle used by this write.
     _clear_prefetched_requirements(self)
     self._emit_event(
         on_event,
@@ -211,6 +211,7 @@ def send_existing_text_prepared(
             conduit_token_present=True,
             turn_trace_id_present=True,
         )
+        start_finalized_sentinel_bundle_refill(self, on_event=on_event)
 
         # `_stream_backend_payload()` owns the actual SSE loop and calls
         # `_parse_event()` for every parsed payload. Capture only an allowlisted

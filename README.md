@@ -9,7 +9,7 @@ Python SDK for controlling existing ChatGPT web sessions without browser UI.
 > Uses an existing ChatGPT web session.
 > Web backend behavior may change.
 
-`chatgpt-web-adapter` is a small, dependency-free Python SDK for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
+`chatgpt-web-adapter` is a small Python SDK with a dependency-free core for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
 
 It is designed for tools that already have valid ChatGPT web-session auth data and want to avoid driving the browser UI.
 
@@ -17,7 +17,7 @@ It is designed for tools that already have valid ChatGPT web-session auth data a
 
 `chatgpt-web-adapter` wraps the existing ChatGPT web backend behavior used by a logged-in web session. It focuses on reusable transport, request formatting, response parsing, and conversation helpers.
 
-The package intentionally does not include the CLI, localization, auth capture, browser automation, or local chat-history management from `webchat-openai-cli`.
+The package intentionally does not include the CLI, localization, auth capture, or local chat-history management from `webchat-openai-cli`. Browser support is limited to an optional experimental Sentinel provider for current prepared writes.
 
 ## When It Is Useful
 
@@ -70,6 +70,25 @@ Experimental features:
 - `PayloadBuilder`
 - `validate_payload()`
 - `send_payload()`
+
+Current prepared existing-conversation writes can opt into the official-page
+Sentinel path:
+
+```bash
+pip install "chatgpt-web-adapter[browser]"
+```
+
+```python
+from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
+
+client = ChatGPTWebClient(auth_file="auth_data.json")
+client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
+client.prefetch_sentinel_bundle()
+```
+
+This provider observes a fresh prepare/finalize bundle produced by ChatGPT's own
+page, never submits a message, and keeps the one-shot credentials in memory only.
+It is experimental because the web contract and page behavior are undocumented.
 
 The stable core is the main surface intended for building tools on top of an existing ChatGPT web session. Experimental features are exposed because they are useful, but they rely more directly on changing web-client behavior.
 
