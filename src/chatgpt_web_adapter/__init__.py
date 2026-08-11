@@ -6,6 +6,10 @@ from .approval_policy import ApprovalDecision, ApprovalPolicy
 from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
+from .auth_refresh import (
+    AuthRefreshResult,
+    refresh_auth_session as _refresh_auth_session,
+)
 from .browser_sentinel import ZendriverSentinelBundleProvider
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
@@ -111,6 +115,7 @@ ChatGPTWebClient.prefetch_sentinel_bundle = _prefetch_finalized_sentinel_bundle
 ChatGPTWebClient.start_sentinel_bundle_refill = _start_finalized_sentinel_bundle_refill
 ChatGPTWebClient.set_sentinel_challenge_provider = _set_sentinel_challenge_provider
 ChatGPTWebClient.set_sentinel_bundle_provider = _set_sentinel_bundle_provider
+ChatGPTWebClient.refresh_auth = _refresh_auth_session
 ChatGPTWebClient._build_headers = _gate_prepared_build_headers(_original_build_headers)
 ChatGPTWebClient._sanitize_header_value = _redact_ephemeral_write_headers(
     _redact_web_session_headers(_original_sanitize_header_value)
@@ -127,7 +132,9 @@ ChatGPTWebClient.get_messages = _get_messages
 ChatGPTWebClient.get_pending_approval = _get_pending_approval
 ChatGPTWebClient.get_required_action = _get_required_action
 ChatGPTWebClient.get_status = _get_status
-ChatGPTWebClient.send = _send_with_expanded_metrics(_original_send)
+ChatGPTWebClient.send = _send_with_expanded_metrics(
+    _gate_prepared_text_send(_original_send, require_provider=False)
+)
 ChatGPTWebClient._send_existing_text_prepared = _send_with_expanded_metrics(
     _gate_prepared_text_send(_send_existing_text_prepared)
 )
@@ -212,6 +219,7 @@ EXPERIMENTAL_SENTINEL_EXPORTS = [
 ]
 
 SUPPORT_EXPORTS = [
+    "AuthRefreshResult",
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
     "load_auth_data",

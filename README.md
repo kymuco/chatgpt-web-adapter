@@ -71,8 +71,8 @@ Experimental features:
 - `validate_payload()`
 - `send_payload()`
 
-Current prepared existing-conversation writes can opt into the official-page
-Sentinel path:
+Current new-chat, continuation, and multimodal writes can opt into the
+official-page Sentinel path:
 
 ```bash
 pip install "chatgpt-web-adapter[browser]"
@@ -83,7 +83,7 @@ from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvide
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
 client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
-client.prefetch_sentinel_bundle()
+response = client.send("Start a new chat from the SDK.")
 ```
 
 This provider observes a fresh prepare/finalize bundle produced by ChatGPT's own
@@ -134,7 +134,7 @@ The stable core is the main surface intended for building tools on top of an exi
 
 - Python 3.10+
 - system `curl` available in `PATH`
-- valid `auth_data.json` with `accessToken`, or an optional `.env` fallback with `accessToken`
+- valid `auth_data.json` with `accessToken` and a ChatGPT session cookie/token; the access token is refreshed automatically when it expires
 
 ## Install
 
@@ -152,9 +152,10 @@ pytest -q
 ## Quick Start
 
 ```python
-from chatgpt_web_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
+client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
 
 response = client.send(
     "Give me a short summary of this project.",
@@ -166,7 +167,10 @@ print(response.text)
 
 ## Authentication at a Glance
 
-`chatgpt-web-adapter` does not log you in and does not capture auth by itself. It only reuses existing `chatgpt.com` web-session data.
+`chatgpt-web-adapter` does not log you in. It reuses an existing `chatgpt.com`
+web session. When the access token is missing or near expiry, the client calls
+`/api/auth/session`, rotates the in-memory session credentials, and atomically
+updates the same `auth_data.json` by default.
 
 Recommended `auth_data.json` shape:
 
@@ -184,6 +188,8 @@ Recommended `auth_data.json` shape:
 
 - `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
 - `cookies` and `headers` should come from the same account/session as the token.
+- Automatic refresh requires `__Secure-next-auth.session-token` (including chunked variants) or a top-level `sessionToken` in the file.
+- Call `client.refresh_auth()` to refresh immediately. Pass `auto_refresh_auth=False` or `persist_refreshed_auth=False` to opt out of automatic refresh or file updates.
 - `.env` is optional, not required. If present, `accessToken=...` is used only as a fallback when the file token is missing or expired.
 - Older files that still use `api_key` are accepted for backward compatibility, but new examples and new files should use `accessToken`.
 - If you need to generate this file, capture it with `webchat-openai-cli` and then reuse it here.
@@ -215,6 +221,16 @@ response = client.send_to_conversation(
     "Continue from this point.",
 )
 
+print(response.text)
+```
+
+### Send an Image in a New Chat
+
+```python
+response = client.send(
+    "What is shown in this image?",
+    media=["screenshot.png"],
+)
 print(response.text)
 ```
 
@@ -288,7 +304,10 @@ The example script includes:
 
 ## Auth Notes
 
-This repository only consumes existing auth data. If you still need browser-based capture, generate `auth_data.json` with `webchat-openai-cli` first and then reuse it here.
+This repository still requires one initially authenticated browser session. If you
+need to generate the first `auth_data.json`, capture it with
+`webchat-openai-cli`; subsequent access-token refreshes can be handled by the SDK
+while that session cookie remains valid.
 
 ## Detailed Guide
 

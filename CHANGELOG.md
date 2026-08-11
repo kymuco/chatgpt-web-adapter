@@ -6,6 +6,13 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- auth: refresh expired or missing web access tokens through `/api/auth/session`, rotate session credentials in memory, and atomically update `auth_data.json`; `refresh_auth()` provides an explicit refresh boundary
+- compatibility: route normal new-chat and multimodal `send()` calls through the observed conversation prepare/conduit flow when a Sentinel provider is installed
+- compatibility: new-chat prepare now uses the observed `client-created-root`, `client_prepare_state=none`, debounced/window-focus shape without a legacy partial query or initial conduit header
+- compatibility: finalized Sentinel bundles now protect new-chat and image writes as well as existing ordinary-text continuation writes
+- compatibility: browser Sentinel capture now uses trusted keyboard input and reads finalize bodies from the exact `ResponseReceived` request instead of relying on Zendriver's unstable `LoadingFinished` dispatch
+- tests: add contract coverage for auth rotation/persistence, protected new-chat creation, and the full create/upload/finalize multimodal path
+
 ## 0.1.6 - 2026-08-11
 
 - feat: added an optional `ZendriverSentinelBundleProvider` (`chatgpt-web-adapter[browser]`) that captures a complete unused bundle from the official ChatGPT page without submitting a message or persisting one-shot credentials

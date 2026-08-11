@@ -383,11 +383,24 @@ def redact_ephemeral_write_headers(
     return sanitize_header_value
 
 
-def gate_prepared_text_send(original_send: Callable[..., Any]) -> Callable[..., Any]:
+def prepared_send_active() -> bool:
+    return _PREPARED_SEND_ACTIVE.get()
+
+
+def gate_prepared_text_send(
+    original_send: Callable[..., Any],
+    *,
+    require_provider: bool = True,
+) -> Callable[..., Any]:
     """Establish an execution-local prepared-turn transaction context."""
 
     @wraps(original_send)
     def send(self: Any, *args: Any, **kwargs: Any) -> Any:
+        if not require_provider:
+            challenge_provider = getattr(self, "_sentinel_challenge_provider", None)
+            bundle_provider = getattr(self, "_sentinel_bundle_provider", None)
+            if not callable(challenge_provider) and not callable(bundle_provider):
+                return original_send(self, *args, **kwargs)
         if getattr(self, "auth", None) is not None:
             _sync_device_header(self)
         on_event = kwargs.get("on_event")

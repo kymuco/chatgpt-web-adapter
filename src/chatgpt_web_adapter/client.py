@@ -333,8 +333,14 @@ class ChatGPTWebClient:
         curl_bin: str | None = None,
         debug_trace_dir: str | Path | None = None,
         debug_trace_sanitize: bool = True,
+        auto_refresh_auth: bool = True,
+        persist_refreshed_auth: bool = True,
     ) -> None:
-        self.auth = auth or load_auth_data(auth_file)
+        self.auth_file = Path(auth_file)
+        self.auth = auth or load_auth_data(
+            self.auth_file,
+            allow_expired_session_refresh=bool(auto_refresh_auth),
+        )
         self.timeout = max(10, int(timeout))
         self.base_headers = build_base_headers(self.auth)
         self.curl_bin = curl_bin or shutil.which("curl.exe") or shutil.which("curl")
@@ -349,6 +355,15 @@ class ChatGPTWebClient:
         self.debug_trace_dir = Path(debug_trace_dir) if debug_trace_dir is not None else None
         self.debug_trace_sanitize = bool(debug_trace_sanitize)
         self._debug_trace_counter = 0
+        if auto_refresh_auth:
+            from .auth_refresh import auth_needs_refresh, refresh_auth_session
+
+            if auth_needs_refresh(self.auth.accessToken):
+                refresh_auth_session(
+                    self,
+                    persist=bool(persist_refreshed_auth and auth is None),
+                    auth_file=self.auth_file,
+                )
 
     def _build_headers(self, extra: dict[str, str | None] | None = None) -> dict[str, str]:
         headers = dict(self.base_headers)
@@ -2298,17 +2313,16 @@ class ChatGPTWebClient:
     ) -> ChatResponse:
         normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
         resolved_model = self._resolve_model(model, reasoning_effort)
+        from .sentinel_bundle import prepared_send_active
+
+        use_prepared_sentinel = prepared_send_active()
 
         normalized_media = self._normalize_media_items(media)
         image_requests = self._upload_media_files(normalized_media) if normalized_media else None
-        requirements, proof_header = self._get_ready_requirements()
-        chat_token = requirements.get("token")
-        if not isinstance(chat_token, str) or not chat_token:
-            raise RequestError("chat-requirements token is missing")
 
         conversation_dict = self._conversation_to_dict(conversation)
         conversation_id = None
-        parent_message_id = str(uuid.uuid4())
+        parent_message_id = "client-created-root" if use_prepared_sentinel else str(uuid.uuid4())
         user_id = None
         if isinstance(conversation_dict, dict):
             conversation_id = conversation_dict.get("conversation_id") or None
@@ -2319,6 +2333,67 @@ class ChatGPTWebClient:
             )
             user_id = conversation_dict.get("user_id")
 
+        messages = self._create_messages(
+            prompt,
+            None if conversation_id else system,
+            image_requests=image_requests,
+            system_hints=["search"] if web_search else None,
+        )
+        user_message = messages[-1] if messages else None
+        user_message_id = user_message.get("id") if isinstance(user_message, dict) else None
+        if not isinstance(user_message_id, str) or not user_message_id.strip():
+            raise RequestError(
+                "conversation prepare could not resolve user message id",
+                request_stage="conversation_prepare",
+            )
+
+        prepare_result = None
+        if use_prepared_sentinel:
+            from .conversation_prepare import prepare_text_turn
+
+            prepare_conversation = dict(conversation_dict or {})
+            prepare_conversation["parent_message_id"] = parent_message_id
+            prepare_result, _prepare_payload = prepare_text_turn(
+                self,
+                prompt,
+                model=resolved_model,
+                conversation=prepare_conversation,
+                reasoning_effort=normalized_effort,
+                web_search=web_search,
+                temporary=temporary,
+                partial_query_message_id=user_message_id,
+                include_partial_query=bool(conversation_id and not normalized_media),
+                client_prepare_state="none",
+                client_prepare_dispatch="immediate" if conversation_id else "debounced",
+                client_prepare_source="context_change" if conversation_id else "window_focus",
+                initial_conduit_token="no-token" if conversation_id else None,
+            )
+            if not prepare_result.status_ok:
+                raise RequestError(
+                    f"conversation prepare rejected: status={prepare_result.status_code}",
+                    status_code=prepare_result.status_code,
+                    endpoint=CHAT_CONVERSATION_PREPARE_URL,
+                    request_stage="conversation_prepare",
+                )
+            if not prepare_result.conduit_token_present or not prepare_result.conduit_token:
+                raise RequestError(
+                    "conversation prepare response missing conduit token",
+                    status_code=prepare_result.status_code,
+                    endpoint=CHAT_CONVERSATION_PREPARE_URL,
+                    request_stage="conversation_prepare",
+                )
+            self._emit_event(
+                on_event,
+                "conversation_prepare_succeeded",
+                status_code=prepare_result.status_code,
+                conduit_token_present=True,
+            )
+
+        requirements, proof_header = self._get_ready_requirements()
+        chat_token = requirements.get("token")
+        if not isinstance(chat_token, str) or not chat_token:
+            raise RequestError("chat-requirements token is missing")
+
         payload: dict[str, Any] = {
             "action": "next",
             "parent_message_id": parent_message_id,
@@ -2327,19 +2402,18 @@ class ChatGPTWebClient:
             "enable_message_followups": False,
             "supports_buffering": True,
             "supported_encodings": ["v1"],
-            "messages": self._create_messages(
-                prompt,
-                None if conversation_id else system,
-                image_requests=image_requests,
-                system_hints=["search"] if web_search else None,
-            ),
+            "messages": messages,
         }
+        if use_prepared_sentinel:
+            payload["client_prepare_state"] = "success"
+            payload["client_contextual_info"] = {"app_name": "chatgpt.com"}
+            payload["system_hints"] = ["search"] if web_search else []
+        elif web_search:
+            payload["system_hints"] = ["search"]
         if temporary:
             payload["history_and_training_disabled"] = True
         if conversation_id:
             payload["conversation_id"] = conversation_id
-        if web_search:
-            payload["system_hints"] = ["search"]
         if normalized_effort is not None:
             payload["thinking_effort"] = normalized_effort
         self._emit_event(
@@ -2348,8 +2422,7 @@ class ChatGPTWebClient:
             payload=json.loads(json.dumps(payload, ensure_ascii=False)),
         )
 
-        headers = self._build_headers(
-            {
+        header_overrides: dict[str, str | None] = {
                 "accept": "text/event-stream",
                 "content-type": "application/json",
                 "openai-sentinel-chat-requirements-token": chat_token,
@@ -2357,8 +2430,26 @@ class ChatGPTWebClient:
                 "openai-sentinel-turnstile-token": self.auth.turnstile_token
                 if (requirements.get("turnstile") or {}).get("required")
                 else None,
-            }
-        )
+        }
+        if use_prepared_sentinel and prepare_result is not None:
+            header_overrides.update(
+                {
+                    "origin": CHAT_URL.rstrip("/"),
+                    "referer": (
+                        f"{CHAT_URL.rstrip('/')}/c/{conversation_id}"
+                        if conversation_id
+                        else CHAT_URL
+                    ),
+                    "x-openai-target-path": "/backend-api/f/conversation",
+                    "x-openai-target-route": "/backend-api/f/conversation",
+                    "x-conduit-token": prepare_result.conduit_token,
+                }
+            )
+        headers = self._build_headers(header_overrides)
+        if use_prepared_sentinel:
+            refill = getattr(self, "start_sentinel_bundle_refill", None)
+            if callable(refill):
+                refill(on_event=on_event)
         state = {
             "recipient": "all",
             "conversation_id": conversation_id,

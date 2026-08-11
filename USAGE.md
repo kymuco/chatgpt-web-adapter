@@ -55,7 +55,7 @@ Current capabilities:
 Non-goals of this package:
 
 - no CLI
-- no browser automation
+- no mandatory browser runtime for read-only/legacy paths; current protected writes can use the optional browser Sentinel provider
 - no auth capture flow
 - no local chat-history storage
 - no async client
@@ -115,13 +115,17 @@ pytest -q
 
 ## Authentication
 
-The SDK consumes existing auth data. It does not create or refresh sessions by itself.
+The SDK consumes an existing authenticated web session; it does not perform the
+initial login. If the access token is missing or near expiry and the file contains
+a session cookie/token, client construction refreshes credentials through
+`/api/auth/session` and atomically updates `auth_data.json` by default.
 
 You can authenticate in three main ways:
 
 1. Let the client load `auth_data.json`.
 2. Let the client load `accessToken` from `.env` as an optional fallback.
 3. Pass an `AuthData` object directly.
+4. Call `client.refresh_auth()` when an immediate refresh is required.
 
 ### `auth_data.json`
 
@@ -226,6 +230,8 @@ Constructor arguments:
 - `curl_bin`: override the detected `curl` executable
 - `debug_trace_dir`: optional local directory for sanitized debug trace JSON files
 - `debug_trace_sanitize`: redact auth/session headers in debug traces, defaults to `True`
+- `auto_refresh_auth`: refresh a missing/near-expiry access token from the session endpoint, defaults to `True`
+- `persist_refreshed_auth`: atomically update `auth_data.json` after automatic refresh, defaults to `True`
 
 ### Optional Sanitized Debug Traces
 
@@ -245,9 +251,10 @@ This is intended for local diagnostics and live smoke work. When enabled, the cl
 ## Basic Chat Request
 
 ```python
-from chatgpt_web_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
+client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
 
 response = client.send(
     "Give me a short summary of this project.",
@@ -256,6 +263,11 @@ response = client.send(
 
 print(response.text)
 ```
+
+Install the provider with `pip install "chatgpt-web-adapter[browser]"`. It opens
+an isolated temporary browser, obtains one unused official-page Sentinel bundle,
+and never clicks submit. The ChatGPT web contract is undocumented, so this
+capture layer can require compatibility updates when the site changes.
 
 ## Read the Response Object
 
@@ -670,14 +682,19 @@ The current media helper is image-focused. Supported formats are:
 - GIF
 - WebP
 
+For current protected ChatGPT writes, configure the same
+`ZendriverSentinelBundleProvider` shown in Basic Chat Request before calling
+`send()`; it also protects the file-backed multimodal final write.
+
 ### Local Image from `Path`
 
 ```python
 from pathlib import Path
 
-from chatgpt_web_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import ChatGPTWebClient, ZendriverSentinelBundleProvider
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
+client.set_sentinel_bundle_provider(ZendriverSentinelBundleProvider())
 
 response = client.send(
     "Describe what is shown in this image.",

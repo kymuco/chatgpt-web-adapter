@@ -5,6 +5,7 @@ import base64
 import json
 import shutil
 import threading
+import time
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -294,6 +295,9 @@ def _make_chat_handler(
             if self.path == "/backend-api/f/conversation":
                 payload = json.loads(self._read_body().decode("utf-8"))
                 state["conversation_payloads"].append(payload)
+                state.setdefault("conversation_headers", []).append(
+                    {key.lower(): value for key, value in self.headers.items()}
+                )
                 if payload.get("messages"):
                     state.setdefault("approval_stream_payloads", []).append(payload)
                 if backend_status >= 400:
@@ -338,6 +342,9 @@ def _make_chat_handler(
             if self.path == "/backend-api/f/conversation/prepare":
                 payload = json.loads(self._read_body().decode("utf-8"))
                 state.setdefault("prepare_payloads", []).append(payload)
+                state.setdefault("prepare_headers", []).append(
+                    {key.lower(): value for key, value in self.headers.items()}
+                )
                 self._write_json(200, {"status": "ok", "conduit_token": "conduit-token"})
                 return
 
@@ -626,6 +633,101 @@ def test_send_with_warmup_media_and_flags_uses_prefetched_requirements(
     assert response.conversation.finish_reason == "stop"
     assert response.metrics.first_token is not None
     assert response.metrics.total is not None
+
+
+def _install_test_sentinel_bundle_provider(client: adapter.ChatGPTWebClient) -> None:
+    def provider(_client: adapter.ChatGPTWebClient) -> adapter.FinalizedSentinelBundle:
+        acquired = time.monotonic()
+        return adapter.FinalizedSentinelBundle(
+            "finalized-requirements",
+            "finalized-proof",
+            "finalized-turnstile",
+            acquired,
+            acquired + 60,
+        )
+
+    client.set_sentinel_bundle_provider(provider)
+
+
+def test_prepared_send_creates_new_chat_with_prepare_and_finalized_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    _install_test_sentinel_bundle_provider(client)
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send("Create a new chat")
+
+    assert response.text == "Hello world"
+    assert response.conversation.conversation_id == "conv-123"
+    assert state["requirements_calls"] == 0
+    assert len(state["prepare_payloads"]) == 1
+    prepare_payload = state["prepare_payloads"][0]
+    assert prepare_payload["parent_message_id"] == "client-created-root"
+    assert prepare_payload["client_prepare_state"] == "none"
+    assert prepare_payload["client_prepare_dispatch"] == "debounced"
+    assert prepare_payload["client_prepare_source"] == "window_focus"
+    assert "conversation_id" not in prepare_payload
+    assert "partial_query" not in prepare_payload
+    assert "x-conduit-token" not in state["prepare_headers"][0]
+
+    payload = state["conversation_payloads"][0]
+    assert payload["parent_message_id"] == "client-created-root"
+    assert payload["client_prepare_state"] == "success"
+    assert "conversation_id" not in payload
+    headers = state["conversation_headers"][0]
+    assert headers["x-conduit-token"] == "conduit-token"
+    assert headers["openai-sentinel-chat-requirements-token"] == "finalized-requirements"
+    assert headers["openai-sentinel-proof-token"] == "finalized-proof"
+    assert headers["openai-sentinel-turnstile-token"] == "finalized-turnstile"
+
+
+def test_prepared_send_creates_new_chat_with_uploaded_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _build_client()
+    client.auth.accessToken = "test-token"
+    _install_test_sentinel_bundle_provider(client)
+    state = {
+        "requirements_calls": 0,
+        "file_create_payloads": [],
+        "conversation_payloads": [],
+        "uploaded_payloads": [],
+        "finalize_calls": 0,
+    }
+
+    with _serve(_make_chat_handler(state)) as base_url:
+        _patch_chat_endpoints(monkeypatch, base_url)
+        response = client.send(
+            "Inspect this image",
+            media=[(PNG_BYTES, "smoke.png")],
+        )
+
+    assert response.text == "Hello world"
+    assert state["requirements_calls"] == 0
+    assert state["file_create_payloads"] == [
+        {
+            "file_name": "smoke.png",
+            "file_size": len(PNG_BYTES),
+            "use_case": "multimodal",
+        }
+    ]
+    assert state["uploaded_payloads"] == [PNG_BYTES]
+    assert state["finalize_calls"] == 1
+    assert "partial_query" not in state["prepare_payloads"][0]
+    message = state["conversation_payloads"][0]["messages"][-1]
+    assert message["content"]["content_type"] == "multimodal_text"
+    assert message["metadata"]["attachments"][0]["name"] == "smoke.png"
+    assert state["conversation_headers"][0]["x-conduit-token"] == "conduit-token"
 
 
 def test_send_instant_mode_uses_minimal_payload_without_thinking_effort(

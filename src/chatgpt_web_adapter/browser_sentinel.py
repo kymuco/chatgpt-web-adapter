@@ -135,7 +135,6 @@ class ZendriverSentinelBundleProvider:
         loop = asyncio.get_running_loop()
         captured: asyncio.Future[FinalizedSentinelBundle] = loop.create_future()
         finalize_requests: dict[Any, dict[str, Any]] = {}
-        finalize_statuses: dict[Any, int] = {}
         page: Any = None
 
         def on_request(event: Any, page: Any = None) -> None:
@@ -154,36 +153,46 @@ class ZendriverSentinelBundleProvider:
             if isinstance(payload, dict):
                 finalize_requests[event.request_id] = payload
 
-        def on_response(event: Any, page: Any = None) -> None:
-            response = getattr(event, "response", None)
-            if response is None or getattr(response, "url", "") != (
-                f"{CHAT_URL.rstrip('/')}{SENTINEL_FINALIZE_PATH}"
-            ):
+        async def read_finalize_response(request_id: Any, response_status: int) -> None:
+            if captured.done():
                 return
-            finalize_statuses[event.request_id] = int(getattr(response, "status", 0))
-
-        async def read_loading_finished(event: Any) -> None:
-            if captured.done() or event.request_id not in finalize_statuses:
-                return
-            request_payload = finalize_requests.get(event.request_id)
+            request_payload = finalize_requests.get(request_id)
             if request_payload is None:
                 try:
                     post_data = await active_page.send(
-                        cdp.network.get_request_post_data(event.request_id)
+                        cdp.network.get_request_post_data(request_id)
                     )
                     request_payload = json.loads(post_data)
                 except Exception:
                     return
+            body_response: tuple[str, bool] | None = None
+            for _attempt in range(100):
+                try:
+                    body_response = await active_page.send(
+                        cdp.network.get_response_body(request_id)
+                    )
+                    break
+                except Exception:
+                    await asyncio.sleep(0.05)
+            if body_response is None:
+                if not captured.done():
+                    captured.set_exception(
+                        RequestError(
+                            "SENTINEL_BROWSER_CAPTURE_BODY: finalize response body "
+                            "was not available from CDP",
+                            endpoint=SENTINEL_FINALIZE_PATH,
+                            request_stage="sentinel_browser_capture",
+                        )
+                    )
+                return
             try:
-                body, is_base64 = await active_page.send(
-                    cdp.network.get_response_body(event.request_id)
-                )
+                body, is_base64 = body_response
                 if is_base64:
                     body = base64.b64decode(body).decode("utf-8")
                 response_payload = json.loads(body)
                 bundle = _bundle_from_finalize_capture(
                     request_payload,
-                    finalize_statuses[event.request_id],
+                    response_status,
                     response_payload,
                 )
             except Exception as error:
@@ -193,11 +202,18 @@ class ZendriverSentinelBundleProvider:
             if not captured.done():
                 captured.set_result(bundle)
 
-        def on_loading_finished(event: Any, page: Any = None) -> None:
-            # zendriver 0.15.3 documents coroutine handlers but its connection
-            # dispatcher invokes them synchronously. Schedule the actual body
-            # explicitly so response-body reads are awaited by our event loop.
-            loop.create_task(read_loading_finished(event))
+        def on_response(event: Any, page: Any = None) -> None:
+            response = getattr(event, "response", None)
+            if response is None or getattr(response, "url", "") != (
+                f"{CHAT_URL.rstrip('/')}{SENTINEL_FINALIZE_PATH}"
+            ):
+                return
+            loop.create_task(
+                read_finalize_response(
+                    event.request_id,
+                    int(getattr(response, "status", 0)),
+                )
+            )
 
         cookies = getattr(getattr(client, "auth", None), "cookies", None)
         if not isinstance(cookies, dict) or not cookies:
@@ -217,7 +233,6 @@ class ZendriverSentinelBundleProvider:
                 active_page = await browser.get("about:blank")
                 active_page.add_handler(cdp.network.RequestWillBeSent, on_request)
                 active_page.add_handler(cdp.network.ResponseReceived, on_response)
-                active_page.add_handler(cdp.network.LoadingFinished, on_loading_finished)
                 await active_page.send(cdp.network.enable())
                 cookie_params = [
                     cdp.network.CookieParam(
@@ -234,32 +249,29 @@ class ZendriverSentinelBundleProvider:
 
                 # The page normally prefetches on its own. A reversible input
                 # event nudges lazy clients without clicking the submit button.
+                # Keep the probe in the editor until finalize completes: current
+                # clients cancel the Sentinel transaction when input is cleared
+                # immediately after the event.
                 await asyncio.sleep(3.0)
+                probe_input = None
                 if not captured.done():
-                    await active_page.evaluate(
-                        """
-                        (() => {
-                          const input = document.querySelector(
-                            '#prompt-textarea, [contenteditable="true"]'
-                          );
-                          if (!input) return false;
-                          input.focus();
-                          input.textContent = '.';
-                          input.dispatchEvent(new InputEvent('input', {
-                            bubbles: true, inputType: 'insertText', data: '.'
-                          }));
-                          setTimeout(() => {
-                            input.textContent = '';
-                            input.dispatchEvent(new InputEvent('input', {
-                              bubbles: true, inputType: 'deleteContentBackward'
-                            }));
-                          }, 75);
-                          return true;
-                        })()
-                        """,
-                        return_by_value=True,
-                    )
+                    try:
+                        probe_input = await active_page.select(
+                            '#prompt-textarea, [contenteditable="true"]',
+                            timeout=min(10.0, self.timeout),
+                        )
+                        # Zendriver/CDP emits trusted keyboard events. A synthetic
+                        # InputEvent can start finalize without ever receiving a
+                        # response on current ChatGPT clients.
+                        await probe_input.send_keys(".")
+                    except Exception:
+                        probe_input = None
                 bundle = await asyncio.wait_for(captured, timeout=self.timeout)
+                if probe_input is not None:
+                    try:
+                        await probe_input.clear_input_by_deleting()
+                    except Exception:
+                        pass
                 browser_cookies = await active_page.send(cdp.network.get_all_cookies())
                 _sync_chatgpt_cookies(client, browser_cookies)
                 return bundle
