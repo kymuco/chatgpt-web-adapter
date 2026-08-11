@@ -6,10 +6,35 @@ from .approval_policy import ApprovalDecision, ApprovalPolicy
 from .approval_types import ApprovalEvent, ApprovalResult, ApprovalRound
 from .attach import attach_conversation as _attach_conversation
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
+from .browser_sentinel import ZendriverSentinelBundleProvider
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
+from .sentinel_requirements import (
+    OBSERVED_FINALIZE_REQUEST_KEYS,
+    OBSERVED_FINALIZE_RESPONSE_KEYS,
+    SentinelPrepareProbeResult,
+    probe_sentinel_requirements_prepare,
+)
+from .sentinel_bundle import (
+    gate_prepared_build_headers as _gate_prepared_build_headers,
+    gate_prepared_get_ready_requirements as _gate_prepared_get_ready_requirements,
+    gate_prepared_text_send as _gate_prepared_text_send,
+    get_prepared_sentinel_bundle as _get_prepared_sentinel_bundle,
+    prefetch_finalized_sentinel_bundle as _prefetch_finalized_sentinel_bundle,
+    redact_ephemeral_write_headers as _redact_ephemeral_write_headers,
+    start_finalized_sentinel_bundle_refill as _start_finalized_sentinel_bundle_refill,
+)
+from .sentinel_transaction import (
+    FinalizedSentinelBundle,
+    SentinelBundleProvider,
+    SentinelChallengeContext,
+    SentinelChallengeEvidence,
+    SentinelChallengeProvider,
+    set_sentinel_bundle_provider as _set_sentinel_bundle_provider,
+    set_sentinel_challenge_provider as _set_sentinel_challenge_provider,
+)
 from .conversation_send import send_to_conversation as _send_to_conversation
 from .exceptions import (
     AuthError,
@@ -74,14 +99,21 @@ _original_send = ChatGPTWebClient.send
 _original_approve_pending_action = ChatGPTWebClient.approve_pending_action
 _original_send_and_auto_approve = ChatGPTWebClient.send_and_auto_approve
 _original_get_ready_requirements = ChatGPTWebClient._get_ready_requirements
+_original_build_headers = ChatGPTWebClient._build_headers
 _original_sanitize_header_value = ChatGPTWebClient._sanitize_header_value
 _original_write_debug_trace = ChatGPTWebClient._write_debug_trace
 
-ChatGPTWebClient._get_ready_requirements = _gate_get_ready_requirements(
-    _original_get_ready_requirements
+ChatGPTWebClient._get_ready_requirements = _gate_prepared_get_ready_requirements(
+    _gate_get_ready_requirements(_original_get_ready_requirements)
 )
-ChatGPTWebClient._sanitize_header_value = _redact_web_session_headers(
-    _original_sanitize_header_value
+ChatGPTWebClient._get_prepared_sentinel_bundle = _get_prepared_sentinel_bundle
+ChatGPTWebClient.prefetch_sentinel_bundle = _prefetch_finalized_sentinel_bundle
+ChatGPTWebClient.start_sentinel_bundle_refill = _start_finalized_sentinel_bundle_refill
+ChatGPTWebClient.set_sentinel_challenge_provider = _set_sentinel_challenge_provider
+ChatGPTWebClient.set_sentinel_bundle_provider = _set_sentinel_bundle_provider
+ChatGPTWebClient._build_headers = _gate_prepared_build_headers(_original_build_headers)
+ChatGPTWebClient._sanitize_header_value = _redact_ephemeral_write_headers(
+    _redact_web_session_headers(_original_sanitize_header_value)
 )
 ChatGPTWebClient._write_debug_trace = _gate_debug_trace_writer(
     _original_write_debug_trace
@@ -97,7 +129,7 @@ ChatGPTWebClient.get_required_action = _get_required_action
 ChatGPTWebClient.get_status = _get_status
 ChatGPTWebClient.send = _send_with_expanded_metrics(_original_send)
 ChatGPTWebClient._send_existing_text_prepared = _send_with_expanded_metrics(
-    _send_existing_text_prepared
+    _gate_prepared_text_send(_send_existing_text_prepared)
 )
 ChatGPTWebClient.send_and_auto_approve = _policy_send_and_auto_approve(
     _original_send_and_auto_approve
@@ -166,6 +198,19 @@ EXPERIMENTAL_PREPARE_EXPORTS = [
     "prepare_text_turn",
 ]
 
+EXPERIMENTAL_SENTINEL_EXPORTS = [
+    "FinalizedSentinelBundle",
+    "OBSERVED_FINALIZE_REQUEST_KEYS",
+    "OBSERVED_FINALIZE_RESPONSE_KEYS",
+    "SentinelBundleProvider",
+    "SentinelChallengeContext",
+    "SentinelChallengeEvidence",
+    "SentinelChallengeProvider",
+    "SentinelPrepareProbeResult",
+    "ZendriverSentinelBundleProvider",
+    "probe_sentinel_requirements_prepare",
+]
+
 SUPPORT_EXPORTS = [
     "DEFAULT_AUTH_FILE",
     "DEFAULT_MODEL",
@@ -181,5 +226,6 @@ __all__ = [
     *EXPERIMENTAL_REQUIRED_ACTION_EXPORTS,
     *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
     *EXPERIMENTAL_PREPARE_EXPORTS,
+    *EXPERIMENTAL_SENTINEL_EXPORTS,
     *SUPPORT_EXPORTS,
 ]

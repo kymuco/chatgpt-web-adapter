@@ -34,6 +34,7 @@ Changelog = "https://github.com/kymuco/chatgpt-web-adapter/blob/main/CHANGELOG.m
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+browser = ["zendriver==0.15.3"]
 
 [tool.setuptools]
 package-dir = { "" = "src" }
