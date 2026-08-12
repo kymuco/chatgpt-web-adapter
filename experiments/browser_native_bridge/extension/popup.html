@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ChatGPT bridge probe</title>
+  <style>
+    body { font: 13px system-ui, sans-serif; margin: 12px; width: 420px; }
+    textarea { width: 100%; min-height: 90px; box-sizing: border-box; }
+    button { margin: 8px 8px 8px 0; }
+    pre { white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <strong>ChatGPT Web Adapter — PR8.0 probe</strong>
+  <p>Uses an existing <code>chatgpt.com</code> tab. It does not read cookies or export Sentinel credentials.</p>
+  <textarea id="text">Reply with exactly: SDK_BRIDGE_OK</textarea>
+  <div>
+    <button id="capabilities">Probe capabilities</button>
+    <button id="send">Send through official page</button>
+  </div>
+  <pre id="output">Ready.</pre>
+  <script src="popup.js"></script>
+</body>
+</html>
