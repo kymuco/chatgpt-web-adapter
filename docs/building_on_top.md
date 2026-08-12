@@ -1,6 +1,24 @@
 # Building On Top of the SDK
 
-This package is best treated as an engine for tools that want to reuse a live ChatGPT web session. If you are building a higher-level product such as `gptty`, keep the app layer clearly separated from the SDK layer.
+This package is the reusable SDK boundary for tools that use a live ChatGPT web
+session. A higher-level product such as `gptty` should consume the SDK without
+moving product-specific behavior into this repository.
+
+For a write-capable service, initialize the client once and reuse it:
+
+```python
+from chatgpt_web_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_login=True,
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
+```
+
+See [authentication.md](authentication.md) for the first-login and refresh
+lifecycle, and [troubleshooting.md](troubleshooting.md) for operational failures.
 
 ## Recommended Foundation for a Product Layer
 
@@ -14,6 +32,8 @@ Use these as the core primitives:
 - `wait_until_completed()`
 - image upload support
 - sanitized debug traces for diagnostics
+- persistent login and session refresh
+- official-page Sentinel capture for protected writes
 
 These are the most natural building blocks for a terminal UI, CLI, or orchestration app.
 
@@ -26,7 +46,11 @@ These are the most natural building blocks for a terminal UI, CLI, or orchestrat
 - `validate_payload()`
 - `send_payload()`
 
-They are useful, but they should not be the foundation of a product architecture. They depend more directly on unstable web behavior and should be isolated behind product-specific feature flags or adapter layers.
+They are useful, but they should not be the foundation of a product architecture.
+They depend more directly on unstable web behavior and should be isolated behind
+product-specific feature flags or adapter layers. In particular, raw
+`send_payload()` still uses the legacy requirements path and is not covered by
+the current prepared-write Sentinel transaction.
 
 ## Suggested Product Boundary for gptty
 

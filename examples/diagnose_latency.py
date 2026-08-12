@@ -4,7 +4,7 @@ from __future__ import annotations
 
 Purpose: reference example for ``on_event`` usage and metrics inspection.
 Surface: stable
-Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
+Prerequisites: the browser extra and an ``auth login``-created session/profile.
 """
 
 import argparse
@@ -73,7 +73,7 @@ def main() -> None:
     )
     parser.add_argument("prompt", nargs="?", default=DEFAULT_PROMPT)
     parser.add_argument("--auth-file", default="auth_data.json")
-    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--model", default="gpt-5-3-mini")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument(
         "--no-stream",
@@ -82,7 +82,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
+    client = ChatGPTWebClient(
+        auth_file=args.auth_file,
+        timeout=args.timeout,
+        auto_sentinel=True,
+        sentinel_headless=True,
+    )
     started_at = time.perf_counter()
     tokens: list[str] = []
 

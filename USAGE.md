@@ -12,6 +12,7 @@ This document covers the public API exposed by the package today and only descri
 - [Requirements](#requirements)
 - [Install](#install)
 - [Authentication](#authentication)
+- [Runtime Modes](#runtime-modes)
 - [Create a Client](#create-a-client)
 - [Basic Chat Request](#basic-chat-request)
 - [Read the Response Object](#read-the-response-object)
@@ -54,9 +55,9 @@ Current capabilities:
 
 Non-goals of this package:
 
-- no CLI
-- no mandatory browser runtime for read-only/legacy paths; current protected writes can use the optional browser Sentinel provider
-- no auth capture flow
+- no full terminal chat application; the included CLI only manages auth
+- no mandatory browser runtime for read-only/legacy paths; current protected writes should use the optional browser Sentinel provider
+- no browser-challenge bypass or synthetic Turnstile solver
 - no local chat-history storage
 - no async client
 
@@ -100,6 +101,12 @@ The stable core is the main surface intended for tools and applications that wan
 
 ## Install
 
+From PyPI:
+
+```bash
+python -m pip install "chatgpt-web-adapter[browser]==0.1.7"
+```
+
 For local development:
 
 ```bash
@@ -130,6 +137,10 @@ If the saved browser session is inconsistent or revoked, run
 `chatgpt-web-adapter auth login --force --auth-file auth_data.json` and complete
 the fresh login in the SDK browser profile.
 
+The first login is interactive. After it succeeds, write-capable applications
+can use `sentinel_headless=True` so Chromium runs without a visible window.
+Chromium is still required: "headless" here means no GUI, not browserless.
+
 You can authenticate in five main ways:
 
 1. Run `chatgpt-web-adapter auth login` once.
@@ -142,7 +153,8 @@ You can authenticate in five main ways:
 
 The recommended path is to let the SDK create this file with `auth login`.
 
-Minimal workable shape:
+Legacy minimal shape (accepted for compatibility, but insufficient to recreate
+the full browser session by itself):
 
 ```json
 {
@@ -179,6 +191,11 @@ Recommended captured shape:
 - Persisted `proof_token` and `turnstile_token` values are discarded when auth is saved; current Sentinel credentials are one-shot data acquired separately.
 - Older files that still use `api_key` are accepted for backward compatibility, but new files should use `accessToken`.
 
+Do not hand-edit or share this file. It contains reusable account credentials.
+The persistent browser profile and `auth_data.json` should be treated as one
+session: JSON handles HTTP auth/refresh, while the profile supplies the official
+page environment for protected-write Sentinel capture.
+
 ### `.env`
 
 `.env` is optional. If `auth_data.json` is missing or its token is expired, the loader can fall back to `.env`.
@@ -207,6 +224,33 @@ print(bool(auth.cookies))
 - If that token is missing or expired, `.env:accessToken` can be used instead.
 - If every discovered token is expired, `AuthError` is raised.
 - If no token is found at all, `AuthError` is raised.
+
+## Runtime Modes
+
+The SDK has three operational paths:
+
+1. Read-only/session HTTP operations such as attach, messages, and status use
+   `auth_data.json` and do not launch Chromium.
+2. Access-token refresh calls `/api/auth/session` with the saved cookies and does
+   not launch Chromium.
+3. Current protected writes (`send`, continuation, and media) use a fresh
+   one-shot Sentinel bundle observed through the persistent Chromium profile.
+
+Recommended write-capable client:
+
+```python
+from chatgpt_web_adapter import ChatGPTWebClient
+
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_login=True,
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
+```
+
+`auto_login=True` reopens the profile interactively only when saved auth cannot
+be refreshed. It does not make every client construction open a browser.
 
 ## Create a Client
 
@@ -298,11 +342,14 @@ This is intended for local diagnostics and live smoke work. When enabled, the cl
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
 
 response = client.send(
     "Give me a short summary of this project.",
-    model="gpt-4o-mini",
 )
 
 print(response.text)
@@ -321,7 +368,7 @@ require compatibility updates when the site changes.
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 response = client.send("Say hello in one sentence.")
 
 print("text:", response.text)
@@ -348,7 +395,7 @@ Use `on_token` if you want to print or process chunks as they arrive.
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Write a four-line poem.",
@@ -363,12 +410,13 @@ The callback is optional. The SDK still returns the full concatenated text in `r
 
 ## Warm Up the Session
 
-`warmup()` prefetches the backend requirements/proof information so the next request can start with less setup work.
+`warmup()` prefetches the legacy backend requirements/proof information. It does
+not replace the current one-shot Sentinel capture used by protected writes.
 
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 if client.warmup():
     print("Warmup succeeded")
@@ -382,14 +430,14 @@ Notes:
 
 - `warmup()` returns `True` or `False`
 - the prefetched data is short-lived
-- if warmup data is missing or stale, `send()` fetches fresh data automatically
+- protected writes still acquire a fresh Sentinel bundle through the configured provider
 
 ## Use a System Prompt
 
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Explain decorators with a tiny example.",
@@ -404,24 +452,27 @@ Important behavior: the SDK only sends `system` on the first turn of a conversat
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "List three possible names for a logging package.",
-    model="gpt-4o-mini",
+    model="instant",
 )
 ```
 
-The package default is:
+The package defaults are:
 
 ```python
-from chatgpt_web_adapter import DEFAULT_MODEL
+from chatgpt_web_adapter import DEFAULT_MODEL, DEFAULT_THINKING_MODEL
 
-print(DEFAULT_MODEL)  # gpt-4o-mini
+print(DEFAULT_MODEL)           # gpt-5-3-mini
+print(DEFAULT_THINKING_MODEL)  # gpt-5-6-thinking
 ```
 
-The client also normalizes some web-style aliases internally, including:
+The client normalizes convenience aliases, including:
 
+- `instant` -> `gpt-5-3-mini`
+- `thinking` / `gpt-5.6` -> `gpt-5-6-thinking`
 - `gpt-5.1`
 - `gpt-4.1`
 - `gpt-4.1-mini`
@@ -432,7 +483,7 @@ The client also normalizes some web-style aliases internally, including:
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Find recent information about Python packaging trends.",
@@ -447,7 +498,7 @@ This sends the backend search hint used by the web client. Availability still de
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Draft a private brainstorming list.",
@@ -462,7 +513,7 @@ This sets the web payload flag that disables history/training for the request.
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 response = client.send(
     "Solve this step by step: 144 * 37",
@@ -474,12 +525,15 @@ Accepted values:
 
 - `"standard"`
 - `"extended"`
+- `"medium"`
+- `"high"`
 - `"off"`
 - `"none"`
 - `"-"`
 
 Behavior:
 
+- `"medium"` maps to `"standard"`; `"high"` maps to `"extended"`
 - `"off"`, `"none"`, and `"-"` are normalized to no reasoning flag
 - any other value raises `ValueError`
 
@@ -497,7 +551,7 @@ In the examples below, quick low-friction snippets may use a plain dict, while m
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 first = client.send("Start a short conversation about databases.")
 second = client.send(
@@ -513,7 +567,7 @@ print(second.text)
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 conversation = {
     "conversation_id": "conv_123",
@@ -567,7 +621,7 @@ The method fetches the conversation, finds the newest pending `confirm_action` t
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 # This should point at a conversation that currently contains a pending tool
 # approval card somewhere in its latest turn chain.
@@ -577,7 +631,7 @@ conversation = {
 
 response = client.approve_pending_action(
     conversation,
-    model="gpt-5-5-thinking",
+    model="thinking",
     reasoning_effort="extended",
     poll_timeout=90,
     on_token=lambda token: print(token, end="", flush=True),
@@ -606,7 +660,7 @@ Behavior:
 
 - the SDK first inspects the conversation payload and picks the latest pending `confirm_action`
 - on successful prepare, the backend returns an internal conduit token; the SDK does not expose it
-- the SDK then sends an experimental browserless `allow` turn through the same conversation backend
+- the SDK then sends an experimental HTTP-only `allow` turn through the same conversation backend; the initial protected send still uses the Sentinel provider
 - with `poll=True`, the returned `ChatResponse.text` is the newest assistant message found in the conversation
 - with `poll=False`, `ChatResponse.text` is empty and `response.conversation.message_id` is the pending tool message id that was approved
 - if polling times out before a newer assistant message appears, `RequestError` is raised
@@ -629,11 +683,11 @@ By default, `max_rounds=0`, which means no limit.
 ```python
 from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 result = client.wait_and_approve_pending_actions(
     ChatConversation(conversation_id="conv_123"),
-    model="gpt-5-5-thinking",
+    model="thinking",
     reasoning_effort="extended",
     pending_poll_interval=3.0,
     settle_delay=2.0,
@@ -668,11 +722,11 @@ This works for both:
 ```python
 from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
 
 result = client.send_and_auto_approve(
     "Use the GitHub connector to create one text file named project-outline.txt with exact content: project outline draft.",
-    model="gpt-5-5-thinking",
+    model="thinking",
     reasoning_effort="extended",
     on_token=lambda token: print(token, end="", flush=True),
     on_event=lambda event: print(event),
@@ -688,7 +742,7 @@ Continue an existing chat:
 result = client.send_and_auto_approve(
     "Create the next file.",
     conversation=ChatConversation(conversation_id="conv_123"),
-    model="gpt-5-5-thinking",
+    model="thinking",
 )
 ```
 
@@ -846,7 +900,11 @@ from pathlib import Path
 from chatgpt_web_adapter import AuthError, ChatGPTWebClient, MediaError, RequestError
 
 try:
-    client = ChatGPTWebClient(auth_file="auth_data.json")
+    client = ChatGPTWebClient(
+        auth_file="auth_data.json",
+        auto_sentinel=True,
+        sentinel_headless=True,
+    )
     response = client.send(
         "Describe this image.",
         media=[Path("examples/photo.png")],
@@ -940,13 +998,17 @@ from pathlib import Path
 
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json", timeout=120)
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    timeout=120,
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
 
 client.warmup()
 
 first = client.send(
     "Analyze this image and then suggest a concise alt text.",
-    model="gpt-4o-mini",
     system="You are a precise accessibility reviewer.",
     web_search=False,
     temporary=True,
@@ -994,13 +1056,18 @@ print(follow_up.text)
 - Re-uploading the exact same image bytes within the same client instance can reuse cached upload metadata.
 - Image dimensions are detected automatically for PNG, JPEG, GIF, and WebP when possible.
 - `response.metrics` values are measured in seconds.
-- If the backend requires a Turnstile token and your auth data does not contain one, the request can fail.
+- Current protected writes acquire one-shot Sentinel/Turnstile evidence in memory;
+  persisted `turnstile_token` values are not a supported authorization path.
+- Only one process at a time can use the same persistent Chromium profile; a
+  second process waits for the profile lock and fails clearly if it stays busy.
 - If `debug_trace_dir` is enabled, the client writes local trace JSON files for transport diagnostics.
 - Initial auth capture and token refresh are built in through the optional browser extra and `chatgpt-web-adapter auth` commands.
 
 For operational verification and release hygiene, see:
 
 - [docs/live_smoke_checklist.md](docs/live_smoke_checklist.md)
+- [docs/authentication.md](docs/authentication.md)
+- [docs/troubleshooting.md](docs/troubleshooting.md)
 - [docs/release_checklist.md](docs/release_checklist.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/building_on_top.md](docs/building_on_top.md)

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 Purpose: demonstrate approval helpers for pending tool actions.
 Surface: experimental
-Prerequisites: valid ``auth_data.json`` plus a conversation that can enter
-``awaiting_tool_approval``.
+Prerequisites: the browser extra, an ``auth login``-created session/profile, and
+a conversation that can enter ``awaiting_tool_approval``.
 
 This example approves pending tool actions. Review the target conversation before
 using it, and add your own allowlist checks for repositories, files, or actions.
@@ -36,7 +36,7 @@ def main() -> None:
     mode.add_argument("--prompt", help="Send a prompt and auto-approve follow-up tool actions.")
     mode.add_argument("--conversation", help="Watch an existing conversation URL or id for pending approvals.")
     parser.add_argument("--auth-file", default="auth_data.json")
-    parser.add_argument("--model", default="gpt-5-5-thinking")
+    parser.add_argument("--model", default="thinking")
     parser.add_argument("--reasoning-effort", default="extended")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--pending-poll-interval", type=float, default=3.0)
@@ -44,7 +44,12 @@ def main() -> None:
     parser.add_argument("--max-rounds", type=int, default=0)
     args = parser.parse_args()
 
-    client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
+    client = ChatGPTWebClient(
+        auth_file=args.auth_file,
+        timeout=args.timeout,
+        auto_sentinel=True,
+        sentinel_headless=True,
+    )
 
     if args.prompt:
         response = client.send_and_auto_approve(

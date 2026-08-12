@@ -22,25 +22,29 @@ This separates three contracts that must not be conflated:
 
 API model ids are not assumed to equal private ChatGPT web slugs.
 
-## Fast auth from `/api/auth/session`
+## Authentication for the probe
 
-While signed in to ChatGPT in the browser, the JSON returned by
-`https://chatgpt.com/api/auth/session` can be saved locally as `auth_data.json`.
-The adapter consumes the top-level `accessToken` and now best-effort maps the
-endpoint's `sessionToken` to the ChatGPT NextAuth session cookie when explicit
-browser cookies are not already present.
+Use the supported login flow before running a write probe:
 
-Explicit cookies win. This matters because current browser sessions may expose a
-chunked session cookie such as `__Secure-next-auth.session-token.0` and `.1`.
-If those cookies are copied into `auth_data.json`, the adapter leaves them intact.
+```powershell
+python -m pip install -e ".[browser,test]"
+chatgpt-web-adapter auth login --auth-file auth_data.json
+```
 
-Before a write, the adapter also reuses or obtains the server-issued `oai-did`
-cookie and mirrors it into the `oai-device-id` request header.
+The login command saves both the HTTP-facing auth data and the structured browser
+cookie jar while keeping the related persistent Chromium profile. A raw JSON
+response copied from `https://chatgpt.com/api/auth/session` is accepted only as a
+legacy/bootstrap input: it does not contain the complete browser cookie metadata
+or browser-side challenge state required by current protected writes.
 
-`/api/auth/session` is **not** a complete substitute for browser challenge state.
-If `chat-requirements` says Turnstile is required and no legitimate browser-derived
-Turnstile token was supplied, the adapter stops before the conversation POST with
-`TURNSTILE_REQUIRED`. It does not synthesize, solve, or bypass that challenge.
+`/api/auth/session` remains useful for refreshing an existing saved session. The
+adapter maps its `accessToken` and `sessionToken`, preserves explicit/chunked
+browser cookies, and keeps the server-issued `oai-did` cookie aligned with the
+`oai-device-id` request header.
+
+The probe does not synthesize, solve, or bypass browser challenges. Write probes
+need a fresh official-page Sentinel bundle; attach-only probes need only the saved
+HTTP session.
 
 Never share `auth_data.json` or values copied from browser authentication headers.
 
@@ -65,11 +69,10 @@ Never share `auth_data.json` or a raw `watch_conversation.py` transcript.
 ## Run on Windows PowerShell
 
 Install the checkout in editable mode. Installing `websockets` is recommended so
-we can distinguish a real websocket path from polling fallback while PR7.11 is
-still pending.
+the report can distinguish a real websocket path from polling fallback.
 
 ```powershell
-python -m pip install -e ".[test]"
+python -m pip install -e ".[browser,test]"
 python -m pip install websockets
 ```
 

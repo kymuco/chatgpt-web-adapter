@@ -11,6 +11,9 @@ python -m pip install -e .[test]
 pytest -q
 ```
 
+Install `.[browser,test]` only when working on browser login, cookie capture, or
+Sentinel behavior. Unit tests must not require a live account or browser session.
+
 ## Contribution Expectations
 
 - Keep changes narrowly scoped.
@@ -26,7 +29,8 @@ Stable-core contributions typically touch:
 - send/continue flows
 - conversation read/status helpers
 - image upload
-- auth loading
+- auth loading, refresh, and browser-profile lifecycle
+- protected-write Sentinel integration
 - transport diagnostics
 
 Experimental contributions typically touch:
@@ -42,11 +46,14 @@ Experimental changes should remain clearly labeled as experimental in code and d
 Before opening or finalizing a contribution:
 
 - run `pytest -q`
+- run documentation consistency tests when changing README, USAGE, examples, or
+  package positioning
 - if transport/parsing behavior changed, review [docs/live_smoke_checklist.md](./docs/live_smoke_checklist.md)
 - if release-impacting behavior changed, review [docs/release_checklist.md](./docs/release_checklist.md)
 
 ## Hygiene
 
-- Do not commit `auth_data.json`, tokens, cookies, or local traffic traces.
+- Do not commit `auth_data.json`, browser profiles, tokens, cookies, or local
+  traffic traces.
 - Keep traffic artifacts outside tracked files or under a locally excluded path.
 - Keep commit history logically grouped. Prefer one commit per completed PR-sized change.

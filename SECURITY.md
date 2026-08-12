@@ -8,6 +8,7 @@ The following should be treated as secrets:
 
 - `accessToken`
 - session cookies
+- the persistent Chromium profile
 - proof tokens
 - Turnstile tokens
 - sanitized traces before you verify they are actually sanitized
@@ -17,6 +18,7 @@ The following should be treated as secrets:
 Do not commit:
 
 - `auth_data.json`
+- copied or repository-local browser profiles
 - `.env` files containing session material
 - raw browser or network captures
 - local debug trace directories
@@ -32,14 +34,20 @@ If you use debug trace mode or manual traffic scans:
 
 ## Scope
 
-This project does not provide:
+This project provides local browser-assisted login, reusable credential storage,
+and session refresh for a ChatGPT web session. These features do not turn the
+undocumented web backend into an official or supported authentication API.
 
-- secure login acquisition
-- token refresh
-- browser credential management
+The project does not provide:
+
+- an alternative username/password login protocol
+- a challenge solver or anti-abuse bypass
 - server-side secret storage
+- guarantees that a copied `auth_data.json` works without its related profile
 
-It only consumes auth material that already exists in a local environment.
+The SDK profile uses the normal ChatGPT login page and must be protected like any
+other signed-in browser profile. See
+[docs/authentication.md](docs/authentication.md) for the session lifecycle.
 
 ## Reporting
 

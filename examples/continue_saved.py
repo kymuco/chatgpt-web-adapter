@@ -4,7 +4,8 @@ from __future__ import annotations
 
 Purpose: show how to save ``ChatConversation`` state and reuse it later.
 Surface: stable
-Prerequisites: valid ``auth_data.json`` and write access to a local state file.
+Prerequisites: the browser extra, an ``auth login``-created session/profile, and
+write access to a local state file.
 """
 
 import argparse
@@ -39,7 +40,7 @@ def main() -> None:
         description="Save ChatConversation metadata and continue it later.",
     )
     parser.add_argument("--auth-file", default="auth_data.json")
-    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--model", default="gpt-5-3-mini")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--state-file", default="conversation_state.json")
     parser.add_argument("--first-prompt", default=DEFAULT_FIRST_PROMPT)
@@ -47,7 +48,12 @@ def main() -> None:
     parser.add_argument("--reset", action="store_true", help="Ignore any existing state file.")
     args = parser.parse_args()
 
-    client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
+    client = ChatGPTWebClient(
+        auth_file=args.auth_file,
+        timeout=args.timeout,
+        auto_sentinel=True,
+        sentinel_headless=True,
+    )
     state_path = Path(args.state_file)
     conversation = None if args.reset else _load_conversation(state_path)
 

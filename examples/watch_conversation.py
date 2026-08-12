@@ -4,7 +4,8 @@ from __future__ import annotations
 
 Purpose: inspect raw SSE, websocket handoff, polling, approvals, and assistant tokens live.
 Surface: stable example built on top of the SDK event callback.
-Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
+Prerequisites: the browser extra and an ``auth login``-created session/profile
+when the selected mode performs a protected write.
 """
 
 import argparse
@@ -439,7 +440,12 @@ def main() -> None:
 
     color_enabled = _color_enabled(args.color)
     started_at = time.perf_counter()
-    client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
+    client = ChatGPTWebClient(
+        auth_file=args.auth_file,
+        timeout=args.timeout,
+        auto_sentinel=True,
+        sentinel_headless=True,
+    )
     live_content_enabled = args.show_live_content
     render_assistant_in_events = args.show_live_content and not args.show_tokens
     fragment_state: dict[str, str] = {}

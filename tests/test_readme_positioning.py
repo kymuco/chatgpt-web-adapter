@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 
-TAGLINE = "Python SDK for controlling existing ChatGPT web sessions without browser UI."
+TAGLINE = "Python SDK for using an existing ChatGPT web session from Python and terminal tools."
 REQUIRED_WARNING_LINES = [
     "Not the official OpenAI API.",
     "Uses an existing ChatGPT web session.",
@@ -44,3 +44,14 @@ def test_readme_keeps_key_existing_paths_and_workflows() -> None:
     assert "send_payload" in text
     assert "docs/rename_compatibility.md" in text
     assert "examples/diagnose_latency.py" in text
+
+
+def test_readme_documents_current_write_auth_boundary() -> None:
+    text = README.read_text(encoding="utf-8")
+
+    assert "auto_sentinel=True" in text
+    assert "sentinel_headless=True" in text
+    assert "docs/authentication.md" in text
+    assert "docs/troubleshooting.md" in text
+    assert "Chromium is still required as the browser engine" in text
+    assert "Python 3.10-3.14" in text

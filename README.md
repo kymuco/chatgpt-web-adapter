@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml)
 
-Python SDK for controlling existing ChatGPT web sessions without browser UI.
+Python SDK for using an existing ChatGPT web session from Python and terminal tools.
 
 > [!WARNING]
 > Not the official OpenAI API.
@@ -12,8 +12,10 @@ Python SDK for controlling existing ChatGPT web sessions without browser UI.
 `chatgpt-web-adapter` is a small Python SDK with a dependency-free core for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
 
 It is designed for terminal tools that use a reusable ChatGPT web session. The
-optional browser extra can create that session once and recover it later; normal
-requests continue without browser UI.
+optional browser extra performs the first interactive login and obtains current
+Sentinel credentials for protected writes. After login, Sentinel capture can run
+headlessly, so no visible browser window is required, but Chromium remains the
+browser engine.
 
 ## What This Is
 
@@ -32,7 +34,7 @@ It does not include localization or local chat-history management from
 - reading messages and polling conversation status from Python
 - uploading images through the web-session flow
 - inspecting live SSE, websocket handoff, and polling events in a terminal
-- experimenting with browserless approval workflows
+- experimenting with HTTP-only approval continuations after a protected send
 
 ## When Not To Use This
 
@@ -74,7 +76,7 @@ Experimental features:
 - `validate_payload()`
 - `send_payload()`
 
-Current new-chat, continuation, and multimodal writes can opt into the
+Current new-chat, continuation, and multimodal writes should use the
 official-page Sentinel path:
 
 ```bash
@@ -84,13 +86,17 @@ pip install "chatgpt-web-adapter[browser]"
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
 response = client.send("Start a new chat from the SDK.")
 ```
 
-This provider observes a fresh prepare/finalize bundle produced by ChatGPT's own
-page, blocks the browser's conversation POST, and keeps the unused one-shot
-credentials in memory only.
+This provider opens the SDK's persistent Chromium profile, observes a fresh
+prepare/finalize bundle produced by ChatGPT's own page, blocks the browser's
+conversation POST, and keeps the unused one-shot credentials in memory only.
 It is experimental because the web contract and page behavior are undocumented.
 
 The stable core is the main surface intended for building tools on top of an existing ChatGPT web session. Experimental features are exposed because they are useful, but they rely more directly on changing web-client behavior.
@@ -129,7 +135,7 @@ The stable core is the main surface intended for building tools on top of an exi
 - `auth_data.json` and `.env` auth loading
 - one-time browser login and automatic session refresh
 - image uploads from local paths, `Path`, URL, data URI, or raw bytes
-- experimental browserless tool-approval helpers for web-agent flows
+- experimental HTTP-only tool-approval continuations for web-agent flows
 - experimental raw payload escape hatch for advanced users
 - local `curl`-based transport for compatibility with stock Python
 - example live watcher for SSE, websocket handoff, polling, and approvals
@@ -138,7 +144,8 @@ The stable core is the main surface intended for building tools on top of an exi
 
 - Python 3.10+
 - system `curl` available in `PATH`
-- either a valid `auth_data.json`, or the optional browser extra for first login
+- a valid `auth_data.json` for session-backed operations
+- `chatgpt-web-adapter[browser]` for first login and current protected writes
 
 ## Install
 
@@ -158,11 +165,14 @@ pytest -q
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
 
 response = client.send(
     "Give me a short summary of this project.",
-    model="gpt-4o-mini",
 )
 
 print(response.text)
@@ -175,6 +185,7 @@ Install the browser extra and authorize once:
 ```bash
 pip install "chatgpt-web-adapter[browser]"
 chatgpt-web-adapter auth login --auth-file auth_data.json
+chatgpt-web-adapter auth status --auth-file auth_data.json
 ```
 
 Use `chatgpt-web-adapter auth login --force` when the saved session is rejected
@@ -220,6 +231,11 @@ Recommended `auth_data.json` shape:
 - Inspect or refresh auth without exposing tokens with `chatgpt-web-adapter auth status` and `chatgpt-web-adapter auth refresh`.
 - After the first interactive login, `auto_sentinel=True, sentinel_headless=True` can run protected writes without a visible browser window. Chromium is still required as the browser engine.
 
+`auth_data.json` is reusable session state, not a standalone replacement for
+the browser profile. The JSON file carries access/session metadata and scoped
+cookie records; the persistent profile supplies the official page environment
+used for current Sentinel capture. See [Authentication and session lifecycle](docs/authentication.md).
+
 ## Common Workflows
 
 ### Streaming Callback
@@ -227,7 +243,11 @@ Recommended `auth_data.json` shape:
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
 
 response = client.send(
     "Stream the answer token by token.",
@@ -240,7 +260,11 @@ response = client.send(
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
 
 response = client.send_to_conversation(
     "https://chatgpt.com/c/...",
@@ -267,7 +291,11 @@ print(response.text)
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(auth_file="auth_data.json")
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_sentinel=True,
+    sentinel_headless=True,
+)
 
 first = client.send("Start a conversation.")
 second = client.send(
@@ -300,7 +328,8 @@ Other common APIs:
 
 ## Experimental Features
 
-The SDK includes experimental browserless helpers for web-agent/tool approval flows:
+The SDK includes experimental HTTP-only helpers for web-agent/tool approval
+continuations. The initial protected send still uses the Sentinel provider:
 
 - `approve_pending_action()`
 - `wait_and_approve_pending_actions()`
@@ -334,6 +363,13 @@ The optional browser extra creates the initial `auth_data.json` itself. Subseque
 access-token refreshes are browserless while the session cookie remains valid.
 Interactive login is needed again only after ChatGPT rejects the reusable session.
 
+Operationally, there are three distinct paths:
+
+- read/status operations use the saved web session directly;
+- access-token refresh calls `/api/auth/session` without opening Chromium;
+- protected writes acquire one-shot Sentinel credentials through the persistent
+  Chromium profile, visibly or headlessly.
+
 ## Detailed Guide
 
 For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `web_search`, `reasoning_effort`, conversation continuation, image inputs, response objects, and error handling, see [USAGE.md](USAGE.md).
@@ -341,6 +377,8 @@ For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `we
 Operational docs:
 
 - [docs/live_smoke_checklist.md](docs/live_smoke_checklist.md)
+- [docs/authentication.md](docs/authentication.md)
+- [docs/troubleshooting.md](docs/troubleshooting.md)
 - [docs/release_checklist.md](docs/release_checklist.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/building_on_top.md](docs/building_on_top.md)
@@ -357,8 +395,11 @@ See [docs/rename_compatibility.md](docs/rename_compatibility.md).
 
 ## Status
 
-Initial SDK baseline. The repository is intentionally small and focused on the transport layer first.
-GitHub Actions validates tests on Python 3.10-3.13 across Ubuntu and Windows, and also checks that the package builds successfully.
+Version `0.1.7` is the current browser-session hardening baseline. It includes
+persistent auth, structured cookies, protected text/media writes, headless
+Sentinel capture after first login, and image upload support.
+GitHub Actions validates tests on Python 3.10-3.14 across Ubuntu and Windows and
+checks the package build.
 
 Repository docs:
 

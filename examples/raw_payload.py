@@ -4,7 +4,9 @@ from __future__ import annotations
 
 Purpose: demonstrate direct payload construction and validation.
 Surface: experimental
-Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
+Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session. This
+legacy raw path is not upgraded by the current Sentinel provider and may be
+rejected even when the stable ``send()`` flow works.
 
 Not the official OpenAI API. Web backend behavior may change. This creates real
 ChatGPT web messages in the account behind your existing web-session auth data.
@@ -36,7 +38,7 @@ def main() -> None:
     )
     parser.add_argument("prompt", nargs="?", default=DEFAULT_PROMPT)
     parser.add_argument("--auth-file", default="auth_data.json")
-    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--model", default="gpt-5-3-mini")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--temporary", action="store_true")
     args = parser.parse_args()

@@ -5,7 +5,7 @@ from __future__ import annotations
 Purpose: minimal reference example for a new chat request with optional token
 streaming.
 Surface: stable
-Prerequisites: valid ``auth_data.json`` from an active ChatGPT web session.
+Prerequisites: the browser extra and an ``auth login``-created session/profile.
 """
 
 import argparse
@@ -25,7 +25,12 @@ def main() -> None:
     parser.add_argument("--no-stream", action="store_true")
     args = parser.parse_args()
 
-    client = ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
+    client = ChatGPTWebClient(
+        auth_file=args.auth_file,
+        timeout=args.timeout,
+        auto_sentinel=True,
+        sentinel_headless=True,
+    )
     tokens: list[str] = []
 
     def on_token(token: str) -> None:

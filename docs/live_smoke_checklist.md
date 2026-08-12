@@ -2,6 +2,16 @@
 
 Use this checklist when `chatgpt.com` behavior may have changed or before a release that touches transport, parsing, uploads, or approval helpers.
 
+Start from a supported local session:
+
+```bash
+python -m pip install -e ".[browser,test]"
+chatgpt-web-adapter auth status --auth-file auth_data.json
+```
+
+If the profile has not been authorized yet, run `chatgpt-web-adapter auth login`
+interactively before continuing. See [authentication.md](authentication.md).
+
 ## Safety and Hygiene
 
 - Use a valid local `auth_data.json` that is not committed to the repository.
@@ -22,6 +32,7 @@ Use this checklist when `chatgpt.com` behavior may have changed or before a rele
   - `finish_reason` is parsed
   - a first-turn `system` instruction is honored
 - If broken, inspect:
+  - Sentinel prepare/finalize diagnostics
   - `chat-requirements`
   - send payload shape
   - SSE event format
@@ -104,12 +115,13 @@ Use this checklist when `chatgpt.com` behavior may have changed or before a rele
 ## Suggested Debugging Order
 
 1. Auth and token freshness
-2. `chat-requirements`
-3. send payload shape
-4. SSE parsing
-5. conversation payload parsing
-6. upload flow
-7. approval flow
+2. Persistent profile ownership and Sentinel capture
+3. `chat-requirements` and conversation prepare/finalize
+4. send payload shape
+5. SSE parsing
+6. conversation payload parsing
+7. upload flow
+8. approval flow
 
 ## Exit Criteria
 

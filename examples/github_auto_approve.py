@@ -4,8 +4,9 @@ from __future__ import annotations
 
 Purpose: demonstrate repeated approval rounds for GitHub tool actions.
 Surface: experimental
-Prerequisites: valid ``auth_data.json``, an enabled GitHub connector, and a test
-repository where automated file creation is acceptable.
+Prerequisites: the browser extra, an ``auth login``-created session/profile, an
+enabled GitHub connector, and a test repository where automated file creation is
+acceptable.
 """
 
 from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
@@ -27,7 +28,12 @@ def print_token(token: str) -> None:
 
 
 def main() -> None:
-    client = ChatGPTWebClient(auth_file="auth_data.json", timeout=120)
+    client = ChatGPTWebClient(
+        auth_file="auth_data.json",
+        timeout=120,
+        auto_sentinel=True,
+        sentinel_headless=True,
+    )
 
     prompt = f"""
 Use the GitHub connector on repository {REPO_SLUG} on branch {BRANCH_NAME}.
@@ -41,7 +47,7 @@ After each tool action completes, continue to the next file until all three file
 
     response = client.send_and_auto_approve(
         prompt,
-        model="gpt-5-5-thinking",
+        model="thinking",
         reasoning_effort="extended",
         pending_poll_interval=3.0,
         settle_delay=2.0,
@@ -59,7 +65,7 @@ After each tool action completes, continue to the next file until all three file
     follow_up = client.send_and_auto_approve(
         "Create one more file named handoff-notes.txt with exact content: handoff notes draft.",
         conversation=ChatConversation(conversation_id=response.conversation.conversation_id),
-        model="gpt-5-5-thinking",
+        model="thinking",
         reasoning_effort="extended",
         pending_poll_interval=3.0,
         settle_delay=2.0,

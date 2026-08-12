@@ -48,7 +48,7 @@ client = ChatGPTWebClient(auth_file="auth_data.json")
 
 payload = PayloadBuilder.new_chat(
     "Say hello in one sentence.",
-    model="gpt-4o-mini",
+    model="gpt-5-3-mini",
 )
 
 validate_payload(payload)
@@ -64,6 +64,12 @@ as a raw ChatGPT web backend payload.
 The SDK does not normalize or repair custom raw fields. If the backend rejects a
 modified payload, that is expected for experimental usage.
 
+`send_payload()` currently uses the legacy single-step requirements path. The
+`auto_sentinel` provider protects the stable `send()` and continuation flows; it
+does not transparently convert an arbitrary raw payload into the current
+prepare/finalize transaction. On accounts where current protected writes are
+mandatory, raw payload sends may fail even while normal `send()` calls work.
+
 ## PayloadBuilder
 
 `PayloadBuilder` returns plain Python dictionaries. It does not send requests and
@@ -76,7 +82,7 @@ from chatgpt_web_adapter import PayloadBuilder
 
 payload = PayloadBuilder.new_chat(
     "Summarize this in one sentence.",
-    model="gpt-4o-mini",
+    model="gpt-5-3-mini",
     parent_message_id="parent-1",
 )
 ```
@@ -102,7 +108,7 @@ payload = PayloadBuilder.continue_chat(
         "conversation_id": "conversation-id",
         "message_id": "latest-message-id",
     },
-    model="gpt-4o-mini",
+    model="gpt-5-3-mini",
 )
 ```
 

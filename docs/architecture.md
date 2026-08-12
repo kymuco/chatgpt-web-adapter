@@ -9,7 +9,10 @@ Primary files:
 - `src/chatgpt_web_adapter/auth.py`
 - `src/chatgpt_web_adapter/auth_browser.py`
 - `src/chatgpt_web_adapter/auth_refresh.py`
+- `src/chatgpt_web_adapter/auth_status.py`
 - `src/chatgpt_web_adapter/auth_store.py`
+- `src/chatgpt_web_adapter/browser_cookies.py`
+- `src/chatgpt_web_adapter/browser_profile_lock.py`
 - `src/chatgpt_web_adapter/types.py`
 
 Responsibilities:
@@ -34,6 +37,11 @@ blocked; the unused one-shot bundle is handed to the SDK in memory.
 Primary files:
 
 - `src/chatgpt_web_adapter/client.py`
+- `src/chatgpt_web_adapter/web_session.py`
+- `src/chatgpt_web_adapter/conversation_prepare.py`
+- `src/chatgpt_web_adapter/sentinel_bundle.py`
+- `src/chatgpt_web_adapter/sentinel_transaction.py`
+- `src/chatgpt_web_adapter/browser_sentinel.py`
 
 Responsibilities:
 
@@ -43,6 +51,7 @@ Responsibilities:
 - run streaming backend requests
 - persist response cookies
 - optionally write sanitized debug traces
+- acquire and consume one-shot prepared-write Sentinel bundles
 
 This is the core engine of the SDK. It should remain reusable and low-level. Product-specific orchestration should not be pushed down into transport unless it is genuinely required by all consumers.
 
@@ -54,6 +63,7 @@ Primary files:
 - `src/chatgpt_web_adapter/payload_builder.py`
 - `src/chatgpt_web_adapter/payload_validation.py`
 - `src/chatgpt_web_adapter/raw_payload.py`
+- `src/chatgpt_web_adapter/model_registry.py`
 
 Responsibilities:
 
@@ -61,6 +71,10 @@ Responsibilities:
 - encode model, reasoning, search, temporary-chat, and media options
 - handle upload handshake and multimodal message shaping
 - provide an escape hatch for experimental raw payload work
+
+The stable `send()` path can use the current prepared-write Sentinel transaction.
+The experimental raw-payload path still uses legacy single-step requirements and
+must not be presented as equivalent.
 
 This layer is where reverse-engineered request contracts live. It should stay explicit and easy to diff when the site changes.
 
