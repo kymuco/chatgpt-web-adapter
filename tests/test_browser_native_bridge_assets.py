@@ -29,3 +29,22 @@ def test_worker_does_not_call_protected_chat_endpoint_directly() -> None:
     assert "turnstile" not in worker.lower()
     assert "proofofwork" not in worker.lower()
     assert "Fetch.failRequest" not in worker
+
+
+def test_send_requires_explicit_chatgpt_tab_target() -> None:
+    worker = (EXTENSION / "service_worker.js").read_text()
+    popup = (EXTENSION / "popup.js").read_text()
+    html = (EXTENSION / "popup.html").read_text()
+    assert "TAB_ID_REQUIRED" in worker
+    assert "tabId" in popup
+    assert 'id="tab"' in html
+
+
+def test_raw_stream_body_is_not_returned_or_displayed() -> None:
+    worker = (EXTENSION / "service_worker.js").read_text()
+    assert "responseBody:" not in worker
+    assert "responseBodyBase64Encoded" not in worker
+    assert "resume_conversation_token" not in worker
+    assert '"type":"stream_handoff"' in worker
+    assert "conversationId" in worker
+    assert "turnExchangeId" in worker

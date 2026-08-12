@@ -5,7 +5,9 @@
   <title>ChatGPT bridge probe</title>
   <style>
     body { font: 13px system-ui, sans-serif; margin: 12px; width: 420px; }
-    textarea { width: 100%; min-height: 90px; box-sizing: border-box; }
+    select, textarea { width: 100%; box-sizing: border-box; }
+    select { margin: 4px 0 8px; }
+    textarea { min-height: 90px; }
     button { margin: 8px 8px 8px 0; }
     pre { white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
   </style>
@@ -13,7 +15,11 @@
 <body>
   <strong>ChatGPT Web Adapter — PR8.0 probe</strong>
   <p>Uses an existing <code>chatgpt.com</code> tab. It does not read cookies or export Sentinel credentials.</p>
-  <textarea id="text">Reply with exactly: SDK_BRIDGE_OK</textarea>
+  <label for="tab">Target ChatGPT tab</label>
+  <select id="tab">
+    <option value="">Probe capabilities first</option>
+  </select>
+  <textarea id="text">Reply with exactly: SDK_BRIDGE_BACKGROUND_OK</textarea>
   <div>
     <button id="capabilities">Probe capabilities</button>
     <button id="send">Send through official page</button>
