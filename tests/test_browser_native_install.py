@@ -56,8 +56,11 @@ def test_packaged_extension_uses_ack_aware_submit_activation_ladder() -> None:
     assert "submitAckMs" in worker
     assert ".click()" not in worker
 
-    assert 'importScripts("service_worker.js")' in shim
-    assert "_originalDebuggerSendCommand" in shim
+    assert shim.startswith('importScripts("service_worker.js")')
+    assert "_originalCoreSendCommand = sendCommand" in shim
+    assert "sendCommand = _patchedCoreSendCommand" in shim
+    assert "chrome.debugger.sendCommand =" not in shim
+    assert "Object.defineProperty" not in shim
     assert "buttons: 1" in shim
     assert "buttons: 0" in shim
     assert "Network.requestWillBeSent" in shim
