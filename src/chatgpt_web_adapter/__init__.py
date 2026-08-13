@@ -12,6 +12,21 @@ from .auth_refresh import (
     refresh_auth_session as _refresh_auth_session,
 )
 from .auth_status import AuthStatus, get_auth_status
+from .browser_native_client import (
+    send_browser_native as _send_browser_native,
+    set_browser_native_turn_provider as _set_browser_native_turn_provider,
+)
+from .browser_native_install import (
+    BrowserNativeInstallResult,
+    EXTENSION_ID as BROWSER_NATIVE_EXTENSION_ID,
+    browser_native_extension_dir,
+    install_native_messaging_host,
+)
+from .browser_native_provider import (
+    BrowserNativeBridgeStatus,
+    BrowserNativeTurnProvider,
+    BrowserNativeTurnResult,
+)
 from .browser_sentinel import ZendriverSentinelBundleProvider
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
@@ -117,6 +132,8 @@ ChatGPTWebClient.prefetch_sentinel_bundle = _prefetch_finalized_sentinel_bundle
 ChatGPTWebClient.start_sentinel_bundle_refill = _start_finalized_sentinel_bundle_refill
 ChatGPTWebClient.set_sentinel_challenge_provider = _set_sentinel_challenge_provider
 ChatGPTWebClient.set_sentinel_bundle_provider = _set_sentinel_bundle_provider
+ChatGPTWebClient.set_browser_native_turn_provider = _set_browser_native_turn_provider
+ChatGPTWebClient.send_browser_native = _send_browser_native
 ChatGPTWebClient.refresh_auth = _refresh_auth_session
 ChatGPTWebClient._build_headers = _gate_prepared_build_headers(_original_build_headers)
 ChatGPTWebClient._sanitize_header_value = _redact_ephemeral_write_headers(
@@ -220,6 +237,16 @@ EXPERIMENTAL_SENTINEL_EXPORTS = [
     "probe_sentinel_requirements_prepare",
 ]
 
+EXPERIMENTAL_BROWSER_NATIVE_EXPORTS = [
+    "BROWSER_NATIVE_EXTENSION_ID",
+    "BrowserNativeBridgeStatus",
+    "BrowserNativeInstallResult",
+    "BrowserNativeTurnProvider",
+    "BrowserNativeTurnResult",
+    "browser_native_extension_dir",
+    "install_native_messaging_host",
+]
+
 SUPPORT_EXPORTS = [
     "AuthStatus",
     "AuthRefreshResult",
@@ -242,5 +269,6 @@ __all__ = [
     *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
     *EXPERIMENTAL_PREPARE_EXPORTS,
     *EXPERIMENTAL_SENTINEL_EXPORTS,
+    *EXPERIMENTAL_BROWSER_NATIVE_EXPORTS,
     *SUPPORT_EXPORTS,
 ]
