@@ -1,7 +1,8 @@
+importScripts("service_worker.js");
+
 const HOTFIX_SUBMIT_ACK_MS = 1_500;
 const HOTFIX_FINAL_ACK_MS = 2_500;
-
-const _originalDebuggerSendCommand = chrome.debugger.sendCommand.bind(chrome.debugger);
+const _originalCoreSendCommand = sendCommand;
 const _submitStateByTabId = new Map();
 
 function _isConversationWrite(url, method) {
@@ -88,7 +89,7 @@ function _sendButtonExpression(action) {
 }
 
 async function _focusSendButton(debuggee) {
-  const result = await _originalDebuggerSendCommand(debuggee, "Runtime.evaluate", {
+  const result = await _originalCoreSendCommand(debuggee, "Runtime.evaluate", {
     expression: _sendButtonExpression("focus"),
     returnByValue: true,
     awaitPromise: true
@@ -97,7 +98,7 @@ async function _focusSendButton(debuggee) {
 }
 
 async function _pageActivateSendButton(debuggee) {
-  const result = await _originalDebuggerSendCommand(debuggee, "Runtime.evaluate", {
+  const result = await _originalCoreSendCommand(debuggee, "Runtime.evaluate", {
     expression: _sendButtonExpression("click"),
     returnByValue: true,
     awaitPromise: true
@@ -112,12 +113,12 @@ async function _pressFocusedButton(debuggee, key, code, virtualKeyCode, text = u
     windowsVirtualKeyCode: virtualKeyCode,
     nativeVirtualKeyCode: virtualKeyCode
   };
-  await _originalDebuggerSendCommand(debuggee, "Input.dispatchKeyEvent", {
+  await _originalCoreSendCommand(debuggee, "Input.dispatchKeyEvent", {
     type: "keyDown",
     ...base,
     ...(text ? { text, unmodifiedText: text } : {})
   });
-  await _originalDebuggerSendCommand(debuggee, "Input.dispatchKeyEvent", {
+  await _originalCoreSendCommand(debuggee, "Input.dispatchKeyEvent", {
     type: "keyUp",
     ...base
   });
@@ -161,21 +162,21 @@ async function _runSubmitFallbackLadder(debuggee) {
   return null;
 }
 
-async function _patchedDebuggerSendCommand(debuggee, method, params = undefined) {
+async function _patchedCoreSendCommand(debuggee, method, params = undefined) {
   if (method !== "Input.dispatchMouseEvent" || !Number.isInteger(debuggee?.tabId)) {
-    return _originalDebuggerSendCommand(debuggee, method, params);
+    return _originalCoreSendCommand(debuggee, method, params);
   }
 
   if (params?.type === "mousePressed" && params?.button === "left") {
     _newSubmitState(debuggee.tabId);
-    return _originalDebuggerSendCommand(debuggee, method, {
+    return _originalCoreSendCommand(debuggee, method, {
       ...params,
       buttons: 1
     });
   }
 
   if (params?.type === "mouseReleased" && params?.button === "left") {
-    const result = await _originalDebuggerSendCommand(debuggee, method, {
+    const result = await _originalCoreSendCommand(debuggee, method, {
       ...params,
       buttons: 0
     });
@@ -187,20 +188,7 @@ async function _patchedDebuggerSendCommand(debuggee, method, params = undefined)
     return result;
   }
 
-  return _originalDebuggerSendCommand(debuggee, method, params);
+  return _originalCoreSendCommand(debuggee, method, params);
 }
 
-try {
-  chrome.debugger.sendCommand = _patchedDebuggerSendCommand;
-} catch {
-  // Fall through to defineProperty for Chrome API objects that reject assignment.
-}
-if (chrome.debugger.sendCommand !== _patchedDebuggerSendCommand) {
-  Object.defineProperty(chrome.debugger, "sendCommand", {
-    configurable: true,
-    writable: true,
-    value: _patchedDebuggerSendCommand
-  });
-}
-
-importScripts("service_worker.js");
+sendCommand = _patchedCoreSendCommand;
