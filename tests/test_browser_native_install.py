@@ -18,9 +18,12 @@ def test_packaged_extension_has_narrow_runtime_contract() -> None:
     root = browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker = (root / "service_worker.js").read_text(encoding="utf-8")
+    shim = (root / "service_worker_hotfix.js").read_text(encoding="utf-8")
 
     assert manifest["minimum_chrome_version"] == "118"
-    assert manifest["version"] == "0.1.1"
+    assert manifest["version"] == "0.1.2"
+    assert manifest["background"]["service_worker"] == "service_worker_hotfix.js"
+    assert "type" not in manifest["background"]
     assert set(manifest["permissions"]) == {
         "debugger",
         "tabs",
@@ -31,17 +34,19 @@ def test_packaged_extension_has_narrow_runtime_contract() -> None:
     assert "chrome.runtime.connectNative(HOST_NAME)" in worker
     assert "chrome.tabs.create({ url: targetUrl, active: false })" in worker
     assert "chrome.storage.local" in worker
-    assert "fetch(" not in worker
-    assert "chrome.cookies" not in worker
-    assert "sentinel/chat-requirements" not in worker
-    assert "resume_conversation_token" not in worker
-    assert "responseBody:" not in worker
+    for source in (worker, shim):
+        assert "fetch(" not in source
+        assert "chrome.cookies" not in source
+        assert "sentinel/chat-requirements" not in source
+        assert "resume_conversation_token" not in source
+        assert "responseBody:" not in source
     assert "Network.getResponseBody" in worker
 
 
-def test_packaged_extension_uses_trusted_send_button_submit_with_bounded_fallback() -> None:
+def test_packaged_extension_uses_ack_aware_submit_activation_ladder() -> None:
     root = browser_native_extension_dir()
     worker = (root / "service_worker.js").read_text(encoding="utf-8")
+    shim = (root / "service_worker_hotfix.js").read_text(encoding="utf-8")
 
     assert 'button[data-testid="send-button"]' in worker
     assert "Input.dispatchMouseEvent" in worker
@@ -50,3 +55,14 @@ def test_packaged_extension_uses_trusted_send_button_submit_with_bounded_fallbac
     assert "CHATGPT_SUBMIT_NOT_OBSERVED" in worker
     assert "submitAckMs" in worker
     assert ".click()" not in worker
+
+    assert 'importScripts("service_worker.js")' in shim
+    assert "_originalDebuggerSendCommand" in shim
+    assert "buttons: 1" in shim
+    assert "buttons: 0" in shim
+    assert "Network.requestWillBeSent" in shim
+    assert "focused_button_enter" in shim
+    assert "focused_button_space" in shim
+    assert "page_button_click" in shim
+    assert "button.click()" in shim
+    assert "state.observed" in shim
