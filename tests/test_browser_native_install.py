@@ -20,6 +20,7 @@ def test_packaged_extension_has_narrow_runtime_contract() -> None:
     worker = (root / "service_worker.js").read_text(encoding="utf-8")
 
     assert manifest["minimum_chrome_version"] == "118"
+    assert manifest["version"] == "0.1.1"
     assert set(manifest["permissions"]) == {
         "debugger",
         "tabs",
@@ -36,3 +37,16 @@ def test_packaged_extension_has_narrow_runtime_contract() -> None:
     assert "resume_conversation_token" not in worker
     assert "responseBody:" not in worker
     assert "Network.getResponseBody" in worker
+
+
+def test_packaged_extension_uses_trusted_send_button_submit_with_bounded_fallback() -> None:
+    root = browser_native_extension_dir()
+    worker = (root / "service_worker.js").read_text(encoding="utf-8")
+
+    assert 'button[data-testid="send-button"]' in worker
+    assert "Input.dispatchMouseEvent" in worker
+    assert 'strategy: "send_button_click"' in worker
+    assert 'strategy: "enter_fallback"' in worker
+    assert "CHATGPT_SUBMIT_NOT_OBSERVED" in worker
+    assert "submitAckMs" in worker
+    assert ".click()" not in worker
