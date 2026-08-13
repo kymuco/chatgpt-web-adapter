@@ -34,6 +34,15 @@ def _assistant_message_ids(self: Any, conversation: Any) -> set[str]:
     }
 
 
+def _canonical_status_value(self: Any, conversation: Any) -> str | None:
+    try:
+        status = self.get_status(conversation)
+    except Exception:
+        return None
+    value = getattr(status, "status", None)
+    return value if isinstance(value, str) else None
+
+
 def _wait_for_new_final_assistant(
     self: Any,
     conversation_id: str,
@@ -87,8 +96,10 @@ def send_browser_native(
 ) -> ChatResponse:
     """Send one ordinary text turn through the persistent ChatGPT browser tab.
 
-    The official page owns the protected write. After it finishes, the existing
-    SDK read path fetches the canonical final assistant message.
+    The official page owns the protected write. For continuation turns, a fresh
+    canonical ``completed`` status may authorize one bounded stale-UI reload
+    before any text is inserted. After the write finishes, the existing SDK
+    read path fetches the canonical final assistant message.
     """
 
     provider = getattr(self, "_browser_native_turn_provider", None)
@@ -105,15 +116,42 @@ def send_browser_native(
     started = time.monotonic()
     baseline_assistant_ids: set[str] = set()
     is_continuation = conversation is not None
+    canonical_status_before_turn = None
     if conversation is not None:
         baseline_assistant_ids = _assistant_message_ids(self, conversation)
+        canonical_status_before_turn = _canonical_status_value(self, conversation)
+
+    recovery_send = getattr(provider, "send_text_with_stale_ui_recovery", None)
+    canonical_status_recovery_confirm = None
+    recovery_authorized = False
+    if (
+        is_continuation
+        and canonical_status_before_turn == "completed"
+        and callable(recovery_send)
+    ):
+        canonical_status_recovery_confirm = _canonical_status_value(self, conversation)
+        recovery_authorized = canonical_status_recovery_confirm == "completed"
 
     self._emit_event(
         on_event,
         "browser_native_turn_started",
         is_continuation=is_continuation,
+        canonical_status_before_turn=canonical_status_before_turn,
+        canonical_status_recovery_confirm=canonical_status_recovery_confirm,
+        stale_ui_recovery_authorized=recovery_authorized,
     )
-    turn = provider.send_text(prompt, conversation=conversation, timeout=timeout)
+
+    if recovery_authorized:
+        canonical_completed_at_ms = int(time.time() * 1000)
+        turn = recovery_send(
+            prompt,
+            conversation=conversation,
+            timeout=timeout,
+            canonical_completed_at_ms=canonical_completed_at_ms,
+        )
+    else:
+        turn = provider.send_text(prompt, conversation=conversation, timeout=timeout)
+
     self._emit_event(
         on_event,
         "browser_native_write_completed",
@@ -121,6 +159,8 @@ def send_browser_native(
         turn_exchange_id=turn.turn_exchange_id,
         status_code=turn.response_status,
         elapsed_ms=turn.elapsed_ms,
+        runtime_reloaded=turn.runtime_reloaded,
+        runtime_reload_ms=turn.runtime_reload_ms,
     )
 
     remaining = max(1.0, timeout - (time.monotonic() - started))

@@ -37,6 +37,8 @@ class BrowserNativeTurnResult:
     tab_id: int | None
     tab_was_active: bool
     elapsed_ms: int | None
+    runtime_reloaded: bool = False
+    runtime_reload_ms: int | None = None
 
 
 class BrowserNativeTurnProvider:
@@ -161,12 +163,13 @@ class BrowserNativeTurnProvider:
             runtime_tab_id=response.get("runtimeTabId") if isinstance(response.get("runtimeTabId"), int) else None,
         )
 
-    def send_text(
+    def _send_text_request(
         self,
         text: str,
         *,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
-        timeout: float | None = None,
+        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None,
+        timeout: float | None,
+        canonical_completed_at_ms: int | None,
     ) -> BrowserNativeTurnResult:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text is required")
@@ -175,6 +178,13 @@ class BrowserNativeTurnProvider:
         conversation_id = None
         if conversation is not None:
             conversation_id = ConversationRef.from_any(conversation).conversation_id
+        if canonical_completed_at_ms is not None and conversation_id is None:
+            raise ValueError("stale UI recovery requires an existing conversation")
+        if canonical_completed_at_ms is not None:
+            if isinstance(canonical_completed_at_ms, bool) or canonical_completed_at_ms <= 0:
+                raise ValueError("canonical_completed_at_ms must be a positive integer")
+            canonical_completed_at_ms = int(canonical_completed_at_ms)
+
         total_timeout = self.turn_timeout if timeout is None else float(timeout)
         if total_timeout <= 0:
             raise ValueError("timeout must be positive")
@@ -186,6 +196,8 @@ class BrowserNativeTurnProvider:
                 "conversationId": conversation_id,
                 "text": text,
                 "timeoutMs": int(total_timeout * 1000),
+                "canonicalCompleted": canonical_completed_at_ms is not None,
+                "canonicalCompletedAtMs": canonical_completed_at_ms,
             },
             timeout=total_timeout + self.connect_timeout,
         )
@@ -223,4 +235,39 @@ class BrowserNativeTurnProvider:
             tab_id=response.get("tabId") if isinstance(response.get("tabId"), int) else None,
             tab_was_active=bool(response.get("tabWasActive")),
             elapsed_ms=response.get("elapsedMs") if isinstance(response.get("elapsedMs"), int) else None,
+            runtime_reloaded=bool(response.get("runtimeReloaded")),
+            runtime_reload_ms=response.get("runtimeReloadMs")
+            if isinstance(response.get("runtimeReloadMs"), int)
+            else None,
+        )
+
+    def send_text(
+        self,
+        text: str,
+        *,
+        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        timeout: float | None = None,
+    ) -> BrowserNativeTurnResult:
+        return self._send_text_request(
+            text,
+            conversation=conversation,
+            timeout=timeout,
+            canonical_completed_at_ms=None,
+        )
+
+    def send_text_with_stale_ui_recovery(
+        self,
+        text: str,
+        *,
+        conversation: ConversationRef | ChatConversation | dict[str, Any] | str,
+        timeout: float | None = None,
+        canonical_completed_at_ms: int,
+    ) -> BrowserNativeTurnResult:
+        """Authorize one bounded pre-input reload using fresh canonical completion evidence."""
+
+        return self._send_text_request(
+            text,
+            conversation=conversation,
+            timeout=timeout,
+            canonical_completed_at_ms=canonical_completed_at_ms,
         )
