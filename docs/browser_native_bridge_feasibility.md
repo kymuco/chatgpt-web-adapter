@@ -24,21 +24,23 @@ provides trusted browser input and observes the resulting network lifecycle.
 
 ## Live evidence so far
 
-The first live write smoke passed on an already authenticated normal Chrome
-profile:
+Live testing on an already authenticated normal Chrome profile has established:
 
-- `chrome.debugger` attached to an existing `chatgpt.com` tab;
-- composer discovery used the accessibility tree;
-- the official page emitted the conversation POST;
-- the response was HTTP 200 with `text/event-stream`;
-- the conversation became a normal ChatGPT history entry;
-- no new Chromium process or separate login flow was required.
+- `chrome.debugger` attaches to an existing `chatgpt.com` tab;
+- composer discovery uses the accessibility tree in the observed environment;
+- the official page emits the protected conversation POST;
+- the response is HTTP 200 with `text/event-stream`;
+- the conversation becomes a normal ChatGPT history entry;
+- no new Chromium process or separate login flow is required;
+- a selected inactive ChatGPT tab can execute the turn without stealing focus;
+- the resulting conversation is immediately readable through the existing
+  Python SDK `get_messages()` path;
+- a bridge-created new chat reproduced ordinary account-side personalization in
+  a controlled fact-recall parity test.
 
-This establishes the core write-path feasibility. Background execution,
-personalization parity, repeatability, and Python-SDK readback remain separate
-gates.
+The remaining feasibility gate is 20-turn repeatability.
 
-## Manual smoke
+## Manual single-turn smoke
 
 1. Open normal Chrome and sign into `https://chatgpt.com/` as usual.
 2. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**,
@@ -57,6 +59,45 @@ gates.
    - diagnostics report `tabWasActive=false`,
      `conversationRequestSeen=true`, and a successful status;
    - no raw SSE body or transient resume credential is printed by the probe.
+
+## PR8.0b repeatability harness
+
+The popup includes **Run 20-turn background stress**. The selected ChatGPT tab
+must be inactive before the run starts. The harness sends exactly these fixed
+markers to one conversation:
+
+```text
+Reply with exactly: SDK_BRIDGE_STRESS_01
+...
+Reply with exactly: SDK_BRIDGE_STRESS_20
+```
+
+Each turn is serialized. Before typing the next marker, the worker waits for a
+bounded composer-readiness condition so the test does not manufacture a race by
+submitting while the previous short response is still generating.
+
+For every turn the harness records only safe transport diagnostics:
+
+- conversation request/response observation;
+- HTTP status and elapsed time;
+- composer targeting strategy and readiness wait;
+- target-tab background state before/after the turn;
+- debugger detach result and post-detach attachment state;
+- conversation-id stability.
+
+The harness fails closed on the first transport, focus, attachment, or
+conversation-identity violation. It never returns raw SSE data.
+
+After a 20/20 extension result, verify canonical ChatGPT history independently:
+
+```bash
+python examples/verify_browser_native_stress.py <conversation-id>
+```
+
+The verifier uses the normal SDK read path and requires exactly one matching user
+marker and one final matching assistant marker for all 20 turns, with no missing
+or duplicate markers and with the filtered marker sequence in order. Intermediate
+assistant nodes are ignored unless their text exactly matches a stress marker.
 
 ## Sensitive-response boundary
 
@@ -78,27 +119,30 @@ results or diagnostics.
 The architecture is a PASS only if all of the following hold:
 
 1. **Existing-session reuse:** no login or cookie import is required after the
-   normal Chrome profile is already signed in. **PASS in first live smoke.**
+   normal Chrome profile is already signed in. **PASS.**
 2. **Zero browser launch:** one turn causes zero Chromium/Chrome process launches.
-   **PASS in first live smoke.**
+   **PASS.**
 3. **Background execution:** the ChatGPT tab does not need to steal focus.
-   **Pending hardened explicit-target smoke.**
+   **PASS.**
 4. **Official protected write:** the page itself sends the conversation POST;
-   no Sentinel credential leaves the page runtime. **PASS in first live smoke.**
+   no Sentinel credential leaves the page runtime. **PASS.**
 5. **Conversation continuity:** the resulting conversation is visible and
-   resumable in ordinary ChatGPT web/desktop history. **Creation/history visibility PASS; readback parity pending.**
+   resumable in ordinary ChatGPT history and readable through the existing SDK.
+   **PASS.**
 6. **Personalization parity:** a controlled new-chat test can access the same
-   ChatGPT memory/reference-history behavior as a manually-created web chat.
+   account-side ChatGPT personalization behavior as a manually-created web chat.
+   **PASS in controlled live parity smoke.**
 7. **Repeatability:** at least 20 sequential turns complete without debugger
-   attachment leaks, duplicate turns, or browser restarts.
+   attachment leaks, duplicate turns, conversation-id drift, browser restarts,
+   or focus stealing. **Pending PR8.0b stress run.**
 
-If gates 1–4 fail, do not build Native Messaging plumbing. Re-evaluate WebView2
-or another first-party-runtime host instead.
+If gates 1–4 fail in a future compatibility regression, do not build on the
+bridge blindly. Re-evaluate the first-party-runtime boundary before proceeding.
 
 ## Known constraints to test
 
 - `chrome.debugger` is an explicit high-trust extension permission and Chrome
-  shows a permission warning.
+  shows a small visible indication while the debugger extension is active.
 - Opening DevTools on the same tab can detach an extension debugger session.
 - Stream metadata extraction is secondary to the write path; a successful page
   turn remains valid even if `conversationId` or `turnExchangeId` cannot be
@@ -106,11 +150,13 @@ or another first-party-runtime host instead.
 - The accessibility-tree composer lookup is preferred; a narrow DOM selector is
   retained only as a feasibility fallback and should be removed or hardened if
   the experiment graduates.
+- The repeatability readiness barrier uses page-state signals only to avoid
+  overlapping turns; it does not parse assistant output.
 
 ## Graduation target
 
-A PASS leads to PR8.1:
+A full PASS leads to PR8.1:
 
 `BrowserNativeTurnProvider` + local Native Messaging bridge + adapter client
 integration. The current Zendriver Sentinel provider remains a compatibility
-fallback until live parity is demonstrated.
+fallback until live parity is demonstrated through the integrated path.

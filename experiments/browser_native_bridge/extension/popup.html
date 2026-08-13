@@ -9,6 +9,7 @@
     select { margin: 4px 0 8px; }
     textarea { min-height: 90px; }
     button { margin: 8px 8px 8px 0; }
+    .note { font-size: 12px; opacity: 0.8; }
     pre { white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
   </style>
 </head>
@@ -23,7 +24,9 @@
   <div>
     <button id="capabilities">Probe capabilities</button>
     <button id="send">Send through official page</button>
+    <button id="stress">Run 20-turn background stress</button>
   </div>
+  <p class="note">Stress requires the selected ChatGPT tab to stay in the background and uses fixed SDK_BRIDGE_STRESS_01..20 markers.</p>
   <pre id="output">Ready.</pre>
   <script src="popup.js"></script>
 </body>

@@ -48,3 +48,27 @@ def test_raw_stream_body_is_not_returned_or_displayed() -> None:
     assert '"type":"stream_handoff"' in worker
     assert "conversationId" in worker
     assert "turnExchangeId" in worker
+
+
+def test_repeatability_harness_is_fixed_background_only_and_leak_checked() -> None:
+    worker = (EXTENSION / "service_worker.js").read_text()
+    popup = (EXTENSION / "popup.js").read_text()
+    html = (EXTENSION / "popup.html").read_text()
+    assert "STRESS_TURN_COUNT = 20" in worker
+    assert "SDK_BRIDGE_STRESS_" in worker
+    assert "STRESS_TARGET_MUST_BE_BACKGROUND" in worker
+    assert "waitForComposerReady" in worker
+    assert "debuggerAttachedAfter" in worker
+    assert "run_repeatability_stress" in worker
+    assert "run_repeatability_stress" in popup
+    assert 'id="stress"' in html
+
+
+def test_repeatability_verifier_exists() -> None:
+    verifier = ROOT / "examples" / "verify_browser_native_stress.py"
+    source = verifier.read_text()
+    assert "analyze_stress_messages" in source
+    assert "SDK_BRIDGE_STRESS_" in source
+    assert '"duplicate_user"' in source
+    assert '"duplicate_assistant"' in source
+    assert '"order_ok"' in source

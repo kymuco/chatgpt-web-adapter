@@ -1,6 +1,9 @@
 const CHATGPT_ORIGIN = "https://chatgpt.com";
 const PROTOCOL_VERSION = "1.3";
 const DEFAULT_TIMEOUT_MS = 90_000;
+const DEFAULT_READY_TIMEOUT_MS = 60_000;
+const STRESS_TURN_COUNT = 20;
+const STRESS_PREFIX = "SDK_BRIDGE_STRESS_";
 
 function isChatGPTUrl(url) {
   try {
@@ -25,6 +28,21 @@ function isConversationWrite(url, method) {
 
 function elapsedMs(startedAt) {
   return Math.round(performance.now() - startedAt);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function conversationIdFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.origin !== CHATGPT_ORIGIN) return null;
+    const match = parsed.pathname.match(/^\/c\/([^/]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch {
+    return null;
+  }
 }
 
 function extractSafeStreamMetadata(body, base64Encoded) {
@@ -99,6 +117,74 @@ async function selectExplicitTab(tabId) {
 
 async function sendCommand(debuggee, method, params = undefined) {
   return chrome.debugger.sendCommand(debuggee, method, params);
+}
+
+async function queryComposerReadiness(debuggee) {
+  const result = await sendCommand(debuggee, "Runtime.evaluate", {
+    expression: `(() => {
+      const selectors = [
+        '#prompt-textarea',
+        '[contenteditable="true"][data-lexical-editor="true"]',
+        'textarea[placeholder]'
+      ];
+      const composer = selectors
+        .map((selector) => document.querySelector(selector))
+        .find((el) => {
+          if (!el) return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+      if (!composer) return { ready: false, reason: 'composer_missing' };
+
+      const stopSelectors = [
+        '[data-testid="stop-button"]',
+        '[data-testid="stop-generating-button"]',
+        'button[aria-label*="Stop generating"]',
+        'button[aria-label*="Остановить"]'
+      ];
+      const stopVisible = stopSelectors.some((selector) => {
+        const el = document.querySelector(selector);
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      const busy = composer.getAttribute('aria-busy') === 'true' ||
+        composer.getAttribute('contenteditable') === 'false' ||
+        composer.disabled === true;
+      return {
+        ready: !stopVisible && !busy,
+        reason: stopVisible ? 'generation_control_visible' : (busy ? 'composer_busy' : 'ready')
+      };
+    })()`,
+    returnByValue: true,
+    awaitPromise: true
+  });
+  return result?.result?.value || { ready: false, reason: "unknown" };
+}
+
+async function waitForComposerReady(debuggee, timeoutMs = DEFAULT_READY_TIMEOUT_MS) {
+  const startedAt = performance.now();
+  let consecutiveReady = 0;
+  let lastReason = "unknown";
+  while (elapsedMs(startedAt) < timeoutMs) {
+    try {
+      const state = await queryComposerReadiness(debuggee);
+      lastReason = state?.reason || "unknown";
+      if (state?.ready) {
+        consecutiveReady += 1;
+        if (consecutiveReady >= 2) {
+          return elapsedMs(startedAt);
+        }
+      } else {
+        consecutiveReady = 0;
+      }
+    } catch {
+      consecutiveReady = 0;
+      lastReason = "readiness_probe_failed";
+    }
+    await sleep(250);
+  }
+  throw new Error(`CHATGPT_COMPOSER_NOT_READY:${lastReason}`);
 }
 
 async function locateAndFocusComposer(debuggee) {
@@ -205,7 +291,12 @@ async function submitWithEnter(debuggee) {
   });
 }
 
-async function executeOfficialPageTurn({ tabId, text, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+async function executeOfficialPageTurn({
+  tabId,
+  text,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  readyTimeoutMs = DEFAULT_READY_TIMEOUT_MS
+}) {
   if (!Number.isInteger(tabId)) throw new Error("TAB_ID_REQUIRED");
   if (typeof text !== "string" || !text.trim()) throw new Error("TEXT_REQUIRED");
   if (text.length > 200_000) throw new Error("TEXT_TOO_LARGE_FOR_RESEARCH_PROBE");
@@ -220,7 +311,11 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs = DEFAULT_TIMEOU
   const diagnostics = {
     tabId: tab.id,
     tabWasActive: Boolean(tab.active),
+    tabActiveAfter: null,
     attached: false,
+    detached: false,
+    debuggerAttachedAfter: null,
+    readinessWaitMs: null,
     composerStrategy: null,
     conversationRequestSeen: false,
     conversationRequestObservedMs: null,
@@ -240,6 +335,7 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs = DEFAULT_TIMEOU
     diagnostics.attached = true;
     await sendCommand(debuggee, "Network.enable");
     await sendCommand(debuggee, "Runtime.enable");
+    diagnostics.readinessWaitMs = await waitForComposerReady(debuggee, readyTimeoutMs);
 
     let conversationRequestId = null;
     let resolveCompleted;
@@ -308,6 +404,7 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs = DEFAULT_TIMEOU
     }
 
     const finalTab = await chrome.tabs.get(tab.id);
+    diagnostics.tabActiveAfter = Boolean(finalTab.active);
     diagnostics.elapsedMs = elapsedMs(startedAt);
     return {
       ok: true,
@@ -321,11 +418,127 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs = DEFAULT_TIMEOU
     if (attached) {
       try {
         await chrome.debugger.detach(debuggee);
+        diagnostics.detached = true;
       } catch {
         // Tab may have closed or DevTools may have detached us already.
       }
     }
+    try {
+      const targets = await chrome.debugger.getTargets();
+      diagnostics.debuggerAttachedAfter = Boolean(
+        targets.find((target) => target.tabId === tab.id)?.attached
+      );
+    } catch {
+      diagnostics.debuggerAttachedAfter = null;
+    }
   }
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2) return sorted[middle];
+  return Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+}
+
+async function runRepeatabilityStress({ tabId }) {
+  if (!Number.isInteger(tabId)) throw new Error("TAB_ID_REQUIRED");
+  const initialTab = await selectExplicitTab(tabId);
+  if (initialTab.active) throw new Error("STRESS_TARGET_MUST_BE_BACKGROUND");
+
+  const startedAt = performance.now();
+  let expectedConversationId = conversationIdFromUrl(initialTab.url || "");
+  const turns = [];
+
+  for (let index = 1; index <= STRESS_TURN_COUNT; index += 1) {
+    const turnNumber = String(index).padStart(2, "0");
+    const marker = `${STRESS_PREFIX}${turnNumber}`;
+    const tabBefore = await chrome.tabs.get(tabId);
+    if (tabBefore.active) {
+      turns.push({
+        turn: index,
+        ok: false,
+        error: "STRESS_TARGET_BECAME_ACTIVE_BEFORE_TURN"
+      });
+      break;
+    }
+
+    let result;
+    try {
+      result = await executeOfficialPageTurn({
+        tabId,
+        text: `Reply with exactly: ${marker}`
+      });
+    } catch (error) {
+      turns.push({
+        turn: index,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      break;
+    }
+
+    const diagnostics = result.diagnostics || {};
+    const observedConversationId = result.conversationId ||
+      conversationIdFromUrl(result.finalUrl || "");
+    if (!expectedConversationId && observedConversationId) {
+      expectedConversationId = observedConversationId;
+    }
+    const conversationIdStable = Boolean(
+      expectedConversationId && observedConversationId === expectedConversationId
+    );
+    const backgroundStable = diagnostics.tabWasActive === false &&
+      diagnostics.tabActiveAfter === false;
+    const detachedCleanly = diagnostics.detached === true &&
+      diagnostics.debuggerAttachedAfter === false;
+    const transportOk = diagnostics.conversationRequestSeen === true &&
+      diagnostics.conversationResponseSeen === true &&
+      diagnostics.responseStatus === 200 &&
+      diagnostics.loadingFinished === true;
+    const ok = transportOk && backgroundStable && detachedCleanly && conversationIdStable;
+
+    turns.push({
+      turn: index,
+      ok,
+      status: diagnostics.responseStatus,
+      elapsedMs: diagnostics.elapsedMs,
+      readinessWaitMs: diagnostics.readinessWaitMs,
+      composerStrategy: diagnostics.composerStrategy,
+      requestSeen: diagnostics.conversationRequestSeen,
+      responseSeen: diagnostics.conversationResponseSeen,
+      loadingFinished: diagnostics.loadingFinished,
+      backgroundStable,
+      detachedCleanly,
+      conversationIdStable
+    });
+
+    if (!ok) break;
+  }
+
+  const completed = turns.filter((turn) => turn.ok).length;
+  const durations = turns
+    .map((turn) => turn.elapsedMs)
+    .filter((value) => Number.isFinite(value));
+  const pass = turns.length === STRESS_TURN_COUNT && completed === STRESS_TURN_COUNT &&
+    turns.every((turn) => turn.ok);
+
+  return {
+    ok: pass,
+    summary: {
+      turnsRequested: STRESS_TURN_COUNT,
+      turnsCompleted: completed,
+      conversationId: expectedConversationId,
+      allStatus200: turns.length === STRESS_TURN_COUNT && turns.every((turn) => turn.status === 200),
+      allBackground: turns.length === STRESS_TURN_COUNT && turns.every((turn) => turn.backgroundStable === true),
+      allDetached: turns.length === STRESS_TURN_COUNT && turns.every((turn) => turn.detachedCleanly === true),
+      conversationIdStable: turns.length === STRESS_TURN_COUNT && turns.every((turn) => turn.conversationIdStable === true),
+      medianTurnElapsedMs: median(durations),
+      maxTurnElapsedMs: durations.length ? Math.max(...durations) : null,
+      totalElapsedMs: elapsedMs(startedAt)
+    },
+    turns
+  };
 }
 
 async function probeCapabilities() {
@@ -354,6 +567,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
     if (op === "send_text_probe") {
       sendResponse({ ok: true, result: await executeOfficialPageTurn(message) });
+      return;
+    }
+    if (op === "run_repeatability_stress") {
+      sendResponse({ ok: true, result: await runRepeatabilityStress(message) });
       return;
     }
     sendResponse({ ok: false, error: "UNKNOWN_OPERATION" });
