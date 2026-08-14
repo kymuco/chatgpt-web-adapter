@@ -10,7 +10,7 @@ from chatgpt_web_adapter.client import ChatGPTWebClient
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="PR8.2.4 minimal browser-owned ChatGPT product write runtime"
+        description="PR8.2.4a browser-owned ChatGPT write runtime with tab observability"
     )
     parser.add_argument("--conversation")
     parser.add_argument("--auth-file", type=Path, default=Path("auth_data.json"))
@@ -31,7 +31,7 @@ def main() -> None:
     health = runtime.health(args.conversation)
 
     report = {
-        "pr": "PR8.2.4",
+        "pr": "PR8.2.4a",
         "health": health.to_dict(),
         "governance": runtime.governance(),
     }
@@ -42,12 +42,13 @@ def main() -> None:
                 "reason": health.reason,
             }
         else:
-            response = runtime.send_text(
+            execution = runtime.send_text_observed(
                 args.text,
                 conversation=args.conversation,
                 timeout=args.timeout,
                 poll_interval=args.poll_interval,
             )
+            response = execution.response
             report["send"] = {
                 "attempted": True,
                 "ok": True,
@@ -56,6 +57,7 @@ def main() -> None:
                 "finish_reason": response.conversation.finish_reason,
                 "observed_model": response.request.observed_model,
                 "backend_status": response.metrics.backend_status,
+                "runtime_observation": execution.observation.to_dict(),
             }
 
     print(json.dumps(report, indent=2, ensure_ascii=False))

@@ -39,6 +39,11 @@ class BrowserNativeTurnResult:
     elapsed_ms: int | None
     runtime_reloaded: bool = False
     runtime_reload_ms: int | None = None
+    runtime_tab_preexisting: bool | None = None
+    runtime_tab_created_for_turn: bool | None = None
+    tab_active_after: bool | None = None
+    tab_activated_during_turn: bool | None = None
+    foreground_activation_observed: bool | None = None
 
 
 class BrowserNativeTurnProvider:
@@ -163,6 +168,11 @@ class BrowserNativeTurnProvider:
             runtime_tab_id=response.get("runtimeTabId") if isinstance(response.get("runtimeTabId"), int) else None,
         )
 
+    @staticmethod
+    def _optional_bool(response: dict[str, Any], key: str) -> bool | None:
+        value = response.get(key)
+        return value if isinstance(value, bool) else None
+
     def _send_text_request(
         self,
         text: str,
@@ -239,6 +249,11 @@ class BrowserNativeTurnProvider:
             runtime_reload_ms=response.get("runtimeReloadMs")
             if isinstance(response.get("runtimeReloadMs"), int)
             else None,
+            runtime_tab_preexisting=self._optional_bool(response, "runtimeTabPreexisting"),
+            runtime_tab_created_for_turn=self._optional_bool(response, "runtimeTabCreatedForTurn"),
+            tab_active_after=self._optional_bool(response, "tabActiveAfter"),
+            tab_activated_during_turn=self._optional_bool(response, "tabActivatedDuringTurn"),
+            foreground_activation_observed=self._optional_bool(response, "foregroundActivationObserved"),
         )
 
     def send_text(

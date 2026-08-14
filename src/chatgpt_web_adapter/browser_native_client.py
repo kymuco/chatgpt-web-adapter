@@ -161,6 +161,13 @@ def send_browser_native(
         elapsed_ms=turn.elapsed_ms,
         runtime_reloaded=turn.runtime_reloaded,
         runtime_reload_ms=turn.runtime_reload_ms,
+        runtime_tab_id=turn.tab_id,
+        runtime_tab_preexisting=turn.runtime_tab_preexisting,
+        runtime_tab_created_for_turn=turn.runtime_tab_created_for_turn,
+        tab_was_active_at_write_start=turn.tab_was_active,
+        tab_active_after_write=turn.tab_active_after,
+        tab_activated_during_turn=turn.tab_activated_during_turn,
+        foreground_activation_observed=turn.foreground_activation_observed,
     )
 
     remaining = max(1.0, timeout - (time.monotonic() - started))

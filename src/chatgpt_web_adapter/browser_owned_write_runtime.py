@@ -41,6 +41,47 @@ class BrowserOwnedWriteRuntimeHealth:
         return asdict(self)
 
 
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+@dataclass(frozen=True)
+class BrowserOwnedWriteObservation:
+    write_event_observed: bool
+    runtime_tab_id: int | None = None
+    runtime_tab_preexisting: bool | None = None
+    runtime_tab_created_for_turn: bool | None = None
+    tab_was_active_at_write_start: bool | None = None
+    tab_active_after_write: bool | None = None
+    tab_activated_during_turn: bool | None = None
+    foreground_activation_observed: bool | None = None
+
+    @classmethod
+    def from_event(cls, event: dict[str, Any] | None) -> "BrowserOwnedWriteObservation":
+        if not isinstance(event, dict):
+            return cls(write_event_observed=False)
+        tab_id = event.get("runtime_tab_id")
+        return cls(
+            write_event_observed=True,
+            runtime_tab_id=tab_id if isinstance(tab_id, int) and not isinstance(tab_id, bool) else None,
+            runtime_tab_preexisting=_optional_bool(event.get("runtime_tab_preexisting")),
+            runtime_tab_created_for_turn=_optional_bool(event.get("runtime_tab_created_for_turn")),
+            tab_was_active_at_write_start=_optional_bool(event.get("tab_was_active_at_write_start")),
+            tab_active_after_write=_optional_bool(event.get("tab_active_after_write")),
+            tab_activated_during_turn=_optional_bool(event.get("tab_activated_during_turn")),
+            foreground_activation_observed=_optional_bool(event.get("foreground_activation_observed")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class BrowserOwnedWriteExecution:
+    response: ChatResponse
+    observation: BrowserOwnedWriteObservation
+
+
 class BrowserOwnedWriteRuntimeError(RequestError):
     """Failure from the production browser-owned write facade.
 
@@ -302,12 +343,50 @@ class BrowserOwnedProductWriteRuntime:
                 request_stage="browser_owned_write",
             ) from error
 
+    def send_text_observed(
+        self,
+        text: str,
+        *,
+        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        timeout: float = 150.0,
+        poll_interval: float = 0.5,
+        on_token: Callable[[str], None] | None = None,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+    ) -> BrowserOwnedWriteExecution:
+        write_event: dict[str, Any] | None = None
+
+        def capture_event(event: dict[str, Any]) -> None:
+            nonlocal write_event
+            if isinstance(event, dict) and event.get("type") == "browser_native_write_completed":
+                write_event = dict(event)
+            if on_event is not None:
+                on_event(event)
+
+        response = self.send_text(
+            text,
+            conversation=conversation,
+            timeout=timeout,
+            poll_interval=poll_interval,
+            on_token=on_token,
+            on_event=capture_event,
+        )
+        return BrowserOwnedWriteExecution(
+            response=response,
+            observation=BrowserOwnedWriteObservation.from_event(write_event),
+        )
+
     def governance(self) -> dict[str, Any]:
         return {
             "read_plane": READ_PLANE,
             "session_plane": SESSION_PLANE,
             "write_plane": WRITE_PLANE,
+            # Compatibility alias retained from PR8.2.4. The split fields below
+            # are the authoritative ownership semantics from PR8.2.4a.
             "browser_launch_owned_by_runtime": False,
+            "browser_process_launch_owned_by_runtime": False,
+            "runtime_tab_creation_owned_by_extension": True,
+            "runtime_tab_creation_on_demand": True,
+            "runtime_tab_foreground_activation_requested": False,
             "runtime_tab_required_before_turn": False,
             "direct_private_product_write": False,
             "challenge_solver_expansion": False,
