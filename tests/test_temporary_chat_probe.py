@@ -35,8 +35,24 @@ def _success_response(**overrides):
         "modeSelectionProven": True,
         "selectionAction": "cdp_control_click",
         "reason": "TEMPORARY_CHAT_SELECTION_PROVEN",
-        "matchSignals": ["text"],
-        "selectionProofSignals": ["aria-pressed:true"],
+        "matchSignals": ["aria_label"],
+        "selectionProofSignals": ["ax:pressed:true"],
+        "axBefore": {
+            "candidateCount": 1,
+            "actionableCandidateCount": 1,
+            "roles": ["button"],
+            "stateSignals": ["pressed:false"],
+            "selectionState": False,
+            "selectionProofSignals": [],
+        },
+        "axAfter": {
+            "candidateCount": 1,
+            "actionableCandidateCount": 1,
+            "roles": ["button"],
+            "stateSignals": ["pressed:true"],
+            "selectionState": True,
+            "selectionProofSignals": ["ax:pressed:true"],
+        },
         "conversationWriteObserved": False,
         "tabWasActive": False,
         "tabActiveAfter": False,
@@ -69,8 +85,14 @@ def test_probe_uses_internal_no_write_turn_contract_and_parses_safe_evidence() -
     assert result.selected_before is False
     assert result.selected_after is True
     assert result.mode_selection_proven is True
-    assert result.match_signals == ("text",)
-    assert result.selection_proof_signals == ("aria-pressed:true",)
+    assert result.match_signals == ("aria_label",)
+    assert result.selection_proof_signals == ("ax:pressed:true",)
+    assert result.ax_before.actionable_candidate_count == 1
+    assert result.ax_before.roles == ("button",)
+    assert result.ax_before.selection_state is False
+    assert result.ax_after.state_signals == ("pressed:true",)
+    assert result.ax_after.selection_state is True
+    assert result.ax_after.selection_proof_signals == ("ax:pressed:true",)
     assert result.conversation_write_observed is False
     assert result.probe_tab_closed is True
 
@@ -82,6 +104,14 @@ def test_probe_allows_safe_negative_characterization_without_claiming_support() 
             modeSelectionProven=False,
             reason="TEMPORARY_CHAT_SELECTION_NOT_PROVEN",
             selectionProofSignals=[],
+            axAfter={
+                "candidateCount": 1,
+                "actionableCandidateCount": 1,
+                "roles": ["button"],
+                "stateSignals": ["expanded:true", "haspopup:menu"],
+                "selectionState": None,
+                "selectionProofSignals": [],
+            },
         )
     )
 
@@ -90,6 +120,35 @@ def test_probe_allows_safe_negative_characterization_without_claiming_support() 
     assert result.mode_selection_proven is False
     assert result.selected_after is None
     assert result.reason == "TEMPORARY_CHAT_SELECTION_NOT_PROVEN"
+    assert result.ax_after.selection_state is None
+    assert result.ax_after.state_signals == ("expanded:true", "haspopup:menu")
+
+
+def test_probe_sanitizes_missing_or_malformed_ax_snapshot() -> None:
+    provider = _FakeProvider(
+        _success_response(
+            axBefore=None,
+            axAfter={
+                "candidateCount": -1,
+                "actionableCandidateCount": True,
+                "roles": ["button", 123, ""],
+                "stateSignals": "not-a-list",
+                "selectionState": "true",
+                "selectionProofSignals": [None, "ax:selected:true"],
+            },
+        )
+    )
+
+    result = probe_temporary_chat_mode(provider=provider, timeout=5)
+
+    assert result.ax_before.candidate_count == 0
+    assert result.ax_before.roles == ()
+    assert result.ax_after.candidate_count == 0
+    assert result.ax_after.actionable_candidate_count == 0
+    assert result.ax_after.roles == ("button",)
+    assert result.ax_after.state_signals == ()
+    assert result.ax_after.selection_state is None
+    assert result.ax_after.selection_proof_signals == ("ax:selected:true",)
 
 
 def test_probe_rejects_any_observed_conversation_write() -> None:
