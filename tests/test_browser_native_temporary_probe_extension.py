@@ -10,10 +10,14 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
 
-    assert manifest["version"] == "0.1.12"
-    assert worker_name == "service_worker_temporary_chat_history_probe.js"
+    assert manifest["version"] == "0.1.13"
+    assert worker_name == "service_worker_temporary_chat_manual_ground_truth.js"
 
-    history_worker = (root / worker_name).read_text(encoding="utf-8")
+    manual_worker = (root / worker_name).read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_temporary_chat_history_probe.js")' in manual_worker
+    history_worker = (root / "service_worker_temporary_chat_history_probe.js").read_text(
+        encoding="utf-8"
+    )
     assert 'importScripts("service_worker_temporary_chat_turn_probe.js")' in history_worker
     turn_worker = (root / "service_worker_temporary_chat_turn_probe.js").read_text(
         encoding="utf-8"
@@ -163,6 +167,28 @@ def test_temporary_history_probe_observes_exact_link_over_settling_window() -> N
     assert "Input.insertText" not in worker
     assert "submitOfficialPageTurn" not in worker
     assert "Conversation titles, link text, raw" in worker
+
+
+def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close() -> None:
+    root = browser_native_extension_dir()
+    worker = (root / "service_worker_temporary_chat_manual_ground_truth.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "characterizeManualTemporaryGroundTruth" in worker
+    assert "manualTemporaryConfirmed" in worker
+    assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_CONFIRMATION_REQUIRED" in worker
+    assert "chrome.tabs.query({ active: true, lastFocusedWindow: true })" in worker
+    assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_REQUIRES_FRESH_NEW_CHAT" in worker
+    assert "Input.insertText" in worker
+    assert "conversationWriteCount += 1" in worker
+    assert "conversationWriteCount !== 1" in worker
+    assert "sourceTabLeftOpen: true" in worker
+    assert "_pr87ClickPoint(" not in worker
+    assert "chrome.tabs.remove(tabId)" not in worker
+    assert "get_status" not in worker
+    assert "get_messages" not in worker
+    assert "attach_conversation" not in worker
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:
