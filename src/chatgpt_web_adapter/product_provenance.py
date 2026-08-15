@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+import copy
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Mapping
+
+from .product_capabilities import ORDINARY_CHATGPT_PRODUCT_SEMANTICS
+
+
+class CompletionSource(str, Enum):
+    """Highest-level evidence source proving a successful returned execution."""
+
+    CANONICAL_READBACK = "CANONICAL_READBACK"
+    TRANSPORT_RETURN = "TRANSPORT_RETURN"
+
+
+def _optional_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _safe_observation_dict(observation: Any) -> dict[str, Any]:
+    if isinstance(observation, Mapping):
+        return copy.deepcopy(dict(observation))
+    to_dict = getattr(observation, "to_dict", None)
+    if callable(to_dict):
+        try:
+            payload = to_dict()
+        except Exception:
+            return {}
+        if isinstance(payload, Mapping):
+            return copy.deepcopy(dict(payload))
+    return {}
+
+
+@dataclass(frozen=True)
+class ProductCompletionProvenance:
+    completed: bool
+    source: CompletionSource
+    canonical_completion_proven: bool
+    finish_reason: str | None
+    finish_reason_observed: bool
+    finality_detail: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.source, CompletionSource):
+            object.__setattr__(self, "source", CompletionSource(self.source))
+        finish_reason = _optional_text(self.finish_reason)
+        object.__setattr__(self, "finish_reason", finish_reason)
+        object.__setattr__(self, "finish_reason_observed", finish_reason is not None)
+        object.__setattr__(self, "finality_detail", _optional_text(self.finality_detail))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "completed": bool(self.completed),
+            "source": self.source.value,
+            "canonical_completion_proven": bool(self.canonical_completion_proven),
+            "finish_reason": self.finish_reason,
+            "finish_reason_observed": self.finish_reason_observed,
+            "finality_detail": self.finality_detail,
+        }
+
+
+@dataclass(frozen=True)
+class ProductIdentityProvenance:
+    conversation_id: str | None
+    message_id: str | None
+    observed_model: str | None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "conversation_id", _optional_text(self.conversation_id))
+        object.__setattr__(self, "message_id", _optional_text(self.message_id))
+        object.__setattr__(self, "observed_model", _optional_text(self.observed_model))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "conversation_id": self.conversation_id,
+            "message_id": self.message_id,
+            "observed_model": self.observed_model,
+        }
+
+
+@dataclass(frozen=True)
+class ProductExecutionProvenance:
+    product_semantics: str
+    transport: str
+    write_plane: str | None
+    readback_plane: str | None
+    session_plane: str | None
+    completion: ProductCompletionProvenance
+    identity: ProductIdentityProvenance
+    transport_metadata: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        product_semantics = _optional_text(self.product_semantics)
+        transport = _optional_text(self.transport)
+        if product_semantics is None:
+            raise ValueError("product_semantics is required")
+        if transport is None:
+            raise ValueError("transport is required")
+        if not isinstance(self.completion, ProductCompletionProvenance):
+            raise TypeError("completion must be ProductCompletionProvenance")
+        if not isinstance(self.identity, ProductIdentityProvenance):
+            raise TypeError("identity must be ProductIdentityProvenance")
+        if not isinstance(self.transport_metadata, dict):
+            raise TypeError("transport_metadata must be a dict")
+        object.__setattr__(self, "product_semantics", product_semantics.lower())
+        object.__setattr__(self, "transport", transport.lower())
+        object.__setattr__(self, "write_plane", _optional_text(self.write_plane))
+        object.__setattr__(self, "readback_plane", _optional_text(self.readback_plane))
+        object.__setattr__(self, "session_plane", _optional_text(self.session_plane))
+        object.__setattr__(self, "transport_metadata", copy.deepcopy(self.transport_metadata))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "product_semantics": self.product_semantics,
+            "transport": self.transport,
+            "write_plane": self.write_plane,
+            "readback_plane": self.readback_plane,
+            "session_plane": self.session_plane,
+            "completion": self.completion.to_dict(),
+            "identity": self.identity.to_dict(),
+            "transport_metadata": copy.deepcopy(self.transport_metadata),
+        }
+
+
+def build_product_execution_provenance(
+    *,
+    transport: str,
+    response: Any,
+    observation: Any,
+    governance: Mapping[str, Any] | None,
+) -> ProductExecutionProvenance:
+    """Build generic provenance without inventing backend completion metadata.
+
+    A successful runtime execution is complete by contract. When transport
+    governance says canonical readback is required, that is the strongest
+    high-level completion source we can state without claiming which private
+    message field supplied the finality signal. Nullable ``finish_reason`` is
+    preserved exactly as observed instead of being synthesized.
+    """
+
+    governance_payload = dict(governance or {})
+    canonical_required = governance_payload.get("canonical_readback_required") is True
+    source = (
+        CompletionSource.CANONICAL_READBACK
+        if canonical_required
+        else CompletionSource.TRANSPORT_RETURN
+    )
+
+    conversation = getattr(response, "conversation", None)
+    request = getattr(response, "request", None)
+    finish_reason = _optional_text(getattr(conversation, "finish_reason", None))
+
+    completion = ProductCompletionProvenance(
+        completed=True,
+        source=source,
+        canonical_completion_proven=canonical_required,
+        finish_reason=finish_reason,
+        finish_reason_observed=finish_reason is not None,
+        finality_detail=None,
+    )
+    identity = ProductIdentityProvenance(
+        conversation_id=getattr(conversation, "conversation_id", None),
+        message_id=getattr(conversation, "message_id", None),
+        observed_model=getattr(request, "observed_model", None),
+    )
+
+    product_semantics = _optional_text(governance_payload.get("product_semantics"))
+    if product_semantics is None:
+        product_semantics = ORDINARY_CHATGPT_PRODUCT_SEMANTICS
+
+    return ProductExecutionProvenance(
+        product_semantics=product_semantics,
+        transport=transport,
+        write_plane=_optional_text(governance_payload.get("write_plane")),
+        readback_plane=_optional_text(governance_payload.get("read_plane")),
+        session_plane=_optional_text(governance_payload.get("session_plane")),
+        completion=completion,
+        identity=identity,
+        transport_metadata=_safe_observation_dict(observation),
+    )

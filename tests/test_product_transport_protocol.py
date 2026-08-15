@@ -4,6 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from chatgpt_web_adapter.product_capabilities import (
+    CapabilityOwner,
+    CapabilityState,
+    ProductCapabilities,
+    ProductCapability,
+)
 from chatgpt_web_adapter.product_runtime import ChatGPTProductRuntime
 from chatgpt_web_adapter.product_transport import (
     CanonicalConversationClient,
@@ -58,6 +64,19 @@ class _FakeTransport:
             write_plane="FAKE_WRITE",
         )
 
+    def capabilities(self):
+        return ProductCapabilities.from_entries(
+            transport=self.transport_id,
+            entries=(
+                ProductCapability(
+                    name="text_turns",
+                    state=CapabilityState.AVAILABLE,
+                    owner=CapabilityOwner.TRANSPORT,
+                    evidence="fake transport",
+                ),
+            ),
+        )
+
     def send_text(self, text, **kwargs):
         self.send_calls.append((text, kwargs))
         return self.response
@@ -105,6 +124,9 @@ def test_runtime_delegates_to_injected_transport_without_browser_contract() -> N
     assert response is transport.response
     assert execution.response is transport.response
     assert execution.observation is transport.observation
+    assert execution.provenance is not None
+    assert execution.provenance.transport == "browser-owned"
+    assert execution.provenance.completion.canonical_completion_proven is True
     assert transport.health_calls == ["conversation-1"]
     assert transport.send_calls == [
         (
@@ -119,6 +141,15 @@ def test_runtime_delegates_to_injected_transport_without_browser_contract() -> N
         )
     ]
     assert transport.observed_calls[0][0] == "hello again"
+
+
+def test_runtime_capabilities_delegates_to_transport_and_preserves_identity() -> None:
+    runtime = ChatGPTProductRuntime(_Canonical(), write_transport=_FakeTransport())
+
+    capabilities = runtime.capabilities()
+
+    assert capabilities.transport == "browser-owned"
+    assert capabilities.state("text_turns") is CapabilityState.AVAILABLE
 
 
 def test_runtime_canonical_methods_do_not_route_through_write_transport() -> None:
@@ -164,6 +195,26 @@ def test_canonical_contract_fails_closed_when_required_surface_is_missing() -> N
         ChatGPTProductRuntime(IncompleteCanonical(), write_transport=_FakeTransport())
 
 
+def test_transport_contract_fails_closed_when_capability_surface_is_missing() -> None:
+    class IncompleteTransport:
+        transport_id = "browser-owned"
+
+        def health(self, conversation=None):
+            return None
+
+        def send_text(self, text, **kwargs):
+            return None
+
+        def send_text_observed(self, text, **kwargs):
+            return None
+
+        def governance(self):
+            return {}
+
+    with pytest.raises(TypeError, match="capabilities"):
+        ChatGPTProductRuntime(_Canonical(), write_transport=IncompleteTransport())
+
+
 def test_runtime_governance_exposes_interface_ownership_without_fallback() -> None:
     runtime = ChatGPTProductRuntime(_Canonical(), write_transport=_FakeTransport())
 
@@ -176,3 +227,6 @@ def test_runtime_governance_exposes_interface_ownership_without_fallback() -> No
     assert governance["legacy_direct_write_fallback"] is False
     assert governance["automatic_write_retry"] is False
     assert governance["canonical_readback_required"] is True
+    assert governance["capability_model"] == "ProductCapabilities"
+    assert governance["provenance_model"] == "ProductExecutionProvenance"
+    assert governance["finish_reason_is_optional_observed_metadata"] is True

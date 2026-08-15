@@ -32,6 +32,20 @@ from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
+from .product_capabilities import (
+    ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+    PRODUCT_CAPABILITY_NAMES,
+    CapabilityOwner,
+    CapabilityState,
+    ProductCapabilities,
+    ProductCapability,
+)
+from .product_provenance import (
+    CompletionSource,
+    ProductCompletionProvenance,
+    ProductExecutionProvenance,
+    ProductIdentityProvenance,
+)
 from .product_runtime import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
     DEFAULT_PRODUCT_TRANSPORT,
@@ -41,6 +55,7 @@ from .product_runtime import (
     ProductRuntimeHealth,
     assemble_product_runtime,
 )
+from .product_transport import CanonicalConversationClient, ProductWriteTransport
 from .sentinel_requirements import (
     OBSERVED_FINALIZE_REQUEST_KEYS,
     OBSERVED_FINALIZE_RESPONSE_KEYS,
@@ -260,6 +275,18 @@ PRODUCT_RUNTIME_EXPORTS = [
     "BROWSER_OWNED_PRODUCT_TRANSPORT",
     "DEFAULT_PRODUCT_TRANSPORT",
     "SUPPORTED_PRODUCT_TRANSPORTS",
+    "ORDINARY_CHATGPT_PRODUCT_SEMANTICS",
+    "PRODUCT_CAPABILITY_NAMES",
+    "CapabilityState",
+    "CapabilityOwner",
+    "ProductCapability",
+    "ProductCapabilities",
+    "CompletionSource",
+    "ProductCompletionProvenance",
+    "ProductIdentityProvenance",
+    "ProductExecutionProvenance",
+    "CanonicalConversationClient",
+    "ProductWriteTransport",
     "ChatGPTProductRuntime",
     "ProductRuntimeExecution",
     "ProductRuntimeHealth",

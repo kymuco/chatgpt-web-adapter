@@ -18,12 +18,30 @@ class _Health:
         }
 
 
+class _Capabilities:
+    def to_dict(self):
+        return {
+            "transport": "browser-owned",
+            "product_semantics": "ordinary-chatgpt",
+            "capabilities": {
+                "text_turns": {
+                    "state": "AVAILABLE",
+                    "owner": "TRANSPORT",
+                    "evidence": "test",
+                }
+            },
+        }
+
+
 class _Runtime:
     transport = "browser-owned"
 
     def health(self, conversation=None):
         self.health_conversation = conversation
         return _Health(ready=True)
+
+    def capabilities(self):
+        return _Capabilities()
 
     def governance(self):
         return {
@@ -52,10 +70,25 @@ class _Runtime:
                 "runtime_tab_created_for_turn": False,
             }
         )
+        provenance = SimpleNamespace(
+            to_dict=lambda: {
+                "transport": "browser-owned",
+                "product_semantics": "ordinary-chatgpt",
+                "completion": {
+                    "completed": True,
+                    "source": "CANONICAL_READBACK",
+                    "canonical_completion_proven": True,
+                    "finish_reason": "stop",
+                    "finish_reason_observed": True,
+                    "finality_detail": None,
+                },
+            }
+        )
         return SimpleNamespace(
             transport="browser-owned",
             response=response,
             observation=observation,
+            provenance=provenance,
         )
 
 
@@ -84,6 +117,8 @@ def test_runtime_status_cli_uses_product_assembly(monkeypatch, capsys) -> None:
     assert runtime.health_conversation == "conversation-1"
     assert payload["transport"] == "browser-owned"
     assert payload["health"]["ready"] is True
+    assert payload["capabilities"]["product_semantics"] == "ordinary-chatgpt"
+    assert payload["capabilities"]["capabilities"]["text_turns"]["state"] == "AVAILABLE"
     assert payload["governance"]["fallback_transport"] is None
 
 
@@ -118,3 +153,5 @@ def test_runtime_send_cli_returns_machine_readable_product_result(monkeypatch, c
     assert payload["message_id"] == "assistant-1"
     assert payload["backend_status"] == 200
     assert payload["runtime_observation"]["runtime_tab_id"] == 77
+    assert payload["provenance"]["completion"]["source"] == "CANONICAL_READBACK"
+    assert payload["provenance"]["completion"]["finish_reason_observed"] is True

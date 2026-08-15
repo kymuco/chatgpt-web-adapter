@@ -5,6 +5,11 @@ from typing import Any
 
 from .auth import DEFAULT_AUTH_FILE
 from .client import ChatGPTWebClient, DEFAULT_TIMEOUT_SECONDS
+from .product_capabilities import ProductCapabilities
+from .product_provenance import (
+    ProductExecutionProvenance,
+    build_product_execution_provenance,
+)
 from .product_transport import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
     DEFAULT_PRODUCT_TRANSPORT,
@@ -44,10 +49,9 @@ def _assemble_default_write_transport(
 class ChatGPTProductRuntime:
     """Implementation-independent ordinary-ChatGPT product runtime.
 
-    PR8.4 separates canonical observation from product mutation. The runtime
-    depends on a CanonicalConversationClient plus a ProductWriteTransport
-    protocol. The proven browser-owned mechanism is one adapter behind that
-    contract; it is no longer the definition of the runtime contract.
+    PR8.4 separates canonical observation from product mutation. PR8.5 adds a
+    machine-readable capability surface and provenance-aware observed execution
+    without making browser-specific metadata mandatory for future transports.
 
     ``provider=`` remains as a compatibility assembly shortcut for PR8.3
     callers. New composition code should inject ``write_transport=`` or use
@@ -97,6 +101,17 @@ class ChatGPTProductRuntime:
         return self.write_transport.health(conversation)
 
     readiness = health
+
+    def capabilities(self) -> ProductCapabilities:
+        capabilities = self.write_transport.capabilities()
+        if not isinstance(capabilities, ProductCapabilities):
+            raise TypeError("write transport capabilities() must return ProductCapabilities")
+        if capabilities.transport != self.transport:
+            raise RuntimeError(
+                "write transport returned capabilities for unexpected transport "
+                f"{capabilities.transport!r}"
+            )
+        return capabilities
 
     def send_text(
         self,
@@ -159,7 +174,31 @@ class ChatGPTProductRuntime:
                 "write transport returned execution for unexpected transport "
                 f"{execution.transport!r}"
             )
-        return execution
+
+        provenance = execution.provenance
+        if provenance is None:
+            provenance = build_product_execution_provenance(
+                transport=self.transport,
+                response=execution.response,
+                observation=execution.observation,
+                governance=self.write_transport.governance(),
+            )
+        elif not isinstance(provenance, ProductExecutionProvenance):
+            raise TypeError(
+                "write transport execution provenance must be ProductExecutionProvenance or None"
+            )
+        elif provenance.transport != self.transport:
+            raise RuntimeError(
+                "write transport returned provenance for unexpected transport "
+                f"{provenance.transport!r}"
+            )
+
+        return ProductRuntimeExecution(
+            transport=execution.transport,
+            response=execution.response,
+            observation=execution.observation,
+            provenance=provenance,
+        )
 
     def get_status(self, conversation: Any) -> ConversationStatus:
         return self.canonical.get_status(conversation)
@@ -186,6 +225,15 @@ class ChatGPTProductRuntime:
                 "canonical_interface": "CanonicalConversationClient",
                 "write_transport_interface": "ProductWriteTransport",
                 "runtime_depends_on_concrete_browser_transport": False,
+                "capability_model": "ProductCapabilities",
+                "capability_states": [
+                    "AVAILABLE",
+                    "UNSUPPORTED",
+                    "UNKNOWN",
+                    "UNIMPLEMENTED",
+                ],
+                "provenance_model": "ProductExecutionProvenance",
+                "finish_reason_is_optional_observed_metadata": True,
             }
         )
         return transport_governance

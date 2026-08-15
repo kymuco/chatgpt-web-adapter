@@ -213,11 +213,13 @@ def _run_runtime(args: argparse.Namespace) -> int:
     )
     if args.runtime_command == "status":
         health = runtime.health(args.conversation)
+        capabilities = runtime.capabilities()
         print(
             json.dumps(
                 {
                     "transport": runtime.transport,
                     "health": health.to_dict(),
+                    "capabilities": capabilities.to_dict(),
                     "governance": runtime.governance(),
                 },
                 indent=2,
@@ -233,6 +235,7 @@ def _run_runtime(args: argparse.Namespace) -> int:
             poll_interval=args.poll_interval,
         )
         response = execution.response
+        provenance = execution.provenance
         print(
             json.dumps(
                 {
@@ -246,6 +249,7 @@ def _run_runtime(args: argparse.Namespace) -> int:
                     "observed_model": response.request.observed_model,
                     "backend_status": response.metrics.backend_status,
                     "runtime_observation": execution.observation.to_dict(),
+                    "provenance": provenance.to_dict() if provenance is not None else None,
                 },
                 indent=2,
                 ensure_ascii=False,

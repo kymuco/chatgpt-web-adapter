@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
+from .product_capabilities import ProductCapabilities
+from .product_provenance import ProductExecutionProvenance
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
 
 BROWSER_OWNED_PRODUCT_TRANSPORT = "browser-owned"
@@ -57,6 +59,7 @@ class ProductRuntimeExecution:
     transport: str
     response: ChatResponse
     observation: Any
+    provenance: ProductExecutionProvenance | None = None
 
 
 @runtime_checkable
@@ -93,6 +96,8 @@ class ProductWriteTransport(Protocol):
         self,
         conversation: ConversationInput = None,
     ) -> ProductRuntimeHealth: ...
+
+    def capabilities(self) -> ProductCapabilities: ...
 
     def send_text(
         self,
@@ -133,10 +138,10 @@ def require_product_write_transport(transport: Any) -> ProductWriteTransport:
     transport_id = getattr(transport, "transport_id", None)
     if not isinstance(transport_id, str) or not transport_id.strip():
         raise TypeError("write transport must expose a non-empty transport_id")
-    for name in ("health", "send_text", "send_text_observed", "governance"):
+    for name in ("health", "capabilities", "send_text", "send_text_observed", "governance"):
         if not callable(getattr(transport, name, None)):
             raise TypeError(
-                "write transport must expose callable health(), send_text(), "
+                "write transport must expose callable health(), capabilities(), send_text(), "
                 "send_text_observed(), and governance()"
             )
     return transport

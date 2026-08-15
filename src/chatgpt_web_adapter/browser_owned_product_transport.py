@@ -8,6 +8,35 @@ from .browser_owned_write_runtime import (
     BrowserOwnedWriteExecution,
     BrowserOwnedWriteRuntimeHealth,
 )
+from .product_capabilities import (
+    APPROVALS,
+    CANONICAL_READBACK,
+    CONTINUATION,
+    CONVERSATION_ATTACH,
+    CONVERSATION_BRANCHING,
+    CONVERSATION_READ,
+    CONVERSATION_STATUS,
+    FILES,
+    IMAGES,
+    MODEL_PRESERVATION,
+    MODEL_SELECTION,
+    MULTIMODAL_CONTINUATION,
+    NEW_CHAT,
+    ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+    PRODUCT_CAPABILITY_NAMES,
+    PRODUCT_MEMORY_PERSONALIZATION,
+    REASONING_PRESERVATION,
+    REASONING_SELECTION,
+    STREAMING,
+    TEMPORARY_CHAT,
+    TEXT_TURNS,
+    TOOLS_CONNECTORS,
+    WEB_SEARCH,
+    CapabilityOwner,
+    CapabilityState,
+    ProductCapabilities,
+    ProductCapability,
+)
 from .product_transport import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
     ConversationInput,
@@ -20,13 +49,81 @@ from .product_transport import (
 from .types import ChatResponse
 
 
+_BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
+    TEXT_TURNS: CapabilityState.AVAILABLE,
+    NEW_CHAT: CapabilityState.AVAILABLE,
+    CONTINUATION: CapabilityState.AVAILABLE,
+    CANONICAL_READBACK: CapabilityState.AVAILABLE,
+    CONVERSATION_ATTACH: CapabilityState.AVAILABLE,
+    CONVERSATION_READ: CapabilityState.AVAILABLE,
+    CONVERSATION_STATUS: CapabilityState.AVAILABLE,
+    STREAMING: CapabilityState.UNKNOWN,
+    IMAGES: CapabilityState.UNIMPLEMENTED,
+    FILES: CapabilityState.UNKNOWN,
+    WEB_SEARCH: CapabilityState.UNKNOWN,
+    TEMPORARY_CHAT: CapabilityState.UNKNOWN,
+    MODEL_SELECTION: CapabilityState.UNKNOWN,
+    MODEL_PRESERVATION: CapabilityState.UNKNOWN,
+    REASONING_SELECTION: CapabilityState.UNKNOWN,
+    REASONING_PRESERVATION: CapabilityState.UNKNOWN,
+    PRODUCT_MEMORY_PERSONALIZATION: CapabilityState.UNKNOWN,
+    TOOLS_CONNECTORS: CapabilityState.UNKNOWN,
+    APPROVALS: CapabilityState.UNIMPLEMENTED,
+    CONVERSATION_BRANCHING: CapabilityState.UNKNOWN,
+    MULTIMODAL_CONTINUATION: CapabilityState.UNIMPLEMENTED,
+}
+
+_BROWSER_OWNED_CAPABILITY_OWNERS: dict[str, CapabilityOwner] = {
+    CANONICAL_READBACK: CapabilityOwner.CANONICAL,
+    CONVERSATION_ATTACH: CapabilityOwner.CANONICAL,
+    CONVERSATION_READ: CapabilityOwner.CANONICAL,
+    CONVERSATION_STATUS: CapabilityOwner.CANONICAL,
+    PRODUCT_MEMORY_PERSONALIZATION: CapabilityOwner.PRODUCT,
+}
+
+_BROWSER_OWNED_CAPABILITY_EVIDENCE: dict[str, str] = {
+    TEXT_TURNS: "PR8.3 live ordinary-product text turns",
+    NEW_CHAT: "PR8.3 live new-chat production gate",
+    CONTINUATION: "PR8.3 live continuation production gate",
+    CANONICAL_READBACK: "browser-owned writer requires canonical final assistant readback",
+    CONVERSATION_ATTACH: "canonical ChatGPTWebClient attach surface",
+    CONVERSATION_READ: "canonical ChatGPTWebClient message-read surface",
+    CONVERSATION_STATUS: "canonical ChatGPTWebClient status surface",
+    IMAGES: "production ProductWriteTransport currently exposes text turns only",
+    APPROVALS: "production ProductWriteTransport has no approval continuation surface",
+    MULTIMODAL_CONTINUATION: "production ProductWriteTransport currently exposes text turns only",
+}
+
+
+def _build_browser_owned_capabilities() -> ProductCapabilities:
+    return ProductCapabilities.from_entries(
+        transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
+        product_semantics=ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+        entries=(
+            ProductCapability(
+                name=name,
+                state=_BROWSER_OWNED_CAPABILITY_STATES[name],
+                owner=_BROWSER_OWNED_CAPABILITY_OWNERS.get(
+                    name,
+                    CapabilityOwner.TRANSPORT,
+                ),
+                evidence=_BROWSER_OWNED_CAPABILITY_EVIDENCE.get(name),
+            )
+            for name in PRODUCT_CAPABILITY_NAMES
+        ),
+    )
+
+
+_BROWSER_OWNED_CAPABILITIES = _build_browser_owned_capabilities()
+
+
 class BrowserOwnedProductTransport:
-    """Adapter exposing the proven browser-owned runtime through PR8.4 protocol.
+    """Adapter exposing the proven browser-owned runtime through product protocol.
 
     PR8.4 intentionally wraps rather than rewrites BrowserOwnedProductWriteRuntime.
-    The proven implementation therefore retains its preflight, continuation
-    commit-point recheck, delegated-write ambiguity classification, and
-    canonical readback behavior while callers depend only on ProductWriteTransport.
+    PR8.5 adds evidence-backed capability declarations while leaving the proven
+    preflight, commit-point recheck, ambiguity classification, and canonical
+    readback mechanics untouched.
     """
 
     transport_id = BROWSER_OWNED_PRODUCT_TRANSPORT
@@ -72,6 +169,9 @@ class BrowserOwnedProductTransport:
     ) -> ProductRuntimeHealth:
         return self._health_from_runtime(self._runtime.health(conversation))
 
+    def capabilities(self) -> ProductCapabilities:
+        return _BROWSER_OWNED_CAPABILITIES
+
     def send_text(
         self,
         text: str,
@@ -116,4 +216,6 @@ class BrowserOwnedProductTransport:
         )
 
     def governance(self) -> dict[str, Any]:
-        return dict(self._runtime.governance())
+        governance = dict(self._runtime.governance())
+        governance["product_semantics"] = ORDINARY_CHATGPT_PRODUCT_SEMANTICS
+        return governance
