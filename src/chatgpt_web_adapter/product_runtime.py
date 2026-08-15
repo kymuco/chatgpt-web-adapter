@@ -1,94 +1,57 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .auth import DEFAULT_AUTH_FILE
-from .browser_native_provider import BrowserNativeTurnProvider
-from .browser_owned_write_runtime import (
-    BrowserOwnedProductWriteRuntime,
-    BrowserOwnedWriteExecution,
-    BrowserOwnedWriteObservation,
-    BrowserOwnedWriteRuntimeHealth,
-)
 from .client import ChatGPTWebClient, DEFAULT_TIMEOUT_SECONDS
-from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
-
-BROWSER_OWNED_PRODUCT_TRANSPORT = "browser-owned"
-DEFAULT_PRODUCT_TRANSPORT = BROWSER_OWNED_PRODUCT_TRANSPORT
-SUPPORTED_PRODUCT_TRANSPORTS: tuple[str, ...] = (BROWSER_OWNED_PRODUCT_TRANSPORT,)
-
-
-def normalize_product_transport(value: str) -> str:
-    if not isinstance(value, str):
-        raise TypeError("transport must be a string")
-    normalized = value.strip().lower()
-    if normalized not in SUPPORTED_PRODUCT_TRANSPORTS:
-        supported = ", ".join(SUPPORTED_PRODUCT_TRANSPORTS)
-        raise ValueError(f"unsupported product transport {value!r}; expected one of: {supported}")
-    return normalized
-
-
-@dataclass(frozen=True)
-class ProductRuntimeHealth:
-    transport: str
-    ready: bool
-    reason: str
-    bridge_available: bool
-    extension_connected: bool
-    runtime_tab_id: int | None
-    runtime_tab_preexisting: bool
-    conversation_id: str | None
-    canonical_status: str | None
-    canonical_read_checked: bool
-    read_plane: str
-    session_plane: str
-    write_plane: str
-    automatic_write_retry: bool = False
-    fallback_transport: str | None = None
-
-    @classmethod
-    def from_browser_owned(
-        cls,
-        health: BrowserOwnedWriteRuntimeHealth,
-    ) -> "ProductRuntimeHealth":
-        return cls(
-            transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
-            ready=health.ready,
-            reason=health.reason,
-            bridge_available=health.bridge_available,
-            extension_connected=health.extension_connected,
-            runtime_tab_id=health.runtime_tab_id,
-            runtime_tab_preexisting=health.runtime_tab_preexisting,
-            conversation_id=health.conversation_id,
-            canonical_status=health.canonical_status,
-            canonical_read_checked=health.canonical_read_checked,
-            read_plane=health.read_plane,
-            session_plane=health.session_plane,
-            write_plane=health.write_plane,
-            automatic_write_retry=health.automatic_write_retry,
-            fallback_transport=None,
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+from .product_transport import (
+    BROWSER_OWNED_PRODUCT_TRANSPORT,
+    DEFAULT_PRODUCT_TRANSPORT,
+    SUPPORTED_PRODUCT_TRANSPORTS,
+    CanonicalConversationClient,
+    CanonicalSessionClient,
+    ConversationInput,
+    EventCallback,
+    ProductRuntimeExecution,
+    ProductRuntimeHealth,
+    ProductWriteTransport,
+    TokenCallback,
+    normalize_product_transport,
+    require_canonical_conversation_client,
+    require_product_write_transport,
+)
+from .types import ChatMessage, ChatResponse, ConversationStatus
 
 
-@dataclass(frozen=True)
-class ProductRuntimeExecution:
-    transport: str
-    response: ChatResponse
-    observation: BrowserOwnedWriteObservation
+def _assemble_default_write_transport(
+    client: CanonicalConversationClient,
+    *,
+    transport: str,
+    provider: Any | None,
+) -> ProductWriteTransport:
+    if transport != BROWSER_OWNED_PRODUCT_TRANSPORT:
+        # normalize_product_transport() makes this unreachable for the current
+        # production registry. Keep the branch explicit so future transports
+        # cannot accidentally fall through to browser-owned.
+        raise ValueError(f"no production transport assembler registered for {transport!r}")
+
+    from .browser_owned_product_transport import BrowserOwnedProductTransport
+
+    return BrowserOwnedProductTransport(client, provider=provider)
 
 
 class ChatGPTProductRuntime:
-    """Production ordinary-ChatGPT product runtime.
+    """Implementation-independent ordinary-ChatGPT product runtime.
 
-    PR8.3 intentionally exposes browser-owned product write as an explicit
-    transport. It never silently falls back to the legacy direct-web write path.
-    Browserless canonical reads/session renewal remain owned by ChatGPTWebClient;
-    only ordinary product writes are delegated to BrowserOwnedProductWriteRuntime.
+    PR8.4 separates canonical observation from product mutation. The runtime
+    depends on a CanonicalConversationClient plus a ProductWriteTransport
+    protocol. The proven browser-owned mechanism is one adapter behind that
+    contract; it is no longer the definition of the runtime contract.
+
+    ``provider=`` remains as a compatibility assembly shortcut for PR8.3
+    callers. New composition code should inject ``write_transport=`` or use
+    ``assemble_product_runtime()``.
     """
 
     def __init__(
@@ -96,21 +59,42 @@ class ChatGPTProductRuntime:
         client: Any,
         *,
         transport: str = DEFAULT_PRODUCT_TRANSPORT,
-        provider: BrowserNativeTurnProvider | None = None,
+        provider: Any | None = None,
+        write_transport: ProductWriteTransport | None = None,
     ) -> None:
         self.transport = normalize_product_transport(transport)
-        self.client = client
-        self.provider = provider or BrowserNativeTurnProvider()
-        self._writer = BrowserOwnedProductWriteRuntime(
-            self.client,
-            provider=self.provider,
-        )
+        self.client = require_canonical_conversation_client(client)
+        self.canonical = self.client
+
+        if write_transport is not None and provider is not None:
+            raise ValueError("provider and write_transport are mutually exclusive")
+
+        if write_transport is None:
+            write_transport = _assemble_default_write_transport(
+                self.canonical,
+                transport=self.transport,
+                provider=provider,
+            )
+        else:
+            write_transport = require_product_write_transport(write_transport)
+            injected_id = write_transport.transport_id.strip().lower()
+            if injected_id != self.transport:
+                raise ValueError(
+                    "write transport identity does not match selected transport: "
+                    f"{injected_id!r} != {self.transport!r}"
+                )
+
+        self.write_transport = write_transport
+        self._transport = write_transport
+        # Private PR8.3 compatibility alias for existing tests/diagnostics. The
+        # runtime itself never dispatches through this attribute.
+        self._writer = getattr(write_transport, "_runtime", write_transport)
 
     def health(
         self,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        conversation: ConversationInput = None,
     ) -> ProductRuntimeHealth:
-        return ProductRuntimeHealth.from_browser_owned(self._writer.health(conversation))
+        return self.write_transport.health(conversation)
 
     readiness = health
 
@@ -118,13 +102,13 @@ class ChatGPTProductRuntime:
         self,
         text: str,
         *,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        conversation: ConversationInput = None,
         timeout: float = 150.0,
         poll_interval: float = 0.5,
-        on_token: Callable[[str], None] | None = None,
-        on_event: Callable[[dict[str, Any]], None] | None = None,
+        on_token: TokenCallback = None,
+        on_event: EventCallback = None,
     ) -> ChatResponse:
-        return self._writer.send_text(
+        return self.write_transport.send_text(
             text,
             conversation=conversation,
             timeout=timeout,
@@ -137,11 +121,11 @@ class ChatGPTProductRuntime:
         self,
         text: str,
         *,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        conversation: ConversationInput = None,
         timeout: float = 150.0,
         poll_interval: float = 0.5,
-        on_token: Callable[[str], None] | None = None,
-        on_event: Callable[[dict[str, Any]], None] | None = None,
+        on_token: TokenCallback = None,
+        on_event: EventCallback = None,
     ) -> ChatResponse:
         return self.send_text(
             text,
@@ -156,13 +140,13 @@ class ChatGPTProductRuntime:
         self,
         text: str,
         *,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        conversation: ConversationInput = None,
         timeout: float = 150.0,
         poll_interval: float = 0.5,
-        on_token: Callable[[str], None] | None = None,
-        on_event: Callable[[dict[str, Any]], None] | None = None,
+        on_token: TokenCallback = None,
+        on_event: EventCallback = None,
     ) -> ProductRuntimeExecution:
-        execution: BrowserOwnedWriteExecution = self._writer.send_text_observed(
+        execution = self.write_transport.send_text_observed(
             text,
             conversation=conversation,
             timeout=timeout,
@@ -170,24 +154,25 @@ class ChatGPTProductRuntime:
             on_token=on_token,
             on_event=on_event,
         )
-        return ProductRuntimeExecution(
-            transport=self.transport,
-            response=execution.response,
-            observation=execution.observation,
-        )
+        if execution.transport != self.transport:
+            raise RuntimeError(
+                "write transport returned execution for unexpected transport "
+                f"{execution.transport!r}"
+            )
+        return execution
 
     def get_status(self, conversation: Any) -> ConversationStatus:
-        return self.client.get_status(conversation)
+        return self.canonical.get_status(conversation)
 
     def get_messages(self, conversation: Any, **kwargs: Any) -> list[ChatMessage]:
-        return self.client.get_messages(conversation, **kwargs)
+        return self.canonical.get_messages(conversation, **kwargs)
 
     def attach_conversation(self, conversation: Any) -> Any:
-        return self.client.attach_conversation(conversation)
+        return self.canonical.attach_conversation(conversation)
 
     def governance(self) -> dict[str, Any]:
-        writer = dict(self._writer.governance())
-        writer.update(
+        transport_governance = dict(self.write_transport.governance())
+        transport_governance.update(
             {
                 "transport": self.transport,
                 "transport_selection_explicit": True,
@@ -198,16 +183,20 @@ class ChatGPTProductRuntime:
                 "continuation_supported": True,
                 "daily_use_entrypoint": "ChatGPTProductRuntime.send",
                 "canonical_lifecycle_access": True,
+                "canonical_interface": "CanonicalConversationClient",
+                "write_transport_interface": "ProductWriteTransport",
+                "runtime_depends_on_concrete_browser_transport": False,
             }
         )
-        return writer
+        return transport_governance
 
 
 def assemble_product_runtime(
     *,
     transport: str = DEFAULT_PRODUCT_TRANSPORT,
     client: Any | None = None,
-    provider: BrowserNativeTurnProvider | None = None,
+    provider: Any | None = None,
+    write_transport: ProductWriteTransport | None = None,
     auth_file: str | Path = DEFAULT_AUTH_FILE,
     client_timeout: int = DEFAULT_TIMEOUT_SECONDS,
     auto_refresh_auth: bool = True,
@@ -216,8 +205,10 @@ def assemble_product_runtime(
     """Assemble the production ordinary-ChatGPT runtime.
 
     Assembly never performs interactive browser login and never enables the
-    legacy Sentinel/direct-write machinery. If the browser-owned bridge is not
-    available, ``health()`` reports that state and writes fail closed.
+    legacy Sentinel/direct-write machinery. Unknown production transports fail
+    closed. A custom protocol-conforming transport can be injected explicitly
+    for composition/testing, but its identity must still match the selected
+    production transport.
     """
 
     normalized = normalize_product_transport(transport)
@@ -230,8 +221,20 @@ def assemble_product_runtime(
             auto_login=False,
             auto_sentinel=False,
         )
+
+    canonical = require_canonical_conversation_client(client)
+
+    if write_transport is None:
+        write_transport = _assemble_default_write_transport(
+            canonical,
+            transport=normalized,
+            provider=provider,
+        )
+        provider = None
+
     return ChatGPTProductRuntime(
-        client,
+        canonical,
         transport=normalized,
         provider=provider,
+        write_transport=write_transport,
     )
