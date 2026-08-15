@@ -17,6 +17,17 @@ class TemporaryChatHistoryProbeResult:
     conversation_id: str
     history_link_present: bool
     history_visible_link_present: bool
+    final_history_link_present: bool
+    final_history_visible_link_present: bool
+    stable_history_presence: bool
+    transient_history_presence: bool
+    disappeared_after_seen: bool
+    first_seen_ms: int | None
+    last_seen_ms: int | None
+    seen_sample_count: int
+    absent_sample_count: int
+    settle_window_ms: int | None
+    observation_window_ms: int | None
     conversation_link_count: int
     history_surface_ready: bool
     tab_was_active: bool
@@ -65,11 +76,12 @@ def probe_temporary_chat_history_presence(
     provider: BrowserNativeTurnProvider | Any | None = None,
     timeout: float = 30.0,
 ) -> TemporaryChatHistoryProbeResult:
-    """Check a returned PR8.7 conversation id against a fresh ChatGPT history surface.
+    """Observe a returned PR8.7 id on a fresh history surface over time.
 
-    This is a no-write research probe. It opens a fresh inactive root tab and
-    observes only whether an exact ``/c/<conversation_id>`` link is present.
-    Conversation titles, link text, raw DOM, and page payloads are not exported.
+    This is a no-write research probe. It distinguishes an exact conversation
+    link that appears transiently during root-page hydration from one that
+    remains stably visible after a bounded settling window. Conversation titles,
+    link text, raw DOM, and page payloads are not exported.
     """
 
     conversation_id = _validate_conversation_id(conversation_id)
@@ -121,6 +133,19 @@ def probe_temporary_chat_history_presence(
         conversation_id=conversation_id,
         history_link_present=bool(response.get("historyLinkPresent")),
         history_visible_link_present=bool(response.get("historyVisibleLinkPresent")),
+        final_history_link_present=bool(response.get("finalHistoryLinkPresent")),
+        final_history_visible_link_present=bool(
+            response.get("finalHistoryVisibleLinkPresent")
+        ),
+        stable_history_presence=bool(response.get("stableHistoryPresence")),
+        transient_history_presence=bool(response.get("transientHistoryPresence")),
+        disappeared_after_seen=bool(response.get("disappearedAfterSeen")),
+        first_seen_ms=_optional_int(response, "firstSeenMs"),
+        last_seen_ms=_optional_int(response, "lastSeenMs"),
+        seen_sample_count=_optional_int(response, "seenSampleCount") or 0,
+        absent_sample_count=_optional_int(response, "absentSampleCount") or 0,
+        settle_window_ms=_optional_int(response, "settleWindowMs"),
+        observation_window_ms=_optional_int(response, "observationWindowMs"),
         conversation_link_count=_optional_int(response, "conversationLinkCount") or 0,
         history_surface_ready=bool(response.get("historySurfaceReady")),
         tab_was_active=bool(response.get("tabWasActive")),
@@ -138,8 +163,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m chatgpt_web_adapter.temporary_chat_history_probe",
         description=(
-            "Run the PR8.7 no-write fresh-sidebar persistence probe for a specific "
-            "conversation id returned by the Temporary turn characterization."
+            "Run the PR8.7 no-write fresh-sidebar settling probe for a specific "
+            "conversation id returned by Temporary characterization."
         ),
     )
     parser.add_argument("conversation_id")
