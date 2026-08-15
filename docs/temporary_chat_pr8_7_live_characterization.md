@@ -4,7 +4,7 @@ _Status: evidence log for PR8.7; production Temporary Chat remains capability-ga
 
 _Date: 2026-08-15_
 
-This document records the live observations that motivated the transition from a no-write Temporary-mode selector probe to a controlled one-shot write characterization. It is intentionally separate from the production capability declaration.
+This document records the live observations used to characterize Temporary Chat before exposing it through the production product runtime. It is intentionally separate from the production capability declaration.
 
 ## 1. Current production status
 
@@ -16,25 +16,49 @@ ordinary production send path = UNCHANGED
 
 All probes in this document are research/diagnostic only.
 
-## 2. Official product expectation
+## 2. Official product expectation and the three distinct persistence questions
 
 Current OpenAI Temporary Chat documentation states that Temporary Chats:
 
 - start from a new chat through the Temporary control;
-- do not appear in normal history;
+- do not appear in normal user history;
 - do not access or create memories for personalization;
 - are not used to improve models;
-- may still be retained for up to 30 days for safety purposes.
+- may still be retained by OpenAI for up to 30 days for safety purposes.
 
-For PR8.7 the critical persistence invariant is therefore:
+That means PR8.7 must keep three questions separate:
 
 ```text
-TRUE PRODUCT TEMPORARY SEMANTICS
-        ->
-conversation does not appear in ordinary user history
+A. USER-HISTORY ENUMERATION
+   Does the conversation appear in the normal ChatGPT history/sidebar?
+
+B. DIRECT-ID READABILITY
+   If the exact conversation_id is already known, can an authenticated
+   canonical read still retrieve the conversation after the page closes?
+
+C. SERVER RETENTION
+   Does OpenAI still retain a copy internally for some bounded period?
 ```
 
-A UI marker containing the word `Temporary` is not equivalent to this persistence invariant.
+The critical invariant is:
+
+```text
+HISTORY_ENUMERATION != DIRECT_ID_READABILITY != SERVER_RETENTION
+```
+
+A Temporary Chat may be absent from normal history while a retained copy still exists for up to 30 days. Therefore successful canonical readback by a known id does not by itself contradict Temporary semantics and must not be described as "materializing" a chat back into user history.
+
+For HDE the desired one-shot lifecycle is consequently:
+
+```text
+send
+-> observe/stream response
+-> prove canonical finality
+-> verify no stable user-history persistence
+-> release browser authority
+```
+
+Long-term recoverability after that point is not required for the one-shot Temporary use case.
 
 ## 3. Live no-write run A — DOM selected-state attributes
 
@@ -110,7 +134,7 @@ The extra AX nodes were consistent with hover/tooltip-related presentation rathe
 
 ## 6. Live no-write run D — tooltip-dismissed semantic page notice
 
-The probe then moved the pointer away from the control, waited for transient tooltip UI to disappear, and searched only for bounded page-level semantic markers associated with Temporary/history/memory/training behavior.
+The probe moved the pointer away from the control, waited for transient tooltip UI to disappear, and searched only for bounded page-level semantic markers associated with Temporary/history/memory/training behavior.
 
 Observed:
 
@@ -188,7 +212,7 @@ The acknowledgement is mandatory because pre-write selected state is not observa
 
 No automatic retry is permitted.
 
-## 9. Live controlled-write run E — identity/finality success, persistence contradiction
+## 9. Live controlled-write run E — identity/finality success
 
 The first controlled write returned:
 
@@ -198,14 +222,14 @@ selection_proven_before_write     false
 selected_before                   null
 selected_after_activation         null
 selected_after_turn               true  [old interpretation; repaired below]
-post_turn_proof_signals            [semantic:document-title-temporary]
-conversation_write_count           1
-response_status                    200
-response_mime_type                 text/event-stream
-final_url_kind                     conversation
-url_conversation_id_present        true
-foreground_activation_observed     false
-probe_tab_closed                   true
+post_turn_proof_signals           [semantic:document-title-temporary]
+conversation_write_count          1
+response_status                   200
+response_mime_type                text/event-stream
+final_url_kind                    conversation
+url_conversation_id_present       true
+foreground_activation_observed    false
+probe_tab_closed                  true
 ```
 
 Returned identity:
@@ -235,32 +259,12 @@ attach_title              present
 This establishes an important positive result:
 
 ```text
-A Temporary-candidate turn can use an ordinary conversation_id
-and remain canonically readable after the disposable page is gone.
+A Temporary-candidate turn can use an ordinary backend conversation identity
+and browserless canonical status/messages/attach can remain readable after the
+disposable page is gone.
 ```
 
-Therefore PR8.7 must not assume that product Temporary requires a different backend identity type or a browser-only readback plane.
-
-However the user then manually observed that this same conversation **appeared in ordinary ChatGPT history**.
-
-That contradicts the documented Temporary Chat persistence contract.
-
-Current interpretation:
-
-```text
-T1 page-owned one-shot write              PASS
-T2 canonical terminal/readback            PASS
-T3 identity characterization              PASS
-T4 no ordinary-history persistence        FAIL / CONTRADICTED
-```
-
-The capability therefore remains:
-
-```text
-temporary_chat = UNKNOWN
-```
-
-and must not advance to `AVAILABLE`.
+This is compatible with Temporary semantics because official retention allows a copy to remain on OpenAI systems for a bounded period. Direct-id readability must not be equated with ordinary user-history persistence.
 
 ## 10. Critical provenance repair — UI marker != selection proof
 
@@ -276,9 +280,7 @@ into:
 selected_after_turn = true
 ```
 
-Run E proves that this implication is too strong.
-
-A Temporary-looking page title can coexist with persistence behavior that is not Temporary according to the product contract.
+That implication is too strong.
 
 PR8.7 now separates:
 
@@ -289,23 +291,84 @@ UI_MODE_MARKER
 SELECTION_PROOF
     explicit control state evidence, currently unavailable
 
-PERSISTENCE_SEMANTICS
-    independent evidence that the conversation is absent from ordinary history
+HISTORY_ENUMERATION
+    whether the conversation is stably listed in normal user history
+
+DIRECT_ID_READABILITY
+    whether a known id can still be read through canonical surfaces
+
+SERVER_RETENTION
+    whether OpenAI still retains a copy internally
 ```
 
-The invariant is:
+The invariants are:
 
 ```text
 UI_MODE_MARKER != PRODUCT_TEMPORARY_PROOF
+HISTORY_ENUMERATION != DIRECT_ID_READABILITY
 ```
 
 Accordingly `semantic:document-title-temporary`, `semantic:url-temporary`, and `semantic:product-notice` are diagnostic UI marker signals only. They no longer set `selected=true` and no longer count as selection proof.
 
-## 11. Fresh-root history-presence probe
+## 11. Live history observation F — early exact-link presence was not a persistence proof
 
-Manual sidebar observation is already evidence, but PR8.7 should make T4 reproducible without relying on chat titles or human visual matching.
+A first fresh-root history probe for the Run E conversation returned:
 
-The next no-write diagnostic is:
+```text
+probe_context                 fresh_root_history_presence
+history_link_present          true
+history_visible_link_present  true
+conversation_link_count       37
+history_surface_ready         true
+foreground_activation         false
+probe_tab_closed              true
+elapsed_ms                    2291
+```
+
+The user then reported an important manual observation: the Temporary conversation could no longer be found on the site.
+
+This changes the interpretation of the first history probe. The probe stopped immediately after the first exact-link match, so it only established:
+
+```text
+an exact /c/<id> anchor was visible during early root-page loading/hydration
+```
+
+It did **not** establish:
+
+```text
+the conversation remained stably present in normal history after synchronization
+```
+
+Therefore the previous interpretation:
+
+```text
+T4 no ordinary-history persistence = FAIL / CONTRADICTED
+```
+
+is withdrawn.
+
+The current interpretation is:
+
+```text
+T1 page-owned one-shot write        PASS
+T2 canonical terminal/readback      PASS
+T3 identity characterization        PASS
+T4 user-history persistence         TRANSIENT / UNRESOLVED
+```
+
+The capability remains:
+
+```text
+temporary_chat = UNKNOWN
+```
+
+because stable absence still needs evidence, but the current evidence no longer supports claiming a durable-history failure.
+
+## 12. History settling probe
+
+The history diagnostic now observes the exact conversation link across a bounded settling window instead of exiting on first sight.
+
+Command:
 
 ```powershell
 python -m chatgpt_web_adapter.temporary_chat_history_probe \
@@ -313,34 +376,77 @@ python -m chatgpt_web_adapter.temporary_chat_history_probe \
   --timeout 30
 ```
 
-It performs:
+It reports:
 
 ```text
-fresh inactive https://chatgpt.com/
-        -> wait for fresh page/history surface
-        -> inspect only same-origin /c/<id> links
-        -> compare exact returned conversation_id
-        -> export booleans/counts only
-        -> close probe tab
+history_link_present
+history_visible_link_present
+final_history_link_present
+final_history_visible_link_present
+stable_history_presence
+transient_history_presence
+disappeared_after_seen
+first_seen_ms
+last_seen_ms
+seen_sample_count
+absent_sample_count
+settle_window_ms
+observation_window_ms
 ```
 
-It does not export conversation titles, link text, raw DOM, prompt text, or assistant text and performs no chat write.
-
-A result such as:
+Interpretation:
 
 ```text
-history_surface_ready      true
-history_link_present       true
-history_visible_link_present true
+stable_history_presence=true
+    -> strong evidence of ordinary user-history persistence
+
+transient_history_presence=true
+and final_history_visible_link_present=false
+    -> the link appeared during hydration but disappeared after synchronization
+
+history_link_present=false
+    -> absence observation only; still weaker than a positive stable-presence result
 ```
 
-would independently reproduce the manual T4 failure after a fresh page load.
+The probe remains no-write and does not export conversation titles, link text, raw DOM, prompt text, or assistant text.
 
-Absence is weaker evidence than presence because sidebar loading/virtualization can hide entries, so `history_link_present=false` is not by itself sufficient to prove true Temporary semantics.
+## 13. Canonical-read materialization hypothesis
 
-## 12. What the Run E result changes architecturally
+Run E performed browserless `get_status`, `get_messages`, and `attach_conversation` immediately after closing the disposable Temporary-candidate page and before the first history probe.
 
-The canonical/read plane should **not** be redesigned merely because Temporary Chat is ephemeral at the product-policy level.
+Therefore one additional confound remains:
+
+```text
+Did canonical observation merely read a retained Temporary conversation,
+or can one of those read/attach operations influence normal history visibility?
+```
+
+PR8.7 must not assume either answer.
+
+The clean experiment is:
+
+```text
+new Temporary-candidate one-shot turn
+        -> close page
+        -> DO NOT perform canonical read yet
+        -> run settled fresh-root history observation
+        -> then perform canonical status/messages/attach
+        -> run settled fresh-root history observation again
+```
+
+This will separate:
+
+```text
+product write persistence behavior
+from
+possible read/attach materialization side effects
+```
+
+No private write-body reconstruction is required.
+
+## 14. What Run E changes architecturally
+
+The canonical/read plane should not be redesigned merely because Temporary Chat is ephemeral at the user-history policy level.
 
 Run E supports this model as a viable hypothesis:
 
@@ -349,40 +455,32 @@ ordinary backend conversation identity
         +
 ordinary canonical status/messages/attach
         +
-Temporary-specific persistence/personalization policy
+Temporary-specific user-history / personalization policy
 ```
 
-That is favorable for HDE because a future Temporary call may still use the same canonical observation machinery while differing only in write-mode governance and persistence provenance.
+That is favorable for HDE. A future Temporary call may be able to use the same canonical finality machinery while differing in conversation-mode governance, history behavior, memory behavior, and lifecycle/TTL.
 
-What remains unresolved is the actual activation boundary:
+For the intended HDE one-shot use case, the important requirement is not that the backend erase the object immediately after page close. The important requirement is that the request does not clutter ordinary ChatGPT history or participate in personalization memory, while the adapter can still obtain an authoritative response and reconcile the turn.
 
-```text
-Did our control click fail to activate Temporary before the POST?
-Did activation require additional settling/readiness?
-Did a UI Temporary marker appear without backend Temporary policy?
-Is there another product-state transition that occurs only after mutation?
-```
-
-The next experiments should answer those questions without reconstructing or replaying private protected write requests.
-
-## 13. Remaining evidence matrix
+## 15. Remaining evidence matrix
 
 ```text
 T0  unique Temporary control / isolated activation        PARTIAL PASS
 T1  one page-owned text turn                              PASS
 T2  terminal response/readback                            PASS
 T3  identity semantics                                    PASS
-T4  absence from ordinary history                         FAIL / CONTRADICTED
-T5  no normal durable fallback when activation fails      OPEN
-T6  continuation behavior                                 OPEN
-T7  requested/observed conversation-mode provenance       OPEN
-T8  TEMP -> NORMAL isolation                              OPEN
-T9  NORMAL -> TEMP isolation                              OPEN
-T10 cold/warm/runtime-tab recreation                      OPEN
-T11 capability UNKNOWN -> AVAILABLE                       BLOCKED
+T4  absence from stable ordinary history                  TRANSIENT / UNRESOLVED
+T5  canonical-read materialization side effect            OPEN
+T6  no normal durable fallback when activation fails      OPEN
+T7  continuation behavior                                 OPEN
+T8  requested/observed conversation-mode provenance       OPEN
+T9  TEMP -> NORMAL isolation                              OPEN
+T10 NORMAL -> TEMP isolation                              OPEN
+T11 cold/warm/runtime-tab recreation                      OPEN
+T12 capability UNKNOWN -> AVAILABLE                       BLOCKED
 ```
 
-## 14. Architecture-invalidation check
+## 16. Architecture-invalidation check
 
 No fundamental architecture invalidation has been observed.
 
@@ -391,8 +489,9 @@ The existing split can still express the evidence:
 ```text
 browser-owned page = mutation / product-authority plane
 browserless canonical client = identity/finality/read plane
-product persistence semantics = separate evidence dimension
+user-history persistence = separate product-policy evidence dimension
+server retention = separate from user-history visibility
 HDE/public runtime = still not exposed to Temporary-specific production policy
 ```
 
-The blocker is not canonical readability. The blocker is proving that the requested product mode actually receives Temporary persistence/personalization semantics before we expose it as a production capability.
+The blocker is no longer "Temporary must have a different identity" and it is not currently proven to be "Temporary persisted durably in history" either. The blocker is proving the actual product-mode semantics across write, stable history visibility, canonical readback, and personalization boundaries before exposing Temporary as a production capability.
