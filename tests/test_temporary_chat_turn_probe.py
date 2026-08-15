@@ -70,6 +70,10 @@ def _success_response(**overrides):
         "selectedAfterTurn": None,
         "preWriteProofSignals": [],
         "postTurnProofSignals": [],
+        "uiModeMarkerObservedBeforeWrite": False,
+        "uiModeMarkerObservedAfterTurn": True,
+        "preWriteUiModeSignals": [],
+        "postTurnUiModeSignals": ["semantic:document-title-temporary"],
         "conversationWriteCount": 1,
         "conversationId": "conversation-1",
         "turnExchangeId": "turn-1",
@@ -128,6 +132,11 @@ def test_turn_probe_serializes_explicit_diagnostic_write_and_observes_canonical_
     assert result.probe_context == "isolated_new_chat_temporary_turn"
     assert result.activation_action == "click_unique_control_without_selected_state_proof"
     assert result.selection_proven_before_write is False
+    assert result.selected_after_turn is None
+    assert result.post_turn_proof_signals == ()
+    assert result.ui_mode_marker_observed_before_write is False
+    assert result.ui_mode_marker_observed_after_turn is True
+    assert result.post_turn_ui_mode_signals == ("semantic:document-title-temporary",)
     assert result.conversation_write_count == 1
     assert result.conversation_id == "conversation-1"
     assert result.response_status == 200
