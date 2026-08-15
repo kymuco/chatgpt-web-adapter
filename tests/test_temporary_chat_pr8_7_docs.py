@@ -22,15 +22,18 @@ def test_pr87_docs_keep_temporary_chat_evidence_first_and_fail_closed() -> None:
     assert "FUNDAMENTAL_BOUNDARY_DISCOVERED" in text
 
 
-def test_pr87_live_evidence_separates_ui_marker_from_persistence_semantics() -> None:
+def test_pr87_live_evidence_separates_ui_marker_history_and_server_readability() -> None:
     text = LIVE_DOC.read_text(encoding="utf-8")
 
-    assert "T4  no ordinary-history persistence        FAIL / CONTRADICTED" in text
+    assert "T4 user-history persistence" in text
+    assert "TRANSIENT / UNRESOLVED" in text
     assert "UI_MODE_MARKER != PRODUCT_TEMPORARY_PROOF" in text
+    assert "HISTORY_ENUMERATION != DIRECT_ID_READABILITY" in text
     assert "semantic:document-title-temporary" in text
     assert "temporary_chat = UNKNOWN" in text
     assert "temporary_chat_history_probe" in text
-    assert "history_link_present" in text
+    assert "stable_history_presence" in text
+    assert "transient_history_presence" in text
     assert "ordinary backend conversation identity" in text
     assert "browserless canonical status/messages/attach" in text
 
