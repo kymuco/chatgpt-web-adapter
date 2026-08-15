@@ -44,6 +44,10 @@ class TemporaryChatTurnProbeResult:
     selected_after_turn: bool | None
     pre_write_proof_signals: tuple[str, ...]
     post_turn_proof_signals: tuple[str, ...]
+    ui_mode_marker_observed_before_write: bool
+    ui_mode_marker_observed_after_turn: bool
+    pre_write_ui_mode_signals: tuple[str, ...]
+    post_turn_ui_mode_signals: tuple[str, ...]
     conversation_write_count: int
     conversation_id: str | None
     turn_exchange_id: str | None
@@ -270,6 +274,18 @@ def probe_temporary_chat_turn(
         selected_after_turn=_optional_bool(response, "selectedAfterTurn"),
         pre_write_proof_signals=_safe_string_tuple(response.get("preWriteProofSignals")),
         post_turn_proof_signals=_safe_string_tuple(response.get("postTurnProofSignals")),
+        ui_mode_marker_observed_before_write=bool(
+            response.get("uiModeMarkerObservedBeforeWrite")
+        ),
+        ui_mode_marker_observed_after_turn=bool(
+            response.get("uiModeMarkerObservedAfterTurn")
+        ),
+        pre_write_ui_mode_signals=_safe_string_tuple(
+            response.get("preWriteUiModeSignals")
+        ),
+        post_turn_ui_mode_signals=_safe_string_tuple(
+            response.get("postTurnUiModeSignals")
+        ),
         conversation_write_count=_optional_int(response, "conversationWriteCount") or 0,
         conversation_id=conversation_id,
         turn_exchange_id=_optional_str(response, "turnExchangeId"),
