@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Web Adapter Browser Native Bridge",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Persistent background ChatGPT turn runtime for chatgpt-web-adapter.",
   "minimum_chrome_version": "118",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5mWXlQie901Dp/YyR4fgMEn6OmidZgODbcv1HDKoAo7xTMuer648M5jxrkfTHZCiq2uxPQYGhe7gSbqFeYZsX9YPQW12OGHykz5WKl2y3e+9tKqnvoWRbmHlegU3d+Sx+Nu6k4sXePP91aeJotorM8T8DMl7SY9djvUR2MHgvU7PmnHJRXpy0YC/J0avUa208J5lRxMw1rabaHaRVO96g0bnRLGt0hpGG2Hz6EklU2s/wtfnhWjVk6eFy6EHFLk9c97r8iQYGgO1/syAWK4d4Mqe1rx+3sqv6tQzk6iyyG7Q1l6g58yMuM3O76AWlB+H5UPquFsnK/5Atgx06h9GvwIDAQAB",
   "permissions": ["debugger", "tabs", "storage", "nativeMessaging"],
   "host_permissions": ["https://chatgpt.com/*"],
   "background": {
-    "service_worker": "service_worker_temporary_chat_semantic_notice.js"
+    "service_worker": "service_worker_temporary_chat_turn_probe.js"
   },
   "action": {
     "default_title": "ChatGPT Web Adapter bridge"
