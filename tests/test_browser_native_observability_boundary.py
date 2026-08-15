@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 
@@ -9,10 +8,11 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SRC = ROOT / "src" / "chatgpt_web_adapter"
 
 
-def test_manifest_routes_through_observability_wrapper() -> None:
-    manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.1.4"
-    assert manifest["background"]["service_worker"] == "service_worker_observability.js"
+def test_current_wrapper_routes_through_observability_layer() -> None:
+    reconciliation = (EXT / "service_worker_runtime_tab_reconciliation.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'importScripts("service_worker_observability.js")' in reconciliation
 
 
 def test_observability_worker_is_metadata_only() -> None:

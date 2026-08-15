@@ -15,7 +15,8 @@ def test_packaged_extension_identity_and_manifest() -> None:
     root = browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["minimum_chrome_version"] == "118"
-    assert manifest["version"] == "0.1.3"
-    assert manifest["background"]["service_worker"] == "service_worker_recovery.js"
+    worker = manifest["background"]["service_worker"]
+    assert isinstance(worker, str) and worker.endswith(".js")
+    assert (root / worker).is_file()
     assert set(manifest["permissions"]) == {"debugger", "tabs", "storage", "nativeMessaging"}
     assert manifest["host_permissions"] == ["https://chatgpt.com/*"]

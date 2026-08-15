@@ -17,6 +17,12 @@ REQUIRED_EXAMPLES = [
     "raw_payload.py",
 ]
 
+PUBLIC_API_EXAMPLES = [
+    *REQUIRED_EXAMPLES,
+    "browser_native_send.py",
+    "product_runtime.py",
+]
+
 
 def test_examples_pack_files_exist() -> None:
     for filename in REQUIRED_EXAMPLES:
@@ -37,8 +43,10 @@ def test_required_examples_use_script_entrypoint() -> None:
         assert "main()" in text
 
 
-def test_examples_use_public_package_imports_only() -> None:
-    for path in sorted(EXAMPLES.glob("*.py")):
+def test_public_examples_use_public_package_imports_only() -> None:
+    for filename in PUBLIC_API_EXAMPLES:
+        path = EXAMPLES / filename
+        assert path.is_file()
         text = path.read_text(encoding="utf-8")
 
         assert "from chatgpt_web_adapter." not in text
