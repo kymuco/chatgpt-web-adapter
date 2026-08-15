@@ -106,9 +106,16 @@ def _message_model(message: dict[str, Any]) -> str | None:
 def _message_finish_reason(message: dict[str, Any]) -> str | None:
     metadata = _message_metadata(message)
     finish_details = metadata.get("finish_details")
-    if not isinstance(finish_details, dict):
-        return None
-    return _optional_str(finish_details.get("type"))
+    if isinstance(finish_details, dict):
+        finish_type = _optional_str(finish_details.get("type"))
+        if finish_type:
+            return finish_type
+
+    finish_reason = _optional_str(metadata.get("finish_reason"))
+    if finish_reason:
+        return finish_reason
+
+    return _optional_str(message.get("finish_reason"))
 
 
 def _message_metadata_preview(message: dict[str, Any]) -> dict[str, Any]:

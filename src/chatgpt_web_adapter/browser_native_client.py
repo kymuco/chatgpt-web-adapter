@@ -43,6 +43,15 @@ def _canonical_status_value(self: Any, conversation: Any) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _status_finalizes_message(status: Any, message_id: str) -> bool:
+    if status is None or not isinstance(message_id, str) or not message_id:
+        return False
+    return (
+        getattr(status, "status", None) == "completed"
+        and getattr(status, "message_id", None) == message_id
+    )
+
+
 def _wait_for_new_final_assistant(
     self: Any,
     conversation_id: str,
@@ -69,12 +78,14 @@ def _wait_for_new_final_assistant(
             for message in messages
             if isinstance(getattr(message, "message_id", None), str)
             and message.message_id not in baseline_assistant_ids
-            and isinstance(getattr(message, "finish_reason", None), str)
-            and bool(message.finish_reason)
             and bool(getattr(message, "text", "").strip())
         ]
-        if candidates:
-            return candidates[-1]
+        for candidate in reversed(candidates):
+            finish_reason = getattr(candidate, "finish_reason", None)
+            if isinstance(finish_reason, str) and bool(finish_reason.strip()):
+                return candidate
+            if _status_finalizes_message(last_status, candidate.message_id):
+                return candidate
         if time.monotonic() >= deadline:
             raise ConversationTimeoutError(
                 "browser-native write completed but canonical assistant readback did not finish",
