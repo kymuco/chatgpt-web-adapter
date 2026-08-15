@@ -95,10 +95,12 @@ def test_temporary_probe_adds_semantic_notice_characterization_and_dismisses_too
     assert "semantic:product-notice" in worker
     assert "semantic:document-title-temporary" in worker
     assert "semantic:url-temporary" in worker
-    assert "semantic-category:history" in worker
-    assert "semantic-category:memory" in worker
-    assert "semantic-category:training" in worker
-    assert "semantic-category:temporary" in worker
+    # Category names are declared as data and serialized through the generic
+    # `semantic-category:` prefix. Do not require impossible pre-expanded
+    # literal strings such as `semantic-category:history` in source code.
+    assert "semantic-category:" in worker
+    for category in ("history", "memory", "training", "temporary"):
+        assert f"{category}: [" in worker
     assert "closest('[role=\"tooltip\"],[data-radix-popper-content-wrapper]')" in worker
     assert 'type: "mouseMoved"' in worker
     assert "x: 1" in worker
