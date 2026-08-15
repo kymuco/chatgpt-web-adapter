@@ -5,6 +5,11 @@ importScripts("service_worker_temporary_chat_ax_semantics.js");
 // AX pressed/checked/selected state. Characterize the documented active-mode UI
 // through bounded page-level semantic notice signals while keeping raw text,
 // DOM, accessible names, and product payloads browser-local.
+//
+// PR8.7 live evidence later showed that a post-turn Temporary-looking document
+// title can coexist with a conversation that is visible in ordinary history.
+// Therefore title/URL/notice observations are UI mode markers only. They MUST
+// NOT be promoted into selected-state proof or product Temporary semantics.
 
 const _pr87SemanticPriorTemporaryControlSnapshot = _pr87TemporaryControlSnapshot;
 const _pr87SemanticPriorClickPoint = _pr87ClickPoint;
@@ -105,12 +110,12 @@ function _pr87SemanticNoticeExpression() {
     const urlHasTemporary = normalize(url.pathname + ' ' + url.search + ' ' + url.hash)
       .includes('temporary');
 
-    const noticeProven = semanticCandidates.length > 0;
-    const selectionProven = Boolean(titleHasTemporary || urlHasTemporary || noticeProven);
-    const proofSignals = [];
-    if (titleHasTemporary) proofSignals.push('semantic:document-title-temporary');
-    if (urlHasTemporary) proofSignals.push('semantic:url-temporary');
-    if (noticeProven) proofSignals.push('semantic:product-notice');
+    const noticeObserved = semanticCandidates.length > 0;
+    const modeMarkerObserved = Boolean(titleHasTemporary || urlHasTemporary || noticeObserved);
+    const modeMarkerSignals = [];
+    if (titleHasTemporary) modeMarkerSignals.push('semantic:document-title-temporary');
+    if (urlHasTemporary) modeMarkerSignals.push('semantic:url-temporary');
+    if (noticeObserved) modeMarkerSignals.push('semantic:product-notice');
 
     const stateSignals = [
       'semantic-candidate-count:' + semanticCandidates.length,
@@ -126,9 +131,11 @@ function _pr87SemanticNoticeExpression() {
       roles,
       titleHasTemporary,
       urlHasTemporary,
-      noticeProven,
-      selectionProven,
-      proofSignals,
+      noticeObserved,
+      modeMarkerObserved,
+      modeMarkerSignals,
+      selectionProven: false,
+      proofSignals: [],
       stateSignals
     };
   })()`;
@@ -152,7 +159,9 @@ async function _pr87SemanticNoticeSnapshot(debuggee) {
     roles: [],
     titleHasTemporary: false,
     urlHasTemporary: false,
-    noticeProven: false,
+    noticeObserved: false,
+    modeMarkerObserved: false,
+    modeMarkerSignals: [],
     selectionProven: false,
     proofSignals: [],
     stateSignals: ["semantic-probe-failed"]
@@ -187,23 +196,22 @@ _pr87TemporaryControlSnapshot = async function _pr87TemporaryControlSnapshotWith
     ])).sort();
   }
 
-  let selected = typeof base?.selected === "boolean" ? base.selected : null;
-  let proofSignals = Array.isArray(base?.proofSignals) ? [...base.proofSignals] : [];
+  const selected = typeof base?.selected === "boolean" ? base.selected : null;
+  const proofSignals = Array.isArray(base?.proofSignals) ? [...base.proofSignals] : [];
   const stateSignals = Array.isArray(base?.stateSignals) ? [...base.stateSignals] : [];
   stateSignals.push(...semanticStateSignals);
 
-  if (selected === null && semantic?.selectionProven === true) {
-    selected = true;
-    if (Array.isArray(semantic?.proofSignals)) {
-      proofSignals.push(...semantic.proofSignals.filter((value) => typeof value === "string"));
-    }
-  }
+  const modeMarkerSignals = Array.isArray(semantic?.modeMarkerSignals)
+    ? semantic.modeMarkerSignals.filter((value) => typeof value === "string")
+    : [];
 
   return {
     ...base,
     selected,
     proofSignals: Array.from(new Set(proofSignals)),
     stateSignals: Array.from(new Set(stateSignals)),
+    modeMarkerObserved: semantic?.modeMarkerObserved === true,
+    modeMarkerSignals: Array.from(new Set(modeMarkerSignals)),
     semanticSnapshot: semantic
   };
 };
