@@ -22,20 +22,26 @@ def test_pr87_docs_keep_temporary_chat_evidence_first_and_fail_closed() -> None:
     assert "FUNDAMENTAL_BOUNDARY_DISCOVERED" in text
 
 
-def test_pr87_live_evidence_separates_ui_marker_history_and_server_readability() -> None:
+def test_pr87_live_evidence_reclassifies_run_e_and_requires_manual_ground_truth() -> None:
     text = LIVE_DOC.read_text(encoding="utf-8")
 
-    assert "T4 user-history persistence" in text
-    assert "TRANSIENT / UNRESOLVED" in text
+    assert "ORDINARY DURABLE CONTROL" in text
+    assert "ordinary-control evidence only" in text
+    assert "Manual Temporary ground-truth probe" in text
+    assert "temporary_chat_manual_ground_truth_probe" in text
+    assert "manual-temporary-confirmed" in text
+    assert "does NOT click Temporary" in text
+    assert "BEFORE ANY CANONICAL READ" in text
+    assert "true Temporary canonical read while page open" in text
+    assert "true Temporary canonical read after page close" in text
     assert "UI_MODE_MARKER != PRODUCT_TEMPORARY_PROOF" in text
     assert "HISTORY_ENUMERATION != DIRECT_ID_READABILITY" in text
-    assert "semantic:document-title-temporary" in text
     assert "temporary_chat = UNKNOWN" in text
-    assert "temporary_chat_history_probe" in text
     assert "stable_history_presence" in text
-    assert "transient_history_presence" in text
-    assert "ordinary backend conversation identity" in text
-    assert "browserless canonical status/messages/attach" in text
+
+    # The ordinary Run E readback must not be used as Temporary evidence.
+    assert '"Temporary uses an ordinary backend conversation identity"' in text
+    assert "Those questions are **OPEN again**" in text
 
 
 def test_pr87_characterization_commit_does_not_claim_transport_availability() -> None:
