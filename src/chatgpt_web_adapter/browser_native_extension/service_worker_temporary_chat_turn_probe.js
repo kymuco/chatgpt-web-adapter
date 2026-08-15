@@ -100,6 +100,9 @@ async function _pr87TurnProbeExecute(message) {
     const preWriteProofSignals = Array.isArray(afterActivation?.proofSignals)
       ? afterActivation.proofSignals.filter((value) => typeof value === "string")
       : [];
+    const preWriteUiModeSignals = Array.isArray(afterActivation?.modeMarkerSignals)
+      ? afterActivation.modeMarkerSignals.filter((value) => typeof value === "string")
+      : [];
 
     let conversationRequestId = null;
     let conversationWriteCount = 0;
@@ -195,6 +198,9 @@ async function _pr87TurnProbeExecute(message) {
     );
 
     const afterTurn = await _pr87TemporaryControlSnapshot(debuggee);
+    const postTurnUiModeSignals = Array.isArray(afterTurn?.modeMarkerSignals)
+      ? afterTurn.modeMarkerSignals.filter((value) => typeof value === "string")
+      : [];
     const finalTab = await chrome.tabs.get(tabId);
     const urlConversationId = conversationIdFromUrl(finalTab.url || "");
     const resolvedConversationId = safeMetadata.conversationId || urlConversationId;
@@ -226,6 +232,10 @@ async function _pr87TurnProbeExecute(message) {
       postTurnProofSignals: Array.isArray(afterTurn?.proofSignals)
         ? afterTurn.proofSignals.filter((value) => typeof value === "string")
         : [],
+      uiModeMarkerObservedBeforeWrite: afterActivation?.modeMarkerObserved === true,
+      uiModeMarkerObservedAfterTurn: afterTurn?.modeMarkerObserved === true,
+      preWriteUiModeSignals,
+      postTurnUiModeSignals,
       conversationWriteCount,
       conversationId: typeof resolvedConversationId === "string" ? resolvedConversationId : null,
       turnExchangeId: typeof safeMetadata.turnExchangeId === "string"
