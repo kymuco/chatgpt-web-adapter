@@ -20,6 +20,9 @@ COMPLETED_ASYNC_STATUSES = {
     "success",
     "succeeded",
 }
+COMPLETED_MESSAGE_STATUSES = {
+    "finished_successfully",
+}
 PENDING_APPROVAL_BOOL_KEYS = (
     "pending_approval",
     "requires_approval",
@@ -132,6 +135,19 @@ def _message_finish_reason(message: dict[str, Any] | None) -> str | None:
         return finish_reason
 
     return _optional_str(message.get("finish_reason"))
+
+
+def _message_status(message: dict[str, Any] | None) -> str | None:
+    if not isinstance(message, dict):
+        return None
+    return _optional_str(message.get("status"))
+
+
+def _message_end_turn(message: dict[str, Any] | None) -> bool | None:
+    if not isinstance(message, dict):
+        return None
+    value = message.get("end_turn")
+    return value if isinstance(value, bool) else None
 
 
 def _async_status(
@@ -272,10 +288,13 @@ def _status_from_signals(
     role: str | None,
     recipient: str | None,
     async_status: str | None,
+    message_status: str | None,
+    end_turn: bool | None,
     finish_reason: str | None,
     pending_approval: bool,
 ) -> str:
     normalized_async_status = _normalized_status(async_status)
+    normalized_message_status = _normalized_status(message_status)
 
     if pending_approval:
         return "awaiting_tool_approval"
@@ -285,11 +304,25 @@ def _status_from_signals(
         return "tool_calling"
     if normalized_async_status in ACTIVE_ASYNC_STATUSES:
         return "running"
+    if normalized_message_status in ACTIVE_ASYNC_STATUSES:
+        return "running"
     if role == "user":
         return "user_last_message"
     if role == "assistant" and recipient in {None, "all"} and finish_reason:
         return "completed"
-    if role == "assistant" and recipient in {None, "all"} and normalized_async_status in COMPLETED_ASYNC_STATUSES:
+    if (
+        role == "assistant"
+        and recipient in {None, "all"}
+        and normalized_async_status in COMPLETED_ASYNC_STATUSES
+    ):
+        return "completed"
+    if (
+        role == "assistant"
+        and recipient in {None, "all"}
+        and normalized_message_status in COMPLETED_MESSAGE_STATUSES
+    ):
+        return "completed"
+    if role == "assistant" and recipient in {None, "all"} and end_turn is True:
         return "completed"
     if role == "assistant" and not finish_reason and recipient in {None, "all"}:
         return "running"
@@ -311,15 +344,25 @@ def _status_from_payload(payload: dict[str, Any]) -> ConversationStatus:
     role = _message_role(message)
     recipient = _optional_str(message.get("recipient"))
     async_status = _async_status(payload, node, message)
+    message_status = _message_status(message)
+    end_turn = _message_end_turn(message)
     finish_reason = _message_finish_reason(message)
     pending_approval = _has_pending_approval(payload, node, message)
     status = _status_from_signals(
         role=role,
         recipient=recipient,
         async_status=async_status,
+        message_status=message_status,
+        end_turn=end_turn,
         finish_reason=finish_reason,
         pending_approval=pending_approval,
     )
+
+    metadata_preview = _metadata_preview(message)
+    if message_status is not None:
+        metadata_preview["message_status"] = message_status
+    if end_turn is not None:
+        metadata_preview["end_turn"] = end_turn
 
     return ConversationStatus(
         status=status,
@@ -330,7 +373,7 @@ def _status_from_payload(payload: dict[str, Any]) -> ConversationStatus:
         async_status=async_status,
         finish_reason=finish_reason,
         pending_approval=pending_approval,
-        metadata_preview=_metadata_preview(message),
+        metadata_preview=metadata_preview,
     )
 
 

@@ -14,7 +14,7 @@ from chatgpt_web_adapter.client import ChatGPTWebClient
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="PR8.2.4a.1 browser-owned ChatGPT write runtime with finality repair"
+        description="PR8.2.4a.2 browser-owned ChatGPT write runtime with message-level finality repair"
     )
     parser.add_argument("--conversation")
     parser.add_argument("--auth-file", type=Path, default=Path("auth_data.json"))
@@ -35,7 +35,7 @@ def main() -> None:
     health = runtime.health(args.conversation)
 
     report = {
-        "pr": "PR8.2.4a.1",
+        "pr": "PR8.2.4a.2",
         "health": health.to_dict(),
         "governance": runtime.governance(),
     }
