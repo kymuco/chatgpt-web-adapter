@@ -1,14 +1,19 @@
 importScripts("service_worker_temporary_chat_turn_probe.js");
 
 // PR8.7 live characterization #5:
-// After a Temporary-looking one-shot turn, manual observation reported that the
-// returned conversation appeared in ordinary ChatGPT history. Verify that
-// user-facing persistence signal without another chat write by opening a fresh
-// inactive root page and checking only whether an exact /c/<conversation_id>
-// link is present. Conversation titles, link text, raw DOM, and page payloads
-// never leave the browser context.
+// A Temporary-candidate conversation can be briefly represented by an exact
+// /c/<conversation_id> anchor while a fresh ChatGPT root page hydrates. A single
+// early anchor observation is therefore NOT equivalent to durable user-history
+// persistence. Observe the exact link across a bounded settling window and
+// report transient vs stable presence without exporting titles, link text, raw
+// DOM, or page payloads.
 
 const _pr87HistoryProbePriorExecuteNativeTurn = executeNativeTurn;
+const PR87_HISTORY_DEFAULT_TIMEOUT_MS = 30_000;
+const PR87_HISTORY_MIN_SETTLE_MS = 8_000;
+const PR87_HISTORY_MAX_SETTLE_MS = 15_000;
+const PR87_HISTORY_SAMPLE_MS = 500;
+const PR87_HISTORY_STABLE_SAMPLE_COUNT = 4;
 
 function _pr87HistoryProbeExpression(conversationId) {
   const encodedId = JSON.stringify(conversationId);
@@ -63,7 +68,14 @@ async function _pr87ProbeHistoryPresence(message) {
     throw new Error("TEMPORARY_CHAT_HISTORY_PROBE_CONVERSATION_ID_REQUIRED");
   }
 
-  const timeoutMs = Math.max(5_000, Math.min(60_000, Number(message?.timeoutMs) || 30_000));
+  const timeoutMs = Math.max(
+    10_000,
+    Math.min(60_000, Number(message?.timeoutMs) || PR87_HISTORY_DEFAULT_TIMEOUT_MS)
+  );
+  const settleWindowMs = Math.min(
+    PR87_HISTORY_MAX_SETTLE_MS,
+    Math.max(PR87_HISTORY_MIN_SETTLE_MS, timeoutMs - 5_000)
+  );
   const startedAt = performance.now();
   let tabId = null;
   let debuggee = null;
@@ -74,6 +86,14 @@ async function _pr87ProbeHistoryPresence(message) {
   let tabActivatedDuringProbe = false;
   let probeTabClosed = false;
   let lastSnapshot = null;
+  let historyReadyAtMs = null;
+  let firstSeenMs = null;
+  let lastSeenMs = null;
+  let seenSampleCount = 0;
+  let absentSampleCount = 0;
+  let disappearedAfterSeen = false;
+  let seenPreviously = false;
+  const finalVisibleSamples = [];
 
   const activatedTabIds = new Set();
   activationListener = (activeInfo) => {
@@ -102,9 +122,36 @@ async function _pr87ProbeHistoryPresence(message) {
       });
       const value = evaluated?.result?.value;
       if (value && typeof value === "object") lastSnapshot = value;
-      if (lastSnapshot?.exactLinkPresent === true) break;
-      if (lastSnapshot?.mainPresent === true && lastSnapshot?.navPresent === true && elapsedMs(startedAt) >= 5_000) break;
-      await sleep(500);
+
+      const nowMs = elapsedMs(startedAt);
+      const historyReady = lastSnapshot?.mainPresent === true && lastSnapshot?.navPresent === true;
+      if (historyReady && historyReadyAtMs == null) historyReadyAtMs = nowMs;
+
+      if (historyReady) {
+        const visible = lastSnapshot?.exactVisibleLinkPresent === true;
+        if (visible) {
+          seenSampleCount += 1;
+          if (firstSeenMs == null) firstSeenMs = nowMs;
+          lastSeenMs = nowMs;
+          seenPreviously = true;
+        } else {
+          absentSampleCount += 1;
+          if (seenPreviously) disappearedAfterSeen = true;
+        }
+        finalVisibleSamples.push(visible);
+        if (finalVisibleSamples.length > PR87_HISTORY_STABLE_SAMPLE_COUNT) {
+          finalVisibleSamples.shift();
+        }
+      }
+
+      if (
+        historyReadyAtMs != null &&
+        nowMs - historyReadyAtMs >= settleWindowMs &&
+        finalVisibleSamples.length >= PR87_HISTORY_STABLE_SAMPLE_COUNT
+      ) {
+        break;
+      }
+      await sleep(PR87_HISTORY_SAMPLE_MS);
     }
 
     try {
@@ -129,11 +176,28 @@ async function _pr87ProbeHistoryPresence(message) {
   }
 
   const snapshot = lastSnapshot && typeof lastSnapshot === "object" ? lastSnapshot : {};
+  const stableHistoryPresence = (
+    finalVisibleSamples.length >= PR87_HISTORY_STABLE_SAMPLE_COUNT &&
+    finalVisibleSamples.every((value) => value === true)
+  );
+  const transientHistoryPresence = firstSeenMs != null && disappearedAfterSeen;
+
   return {
-    probeContext: "fresh_root_history_presence",
+    probeContext: "fresh_root_history_settling",
     conversationId,
-    historyLinkPresent: snapshot.exactLinkPresent === true,
-    historyVisibleLinkPresent: snapshot.exactVisibleLinkPresent === true,
+    historyLinkPresent: firstSeenMs != null,
+    historyVisibleLinkPresent: firstSeenMs != null,
+    finalHistoryLinkPresent: snapshot.exactLinkPresent === true,
+    finalHistoryVisibleLinkPresent: snapshot.exactVisibleLinkPresent === true,
+    stableHistoryPresence,
+    transientHistoryPresence,
+    disappearedAfterSeen,
+    firstSeenMs,
+    lastSeenMs,
+    seenSampleCount,
+    absentSampleCount,
+    settleWindowMs,
+    observationWindowMs: elapsedMs(startedAt),
     conversationLinkCount: Number.isInteger(snapshot.conversationLinkCount)
       ? snapshot.conversationLinkCount
       : 0,
