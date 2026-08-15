@@ -29,6 +29,9 @@ class _Provider:
             runtime_tab_id=self.tab_id,
         )
 
+    def send_text(self, *args, **kwargs):
+        raise AssertionError("test provider write should not be called")
+
 
 class _Client:
     def __init__(self, status: str = "completed") -> None:
