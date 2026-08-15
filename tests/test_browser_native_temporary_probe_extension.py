@@ -10,7 +10,7 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
 
-    assert manifest["version"] == "0.1.11"
+    assert manifest["version"] == "0.1.12"
     assert worker_name == "service_worker_temporary_chat_history_probe.js"
 
     history_worker = (root / worker_name).read_text(encoding="utf-8")
@@ -107,7 +107,8 @@ def test_temporary_page_semantics_are_ui_markers_not_selection_proof() -> None:
     assert "modeMarkerSignals" in worker
     assert "selectionProven: false" in worker
     assert "proofSignals: []" in worker
-    assert "MUST NOT be promoted into selected-state proof" in worker
+    assert "NOT be promoted into selected-state proof" in worker
+    assert "product Temporary semantics" in worker
     assert "semantic-category:" in worker
     for category in ("history", "memory", "training", "temporary"):
         assert f"{category}: [" in worker
@@ -140,7 +141,7 @@ def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization
     assert "Raw prompt/assistant text" in worker
 
 
-def test_temporary_history_probe_is_fresh_root_no_write_exact_link_observation() -> None:
+def test_temporary_history_probe_observes_exact_link_over_settling_window() -> None:
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat_history_probe.js").read_text(
         encoding="utf-8"
@@ -152,10 +153,16 @@ def test_temporary_history_probe_is_fresh_root_no_write_exact_link_observation()
     assert "document.querySelectorAll('a[href]')" in worker
     assert "exactLinkPresent" in worker
     assert "exactVisibleLinkPresent" in worker
-    assert "conversationLinkCount" in worker
+    assert "PR87_HISTORY_MIN_SETTLE_MS" in worker
+    assert "PR87_HISTORY_MAX_SETTLE_MS" in worker
+    assert "stableHistoryPresence" in worker
+    assert "transientHistoryPresence" in worker
+    assert "disappearedAfterSeen" in worker
+    assert "firstSeenMs" in worker
+    assert "finalHistoryVisibleLinkPresent" in worker
     assert "Input.insertText" not in worker
     assert "submitOfficialPageTurn" not in worker
-    assert "Conversation titles, link text, raw DOM" in worker
+    assert "Conversation titles, link text, raw" in worker
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:
