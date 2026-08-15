@@ -8,24 +8,31 @@ SRC = ROOT / "src" / "chatgpt_web_adapter"
 
 
 def test_product_runtime_has_no_legacy_direct_write_fallback() -> None:
-    source = (SRC / "product_runtime.py").read_text(encoding="utf-8")
-    assert 'SUPPORTED_PRODUCT_TRANSPORTS: tuple[str, ...] = (BROWSER_OWNED_PRODUCT_TRANSPORT,)' in source
-    assert '"fallback_transport": None' in source
-    assert '"legacy_direct_write_fallback": False' in source
-    assert "self.client.send(" not in source
-    assert "send_to_conversation(" not in source
-    assert "send_payload(" not in source
-    assert "CHAT_BACKEND_URL" not in source
-    assert "proof_token" not in source.lower()
-    assert "turnstile" not in source.lower()
+    runtime_source = (SRC / "product_runtime.py").read_text(encoding="utf-8")
+    transport_source = (SRC / "product_transport.py").read_text(encoding="utf-8")
+
+    assert 'SUPPORTED_PRODUCT_TRANSPORTS: tuple[str, ...] = (BROWSER_OWNED_PRODUCT_TRANSPORT,)' in transport_source
+    assert '"fallback_transport": None' in runtime_source
+    assert '"legacy_direct_write_fallback": False' in runtime_source
+    assert "self.client.send(" not in runtime_source
+    assert "send_to_conversation(" not in runtime_source
+    assert "send_payload(" not in runtime_source
+    assert "CHAT_BACKEND_URL" not in runtime_source
+    assert "proof_token" not in runtime_source.lower()
+    assert "turnstile" not in runtime_source.lower()
 
 
-def test_product_runtime_assembly_is_noninteractive_and_non_sentinel() -> None:
-    source = (SRC / "product_runtime.py").read_text(encoding="utf-8")
-    assert "auto_login=False" in source
-    assert "auto_sentinel=False" in source
-    assert "auto_refresh_auth=auto_refresh_auth" in source
-    assert "BrowserOwnedProductWriteRuntime" in source
+def test_product_runtime_assembly_is_noninteractive_non_sentinel_and_interface_based() -> None:
+    runtime_source = (SRC / "product_runtime.py").read_text(encoding="utf-8")
+    adapter_source = (SRC / "browser_owned_product_transport.py").read_text(encoding="utf-8")
+
+    assert "auto_login=False" in runtime_source
+    assert "auto_sentinel=False" in runtime_source
+    assert "auto_refresh_auth=auto_refresh_auth" in runtime_source
+    assert "ProductWriteTransport" in runtime_source
+    assert "CanonicalConversationClient" in runtime_source
+    assert "BrowserOwnedProductWriteRuntime" not in runtime_source
+    assert "BrowserOwnedProductWriteRuntime" in adapter_source
 
 
 def test_cli_uses_same_product_runtime_assembly_contract() -> None:
