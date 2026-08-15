@@ -11,7 +11,14 @@ importScripts("service_worker_temporary_chat_semantic_notice.js");
 // metadata. Raw prompt/assistant text, request headers, request bodies, response
 // bodies, cookies, protection material, and raw DOM/AX data stay browser-local.
 
+const PR87_TEMPORARY_TURN_PROBE_DEFAULT_TIMEOUT_MS = 150_000;
+const PR87_TEMPORARY_TURN_PROBE_MAX_TIMEOUT_MS = 300_000;
 const _pr87TurnProbePriorExecuteNativeTurn = executeNativeTurn;
+
+function _pr87ClampTurnProbeTimeoutMs(value) {
+  if (!Number.isFinite(value)) return PR87_TEMPORARY_TURN_PROBE_DEFAULT_TIMEOUT_MS;
+  return Math.max(10_000, Math.min(Number(value), PR87_TEMPORARY_TURN_PROBE_MAX_TIMEOUT_MS));
+}
 
 function _pr87TurnProbeUrlKind(url) {
   try {
@@ -30,7 +37,7 @@ async function _pr87TurnProbeExecute(message) {
   if (!text.trim()) throw new Error("TEMPORARY_CHAT_TURN_PROBE_TEXT_REQUIRED");
   if (text.length > 20_000) throw new Error("TEMPORARY_CHAT_TURN_PROBE_TEXT_TOO_LARGE");
 
-  const timeoutMs = _pr87ClampProbeTimeoutMs(message?.timeoutMs);
+  const timeoutMs = _pr87ClampTurnProbeTimeoutMs(message?.timeoutMs);
   const startedAt = performance.now();
   let tabId = null;
   let debuggee = null;
