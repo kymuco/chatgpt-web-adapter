@@ -17,6 +17,11 @@ from .browser_native_install import (
 from .browser_native_provider import BrowserNativeTurnProvider
 from .client import ChatGPTWebClient
 from .exceptions import WebChatAdapterError
+from .product_runtime import (
+    DEFAULT_PRODUCT_TRANSPORT,
+    SUPPORTED_PRODUCT_TRANSPORTS,
+    assemble_product_runtime,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -69,6 +74,37 @@ def _build_parser() -> argparse.ArgumentParser:
         "extension-dir",
         help="print the packaged unpacked-extension directory",
     )
+
+    runtime = commands.add_parser(
+        "runtime",
+        help="use the production ordinary-ChatGPT product runtime",
+    )
+    runtime_commands = runtime.add_subparsers(dest="runtime_command", required=True)
+
+    def add_runtime_common(command: argparse.ArgumentParser) -> None:
+        add_auth_file(command)
+        command.add_argument(
+            "--transport",
+            choices=SUPPORTED_PRODUCT_TRANSPORTS,
+            default=DEFAULT_PRODUCT_TRANSPORT,
+            help="explicit product transport; no automatic fallback is performed",
+        )
+        command.add_argument("--conversation")
+
+    runtime_status = runtime_commands.add_parser(
+        "status",
+        help="show production runtime readiness for a new or existing conversation",
+    )
+    add_runtime_common(runtime_status)
+
+    runtime_send = runtime_commands.add_parser(
+        "send",
+        help="send one ordinary ChatGPT product turn through the production runtime",
+    )
+    add_runtime_common(runtime_send)
+    runtime_send.add_argument("text")
+    runtime_send.add_argument("--timeout", type=float, default=150.0)
+    runtime_send.add_argument("--poll-interval", type=float, default=0.5)
     return parser
 
 
@@ -170,6 +206,55 @@ def _run_browser_native(args: argparse.Namespace) -> int:
     return 2
 
 
+def _run_runtime(args: argparse.Namespace) -> int:
+    runtime = assemble_product_runtime(
+        transport=args.transport,
+        auth_file=args.auth_file,
+    )
+    if args.runtime_command == "status":
+        health = runtime.health(args.conversation)
+        print(
+            json.dumps(
+                {
+                    "transport": runtime.transport,
+                    "health": health.to_dict(),
+                    "governance": runtime.governance(),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0 if health.ready else 1
+    if args.runtime_command == "send":
+        execution = runtime.send_text_observed(
+            args.text,
+            conversation=args.conversation,
+            timeout=args.timeout,
+            poll_interval=args.poll_interval,
+        )
+        response = execution.response
+        print(
+            json.dumps(
+                {
+                    "transport": execution.transport,
+                    "ok": True,
+                    "text": response.text,
+                    "title": response.title,
+                    "conversation_id": response.conversation.conversation_id,
+                    "message_id": response.conversation.message_id,
+                    "finish_reason": response.conversation.finish_reason,
+                    "observed_model": response.request.observed_model,
+                    "backend_status": response.metrics.backend_status,
+                    "runtime_observation": execution.observation.to_dict(),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
+    return 2
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     try:
@@ -177,6 +262,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_auth(args)
         if args.command == "browser-native":
             return _run_browser_native(args)
+        if args.command == "runtime":
+            return _run_runtime(args)
     except (WebChatAdapterError, OSError, ValueError) as error:
         print(f"error: {error}")
         return 2

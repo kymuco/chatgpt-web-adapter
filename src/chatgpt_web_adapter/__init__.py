@@ -32,6 +32,15 @@ from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
+from .product_runtime import (
+    BROWSER_OWNED_PRODUCT_TRANSPORT,
+    DEFAULT_PRODUCT_TRANSPORT,
+    SUPPORTED_PRODUCT_TRANSPORTS,
+    ChatGPTProductRuntime,
+    ProductRuntimeExecution,
+    ProductRuntimeHealth,
+    assemble_product_runtime,
+)
 from .sentinel_requirements import (
     OBSERVED_FINALIZE_REQUEST_KEYS,
     OBSERVED_FINALIZE_RESPONSE_KEYS,
@@ -247,6 +256,16 @@ EXPERIMENTAL_BROWSER_NATIVE_EXPORTS = [
     "install_native_messaging_host",
 ]
 
+PRODUCT_RUNTIME_EXPORTS = [
+    "BROWSER_OWNED_PRODUCT_TRANSPORT",
+    "DEFAULT_PRODUCT_TRANSPORT",
+    "SUPPORTED_PRODUCT_TRANSPORTS",
+    "ChatGPTProductRuntime",
+    "ProductRuntimeExecution",
+    "ProductRuntimeHealth",
+    "assemble_product_runtime",
+]
+
 SUPPORT_EXPORTS = [
     "AuthStatus",
     "AuthRefreshResult",
@@ -270,5 +289,6 @@ __all__ = [
     *EXPERIMENTAL_PREPARE_EXPORTS,
     *EXPERIMENTAL_SENTINEL_EXPORTS,
     *EXPERIMENTAL_BROWSER_NATIVE_EXPORTS,
+    *PRODUCT_RUNTIME_EXPORTS,
     *SUPPORT_EXPORTS,
 ]
