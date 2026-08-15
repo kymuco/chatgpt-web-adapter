@@ -17,6 +17,25 @@ REQUIRED_EXAMPLES = [
     "raw_payload.py",
 ]
 
+PRIMARY_PRODUCT_EXAMPLES = ["product_runtime.py"]
+COMPATIBILITY_EXAMPLES = [
+    "basic_send.py",
+    "continue_saved.py",
+    "attach_existing.py",
+    "read_messages.py",
+    "status_polling.py",
+]
+EXPERIMENTAL_EXAMPLES = [
+    "approve_tools.py",
+    "raw_payload.py",
+    "github_auto_approve.py",
+]
+RESEARCH_DIAGNOSTIC_EXAMPLES = [
+    "browser_native_send.py",
+    "diagnose_latency.py",
+    "watch_conversation.py",
+]
+
 PUBLIC_API_EXAMPLES = [
     *REQUIRED_EXAMPLES,
     "browser_native_send.py",
@@ -51,6 +70,33 @@ def test_public_examples_use_public_package_imports_only() -> None:
 
         assert "from chatgpt_web_adapter." not in text
         assert "import chatgpt_web_adapter." not in text
+
+
+def test_primary_product_example_uses_runtime_capabilities_and_provenance() -> None:
+    text = (EXAMPLES / "product_runtime.py").read_text(encoding="utf-8")
+
+    assert "assemble_product_runtime" in text
+    assert "runtime.capabilities()" in text
+    assert "send_text_observed" in text
+    assert "execution.provenance.to_dict()" in text
+    assert '"surface": "PRIMARY_PRODUCTION"' in text
+    assert "auto_sentinel" not in text
+
+
+def test_readme_classifies_example_groups_without_deleting_history() -> None:
+    text = README.read_text(encoding="utf-8")
+
+    assert "Primary production example:" in text
+    assert "Compatibility examples:" in text
+    assert "Experimental examples:" in text
+    assert "Research/diagnostic examples:" in text
+    for filename in (
+        *PRIMARY_PRODUCT_EXAMPLES,
+        *COMPATIBILITY_EXAMPLES,
+        *EXPERIMENTAL_EXAMPLES,
+        *RESEARCH_DIAGNOSTIC_EXAMPLES,
+    ):
+        assert f"examples/{filename}" in text
 
 
 def test_dangerous_examples_warn_about_risk() -> None:

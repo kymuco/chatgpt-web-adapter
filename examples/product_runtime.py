@@ -8,7 +8,9 @@ from chatgpt_web_adapter import assemble_product_runtime
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="PR8.3 production browser-owned ChatGPT product runtime")
+    parser = argparse.ArgumentParser(
+        description="Primary production ChatGPT product runtime example"
+    )
     parser.add_argument("--conversation")
     parser.add_argument("--auth-file", type=Path, default=Path("auth_data.json"))
     parser.add_argument("--send", dest="text")
@@ -22,9 +24,10 @@ def main() -> None:
     )
     health = runtime.health(args.conversation)
     report = {
-        "pr": "PR8.3",
+        "surface": "PRIMARY_PRODUCTION",
         "transport": runtime.transport,
         "health": health.to_dict(),
+        "capabilities": runtime.capabilities().to_dict(),
         "governance": runtime.governance(),
     }
 
@@ -45,6 +48,7 @@ def main() -> None:
             "observed_model": response.request.observed_model,
             "backend_status": response.metrics.backend_status,
             "runtime_observation": execution.observation.to_dict(),
+            "provenance": execution.provenance.to_dict(),
         }
 
     print(json.dumps(report, indent=2, ensure_ascii=False))

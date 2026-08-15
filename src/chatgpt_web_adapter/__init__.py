@@ -56,6 +56,13 @@ from .product_runtime import (
     assemble_product_runtime,
 )
 from .product_transport import CanonicalConversationClient, ProductWriteTransport
+from .public_surface import (
+    PUBLIC_SURFACE_CLASSIFICATION,
+    PUBLIC_SURFACE_TIERS,
+    PRIMARY_PRODUCT_RUNTIME_EXPORTS,
+    PublicSurfaceTier,
+    public_surface_tier,
+)
 from .sentinel_requirements import (
     OBSERVED_FINALIZE_REQUEST_KEYS,
     OBSERVED_FINALIZE_RESPONSE_KEYS,
@@ -133,7 +140,7 @@ from .web_session import (
 
 # The registry is the canonical model-policy source. Keep the legacy monolithic
 # client module synchronized at package import time until its policy constants can
-# be physically removed without mixing that refactor into the live-contract PR.
+# be physically removed without mixing that refactor into the product-runtime work.
 _client_module.DEFAULT_MODEL = DEFAULT_MODEL
 _client_module.DEFAULT_THINKING_MODEL = DEFAULT_THINKING_MODEL
 _client_module.MODEL_ALIASES = MODEL_ALIASES
@@ -190,6 +197,9 @@ ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pen
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
 WebChatClient = ChatGPTWebClient
 
+# PR8.6 keeps the historical core prefix for import-order compatibility while
+# reclassifying it as shared/compatibility surface. The forward-looking primary
+# production API is PRODUCT_RUNTIME_EXPORTS below.
 CORE_PUBLIC_API = [
     "ChatGPTWebClient",
     "WebChatClient",
@@ -204,6 +214,8 @@ CORE_PUBLIC_API = [
     "AuthData",
     "errors",
 ]
+
+PRODUCT_RUNTIME_EXPORTS = list(PRIMARY_PRODUCT_RUNTIME_EXPORTS)
 
 ERROR_EXPORTS = [
     "WebChatAdapterError",
@@ -222,6 +234,25 @@ ADVANCED_HELPERS = [
 MEDIA_EXPORTS = [
     "MediaItem",
     "MediaSource",
+]
+
+SUPPORT_EXPORTS = [
+    "AuthStatus",
+    "AuthRefreshResult",
+    "BrowserLoginResult",
+    "DEFAULT_AUTH_FILE",
+    "DEFAULT_MODEL",
+    "browser_login",
+    "default_browser_profile_dir",
+    "get_auth_status",
+    "load_auth_data",
+]
+
+PUBLIC_SURFACE_METADATA_EXPORTS = [
+    "PublicSurfaceTier",
+    "PUBLIC_SURFACE_TIERS",
+    "PUBLIC_SURFACE_CLASSIFICATION",
+    "public_surface_tier",
 ]
 
 EXPERIMENTAL_APPROVAL_EXPORTS = [
@@ -248,6 +279,7 @@ EXPERIMENTAL_PREPARE_EXPORTS = [
     "prepare_text_turn",
 ]
 
+# Kept import-compatible, but PR8.6 classifies these as research/diagnostic.
 EXPERIMENTAL_SENTINEL_EXPORTS = [
     "FinalizedSentinelBundle",
     "OBSERVED_FINALIZE_REQUEST_KEYS",
@@ -261,6 +293,9 @@ EXPERIMENTAL_SENTINEL_EXPORTS = [
     "probe_sentinel_requirements_prepare",
 ]
 
+# Kept import-compatible, but direct low-level use is research/diagnostic. The
+# production runtime consumes the browser-native implementation behind its
+# ProductWriteTransport boundary.
 EXPERIMENTAL_BROWSER_NATIVE_EXPORTS = [
     "BROWSER_NATIVE_EXTENSION_ID",
     "BrowserNativeBridgeStatus",
@@ -271,51 +306,21 @@ EXPERIMENTAL_BROWSER_NATIVE_EXPORTS = [
     "install_native_messaging_host",
 ]
 
-PRODUCT_RUNTIME_EXPORTS = [
-    "BROWSER_OWNED_PRODUCT_TRANSPORT",
-    "DEFAULT_PRODUCT_TRANSPORT",
-    "SUPPORTED_PRODUCT_TRANSPORTS",
-    "ORDINARY_CHATGPT_PRODUCT_SEMANTICS",
-    "PRODUCT_CAPABILITY_NAMES",
-    "CapabilityState",
-    "CapabilityOwner",
-    "ProductCapability",
-    "ProductCapabilities",
-    "CompletionSource",
-    "ProductCompletionProvenance",
-    "ProductIdentityProvenance",
-    "ProductExecutionProvenance",
-    "CanonicalConversationClient",
-    "ProductWriteTransport",
-    "ChatGPTProductRuntime",
-    "ProductRuntimeExecution",
-    "ProductRuntimeHealth",
-    "assemble_product_runtime",
-]
-
-SUPPORT_EXPORTS = [
-    "AuthStatus",
-    "AuthRefreshResult",
-    "BrowserLoginResult",
-    "DEFAULT_AUTH_FILE",
-    "DEFAULT_MODEL",
-    "browser_login",
-    "default_browser_profile_dir",
-    "get_auth_status",
-    "load_auth_data",
-]
-
 __all__ = [
+    # Historical prefix retained for compatibility.
     *CORE_PUBLIC_API,
+    # Primary production surface is intentionally promoted before legacy extras.
+    *PRODUCT_RUNTIME_EXPORTS,
     *ERROR_EXPORTS,
     *ADVANCED_HELPERS,
     *MEDIA_EXPORTS,
+    *SUPPORT_EXPORTS,
+    *PUBLIC_SURFACE_METADATA_EXPORTS,
+    # Lower-support-level compatibility exports remain available.
     *EXPERIMENTAL_APPROVAL_EXPORTS,
     *EXPERIMENTAL_REQUIRED_ACTION_EXPORTS,
     *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
     *EXPERIMENTAL_PREPARE_EXPORTS,
     *EXPERIMENTAL_SENTINEL_EXPORTS,
     *EXPERIMENTAL_BROWSER_NATIVE_EXPORTS,
-    *PRODUCT_RUNTIME_EXPORTS,
-    *SUPPORT_EXPORTS,
 ]
