@@ -53,7 +53,9 @@ If you need an officially supported API contract, use the official OpenAI platfo
 
 PR8.6 makes support level explicit.
 
-### `PRIMARY_PRODUCTION` — Primary production
+### Primary production
+
+Canonical tier: `PRIMARY_PRODUCTION`.
 
 Use these for new product-runtime integrations:
 
@@ -65,21 +67,29 @@ Use these for new product-runtime integrations:
 - `chatgpt-web-adapter runtime status`;
 - `chatgpt-web-adapter runtime send`.
 
-### `SHARED_SUPPORT` — Shared support
+### Shared support
+
+Canonical tier: `SHARED_SUPPORT`.
 
 Auth/session helpers, core response/conversation types, and common errors are shared by the production runtime and compatibility surface.
 
-### `COMPATIBILITY` — Compatibility
+### Compatibility
+
+Canonical tier: `COMPATIBILITY`.
 
 `ChatGPTWebClient` / `WebChatClient` remain import-compatible and supported for existing callers. They also retain features that the production browser-owned text transport has not yet implemented, including existing streaming/media/web-backend workflows.
 
 PR8.6 does **not** emit deprecation warnings and does not remove these APIs. New ordinary text-turn integrations should prefer `ChatGPTProductRuntime`.
 
-### `EXPERIMENTAL` — Experimental
+### Experimental
+
+Canonical tier: `EXPERIMENTAL`.
 
 Approval, raw-payload, and prepared-web-backend helpers remain experimental because they depend more directly on changing undocumented web behavior.
 
-### `RESEARCH_DIAGNOSTIC` — Research / diagnostic
+### Research / diagnostic
+
+Canonical tier: `RESEARCH_DIAGNOSTIC`.
 
 Low-level Sentinel and direct browser-native provider/install symbols remain available for regression diagnosis, implementation work, and feasibility research. They are not the forward-looking application API.
 
