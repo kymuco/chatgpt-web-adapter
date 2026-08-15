@@ -10,11 +10,15 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
 
-    assert manifest["version"] == "0.1.9"
-    assert worker_name == "service_worker_temporary_chat_semantic_notice.js"
+    assert manifest["version"] == "0.1.10"
+    assert worker_name == "service_worker_temporary_chat_turn_probe.js"
 
     worker = (root / worker_name).read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_temporary_chat_ax_semantics.js")' in worker
+    assert 'importScripts("service_worker_temporary_chat_semantic_notice.js")' in worker
+    semantic_worker = (root / "service_worker_temporary_chat_semantic_notice.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'importScripts("service_worker_temporary_chat_ax_semantics.js")' in semantic_worker
     ax_worker = (root / "service_worker_temporary_chat_ax_semantics.js").read_text(
         encoding="utf-8"
     )
@@ -95,9 +99,6 @@ def test_temporary_probe_adds_semantic_notice_characterization_and_dismisses_too
     assert "semantic:product-notice" in worker
     assert "semantic:document-title-temporary" in worker
     assert "semantic:url-temporary" in worker
-    # Category names are declared as data and serialized through the generic
-    # `semantic-category:` prefix. Do not require impossible pre-expanded
-    # literal strings such as `semantic-category:history` in source code.
     assert "semantic-category:" in worker
     for category in ("history", "memory", "training", "temporary"):
         assert f"{category}: [" in worker
@@ -107,6 +108,27 @@ def test_temporary_probe_adds_semantic_notice_characterization_and_dismisses_too
     assert "y: 1" in worker
     assert "Raw text" not in worker
     assert "raw text" in worker
+
+
+def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization() -> None:
+    root = browser_native_extension_dir()
+    worker = (root / "service_worker_temporary_chat_turn_probe.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "characterizeTemporaryTurn" in worker
+    assert "acknowledgeDurableRisk" in worker
+    assert "TEMPORARY_CHAT_TURN_PROBE_DURABLE_RISK_ACK_REQUIRED" in worker
+    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.remove(tabId)" in worker
+    assert "click_unique_control_without_selected_state_proof" in worker
+    assert "conversationWriteCount += 1" in worker
+    assert "conversationWriteCount !== 1" in worker
+    assert "Network.getResponseBody" in worker
+    assert "extractSafeStreamMetadata" in worker
+    assert "Input.insertText" in worker
+    assert "automatic retry" not in worker.lower()
+    assert "Raw prompt/assistant text" in worker
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:
