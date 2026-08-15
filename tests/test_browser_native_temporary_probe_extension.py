@@ -10,11 +10,15 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
 
-    assert manifest["version"] == "0.1.10"
-    assert worker_name == "service_worker_temporary_chat_turn_probe.js"
+    assert manifest["version"] == "0.1.11"
+    assert worker_name == "service_worker_temporary_chat_history_probe.js"
 
-    worker = (root / worker_name).read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_temporary_chat_semantic_notice.js")' in worker
+    history_worker = (root / worker_name).read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_temporary_chat_turn_probe.js")' in history_worker
+    turn_worker = (root / "service_worker_temporary_chat_turn_probe.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'importScripts("service_worker_temporary_chat_semantic_notice.js")' in turn_worker
     semantic_worker = (root / "service_worker_temporary_chat_semantic_notice.js").read_text(
         encoding="utf-8"
     )
@@ -90,7 +94,7 @@ def test_temporary_probe_adds_accessibility_tree_state_characterization() -> Non
     assert "Accessible names and raw AX nodes remain browser-local" in worker
 
 
-def test_temporary_probe_adds_semantic_notice_characterization_and_dismisses_tooltip() -> None:
+def test_temporary_page_semantics_are_ui_markers_not_selection_proof() -> None:
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat_semantic_notice.js").read_text(
         encoding="utf-8"
@@ -99,6 +103,11 @@ def test_temporary_probe_adds_semantic_notice_characterization_and_dismisses_too
     assert "semantic:product-notice" in worker
     assert "semantic:document-title-temporary" in worker
     assert "semantic:url-temporary" in worker
+    assert "modeMarkerObserved" in worker
+    assert "modeMarkerSignals" in worker
+    assert "selectionProven: false" in worker
+    assert "proofSignals: []" in worker
+    assert "MUST NOT be promoted into selected-state proof" in worker
     assert "semantic-category:" in worker
     for category in ("history", "memory", "training", "temporary"):
         assert f"{category}: [" in worker
@@ -106,8 +115,6 @@ def test_temporary_probe_adds_semantic_notice_characterization_and_dismisses_too
     assert 'type: "mouseMoved"' in worker
     assert "x: 1" in worker
     assert "y: 1" in worker
-    assert "Raw text" not in worker
-    assert "raw text" in worker
 
 
 def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization() -> None:
@@ -127,8 +134,28 @@ def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization
     assert "Network.getResponseBody" in worker
     assert "extractSafeStreamMetadata" in worker
     assert "Input.insertText" in worker
+    assert "uiModeMarkerObservedAfterTurn" in worker
+    assert "postTurnUiModeSignals" in worker
     assert "automatic retry" not in worker.lower()
     assert "Raw prompt/assistant text" in worker
+
+
+def test_temporary_history_probe_is_fresh_root_no_write_exact_link_observation() -> None:
+    root = browser_native_extension_dir()
+    worker = (root / "service_worker_temporary_chat_history_probe.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "probeTemporaryHistoryPresence" in worker
+    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.remove(tabId)" in worker
+    assert "document.querySelectorAll('a[href]')" in worker
+    assert "exactLinkPresent" in worker
+    assert "exactVisibleLinkPresent" in worker
+    assert "conversationLinkCount" in worker
+    assert "Input.insertText" not in worker
+    assert "submitOfficialPageTurn" not in worker
+    assert "Conversation titles, link text, raw DOM" in worker
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:
