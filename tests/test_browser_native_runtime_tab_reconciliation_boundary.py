@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -8,10 +9,36 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 
+def _transitive_worker_imports(worker_name: str) -> list[str]:
+    pending = [worker_name]
+    seen: set[str] = set()
+    ordered: list[str] = []
+    while pending:
+        name = pending.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        ordered.append(name)
+        source = (EXT / name).read_text(encoding="utf-8")
+        pending.extend(
+            match
+            for match in re.findall(r'importScripts\("([^"]+)"\)', source)
+            if match not in seen
+        )
+    return ordered
+
+
 def test_manifest_routes_through_runtime_tab_reconciliation_wrapper() -> None:
     manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.1.5"
-    assert manifest["background"]["service_worker"] == "service_worker_runtime_tab_reconciliation.js"
+    worker_name = manifest["background"]["service_worker"]
+    chain = _transitive_worker_imports(worker_name)
+
+    assert worker_name.endswith(".js")
+    assert "service_worker_runtime_tab_reconciliation.js" in chain
+    assert "service_worker_observability.js" in chain
+    assert chain.index("service_worker_runtime_tab_reconciliation.js") < chain.index(
+        "service_worker_observability.js"
+    )
 
 
 def test_reconciliation_wrapper_extends_observability_without_reimplementing_transport() -> None:

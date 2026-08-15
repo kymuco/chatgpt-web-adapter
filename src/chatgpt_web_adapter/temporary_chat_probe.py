@@ -12,6 +12,18 @@ from .exceptions import RequestError
 
 
 @dataclass(frozen=True)
+class TemporaryChatAXSnapshot:
+    """Privacy-safe Accessibility Tree characterization for the Temporary control."""
+
+    candidate_count: int
+    actionable_candidate_count: int
+    roles: tuple[str, ...]
+    state_signals: tuple[str, ...]
+    selection_state: bool | None
+    selection_proof_signals: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class TemporaryChatModeProbeResult:
     """Privacy-safe structural evidence from the PR8.7 no-write probe."""
 
@@ -25,6 +37,8 @@ class TemporaryChatModeProbeResult:
     reason: str
     match_signals: tuple[str, ...]
     selection_proof_signals: tuple[str, ...]
+    ax_before: TemporaryChatAXSnapshot
+    ax_after: TemporaryChatAXSnapshot
     conversation_write_observed: bool
     tab_was_active: bool
     tab_active_after: bool | None
@@ -42,6 +56,10 @@ def _optional_bool(payload: dict[str, Any], key: str) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
+def _safe_int(value: Any) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
 def _safe_string_tuple(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list):
         return ()
@@ -55,6 +73,18 @@ def _safe_string_tuple(value: Any) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _safe_ax_snapshot(value: Any) -> TemporaryChatAXSnapshot:
+    payload = value if isinstance(value, dict) else {}
+    return TemporaryChatAXSnapshot(
+        candidate_count=_safe_int(payload.get("candidateCount")),
+        actionable_candidate_count=_safe_int(payload.get("actionableCandidateCount")),
+        roles=_safe_string_tuple(payload.get("roles")),
+        state_signals=_safe_string_tuple(payload.get("stateSignals")),
+        selection_state=_optional_bool(payload, "selectionState"),
+        selection_proof_signals=_safe_string_tuple(payload.get("selectionProofSignals")),
+    )
+
+
 def probe_temporary_chat_mode(
     *,
     provider: BrowserNativeTurnProvider | Any | None = None,
@@ -63,8 +93,9 @@ def probe_temporary_chat_mode(
     """Characterize the official-page Temporary Chat selector without a chat write.
 
     The extension opens a dedicated isolated new-chat tab, observes only safe
-    structural control/state evidence, attempts one Temporary-mode selection,
-    verifies that no conversation POST occurred, and closes the probe tab.
+    structural DOM/accessibility state evidence, attempts one Temporary-mode
+    selection, verifies that no conversation POST occurred, and closes the
+    probe tab.
 
     This function is intentionally research/diagnostic. A successful result is
     evidence for PR8.7 characterization; it does not by itself change the
@@ -134,6 +165,8 @@ def probe_temporary_chat_mode(
         selection_proof_signals=_safe_string_tuple(
             response.get("selectionProofSignals")
         ),
+        ax_before=_safe_ax_snapshot(response.get("axBefore")),
+        ax_after=_safe_ax_snapshot(response.get("axAfter")),
         conversation_write_observed=bool(response.get("conversationWriteObserved")),
         tab_was_active=bool(response.get("tabWasActive")),
         tab_active_after=_optional_bool(response, "tabActiveAfter"),
