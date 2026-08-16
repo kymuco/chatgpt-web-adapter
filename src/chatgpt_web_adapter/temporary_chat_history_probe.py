@@ -21,15 +21,20 @@ class TemporaryChatHistoryProbeResult:
     final_history_visible_link_present: bool
     stable_history_presence: bool
     transient_history_presence: bool
+    history_absence_proven: bool
+    history_evidence_status: str
     disappeared_after_seen: bool
     first_seen_ms: int | None
     last_seen_ms: int | None
     seen_sample_count: int
     absent_sample_count: int
     settle_window_ms: int | None
+    settle_completed: bool
     observation_window_ms: int | None
     conversation_link_count: int
+    visible_conversation_link_count: int
     history_surface_ready: bool
+    history_readiness_signals: tuple[str, ...]
     tab_was_active: bool
     tab_active_after: bool | None
     tab_activated_during_probe: bool | None
@@ -59,6 +64,12 @@ def _optional_str(payload: dict[str, Any], key: str) -> str | None:
     return value or None
 
 
+def _safe_string_tuple(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(item.strip() for item in value if isinstance(item, str) and item.strip())
+
+
 def _validate_conversation_id(value: str) -> str:
     if not isinstance(value, str):
         raise TypeError("conversation_id must be a string")
@@ -80,8 +91,9 @@ def probe_temporary_chat_history_presence(
 
     This is a no-write research probe. It distinguishes an exact conversation
     link that appears transiently during root-page hydration from one that
-    remains stably visible after a bounded settling window. Conversation titles,
-    link text, raw DOM, and page payloads are not exported.
+    remains stably visible after a bounded settling window. Absence is promoted
+    to evidence only when history-surface readiness and settling are both proven.
+    Conversation titles, link text, raw DOM, and page payloads are not exported.
     """
 
     conversation_id = _validate_conversation_id(conversation_id)
@@ -139,15 +151,24 @@ def probe_temporary_chat_history_presence(
         ),
         stable_history_presence=bool(response.get("stableHistoryPresence")),
         transient_history_presence=bool(response.get("transientHistoryPresence")),
+        history_absence_proven=bool(response.get("historyAbsenceProven")),
+        history_evidence_status=(
+            _optional_str(response, "historyEvidenceStatus") or "INCONCLUSIVE"
+        ),
         disappeared_after_seen=bool(response.get("disappearedAfterSeen")),
         first_seen_ms=_optional_int(response, "firstSeenMs"),
         last_seen_ms=_optional_int(response, "lastSeenMs"),
         seen_sample_count=_optional_int(response, "seenSampleCount") or 0,
         absent_sample_count=_optional_int(response, "absentSampleCount") or 0,
         settle_window_ms=_optional_int(response, "settleWindowMs"),
+        settle_completed=bool(response.get("settleCompleted")),
         observation_window_ms=_optional_int(response, "observationWindowMs"),
         conversation_link_count=_optional_int(response, "conversationLinkCount") or 0,
+        visible_conversation_link_count=(
+            _optional_int(response, "visibleConversationLinkCount") or 0
+        ),
         history_surface_ready=bool(response.get("historySurfaceReady")),
+        history_readiness_signals=_safe_string_tuple(response.get("historyReadinessSignals")),
         tab_was_active=bool(response.get("tabWasActive")),
         tab_active_after=_optional_bool(response, "tabActiveAfter"),
         tab_activated_during_probe=_optional_bool(response, "tabActivatedDuringProbe"),
@@ -164,7 +185,9 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="python -m chatgpt_web_adapter.temporary_chat_history_probe",
         description=(
             "Run the PR8.7 no-write fresh-sidebar settling probe for a specific "
-            "conversation id returned by Temporary characterization."
+            "conversation id returned by Temporary characterization. Negative "
+            "history evidence remains INCONCLUSIVE until readiness and settling "
+            "are both proven."
         ),
     )
     parser.add_argument("conversation_id")

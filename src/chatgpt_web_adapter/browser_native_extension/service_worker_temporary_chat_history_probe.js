@@ -7,6 +7,10 @@ importScripts("service_worker_temporary_chat_turn_probe.js");
 // persistence. Observe the exact link across a bounded settling window and
 // report transient vs stable presence without exporting titles, link text, raw
 // DOM, or page payloads.
+//
+// Absence is evidence only after the history surface is semantically ready and
+// a full settling window completes. If readiness is not proven, the result is
+// explicitly INCONCLUSIVE rather than a negative history claim.
 
 const _pr87HistoryProbePriorExecuteNativeTurn = executeNativeTurn;
 const PR87_HISTORY_DEFAULT_TIMEOUT_MS = 30_000;
@@ -28,6 +32,7 @@ function _pr87HistoryProbeExpression(conversationId) {
     };
 
     let conversationLinkCount = 0;
+    let visibleConversationLinkCount = 0;
     let exactLinkPresent = false;
     let exactVisibleLinkPresent = false;
     for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
@@ -41,6 +46,7 @@ function _pr87HistoryProbeExpression(conversationId) {
       const match = parsed.pathname.match(/^\\/c\\/([^/]+)$/);
       if (!match) continue;
       conversationLinkCount += 1;
+      if (isVisible(anchor)) visibleConversationLinkCount += 1;
       let id = match[1];
       try { id = decodeURIComponent(id); } catch {}
       if (id !== targetId) continue;
@@ -50,12 +56,38 @@ function _pr87HistoryProbeExpression(conversationId) {
 
     const mainPresent = Boolean(document.querySelector('main'));
     const navPresent = Boolean(document.querySelector('nav,aside'));
+    const semanticHistoryContainerPresent = Boolean(document.querySelector([
+      '[data-testid*="sidebar" i]',
+      '[data-testid*="history" i]',
+      '[id*="sidebar" i]',
+      '[aria-label*="history" i]',
+      '[aria-label*="истори" i]'
+    ].join(',')));
+    const documentComplete = document.readyState === 'complete';
+    const hasEnumeratedHistoryLinks = conversationLinkCount > 0;
+    const historySurfaceReady = Boolean(
+      documentComplete &&
+      mainPresent &&
+      (navPresent || semanticHistoryContainerPresent || hasEnumeratedHistoryLinks)
+    );
+    const readinessSignals = [];
+    if (documentComplete) readinessSignals.push('document-complete');
+    if (mainPresent) readinessSignals.push('main-present');
+    if (navPresent) readinessSignals.push('nav-or-aside-present');
+    if (semanticHistoryContainerPresent) readinessSignals.push('semantic-history-container-present');
+    if (hasEnumeratedHistoryLinks) readinessSignals.push('conversation-links-enumerated');
+
     return {
       exactLinkPresent,
       exactVisibleLinkPresent,
       conversationLinkCount,
+      visibleConversationLinkCount,
       mainPresent,
-      navPresent
+      navPresent,
+      semanticHistoryContainerPresent,
+      documentComplete,
+      historySurfaceReady,
+      readinessSignals
     };
   })()`;
 }
@@ -124,7 +156,7 @@ async function _pr87ProbeHistoryPresence(message) {
       if (value && typeof value === "object") lastSnapshot = value;
 
       const nowMs = elapsedMs(startedAt);
-      const historyReady = lastSnapshot?.mainPresent === true && lastSnapshot?.navPresent === true;
+      const historyReady = lastSnapshot?.historySurfaceReady === true;
       if (historyReady && historyReadyAtMs == null) historyReadyAtMs = nowMs;
 
       if (historyReady) {
@@ -176,11 +208,33 @@ async function _pr87ProbeHistoryPresence(message) {
   }
 
   const snapshot = lastSnapshot && typeof lastSnapshot === "object" ? lastSnapshot : {};
-  const stableHistoryPresence = (
-    finalVisibleSamples.length >= PR87_HISTORY_STABLE_SAMPLE_COUNT &&
+  const observationWindowMs = elapsedMs(startedAt);
+  const historySurfaceReady = snapshot.historySurfaceReady === true;
+  const settleCompleted = Boolean(
+    historyReadyAtMs != null &&
+    observationWindowMs - historyReadyAtMs >= settleWindowMs &&
+    finalVisibleSamples.length >= PR87_HISTORY_STABLE_SAMPLE_COUNT
+  );
+  const stableHistoryPresence = Boolean(
+    settleCompleted &&
     finalVisibleSamples.every((value) => value === true)
   );
   const transientHistoryPresence = firstSeenMs != null && disappearedAfterSeen;
+  const historyAbsenceProven = Boolean(
+    historySurfaceReady &&
+    settleCompleted &&
+    firstSeenMs == null &&
+    finalVisibleSamples.every((value) => value === false)
+  );
+
+  let historyEvidenceStatus = "INCONCLUSIVE";
+  if (stableHistoryPresence) {
+    historyEvidenceStatus = "STABLE_PRESENT";
+  } else if (transientHistoryPresence && settleCompleted) {
+    historyEvidenceStatus = "TRANSIENT_PRESENT";
+  } else if (historyAbsenceProven) {
+    historyEvidenceStatus = "STABLE_ABSENT";
+  }
 
   return {
     probeContext: "fresh_root_history_settling",
@@ -191,17 +245,26 @@ async function _pr87ProbeHistoryPresence(message) {
     finalHistoryVisibleLinkPresent: snapshot.exactVisibleLinkPresent === true,
     stableHistoryPresence,
     transientHistoryPresence,
+    historyAbsenceProven,
+    historyEvidenceStatus,
     disappearedAfterSeen,
     firstSeenMs,
     lastSeenMs,
     seenSampleCount,
     absentSampleCount,
     settleWindowMs,
-    observationWindowMs: elapsedMs(startedAt),
+    settleCompleted,
+    observationWindowMs,
     conversationLinkCount: Number.isInteger(snapshot.conversationLinkCount)
       ? snapshot.conversationLinkCount
       : 0,
-    historySurfaceReady: snapshot.mainPresent === true && snapshot.navPresent === true,
+    visibleConversationLinkCount: Number.isInteger(snapshot.visibleConversationLinkCount)
+      ? snapshot.visibleConversationLinkCount
+      : 0,
+    historySurfaceReady,
+    historyReadinessSignals: Array.isArray(snapshot.readinessSignals)
+      ? snapshot.readinessSignals.filter((value) => typeof value === "string")
+      : [],
     tabWasActive,
     tabActiveAfter,
     tabActivatedDuringProbe,

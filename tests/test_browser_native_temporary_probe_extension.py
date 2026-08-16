@@ -169,6 +169,23 @@ def test_temporary_history_probe_observes_exact_link_over_settling_window() -> N
     assert "Conversation titles, link text, raw" in worker
 
 
+def test_temporary_history_probe_requires_ready_settled_surface_for_absence() -> None:
+    root = browser_native_extension_dir()
+    worker = (root / "service_worker_temporary_chat_history_probe.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "semanticHistoryContainerPresent" in worker
+    assert "conversation-links-enumerated" in worker
+    assert "historySurfaceReady" in worker
+    assert "settleCompleted" in worker
+    assert "historyAbsenceProven" in worker
+    assert 'historyEvidenceStatus = "INCONCLUSIVE"' in worker
+    assert 'historyEvidenceStatus = "STABLE_ABSENT"' in worker
+    assert 'historyEvidenceStatus = "STABLE_PRESENT"' in worker
+    assert "Absence is evidence only" in worker
+
+
 def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close() -> None:
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat_manual_ground_truth.js").read_text(
@@ -180,6 +197,8 @@ def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close(
     assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_CONFIRMATION_REQUIRED" in worker
     assert "chrome.tabs.query({ active: true, lastFocusedWindow: true })" in worker
     assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_REQUIRES_FRESH_NEW_CHAT" in worker
+    assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_REQUIRES_TEMPORARY_URL" in worker
+    assert 'searchParams.get("temporary-chat") !== "true"' in worker
     assert "Input.insertText" in worker
     assert "conversationWriteCount += 1" in worker
     assert "conversationWriteCount !== 1" in worker
@@ -189,6 +208,26 @@ def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close(
     assert "get_status" not in worker
     assert "get_messages" not in worker
     assert "attach_conversation" not in worker
+
+
+def test_manual_temporary_ground_truth_requires_visible_page_turn_evidence() -> None:
+    root = browser_native_extension_dir()
+    worker = (root / "service_worker_temporary_chat_manual_ground_truth.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "_pr87ManualTurnSurfaceSnapshot" in worker
+    assert '[data-testid^="conversation-turn-"]' in worker
+    assert "article-fallback" in worker
+    assert "userMessageVisibleAfterTurn" in worker
+    assert "assistantMessageVisibleAfterTurn" in worker
+    assert "assistantExactExpectedReplyVisible" in worker
+    assert "visibleTurnGroundTruthProven" in worker
+    assert 'turnSurfaceEvidenceStatus: visibleTurnGroundTruthProven ? "PROVEN" : "INCONCLUSIVE"' in worker
+    assert "initialUrlTemporaryQueryTrue" in worker
+    assert "finalUrlTemporaryQueryTrue" in worker
+    assert "sameSourceTab" in worker
+    assert "raw response data never leaves this context" in worker
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:

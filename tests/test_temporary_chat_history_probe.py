@@ -37,15 +37,24 @@ def _success_response(**overrides):
         "finalHistoryVisibleLinkPresent": True,
         "stableHistoryPresence": True,
         "transientHistoryPresence": False,
+        "historyAbsenceProven": False,
+        "historyEvidenceStatus": "STABLE_PRESENT",
         "disappearedAfterSeen": False,
         "firstSeenMs": 1200,
         "lastSeenMs": 9800,
         "seenSampleCount": 18,
         "absentSampleCount": 0,
         "settleWindowMs": 8000,
+        "settleCompleted": True,
         "observationWindowMs": 10_000,
         "conversationLinkCount": 12,
+        "visibleConversationLinkCount": 8,
         "historySurfaceReady": True,
+        "historyReadinessSignals": [
+            "document-complete",
+            "main-present",
+            "conversation-links-enumerated",
+        ],
         "tabWasActive": False,
         "tabActiveAfter": False,
         "tabActivatedDuringProbe": False,
@@ -82,15 +91,20 @@ def test_history_probe_uses_no_write_exact_identity_request() -> None:
     assert result.final_history_visible_link_present is True
     assert result.stable_history_presence is True
     assert result.transient_history_presence is False
+    assert result.history_absence_proven is False
+    assert result.history_evidence_status == "STABLE_PRESENT"
     assert result.disappeared_after_seen is False
     assert result.first_seen_ms == 1200
     assert result.last_seen_ms == 9800
     assert result.seen_sample_count == 18
     assert result.absent_sample_count == 0
     assert result.settle_window_ms == 8000
+    assert result.settle_completed is True
     assert result.observation_window_ms == 10_000
     assert result.conversation_link_count == 12
+    assert result.visible_conversation_link_count == 8
     assert result.history_surface_ready is True
+    assert "conversation-links-enumerated" in result.history_readiness_signals
     assert result.foreground_activation_observed is False
     assert result.probe_tab_closed is True
 
@@ -102,6 +116,7 @@ def test_history_probe_preserves_transient_presence_as_distinct_observation() ->
             finalHistoryVisibleLinkPresent=False,
             stableHistoryPresence=False,
             transientHistoryPresence=True,
+            historyEvidenceStatus="TRANSIENT_PRESENT",
             disappearedAfterSeen=True,
             firstSeenMs=900,
             lastSeenMs=2100,
@@ -120,6 +135,7 @@ def test_history_probe_preserves_transient_presence_as_distinct_observation() ->
     assert result.final_history_link_present is False
     assert result.stable_history_presence is False
     assert result.transient_history_presence is True
+    assert result.history_evidence_status == "TRANSIENT_PRESENT"
     assert result.disappeared_after_seen is True
 
 
@@ -140,7 +156,7 @@ def test_history_probe_fails_closed_on_returned_identity_mismatch() -> None:
         )
 
 
-def test_history_probe_preserves_absence_as_observation_not_error() -> None:
+def test_history_probe_promotes_absence_only_after_readiness_and_settling() -> None:
     provider = _FakeProvider(
         _success_response(
             historyLinkPresent=False,
@@ -149,6 +165,8 @@ def test_history_probe_preserves_absence_as_observation_not_error() -> None:
             finalHistoryVisibleLinkPresent=False,
             stableHistoryPresence=False,
             transientHistoryPresence=False,
+            historyAbsenceProven=True,
+            historyEvidenceStatus="STABLE_ABSENT",
             disappearedAfterSeen=False,
             firstSeenMs=None,
             lastSeenMs=None,
@@ -162,11 +180,45 @@ def test_history_probe_preserves_absence_as_observation_not_error() -> None:
         provider=provider,
     )
     assert result.history_surface_ready is True
+    assert result.settle_completed is True
+    assert result.history_absence_proven is True
+    assert result.history_evidence_status == "STABLE_ABSENT"
     assert result.history_link_present is False
-    assert result.history_visible_link_present is False
     assert result.final_history_link_present is False
-    assert result.stable_history_presence is False
-    assert result.transient_history_presence is False
+
+
+def test_history_probe_without_ready_surface_is_explicitly_inconclusive() -> None:
+    provider = _FakeProvider(
+        _success_response(
+            historyLinkPresent=False,
+            historyVisibleLinkPresent=False,
+            finalHistoryLinkPresent=False,
+            finalHistoryVisibleLinkPresent=False,
+            stableHistoryPresence=False,
+            transientHistoryPresence=False,
+            historyAbsenceProven=False,
+            historyEvidenceStatus="INCONCLUSIVE",
+            firstSeenMs=None,
+            lastSeenMs=None,
+            seenSampleCount=0,
+            absentSampleCount=1,
+            settleCompleted=False,
+            conversationLinkCount=0,
+            visibleConversationLinkCount=0,
+            historySurfaceReady=False,
+            historyReadinessSignals=["document-complete", "main-present"],
+        )
+    )
+
+    result = probe_temporary_chat_history_presence(
+        "conversation-1",
+        provider=provider,
+    )
+
+    assert result.history_surface_ready is False
+    assert result.history_absence_proven is False
+    assert result.history_evidence_status == "INCONCLUSIVE"
+    assert result.absent_sample_count == 1
 
 
 def test_history_probe_fails_closed_on_bridge_error() -> None:
