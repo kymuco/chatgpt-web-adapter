@@ -166,7 +166,7 @@ def test_temporary_history_probe_observes_exact_link_over_settling_window() -> N
     assert "finalHistoryVisibleLinkPresent" in worker
     assert "Input.insertText" not in worker
     assert "submitOfficialPageTurn" not in worker
-    assert "Conversation titles, link text, raw" in worker
+    assert "without exporting titles, link text, raw" in worker
 
 
 def test_temporary_history_probe_requires_ready_settled_surface_for_absence() -> None:
@@ -223,6 +223,10 @@ def test_manual_temporary_ground_truth_requires_visible_page_turn_evidence() -> 
     assert "assistantMessageVisibleAfterTurn" in worker
     assert "assistantExactExpectedReplyVisible" in worker
     assert "visibleTurnGroundTruthProven" in worker
+    assert "sameSourceTab &&" in worker
+    assert "initialUrlEvidence.temporaryQueryTrue === true" in worker
+    assert "finalUrlEvidence.temporaryQueryTrue === true" in worker
+    assert "(!expectedAssistantText || afterSurface?.assistantExactExpectedReplyVisible === true)" not in worker
     assert 'turnSurfaceEvidenceStatus: visibleTurnGroundTruthProven ? "PROVEN" : "INCONCLUSIVE"' in worker
     assert "initialUrlTemporaryQueryTrue" in worker
     assert "finalUrlTemporaryQueryTrue" in worker

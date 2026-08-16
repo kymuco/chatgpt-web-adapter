@@ -320,12 +320,14 @@ async function _pr87ManualGroundTruthTurn(message) {
       ? afterSurface.turnCount - beforeSurface.turnCount
       : null;
     const visibleTurnGroundTruthProven = Boolean(
+      sameSourceTab &&
+      initialUrlEvidence.temporaryQueryTrue === true &&
+      finalUrlEvidence.temporaryQueryTrue === true &&
       afterSurface?.surfaceReady === true &&
       afterSurface?.userMessageVisible === true &&
       afterSurface?.assistantMessageVisible === true &&
       afterSurface?.orderedUserThenAssistant === true &&
-      turnCountGrowth != null && turnCountGrowth >= 2 &&
-      (!expectedAssistantText || afterSurface?.assistantExactExpectedReplyVisible === true)
+      turnCountGrowth != null && turnCountGrowth >= 2
     );
 
     if (!Number.isInteger(responseStatus) || responseStatus < 200 || responseStatus >= 300) {
