@@ -61,7 +61,7 @@ _BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
     IMAGES: CapabilityState.UNIMPLEMENTED,
     FILES: CapabilityState.UNKNOWN,
     WEB_SEARCH: CapabilityState.UNKNOWN,
-    TEMPORARY_CHAT: CapabilityState.UNKNOWN,
+    TEMPORARY_CHAT: CapabilityState.UNIMPLEMENTED,
     MODEL_SELECTION: CapabilityState.UNKNOWN,
     MODEL_PRESERVATION: CapabilityState.UNKNOWN,
     REASONING_SELECTION: CapabilityState.UNKNOWN,
@@ -90,6 +90,10 @@ _BROWSER_OWNED_CAPABILITY_EVIDENCE: dict[str, str] = {
     CONVERSATION_READ: "canonical ChatGPTWebClient message-read surface",
     CONVERSATION_STATUS: "canonical ChatGPTWebClient status surface",
     IMAGES: "production ProductWriteTransport currently exposes text turns only",
+    TEMPORARY_CHAT: (
+        "PR8.7 T13 review: Temporary product semantics and lifecycle are characterized, "
+        "but the production ProductWriteTransport has no mode-aware Temporary write route"
+    ),
     APPROVALS: "production ProductWriteTransport has no approval continuation surface",
     MULTIMODAL_CONTINUATION: "production ProductWriteTransport currently exposes text turns only",
 }
