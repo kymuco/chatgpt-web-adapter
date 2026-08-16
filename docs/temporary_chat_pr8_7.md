@@ -501,6 +501,44 @@ Temporary lifecycle binding
 Temporary mode proof
 ```
 
+T10 production implementation status:
+
+```text
+CLOSED / PASS
+```
+
+The production runtime now declares conversation-mode selection as request-scoped:
+
+```text
+conversation_mode_state_scope = REQUEST
+conversation_mode_state_persisted = false
+normal_mode_requires_fresh_request_resolution = true
+```
+
+The current fail-closed Temporary path is also proven not to mutate ambient runtime mode state. On the same `ChatGPTProductRuntime` instance, a denied Temporary request can be followed immediately by a NORMAL request, and that NORMAL request is resolved from its own caller input only.
+
+Regression coverage proves:
+
+```text
+TEMP denied -> zero transport writes
+TEMP denied -> default NORMAL -> fresh ordinary new-chat dispatch
+TEMP denied with temporary ID -> NORMAL without ID -> temporary ID not inherited
+TEMP denied with temporary ID -> NORMAL with ordinary ID -> ordinary ID preserved exactly
+TEMP denial provenance -> following NORMAL provenance remains NORMAL-only
+repeated TEMP denials -> NORMAL remains available and non-sticky
+```
+
+Machine-readable governance additionally fixes:
+
+```text
+temporary_mode_denial_mutates_runtime_mode_state = false
+normal_mode_inherits_temporary_identity = false
+normal_mode_inherits_temporary_lifecycle = false
+normal_mode_inherits_temporary_provenance = false
+```
+
+T10 closes the current production TEMP -> NORMAL boundary without enabling Temporary writes. When a real mode-aware Temporary write route is introduced, these same invariants remain mandatory and must still hold for a completed or disposed live Temporary lifecycle before capability graduation.
+
 ### NORMAL -> TEMP
 
 A prior normal runtime tab/conversation must not cause a Temporary request to:
@@ -535,7 +573,7 @@ Likewise, recreating generic browser authority must not automatically recreate a
 
 ## 17. Capability semantics
 
-T8 and T9 are closed, but until T10-T12 pass, capability remains:
+T8-T10 are closed, but until T11-T12 pass, capability remains:
 
 ```text
 temporary_chat = UNKNOWN
@@ -610,17 +648,17 @@ This does not yet require PR9.0. It does require PR8.7/PR8.8 to model lifecycle 
 
 ## 20. Remaining PR8.7 gates
 
-Core Temporary lifecycle characterization is no longer open. T8 and T9 are closed:
+Core Temporary lifecycle characterization is no longer open. T8-T10 are closed:
 
 ```text
 T8  no normal durable fallback in production path            CLOSED / PASS
 T9  requested/observed conversation-mode provenance          CLOSED / PASS
+T10 TEMP -> NORMAL isolation                                  CLOSED / PASS
 ```
 
 Remaining gates are production governance:
 
 ```text
-T10 TEMP -> NORMAL isolation
 T11 NORMAL -> TEMP isolation
 T12 lifecycle / cold-warm / runtime-tab recreation governance
 T13 capability UNKNOWN -> AVAILABLE only after review
