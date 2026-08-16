@@ -17,6 +17,8 @@ class TemporaryCanonicalReadResult:
     probe_context: str
     ephemeral_backend_conversation_id: str
     source_temporary_tab_confirmed_open: bool
+    source_temporary_tab_confirmed_closed: bool
+    source_temporary_tab_state: str
     canonical_payload_read_calls: int
     canonical_read_succeeded: bool
     canonical_readability_status: str
@@ -70,6 +72,24 @@ def _optional_str(value: Any) -> str | None:
     return value or None
 
 
+def _source_tab_state(
+    *,
+    source_temporary_tab_confirmed_open: bool,
+    source_temporary_tab_confirmed_closed: bool,
+) -> str:
+    if source_temporary_tab_confirmed_open == source_temporary_tab_confirmed_closed:
+        raise ValueError(
+            "exactly one source Temporary tab state must be confirmed: open or closed"
+        )
+    return "OPEN" if source_temporary_tab_confirmed_open else "CLOSED"
+
+
+def _probe_context_for_source_state(source_temporary_tab_state: str) -> str:
+    if source_temporary_tab_state == "OPEN":
+        return "temporary_canonical_direct_id_read_while_live"
+    return "temporary_canonical_direct_id_read_after_source_close"
+
+
 def _current_branch_message_roles(payload: dict[str, Any]) -> tuple[int, list[str]]:
     mapping = payload.get("mapping")
     if not isinstance(mapping, dict):
@@ -113,13 +133,17 @@ def _readability_status_from_error(error: RequestError) -> str:
 def _failed_result(
     ephemeral_backend_conversation_id: str,
     *,
+    source_temporary_tab_state: str,
     status: str,
     error: RequestError,
 ) -> TemporaryCanonicalReadResult:
+    source_open = source_temporary_tab_state == "OPEN"
     return TemporaryCanonicalReadResult(
-        probe_context="temporary_canonical_direct_id_read_while_live",
+        probe_context=_probe_context_for_source_state(source_temporary_tab_state),
         ephemeral_backend_conversation_id=ephemeral_backend_conversation_id,
-        source_temporary_tab_confirmed_open=True,
+        source_temporary_tab_confirmed_open=source_open,
+        source_temporary_tab_confirmed_closed=not source_open,
+        source_temporary_tab_state=source_temporary_tab_state,
         canonical_payload_read_calls=1,
         canonical_read_succeeded=False,
         canonical_readability_status=status,
@@ -154,17 +178,22 @@ def _failed_result(
 def probe_temporary_canonical_read(
     ephemeral_backend_conversation_id: str,
     *,
-    source_temporary_tab_confirmed_open: bool,
+    source_temporary_tab_confirmed_open: bool = False,
+    source_temporary_tab_confirmed_closed: bool = False,
     client: Any | None = None,
     auth_file: str | Path = DEFAULT_AUTH_FILE,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> TemporaryCanonicalReadResult:
-    """Perform one logical canonical direct-id read while true Temporary UI stays open.
+    """Perform one logical canonical direct-id read for a proven Temporary turn.
 
-    The supplied id is treated only as an ephemeral backend identity returned by
-    the proven Temporary write. This probe never opens ``/c/<id>`` in a browser,
-    never attaches for continuation, and never writes. The current canonical
-    HTTP implementation does use a conversation-shaped Referer while fetching
+    The caller must explicitly confirm whether the original Temporary source tab
+    is still OPEN (T4) or has been intentionally CLOSED (T7a). The supplied id
+    is treated only as an ephemeral backend identity returned by the proven
+    Temporary write.
+
+    This probe never opens ``/c/<id>`` in a browser, never attaches for
+    continuation, and never writes. The current canonical HTTP implementation
+    does use a conversation-shaped Referer while fetching
     ``/backend-api/conversation/<id>``; that distinction is reported explicitly.
 
     Raw conversation payloads and message text never leave this diagnostic.
@@ -173,8 +202,10 @@ def probe_temporary_canonical_read(
     ephemeral_backend_conversation_id = _validate_ephemeral_backend_conversation_id(
         ephemeral_backend_conversation_id
     )
-    if not source_temporary_tab_confirmed_open:
-        raise ValueError("source_temporary_tab_confirmed_open must be true")
+    source_temporary_tab_state = _source_tab_state(
+        source_temporary_tab_confirmed_open=source_temporary_tab_confirmed_open,
+        source_temporary_tab_confirmed_closed=source_temporary_tab_confirmed_closed,
+    )
     if timeout <= 0:
         raise ValueError("timeout must be positive")
 
@@ -198,6 +229,7 @@ def probe_temporary_canonical_read(
     except RequestError as error:
         return _failed_result(
             ephemeral_backend_conversation_id,
+            source_temporary_tab_state=source_temporary_tab_state,
             status=_readability_status_from_error(error),
             error=error,
         )
@@ -216,10 +248,13 @@ def probe_temporary_canonical_read(
     lifecycle = _status_from_payload(payload)
 
     payload_id = _optional_str(payload.get("id"))
+    source_open = source_temporary_tab_state == "OPEN"
     return TemporaryCanonicalReadResult(
-        probe_context="temporary_canonical_direct_id_read_while_live",
+        probe_context=_probe_context_for_source_state(source_temporary_tab_state),
         ephemeral_backend_conversation_id=ephemeral_backend_conversation_id,
-        source_temporary_tab_confirmed_open=True,
+        source_temporary_tab_confirmed_open=source_open,
+        source_temporary_tab_confirmed_closed=not source_open,
+        source_temporary_tab_state=source_temporary_tab_state,
         canonical_payload_read_calls=1,
         canonical_read_succeeded=True,
         canonical_readability_status="READABLE",
@@ -261,8 +296,9 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Perform one read-only canonical direct-id characterization for an "
             "ephemeral backend id returned by a manually proven Temporary Chat. "
-            "The source Temporary tab must still be open. No browser /c/<id> "
-            "navigation, attach, continuation, or write is performed."
+            "Explicitly confirm whether the original source Temporary tab is open "
+            "or intentionally closed. No browser /c/<id> navigation, attach, "
+            "continuation, or write is performed."
         ),
     )
     parser.add_argument("ephemeral_backend_conversation_id")
@@ -270,29 +306,36 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--source-temporary-tab-confirmed-open",
         action="store_true",
-        help="required: confirm the original true Temporary Chat tab is still open",
+        help="confirm the original true Temporary Chat tab is still open (T4)",
+    )
+    parser.add_argument(
+        "--source-temporary-tab-confirmed-closed",
+        action="store_true",
+        help="confirm the original true Temporary Chat tab was intentionally closed (T7a)",
     )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    if not args.source_temporary_tab_confirmed_open:
-        print(
-            json.dumps(
-                {
-                    "ok": False,
-                    "error": "TEMPORARY_CANONICAL_READ_SOURCE_TAB_CONFIRMATION_REQUIRED",
-                },
-                indent=2,
-            )
+
+    if (
+        args.source_temporary_tab_confirmed_open
+        == args.source_temporary_tab_confirmed_closed
+    ):
+        error = (
+            "TEMPORARY_CANONICAL_READ_SOURCE_TAB_STATE_CONFLICT"
+            if args.source_temporary_tab_confirmed_open
+            else "TEMPORARY_CANONICAL_READ_SOURCE_TAB_STATE_CONFIRMATION_REQUIRED"
         )
+        print(json.dumps({"ok": False, "error": error}, indent=2))
         return 2
 
     try:
         result = probe_temporary_canonical_read(
             args.ephemeral_backend_conversation_id,
-            source_temporary_tab_confirmed_open=True,
+            source_temporary_tab_confirmed_open=args.source_temporary_tab_confirmed_open,
+            source_temporary_tab_confirmed_closed=args.source_temporary_tab_confirmed_closed,
             timeout=args.timeout,
         )
     except (AuthError, RequestError, OSError, TypeError, ValueError) as error:
