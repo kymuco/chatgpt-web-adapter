@@ -2,9 +2,9 @@
 
 _Status: evidence log for PR8.7; production Temporary Chat remains capability-gated_
 
-_Date: 2026-08-15_
+_Date: 2026-08-16_
 
-This document records the live observations used to characterize Temporary Chat before exposing it through the production product runtime. It is intentionally separate from the production capability declaration.
+This document records the live evidence used to characterize ChatGPT Temporary Chat for `chatgpt-web-adapter`. It is deliberately separate from the production capability declaration. The evidence below describes what the product was observed to do; it does not by itself enable production `conversation_mode="temporary"`.
 
 ## 1. Current production status
 
@@ -14,417 +14,577 @@ production conversation_mode="temporary" = NOT ENABLED
 ordinary production send path = UNCHANGED
 ```
 
-All probes in this document are research/diagnostic only.
+All Temporary probes in this document remain research/diagnostic surfaces.
 
-## 2. Product semantics and three distinct persistence questions
+## 2. Correct semantic vocabulary
 
-The intended Temporary product semantics require PR8.7 to keep three different questions separate:
-
-```text
-A. USER-HISTORY ENUMERATION
-   Does the conversation appear in normal ChatGPT history/sidebar?
-
-B. DIRECT-ID READABILITY
-   If the exact conversation_id is already known, can an authenticated
-   canonical read retrieve the conversation while or after the page exists?
-
-C. SERVER RETENTION
-   Does the service retain a copy internally for some bounded period even
-   though it is absent from normal history?
-```
-
-Critical invariant:
+PR8.7 now has enough evidence to distinguish several identities and lifetimes that must not be collapsed:
 
 ```text
-HISTORY_ENUMERATION != DIRECT_ID_READABILITY != SERVER_RETENTION
+TRUE TEMPORARY SOURCE SESSION
+    The live ChatGPT page entered at /?temporary-chat=true.
+
+TEMPORARY PRODUCT CONVERSATION ID
+    A stable ID emitted by the product write path and reused by multiple
+    live Temporary turns. Current probe field names may still call this
+    ephemeral_backend_conversation_id for compatibility.
+
+LIVE TEMPORARY LIFECYCLE
+    The interval during which the original Temporary source session remains
+    live and accepts continued page-owned writes.
+
+POST-CLOSE PRODUCT-ROUTE RECOVERY
+    The observed ability of /c/<temporary-product-conversation-id> to hydrate
+    previously completed Temporary turns after the original source closes.
+
+ORDINARY HISTORY ENUMERATION
+    Presence of an exact /c/<id> entry in the normal ChatGPT sidebar/history.
+
+ORDINARY CANONICAL CONVERSATION READ
+    GET /backend-api/conversation/<id> through the existing browserless
+    canonical observation plane.
 ```
 
-A known-id read must never be interpreted as equivalent to ordinary sidebar persistence. Conversely, absence from sidebar does not by itself prove that the backend object has ceased to exist.
-
-For the HDE one-shot use case the desired lifecycle is:
+Critical invariants:
 
 ```text
-send
--> observe/stream response
--> prove finality
--> verify no stable user-history persistence
--> release browser authority
+TEMPORARY PRODUCT CONVERSATION ID
+    != ordinary canonical conversation contract
+
+HISTORY ENUMERATION
+    != product-route recoverability
+    != canonical direct-ID readability
+    != server retention
+
+POST-CLOSE READ/RECOVERY EVIDENCE
+    != post-close write authority
 ```
 
-Long-term recoverability after that point is not required.
+A `404` from the ordinary canonical conversation endpoint must not be interpreted as proof that no product-side Temporary state exists.
 
-## 3. Live no-write run A — DOM selected-state attributes
+## 3. Earlier automated activation result is an ordinary durable control
+
+The earlier automated experiment that attempted to click a Temporary-looking control before writing produced an ordinary history-visible durable chat. It remains useful only as an ordinary-chat control.
+
+Therefore the following are withdrawn as Temporary evidence:
+
+```text
+automated Temporary activation is proven
+Temporary supports ordinary canonical get_status/get_messages
+Temporary supports attach_conversation
+Temporary has ordinary durable-chat persistence
+```
+
+The authoritative Temporary evidence below comes from a human-established true Temporary source page at:
+
+```text
+https://chatgpt.com/?temporary-chat=true
+```
+
+The adapter did not click or infer the Temporary control for those ground-truth writes.
+
+## 4. True Temporary single-turn ground truth
+
+A manually prepared true Temporary source page accepted one page-owned text turn.
+
+Observed identity:
+
+```text
+temporary product conversation id:
+6a818eb9-7e88-83ed-9218-4501375b2715
+```
+
+Important fields:
+
+```text
+same_source_tab                         true
+initial_url_temporary_query_true        true
+final_url_temporary_query_true          true
+initial_url_conversation_id_present     false
+url_conversation_id_present             false
+conversation_write_count                1
+response_status                         200
+response_mime_type                      text/event-stream
+conversation_turn_count_before          0
+conversation_turn_count_after           2
+turn_count_growth                       2
+user_message_visible_after_turn         true
+assistant_message_visible_after_turn    true
+turn_surface_selector_kind              conversation-testid
+```
+
+The exact expected-assistant-text matcher returned a false negative even though the assistant reply was later visually confirmed. Exact-text matching is therefore a diagnostic only and is not part of the authoritative visible-turn gate.
+
+Conclusion:
+
+```text
+T2 true Temporary page-owned visible text turn = PASS
+```
+
+## 5. Stable Temporary conversation identity exists
+
+The true Temporary write emitted a conversation-shaped identifier while the visible product route remained the Temporary root page rather than `/c/<id>`.
+
+This ID is not merely a one-shot request token: a later fresh live Temporary experiment reused the same ID across two sequential turns.
+
+Current terminology:
+
+```text
+temporary_product_conversation_id
+```
+
+Probe field names that still use `ephemeral_backend_conversation_id` are retained only for compatibility and should not be read as a claim that the ID has ordinary canonical-conversation semantics.
+
+Conclusion:
+
+```text
+T3 stable Temporary product conversation identity = PROVEN
+```
+
+## 6. Ordinary history is absent while the true Temporary session is live
+
+For the first true Temporary ID, a settled fresh-root history probe observed:
+
+```text
+history_evidence_status     STABLE_ABSENT
+history_absence_proven      true
+seen_sample_count           0
+absent_sample_count         31
+settle_completed            true
+history_surface_ready       true
+conversation_link_count     37
+visible_conversation_link_count 37
+```
+
+The probe searches exact `/c/<id>` anchors; it does not navigate to the target ID.
+
+Conclusion:
+
+```text
+T5 exact Temporary ID absent from settled ordinary history = PASS
+```
+
+This proves exact-ID non-enumeration in the observed history surface. It does not prove that no alternate internal representation exists.
+
+## 7. Ordinary canonical direct-ID read returns 404 while the source is live
+
+While the original true Temporary source tab was still open:
+
+```text
+GET /backend-api/conversation/6a818eb9-7e88-83ed-9218-4501375b2715
+-> 404
+```
+
+Probe result:
+
+```text
+canonical_payload_read_calls          1
+canonical_read_succeeded              false
+canonical_readability_status          NOT_FOUND
+http_status                            404
+browser_navigation_performed          false
+product_route_open_attempted          false
+attach_performed                      false
+write_performed                       false
+```
+
+Conclusion:
+
+```text
+T4 ordinary canonical direct-ID readability while live = NOT_FOUND / 404
+```
+
+This is a statement about the existing canonical conversation endpoint, not about all possible product/backend storage.
+
+## 8. Canonical 404 read does not materialize ordinary history
+
+A settled history probe run after the T4 canonical read again returned:
+
+```text
+history_evidence_status = STABLE_ABSENT
+history_absence_proven  = true
+seen_sample_count       = 0
+absent_sample_count     = 31
+```
+
+Conclusion:
+
+```text
+T6 canonical-read exact-ID ordinary-history materialization = NONE OBSERVED / PASS
+```
+
+## 9. Ordinary canonical direct-ID read remains 404 after source close
+
+After closing the original true Temporary source tab, the same one-read probe returned:
+
+```text
+source_temporary_tab_state    CLOSED
+canonical_readability_status  NOT_FOUND
+http_status                    404
+canonical_payload_read_calls   1
+```
+
+Conclusion:
+
+```text
+T7a ordinary canonical read after source close = NOT_FOUND / 404
+```
+
+Closing the source did not promote this ID into the ordinary canonical conversation endpoint.
+
+## 10. Direct product route can stably recover a closed Temporary conversation
+
+A dedicated read-only route-reopen probe opened:
+
+```text
+https://chatgpt.com/c/6a818eb9-7e88-83ed-9218-4501375b2715
+```
+
+after the original Temporary source had closed.
 
 Observed:
 
 ```text
-control_found                  true
-candidate_count                1
-selected_before                null
-selected_after                 null
-mode_selection_proven          false
-match_signals                  [aria_label]
-conversation_write_observed    false
-foreground_activation_observed false
-probe_tab_closed               true
+target_route_observed                         true
+target_route_sample_count                     54
+root_route_observed                           false
+redirect_away_from_target_observed            false
+final_url_kind                                exact_target
+final_url_conversation_id_matches_target      true
+visible_turn_surface_observed                 true
+max_visible_turn_count                        2
+final_visible_turn_count                      2
+recovered_sample_count                        45
+stable_recovered                              true
+recovery_evidence_status                      STABLE_RECOVERED
+conversation_write_count                      0
+canonical_http_read_performed                 false
 ```
 
 Conclusion:
 
-- one unambiguous visible Temporary control can be located on a fresh page;
-- clicking it alone causes no conversation POST;
-- the isolated inactive probe does not foreground and closes cleanly;
-- the control exposes no usable DOM selected-state attribute through the characterized set.
+```text
+T7b post-close product-route recovery = STABLE_RECOVERED / PASS
+```
 
-## 4. Live no-write run B — aria-label action semantics
+This proves stable product-route recoverability of completed Temporary turns. It does not prove ordinary history persistence, canonical API readability, or continued write authority.
 
-The next characterization tested whether the accessibility label itself exposed unambiguous on/off action semantics.
+## 11. Direct-route recovery still does not materialize ordinary history
 
-Observed:
+After a successful direct `/c/<id>` recovery, the ordinary history probe again returned:
 
 ```text
-match_signals          [aria_label]
-selected_before        null
-selected_after         null
-mode_selection_proven  false
+history_evidence_status = STABLE_ABSENT
+history_absence_proven  = true
+seen_sample_count       = 0
+absent_sample_count     = 31
 ```
 
 Conclusion:
 
-The label identifies the feature but does not provide accepted selected-state evidence.
-
-## 5. Live no-write run C — Accessibility Tree
-
-Repository state at this stage:
-
 ```text
-840 passed
+T7c ordinary-history materialization after direct reopen = NONE OBSERVED / PASS
 ```
 
-Observed before activation:
+Observed Temporary state is therefore:
 
 ```text
-AX candidate_count             1
-AX actionable_candidate_count  1
-AX roles                       [button]
-AX state_signals               []
-AX selection_state             null
+direct-addressable
++
+product-route recoverable
++
+ordinary-history undiscoverable
++
+ordinary-canonical-API unreadable
 ```
 
-Immediately after activation:
+## 12. Post-close continuation is rejected
+
+The controlled continuation probe attempted exactly one page-owned continuation write to the recovered Temporary product conversation after the original source lifecycle had ended.
+
+Observed result:
 
 ```text
-AX candidate_count             6
-AX actionable_candidate_count  1
-AX roles                       [button, inlinetextbox, statictext, tooltip]
-AX state_signals               []
-AX selection_state             null
+CHATGPT_TURN_HTTP_STATUS:404
 ```
 
-Conclusion:
+The user also observed one manual case where the new user message appeared in the recovered UI without an assistant answer, then disappeared after page reload. That observation is consistent with an optimistic/local UI append, but the exact internal mechanism is not proven.
 
-The additional AX nodes were presentation/tooltip-related. `pressed`, `checked`, `selected`, `expanded`, `haspopup`, `disabled`, and `focused` did not produce authoritative Temporary selection evidence.
-
-## 6. Live no-write run D — tooltip-dismissed semantic page state
-
-After moving the pointer away and waiting for transient tooltip UI to disappear, the structural before/after views were effectively identical:
+Authoritative conclusion:
 
 ```text
-semantic-candidate-count:0
-semantic-title-temporary:false
-semantic-url-temporary:false
+post-close write persistence = NOT PROVEN
+post-close controlled continuation = REJECTED / HTTP 404
 ```
 
-before and after activation.
+The product-route-readable post-close state must not be promoted into a writable continuation contract.
 
-Therefore pre-write Temporary selection is currently:
+## 13. Live Temporary multi-turn continuation is proven
+
+A new true Temporary source page was opened manually and kept alive for two sequential controlled writes.
+
+Temporary product conversation ID:
 
 ```text
-PROVEN:
-- unique control discovery;
-- isolated activation;
-- zero write side effect from the activation itself;
-- no foreground disturbance.
-
-NOT PROVEN:
-- selected-state confirmation before the first write.
+6a81a6ef-78a4-83eb-8b58-cf4d683bec56
 ```
 
-Do not weaken this negative result into fabricated state.
-
-## 7. Automated controlled-write run E — RECLASSIFIED AS ORDINARY DURABLE CONTROL
-
-An automated diagnostic then:
+### Turn 1
 
 ```text
-fresh isolated new-chat page
--> locate unique Temporary control
--> click it without selected-state proof
--> immediately submit one smoke turn
-```
-
-It returned:
-
-```text
-activation_action                 click_unique_control_without_selected_state_proof
-selection_proven_before_write     false
-selected_before                   null
-selected_after_activation         null
+source_tab_id                     1949459774
+conversation_id                   6a81a6ef-78a4-83eb-8b58-cf4d683bec56
 conversation_write_count          1
-response_status                   200
-response_mime_type                text/event-stream
-final_url_kind                    conversation
-url_conversation_id_present       true
-foreground_activation_observed    false
-probe_tab_closed                  true
+response_status                    200
+response_mime_type                 text/event-stream
+conversation_turn_count_before     0
+conversation_turn_count_after      2
+turn_count_growth                  2
+initial_url_temporary_query_true   true
+final_url_temporary_query_true     true
+visible_turn_ground_truth_proven   true
 ```
 
-Identity:
+### Turn 2, without closing or reloading the source
 
 ```text
-conversation_id   6a807935-82b4-83ed-a10e-5231cc2ba458
-turn_exchange_id  d5736236-4b89-4e04-8023-551d2137b06d
+source_tab_id                     1949459774
+conversation_id                   6a81a6ef-78a4-83eb-8b58-cf4d683bec56
+conversation_write_count          1
+response_status                    200
+response_mime_type                 text/event-stream
+conversation_turn_count_before     2
+conversation_turn_count_after      4
+turn_count_growth                  2
+initial_url_temporary_query_true   true
+final_url_temporary_query_true     true
+visible_turn_ground_truth_proven   true
 ```
 
-A post-turn UI marker was observed:
+The source tab and Temporary product conversation ID were identical across both runs; `turn_exchange_id` changed as expected for a new turn.
+
+Conclusion:
 
 ```text
-semantic:document-title-temporary
+LIVE Temporary session
+    -> normal multi-turn conversation semantics = PROVEN
+    -> same Temporary product conversation identity = PROVEN
+    -> 0 -> 2 -> 4 visible-turn growth = PROVEN
+    -> two sequential writes = HTTP 200 / PASS
 ```
 
-The old probe incorrectly promoted that UI marker into `selected_after_turn=true`. That interpretation has been repaired.
+This is the decisive evidence that Temporary Chat is not a one-shot request primitive.
 
-Most importantly, the user confirmed that this conversation appeared in the ordinary ChatGPT history list. Therefore Run E is now classified as:
+## 14. A live two-turn Temporary conversation still remains absent from ordinary history
+
+While the two-turn Temporary source was still live, exact-ID history enumeration returned:
 
 ```text
-ORDINARY DURABLE CONTROL
-accidentally produced by automated Temporary-candidate activation
+history_evidence_status          STABLE_ABSENT
+history_absence_proven           true
+seen_sample_count                0
+absent_sample_count              31
+settle_completed                 true
+history_surface_ready            true
+conversation_link_count          37
+visible_conversation_link_count  37
 ```
 
-It is **not** a true Temporary Chat ground-truth run.
-
-### Evidence that must be withdrawn
-
-The following Run E observations are valid facts about that ordinary control:
+Conclusion:
 
 ```text
-get_status(id)       succeeded
-get_messages(id)     succeeded
-attach_conversation  succeeded
+live writable multi-turn Temporary
+    != ordinary history-visible durable conversation
 ```
 
-But they MUST NOT be used to claim any of the following about Temporary Chat:
+## 15. All four completed turns survive source close as a stable product-route recovery
+
+The same two-turn Temporary source was then closed. A read-only direct-route reopen probe for the same ID returned:
 
 ```text
-"Temporary uses an ordinary backend conversation identity"
-"Temporary is canonically readable after page close"
-"Temporary supports attach_conversation"
-"Temporary survives browser closure in the canonical plane"
+target_route_observed                         true
+target_route_sample_count                     54
+root_route_observed                           false
+redirect_away_from_target_observed            false
+final_url_kind                                exact_target
+final_url_conversation_id_matches_target      true
+visible_turn_surface_observed                 true
+max_visible_turn_count                        4
+final_visible_turn_count                      4
+recovered_sample_count                        48
+stable_recovered                              true
+recovery_evidence_status                      STABLE_RECOVERED
+conversation_write_count                      0
+canonical_http_read_performed                 false
 ```
 
-Those questions are **OPEN again**.
+The user visually confirmed the two sequential user/assistant exchanges.
 
-Run E remains useful only as an ordinary-chat baseline showing that the diagnostic write machinery and canonical observation machinery work when the resulting conversation is durable.
-
-## 8. Provenance invariant — UI marker is not product-mode proof
-
-PR8.7 now separates:
+Conclusion:
 
 ```text
-UI_MODE_MARKER
-    title / URL / semantic notice suggests Temporary presentation
+LIVE:
+    0 -> 2 -> 4 visible turns
+    writable
+    HTTP 200
 
-SELECTION_PROOF
-    explicit selected-state evidence for the product control
+SOURCE CLOSE
 
-HISTORY_ENUMERATION
-    whether the chat is stably listed to the user
-
-DIRECT_ID_READABILITY
-    whether a known id can be read by canonical surfaces
-
-SERVER_RETENTION
-    whether a backend copy continues to exist
+POST-CLOSE:
+    same exact product route
+    same four completed turns
+    STABLE_RECOVERED
+    no write performed by recovery probe
 ```
 
-Invariants:
+This establishes preservation of completed multi-turn Temporary state across source close in the product route.
+
+## 16. Current lifecycle model supported by evidence
+
+The strongest evidence-backed model is:
 
 ```text
-UI_MODE_MARKER != PRODUCT_TEMPORARY_PROOF
-HISTORY_ENUMERATION != DIRECT_ID_READABILITY
+                TRUE TEMPORARY CONVERSATION
+
+                   LIVE LIFECYCLE
+                         |
+              +----------+----------+
+              |                     |
+           readable               writable
+              YES                   YES
+              |                     |
+        page-owned turns       sequential turns
+          0 -> 2 -> 4          HTTP 200
+              |                     |
+              +----------+----------+
+                         |
+                    SOURCE CLOSE
+                         |
+                         v
+                 POST-CLOSE STATE
+                         |
+              +----------+----------+
+              |                     |
+      product-route recovery      writable
+              YES                   NO
+              |                     |
+         old completed          controlled write
+         turns hydrate            HTTP 404
+         STABLE_RECOVERED
 ```
 
-`semantic:document-title-temporary`, `semantic:url-temporary`, and `semantic:product-notice` are diagnostic UI markers only. They cannot independently set `selected=true` or establish Temporary semantics.
-
-## 9. History probe F — ordinary-control observation only
-
-A fresh-root history probe for the Run E ordinary-control ID initially returned:
+Orthogonal observations:
 
 ```text
-history_link_present          true
-history_visible_link_present  true
-conversation_link_count       37
-history_surface_ready         true
-elapsed_ms                    2291
+ordinary sidebar/history exact ID = STABLE_ABSENT
+ordinary canonical GET by same ID = 404 while live
+ordinary canonical GET by same ID = 404 after close
 ```
 
-The probe was subsequently strengthened with a settling window to distinguish an early hydrated link from stable history presence.
-
-However, because Run E is now known to be an ordinary durable chat, **all history measurements for this ID are ordinary-control evidence only**. They do not characterize true Temporary history behavior.
-
-The generic history settling diagnostic remains useful for a future true Temporary ID. It reports:
+Therefore:
 
 ```text
-stable_history_presence
-transient_history_presence
-disappeared_after_seen
-final_history_visible_link_present
-first_seen_ms
-last_seen_ms
-seen_sample_count
-absent_sample_count
+identity exists
+!= ordinary canonical readability
+!= ordinary history discoverability
+!= post-close write authority
 ```
 
-## 10. Why true Temporary ground truth must now be human-established
-
-The automated activation path created an ordinary durable chat while leaving a Temporary-looking UI marker. Because pre-write selected state is not observable through our characterized DOM/AX channels, another automated `click -> write -> infer mode` experiment would be circular.
-
-The next live experiment therefore uses an external ground truth:
+## 17. Corrected PR8.7 evidence matrix
 
 ```text
-HUMAN OPERATOR
-    manually enables Temporary Chat in the visible product UI
-    visually confirms the page is in Temporary mode
+T0  automatic unique-control discovery / safe click          PARTIAL PASS
+T1  automated Temporary product-mode activation              NOT PROVEN
 
-ADAPTER
-    does NOT click the Temporary control
-    does NOT infer selected state from CSS/title
-    writes exactly one smoke turn into that already prepared page
+T2  true Temporary page-owned visible text turn              PASS
+T3  stable Temporary product conversation identity           PROVEN
+
+T4  ordinary canonical direct-ID read while source live      NOT_FOUND / 404
+T5  exact ID in settled ordinary history while live          STABLE_ABSENT / PASS
+T6  canonical-read history-materialization side effect       NONE OBSERVED / PASS
+
+T7a ordinary canonical read after source close               NOT_FOUND / 404
+T7b direct product-route recovery after source close         STABLE_RECOVERED / PASS
+T7c history materialization after direct reopen              NONE OBSERVED / PASS
+T7d post-close controlled continuation                       REJECTED / HTTP 404
+
+T7-live
+    two sequential live Temporary turns                      PASS
+    same product conversation ID                             PROVEN
+    visible-turn growth 0 -> 2 -> 4                          PROVEN
+    live two-turn ordinary-history visibility                STABLE_ABSENT
+    post-close recovery of all four turns                    STABLE_RECOVERED
+
+T8  no normal durable fallback in production path            OPEN
+T9  requested/observed conversation-mode provenance          OPEN
+T10 TEMP -> NORMAL isolation                                  OPEN
+T11 NORMAL -> TEMP isolation                                  OPEN
+T12 lifecycle/cold-warm/runtime-tab recreation governance    OPEN
+T13 capability UNKNOWN -> AVAILABLE                           BLOCKED
 ```
 
-This is the first experiment whose Temporary classification does not depend on the adapter's own unproven activation inference.
+Production capability remains blocked on T8-T12 even though the core Temporary lifecycle is now characterized.
 
-## 11. Manual Temporary ground-truth probe
+## 18. Claims PR8.7 must not make
 
-New diagnostic:
-
-```powershell
-python -m chatgpt_web_adapter.temporary_chat_manual_ground_truth_probe \
-  --manual-temporary-confirmed \
-  --timeout 150
-```
-
-Preparation is intentionally manual:
+Do not claim:
 
 ```text
-1. Open a fresh ChatGPT new-chat page in Chrome.
-2. Manually click the Temporary control.
-3. Visually confirm that ChatGPT itself shows Temporary mode.
-4. Leave that exact fresh ChatGPT tab selected/active.
-5. Run the CLI above from the terminal.
+Temporary is an ordinary durable chat.
+Temporary appears in ordinary history.
+Temporary is readable through the existing canonical conversation endpoint.
+A Temporary product conversation ID is sufficient authority to continue after close.
+attach_conversation() is supported for Temporary.
+Direct /c/<id> recovery is a production continuation contract.
+HTTP 404 means no Temporary product state exists anywhere.
+Automatic UI activation is trustworthy.
 ```
 
-The extension then:
+Also do not infer that post-close route recovery has a guaranteed retention duration. The experiments prove observed recovery, not a duration SLA.
+
+## 19. Production consequences
+
+The live evidence now constrains the target production semantics:
 
 ```text
-uses the already selected ChatGPT tab
--> verifies it is still a fresh root new-chat page
--> DOES NOT click Temporary
--> writes exactly one smoke turn
--> observes exactly one conversation POST
--> captures bounded identity / response metadata
--> waits for page-owned completion
--> detaches debugger
--> leaves the source tab OPEN
+1. Explicit Temporary selection must fail closed.
+2. A live Temporary conversation is multi-turn, not one-shot.
+3. Continuation must be bound to a live Temporary lifecycle/session authority,
+   not merely to a remembered conversation ID.
+4. Page-owned observation/finality is authoritative for live Temporary writes;
+   ordinary canonical GET cannot be required.
+5. Temporary must not promise ordinary history enumeration.
+6. Temporary must not promise attach_conversation().
+7. Source-lifecycle termination ends production write authority.
+8. Post-close /c/<id> recovery may remain diagnostic evidence, but must not be
+   advertised as a durable production reopen/continue contract.
+9. No Temporary failure may silently fall back to a normal durable chat.
+10. requested_mode and observed_mode provenance must remain explicit.
 ```
 
-It deliberately performs **no canonical read** and **no history probe** itself.
+The companion design document `temporary_chat_pr8_7.md` defines the resulting target production contract.
 
-Default smoke text:
+## 20. Current capability decision
 
-```text
-Reply with exactly: SDK_TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_OK
-```
-
-## 12. Correct experiment order for a true Temporary conversation
-
-If the manual-ground-truth run returns a `conversation_id`, characterization must happen in this order:
-
-```text
-A. TRUE TEMPORARY TAB STILL OPEN
-   human confirms it is still Temporary
-   record returned conversation_id
-
-B. BEFORE ANY CANONICAL READ
-   run settled fresh-root history probe for that id
-   -> does it appear in normal history?
-
-C. WHILE TRUE TEMPORARY TAB IS STILL OPEN
-   perform canonical get_status/get_messages/attach characterization
-   -> can a known Temporary id be read at all?
-
-D. HISTORY AGAIN
-   run settled history probe again
-   -> did canonical read affect sidebar visibility?
-
-E. CLOSE THE TRUE TEMPORARY SOURCE TAB
-
-F. CANONICAL READ AFTER CLOSE
-   repeat status/messages/attach
-   -> does known-id readability survive browser-page disposal?
-
-G. HISTORY AGAIN
-   verify that post-close canonical reads did not create ordinary history persistence
-```
-
-This sequence separates three questions that Run E accidentally mixed together:
-
-```text
-true product mode
-canonical/direct-id readability
-user-history persistence
-```
-
-## 13. Corrected evidence matrix
-
-```text
-T0  automatic unique-control discovery / safe click        PARTIAL PASS
-T1  automated Temporary product-mode activation            NOT PROVEN
-T2  true Temporary page-owned text turn                    OPEN
-T3  true Temporary conversation identity                   OPEN
-T4  true Temporary canonical read while page open          OPEN
-T5  true Temporary absence from stable ordinary history    OPEN
-T6  canonical-read history-materialization side effect     OPEN
-T7  true Temporary canonical read after page close         OPEN
-T8  no normal durable fallback in production path          OPEN
-T9  requested/observed conversation-mode provenance        OPEN
-T10 TEMP -> NORMAL isolation                                OPEN
-T11 NORMAL -> TEMP isolation                                OPEN
-T12 cold/warm/runtime-tab recreation                        OPEN
-T13 capability UNKNOWN -> AVAILABLE                         BLOCKED
-```
-
-Run E is explicitly outside this matrix except as an ordinary durable control/baseline.
-
-## 14. Architecture-invalidation check
-
-No fundamental architecture invalidation is established yet.
-
-What is known:
-
-```text
-browser-owned ordinary write machinery works
-canonical ordinary-chat observation works
-automatic Temporary activation is not yet trustworthy
-true Temporary identity/readback semantics remain unknown
-```
-
-Therefore PR8.7 must not redesign the canonical plane around assumptions drawn from Run E, and it must not expose production Temporary mode yet.
-
-Current capability remains:
+The evidence is now sufficient to characterize the core lifecycle, but not yet sufficient to graduate the public capability.
 
 ```text
 temporary_chat = UNKNOWN
+production conversation_mode="temporary" = NOT ENABLED
 ```
 
-The next decisive evidence must come from a **manual Temporary ground truth** conversation, not from the ordinary-control ID generated by Run E.
+Next gates:
+
+```text
+T8  production no-durable-fallback governance
+T9  requested/observed mode provenance
+T10 TEMP -> NORMAL isolation
+T11 NORMAL -> TEMP isolation
+T12 lifecycle / cold-warm / runtime-tab recreation governance
+```
+
+Only after those gates are reviewed should PR8.7 consider:
+
+```text
+temporary_chat: UNKNOWN -> AVAILABLE
+```

@@ -1,16 +1,16 @@
-# PR8.7 — Temporary Chat Product Semantics, Ephemeral Identity / Persistence Characterization and Fail-Closed Conversation-Mode Governance
+# PR8.7 — Temporary Chat target production semantics and lifecycle governance
 
-_Status: live characterization stage; production Temporary Chat remains capability-gated_
+_Status: target contract derived from live characterization; production Temporary Chat remains capability-gated_
 
-_Date: 2026-08-15_
+_Date: 2026-08-16_
 
-_Base: reviewed post-PR8 daily-use bridge direction_
+_Base evidence: `docs/temporary_chat_pr8_7_live_characterization.md`_
 
 ## 1. Goal
 
-PR8.7 establishes Temporary Chat as an evidence-backed product-runtime capability rather than inferring support from the existence of the feature in the ChatGPT UI.
+PR8.7 defines how Temporary Chat should eventually appear in `ChatGPTProductRuntime` without forcing it into ordinary durable-chat semantics.
 
-The target is eventually to let callers request an ephemeral product turn explicitly, for example:
+The desired caller-facing shape remains:
 
 ```python
 runtime.send(
@@ -19,340 +19,556 @@ runtime.send(
 )
 ```
 
-but **production Temporary Chat is not enabled by this characterization commit**.
+but production Temporary Chat is **not enabled by this document**.
 
-The current browser-owned capability remains:
+Current capability:
+
+```text
+temporary_chat = UNKNOWN
+production conversation_mode="temporary" = NOT ENABLED
+```
+
+The remaining work is governance, provenance, isolation, and lifecycle hardening, not another attempt to reinterpret Temporary as a normal durable conversation.
+
+## 2. Evidence-backed product model
+
+Live characterization established this lifecycle:
+
+```text
+TRUE TEMPORARY SOURCE SESSION
+        |
+        +-- turn #1 -> HTTP 200
+        +-- turn #2 -> HTTP 200
+        +-- same Temporary product conversation ID
+        +-- visible-turn state grows 0 -> 2 -> 4
+        +-- exact ID remains absent from ordinary history
+        |
+        v
+SOURCE LIFECYCLE ENDS
+        |
+        +-- ordinary canonical GET /conversation/<id> -> 404
+        +-- direct product /c/<id> may stably recover completed turns
+        +-- controlled continuation write -> HTTP 404
+```
+
+Therefore Temporary is:
+
+```text
+a live multi-turn product conversation
+with lifecycle-bounded write authority
+```
+
+It is **not**:
+
+```text
+a one-shot turn
+an ordinary durable history conversation
+an ordinary canonical-conversation resource
+a post-close attach/reopen-write handle
+```
+
+## 3. Core production invariant
+
+Production must model authority separately from identity.
+
+```text
+temporary_product_conversation_id
+        !=
+temporary_live_write_authority
+```
+
+A remembered Temporary product conversation ID may identify product state, but live evidence shows that identity alone is not sufficient to continue after the original Temporary lifecycle ends.
+
+The production rule is:
+
+> A Temporary continuation is authorized only while the runtime still owns a live, mode-proven Temporary lifecycle for that conversation. The ID alone is never enough.
+
+## 4. Target lifecycle state machine
+
+The runtime should reason about Temporary using a lifecycle state machine, not ordinary durable-conversation assumptions.
+
+```text
+REQUESTED_TEMPORARY
+        |
+        | prove Temporary mode before first mutation
+        v
+LIVE_TEMPORARY
+        |
+        | zero or more sequential page-owned turns
+        | same Temporary product conversation identity
+        | each write individually finalized
+        |
+        +-----------------------------+
+        | source disposal / loss      |
+        | lifecycle expiry            |
+        | browser/runtime recreation  |
+        | mode proof lost             |
+        v                             |
+TEMPORARY_LIFECYCLE_ENDED <-----------+
+        |
+        +-- write authority = NONE
+        +-- ordinary canonical read = NOT PROMISED
+        +-- history visibility = NOT PROMISED
+        +-- attach/reopen continuation = NOT PROMISED
+```
+
+A separate diagnostic observation may exist:
+
+```text
+POST_CLOSE_PRODUCT_ROUTE_RECOVERABLE
+```
+
+because `/c/<id>` was observed to hydrate completed turns after close. That is an **observed product state**, not a production authority state.
+
+The production state machine therefore must not transition from `TEMPORARY_LIFECYCLE_ENDED` back to writable merely because `/c/<id>` displays old content.
+
+## 5. First Temporary send
+
+A future explicit request:
+
+```python
+runtime.send(
+    prompt,
+    conversation_mode="temporary",
+)
+```
+
+must use a dedicated Temporary lifecycle boundary.
+
+Before the first write:
+
+```text
+requested_mode = TEMPORARY
+        |
+        v
+obtain/select Temporary-capable page context
+        |
+        v
+prove observed product mode
+        |
+        +-- cannot prove -> FAIL CLOSED, ZERO WRITE
+        |
+        v
+perform exactly one page-owned write
+        |
+        v
+prove response/finality through the live page-owned turn path
+        |
+        v
+return Temporary provenance + live continuation handle/state
+```
+
+Forbidden behavior:
+
+```text
+Temporary selection uncertain
+        ->
+send ordinary durable chat anyway
+```
+
+No hidden fallback is allowed.
+
+## 6. Live multi-turn continuation
+
+Temporary is explicitly multi-turn while the lifecycle remains live.
+
+A production continuation should conceptually be equivalent to:
+
+```python
+runtime.send(
+    next_prompt,
+    conversation=temporary_ref,
+    conversation_mode="temporary",
+)
+```
+
+where `temporary_ref` carries or resolves to both:
+
+```text
+temporary product conversation identity
++
+live Temporary lifecycle binding
+```
+
+The exact public type is still an implementation decision. It may be an ordinary-looking `ConversationRef` with additional provenance/lifecycle metadata, or a dedicated Temporary reference. What matters is the invariant:
+
+```text
+same ID without live lifecycle binding -> NOT AUTHORIZED
+```
+
+A live continuation must prove, before mutation:
+
+```text
+requested_mode = TEMPORARY
+observed_mode  = TEMPORARY
+lifecycle      = LIVE
+conversation identity matches the bound live session
+```
+
+Then the runtime may perform the next page-owned turn.
+
+## 7. Lifecycle termination is a write-authority boundary
+
+Live evidence shows:
+
+```text
+source open:
+    sequential continuation -> HTTP 200
+
+source closed:
+    controlled continuation -> HTTP 404
+```
+
+Production therefore must treat loss/termination of the live Temporary source as an authority boundary.
+
+After `TEMPORARY_LIFECYCLE_ENDED`:
+
+```text
+runtime.send(... same temporary id ...)
+```
+
+must not automatically:
+
+```text
+open /c/<id>
+reattach
+retry as normal chat
+create a durable replacement
+create a new Temporary chat under the old identity
+```
+
+Instead the operation fails closed with an explicit lifecycle/continuation error unless a future independent product contract proves a supported recreation mechanism.
+
+## 8. Identity semantics
+
+The current probe field name `ephemeral_backend_conversation_id` is historically useful but semantically too narrow.
+
+Live evidence supports the conceptual name:
+
+```text
+temporary_product_conversation_id
+```
+
+because the same ID:
+
+```text
+survived multiple live turns
+identified a stable direct product route after close
+recovered all completed turns after close
+```
+
+However it must **not** be promoted to:
+
+```text
+ordinary_canonical_conversation_id
+```
+
+because the existing ordinary canonical conversation endpoint returned `404` both while live and after source close.
+
+Recommended production provenance:
+
+```text
+conversation_identity.kind = "temporary_product_conversation"
+conversation_identity.value = <id>
+conversation_identity.ordinary_canonical_readable = false/unknown
+```
+
+Exact field names remain implementation work for T9; the semantic distinction is mandatory.
+
+## 9. Finality and observation
+
+Ordinary durable-chat finality currently relies heavily on the canonical observation plane.
+
+Temporary cannot require the same mechanism because:
+
+```text
+GET /backend-api/conversation/<temporary-id> -> 404
+```
+
+while the live page-owned turn itself succeeds and visibly completes.
+
+Therefore production Temporary finality must be based on the browser-owned page turn lifecycle unless a separate authoritative Temporary observation endpoint is later discovered.
+
+Required separation:
+
+```text
+WRITE AUTHORITY
+    page-owned Temporary product context
+
+LIVE TURN FINALITY
+    page-owned response/composer/turn evidence
+
+ORDINARY CANONICAL CONVERSATION READ
+    unsupported/not promised for Temporary
+```
+
+Temporary success must not synthesize canonical-read evidence that was not observed.
+
+## 10. Ordinary history semantics
+
+Live evidence repeatedly showed:
+
+```text
+exact /c/<temporary-id> ordinary history enumeration
+    = STABLE_ABSENT
+```
+
+including while a two-turn Temporary conversation was actively writable.
+
+Production therefore promises:
+
+```text
+NO ordinary-history persistence guarantee
+```
+
+and should treat unexpected ordinary durable-history materialization as a mode-isolation failure requiring review.
+
+This is stronger than merely hiding a sidebar entry in the adapter. The runtime must not intentionally create a normal durable fallback conversation to simulate Temporary behavior.
+
+## 11. Post-close product-route recovery is not a production reopen contract
+
+PR8.7 observed:
+
+```text
+/c/<temporary-product-conversation-id>
+    -> exact route
+    -> old completed turns hydrate
+    -> STABLE_RECOVERED
+```
+
+after the source lifecycle ended.
+
+This is valuable characterization evidence, but production must not expose it as:
+
+```text
+attach_conversation()
+reopen()
+continue()
+durable recovery
+```
+
+because the same post-close state rejected a controlled continuation with `HTTP 404`.
+
+Correct production interpretation:
+
+```text
+post-close route recovery = diagnostic/read recovery evidence only
+post-close write authority = NONE
+```
+
+No retention duration or availability SLA is inferred from the observed recovery.
+
+## 12. `attach_conversation()` boundary
+
+Until separately proven, Temporary must not support the ordinary durable-chat attach contract.
+
+Fail-closed rule:
+
+```text
+attach_conversation(temporary_product_conversation_id)
+    -> UNSUPPORTED / UNKNOWN
+```
+
+It must not silently translate to:
+
+```text
+open /c/<id> and assume writable
+```
+
+The direct route is not sufficient authority.
+
+## 13. Requested versus observed mode provenance
+
+T9 must make mode provenance first-class.
+
+Every Temporary send result should eventually distinguish at least:
+
+```text
+requested_conversation_mode = TEMPORARY
+observed_conversation_mode  = TEMPORARY | NORMAL | UNKNOWN
+mode_proof                   = explicit evidence record
+lifecycle_state              = LIVE | ENDED | UNKNOWN
+```
+
+Success is allowed only when:
+
+```text
+requested = TEMPORARY
+observed  = TEMPORARY
+lifecycle = LIVE
+```
+
+If the runtime observes `NORMAL` or cannot prove Temporary before the write, the write must not proceed.
+
+A post-write Temporary-looking title, URL fragment, tooltip, or notice is not enough to retroactively authorize a mutation.
+
+## 14. No durable fallback
+
+T8 is a hard production invariant:
+
+```text
+request TEMPORARY
+    |
+    +-- Temporary mode proven -> Temporary write
+    |
+    `-- Temporary mode not proven -> ERROR
+```
+
+Never:
+
+```text
+request TEMPORARY
+    |
+    `-- selection uncertain -> ordinary durable write
+```
+
+The earlier automated activation experiment demonstrated why this must be enforced: a Temporary-looking activation path can produce an ordinary durable conversation.
+
+## 15. Mode isolation
+
+T10 and T11 must prove both directions.
+
+### TEMP -> NORMAL
+
+After a Temporary lifecycle is used or terminated:
+
+```text
+next NORMAL request
+```
+
+must not inherit:
+
+```text
+Temporary query state
+Temporary page/session state
+Temporary identity
+Temporary lifecycle binding
+Temporary mode proof
+```
+
+### NORMAL -> TEMP
+
+A prior normal runtime tab/conversation must not cause a Temporary request to:
+
+```text
+reuse a durable normal conversation
+inherit normal route identity
+skip Temporary mode proof
+```
+
+Isolation must be explicit even if the product UI appears to manage it automatically.
+
+## 16. Browser Authority Lease versus Temporary Lifecycle
+
+PR8.8 introduces Browser Authority Lease / Turn Lifecycle / TTL-disposal governance. PR8.7 must define the Temporary-specific semantic input to that work.
+
+The important distinction is:
+
+```text
+Browser Authority Lease
+    permission/ownership to use a browser execution context
+
+Temporary Lifecycle
+    product-mode-specific writable lifetime for one Temporary conversation
+```
+
+They may overlap, but they are not identical.
+
+Losing the Temporary lifecycle must revoke Temporary write authority even if a browser tab or direct `/c/<id>` route still exists.
+
+Likewise, recreating generic browser authority must not automatically recreate a terminated Temporary lifecycle.
+
+## 17. Capability semantics
+
+Until T8-T12 pass, capability remains:
 
 ```text
 temporary_chat = UNKNOWN
 ```
 
-until live evidence proves the required selection, identity, persistence, finality, and mode-isolation contracts.
-
-## 2. Official product expectations versus adapter evidence
-
-OpenAI's current Temporary Chat documentation states that Temporary Chats:
-
-- are started from a new chat by selecting the Temporary control;
-- do not appear in normal chat history;
-- do not use or create memories for personalization;
-- are not used to improve models;
-- may still be retained for up to 30 days for safety purposes;
-- continue to follow enabled Custom Instructions.
-
-Current product references:
-
-- https://help.openai.com/en/articles/8914046-temporary-chat-faq
-- https://help.openai.com/en/articles/7730893-chatgpt-temporary-chat-faq
-
-Those are **product expectations**, not proof that the current browser-owned adapter can select, observe, identify, read back, or isolate Temporary Chat correctly.
-
-PR8.7 therefore separates:
+Graduation to `AVAILABLE` requires evidence that production can reliably:
 
 ```text
-PRODUCT DOCUMENTATION
-        !=
-ADAPTER LIVE CONTRACT
+1. prove Temporary mode before first write;
+2. create a live Temporary conversation without durable fallback;
+3. continue multiple turns while the same Temporary lifecycle is live;
+4. surface requested/observed mode provenance;
+5. terminate write authority when the lifecycle ends;
+6. avoid promising ordinary canonical readability;
+7. avoid promising ordinary history persistence;
+8. avoid promising attach/reopen continuation;
+9. isolate TEMP -> NORMAL;
+10. isolate NORMAL -> TEMP;
+11. behave safely across cold/warm/runtime-tab recreation.
 ```
 
-## 3. First live question: can Temporary mode be selected and proven before any write?
+If any required mechanism cannot be proven, capability remains `UNKNOWN` or becomes explicitly `UNSUPPORTED`; it must not be guessed as `AVAILABLE`.
 
-The first characterization gate is deliberately narrow:
+## 18. HDE-facing contract
+
+HDE should not need to know browser selectors, Temporary control labels, `/c/<id>` hydration quirks, or canonical endpoint differences.
+
+The product runtime boundary should eventually expose semantics equivalent to:
 
 ```text
-T0
-new-chat product page
-    -> Temporary control can be found
-    -> Temporary selected state can be observed explicitly
-    -> selection can be performed without sending a chat message
-    -> no conversation POST occurs
+runtime.send(...)
+    requested mode
+    observed mode
+    product conversation identity
+    lifecycle state
+    finality
+    bounded provenance
 ```
 
-This gate comes before any production `conversation_mode="temporary"` send path.
+HDE policy can then decide whether a Temporary lifecycle should stay open for another turn or be explicitly released.
 
-Fail-closed rule:
+HDE must not be asked to reconstruct write authority from a raw Temporary conversation ID.
 
-> A future explicit Temporary request must never silently create a durable ordinary chat when Temporary selection cannot be proven before the write.
+## 19. Current architecture decision
 
-## 4. Isolated no-write probe
-
-This commit adds a research/diagnostic probe:
-
-```powershell
-python -m chatgpt_web_adapter.temporary_chat_probe --timeout 30
-```
-
-The probe intentionally does **not** use the reusable production runtime tab.
-
-It creates a dedicated isolated new-chat tab:
+The existing high-level split still survives:
 
 ```text
-create inactive https://chatgpt.com/
+HDE / terminal / Python
         |
-        v
-wait for ordinary composer readiness
+ChatGPTProductRuntime
         |
-        v
-find Temporary control using bounded visible button/accessibility fields
+        +-- ordinary durable read/status -> canonical HTTP plane
         |
-        v
-observe explicit selected-state attributes
-        |
-        +-- already explicitly selected -> record evidence
-        |
-        `-- otherwise click only the Temporary control
-                  |
-                  v
-             re-observe explicit selected state
-        |
-        v
-verify no conversation POST was observed
-        |
-        v
-detach debugger
-        |
-        v
-close isolated probe tab
+        `-- writes -> BrowserOwnedProductTransport
 ```
 
-No user prompt is inserted.
-
-No assistant response is requested.
-
-No conversation is intentionally created.
-
-The normal production `executeNativeTurn()` path remains unchanged for every request that does not explicitly carry the internal diagnostic flag:
+Temporary adds an important specialization:
 
 ```text
-probeTemporaryMode = true
+Temporary live write/finality
+        -> browser-owned product lifecycle
+
+Temporary ordinary canonical read
+        -> not available through current conversation endpoint
+
+Temporary post-close direct route
+        -> diagnostic recovery evidence, not write authority
 ```
 
-## 5. Selection evidence is intentionally conservative
+This does not yet require PR9.0. It does require PR8.7/PR8.8 to model lifecycle authority explicitly rather than equating identity with continuation permission.
 
-The probe does not infer Temporary mode merely because a button containing the word `Temporary` exists.
+## 20. Remaining PR8.7 gates
 
-It first locates one visible control through bounded fields such as:
+Core Temporary lifecycle characterization is no longer open. Remaining gates are production governance:
 
 ```text
-visible text
-aria-label
-title
-data-testid
+T8  no normal durable fallback in production path
+T9  requested/observed conversation-mode provenance
+T10 TEMP -> NORMAL isolation
+T11 NORMAL -> TEMP isolation
+T12 lifecycle / cold-warm / runtime-tab recreation governance
+T13 capability UNKNOWN -> AVAILABLE only after review
 ```
 
-Only the **field names that matched** are returned. Raw control text and raw DOM are not exported.
-
-A selected state is considered proven only when an explicit state attribute is observed, such as:
+Until those gates are closed:
 
 ```text
-aria-pressed=true
-aria-checked=true
-aria-current=true
-data-selected=true
-data-state=on|checked|active|selected
+production Temporary send = DISABLED
+temporary_chat capability  = UNKNOWN
 ```
-
-CSS class names are not treated as authoritative selection evidence.
-
-If more than one candidate control matches, the probe fails closed with:
-
-```text
-TEMPORARY_CHAT_CONTROL_AMBIGUOUS
-```
-
-rather than guessing which control to click.
-
-If the control exists but no explicit selected-state signal can be proved after activation, the result remains:
-
-```text
-mode_selection_proven = false
-```
-
-That is useful live evidence. The selector/evidence model can then be repaired from observed current UI behavior instead of weakening the gate.
-
-## 6. Privacy and product-boundary constraints
-
-The PR8.7 probe returns only structural evidence.
-
-It must not export:
-
-```text
-cookies
-Authorization headers
-Sentinel/protection credentials
-Turnstile material
-raw request headers
-raw response bodies
-raw DOM
-prompt text
-assistant text
-conversation ids
-message ids
-```
-
-It monitors the browser network only for the boolean question:
-
-```text
-Did any ordinary conversation POST occur during this no-write probe?
-```
-
-If the answer is yes, the probe fails as an invariant violation:
-
-```text
-TEMPORARY_CHAT_PROBE_UNEXPECTED_CONVERSATION_WRITE
-```
-
-## 7. Probe result schema
-
-Example structural result shape:
-
-```json
-{
-  "ok": true,
-  "probe_context": "isolated_new_chat",
-  "control_found": true,
-  "candidate_count": 1,
-  "selected_before": false,
-  "selected_after": true,
-  "mode_selection_proven": true,
-  "selection_action": "cdp_control_click",
-  "reason": "TEMPORARY_CHAT_SELECTION_PROVEN",
-  "match_signals": ["text"],
-  "selection_proof_signals": ["aria-pressed:true"],
-  "conversation_write_observed": false,
-  "tab_was_active": false,
-  "tab_active_after": false,
-  "tab_activated_during_probe": false,
-  "foreground_activation_observed": false,
-  "probe_tab_closed": true,
-  "elapsed_ms": 1234
-}
-```
-
-The exact live values are evidence, not expectations.
-
-A probe exit code of `0` means selected-state evidence was proven.
-
-Exit code `1` means the probe ran safely but selected-state evidence was not sufficient.
-
-Exit code `2` means the diagnostic operation itself failed.
-
-## 8. Why the probe uses a dedicated tab
-
-The reviewed architecture requires conversation/product mode isolation.
-
-A probe that toggled Temporary mode inside the reusable production runtime tab could accidentally contaminate the next ordinary durable turn if the UI mode is sticky.
-
-Therefore this characterization stage uses:
-
-```text
-DEDICATED PROBE TAB
-```
-
-rather than:
-
-```text
-PRODUCTION RUNTIME TAB
-```
-
-and closes it after the probe.
-
-This does not yet prove that Temporary mode is account-local, tab-local, conversation-local, or turn-local. Those scopes remain explicit PR8.7 experiment questions.
-
-## 9. Remaining PR8.7 evidence matrix
-
-A successful T0 probe is necessary but not sufficient to graduate the capability.
-
-The remaining matrix is:
-
-```text
-T0  Temporary selected state can be proven before write
-T1  ordinary text turn succeeds under proven Temporary mode
-T2  terminal response/readback semantics are characterized
-T3  identity semantics are characterized
-T4  persistence/history behavior is characterized
-T5  no normal durable fallback occurs when selection fails
-T6  continuation behavior is characterized rather than assumed
-T7  requested/observed conversation-mode provenance is defined
-T8  TEMP -> NORMAL isolation is proven
-T9  NORMAL -> TEMP isolation is proven
-T10 cold/warm/runtime-tab recreation behavior is characterized
-T11 capability moves UNKNOWN -> AVAILABLE only after the above evidence supports it
-```
-
-## 10. Identity and finality questions must remain open
-
-Temporary Chat must not be forced into ordinary durable-chat assumptions.
-
-PR8.7 must determine:
-
-```text
-Does a Temporary turn receive a conversation_id?
-If yes, is it stable only during the turn or usable after completion?
-Can canonical get_messages() observe it?
-Can canonical get_status() prove terminal state?
-Can attach_conversation() observe it?
-Does it appear in ordinary history enumeration?
-What survives runtime-tab close/recreation?
-What survives browser restart?
-```
-
-If Temporary Chat exposes a different authoritative observation mechanism, the product-runtime contract should model the actual ephemeral semantics rather than inventing durable identity.
-
-## 11. Production conversation-mode API is intentionally deferred to the next PR8.7 commit
-
-This first commit does **not** add a public `conversation_mode` parameter to `ChatGPTProductRuntime.send()`.
-
-Reason:
-
-```text
-selection mechanism not yet live-proven
-+
-identity/readback semantics not yet characterized
-=
-do not expose a production promise yet
-```
-
-After the live probe result is reviewed, the next PR8.7 commit can safely choose between:
-
-```text
-A  repair selector/evidence logic if T0 is not proven
-
-B  integrate proven pre-write Temporary selection,
-   explicit conversation_mode governance,
-   provenance, and remaining live gates
-```
-
-## 12. Architecture-invalidation check
-
-After each characterization step ask:
-
-```text
-Can the existing ProductWriteTransport / canonical split safely express Temporary Chat?
-
-Can the write plane prove Temporary selection before mutation?
-
-Can the canonical plane represent the resulting terminal/identity semantics without fabricating durable state?
-```
-
-If the answer becomes no because Temporary Chat fundamentally requires a different product-runtime ownership model, mark:
-
-```text
-FUNDAMENTAL_BOUNDARY_DISCOVERED
-```
-
-and advance PR9.0 rather than forcing Temporary Chat into an invalid abstraction.
-
-## 13. Current PR8.7 state after this commit
-
-```text
-Temporary Chat product existence              documented externally
-Temporary Chat adapter capability              UNKNOWN
-isolated selector characterization primitive   IMPLEMENTED
-normal production text-turn path                UNCHANGED
-production temporary send                       NOT ENABLED
-silent durable fallback                         NOT INTRODUCED
-challenge/protection expansion                  NONE
-```
-
-The next authoritative input is the live sanitized probe output from the user's real logged-in ChatGPT product session.
