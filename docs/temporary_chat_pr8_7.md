@@ -431,7 +431,7 @@ write_count = 0
 
 The provenance model rejects contradictory claims: an unproven mode must remain `UNKNOWN`, a proven mode requires a non-`NONE` evidence source, and transport-supplied provenance that contradicts the runtime request is rejected rather than normalized silently.
 
-T9 intentionally does **not** synthesize `lifecycle_state`. Temporary lifecycle authority remains a separate T12 responsibility; requested/observed mode proof alone is not continuation authority.
+T9 intentionally did **not** synthesize `lifecycle_state`; requested/observed mode proof alone is not continuation authority. T12 now adds a separate `ProductTemporaryLifecycleProvenance` record so lifecycle authority remains structurally distinct from conversation-mode provenance.
 
 ## 14. No durable fallback
 
@@ -601,9 +601,71 @@ Losing the Temporary lifecycle must revoke Temporary write authority even if a b
 
 Likewise, recreating generic browser authority must not automatically recreate a terminated Temporary lifecycle.
 
+T12 production implementation status:
+
+```text
+CLOSED / PASS
+```
+
+T12 makes lifecycle provenance first-class through `ProductTemporaryLifecycleProvenance`:
+
+```text
+temporary_lifecycle_state = NOT_ESTABLISHED | LIVE | ENDED | UNKNOWN
+lifecycle_evidence_source
+lifecycle_state_proven
+live_write_authority_proven
+proof_detail
+```
+
+The currently blocked production Temporary request now carries an explicit fail-closed lifecycle record:
+
+```text
+requested_conversation_mode = TEMPORARY
+observed_conversation_mode  = UNKNOWN
+
+temporary_lifecycle_state   = NOT_ESTABLISHED
+lifecycle_evidence_source    = RUNTIME_GOVERNANCE_CONTRACT
+lifecycle_state_proven       = true
+live_write_authority_proven  = false
+write_count                  = 0
+```
+
+`NOT_ESTABLISHED` is stronger and more accurate than pretending the runtime observed a product lifecycle. It states only that the current production gate blocked the request before any Temporary lifecycle could be established. A future successful Temporary execution must prove `LIVE` independently through product/lifecycle evidence; mode proof alone is insufficient.
+
+Cold/warm and recreation governance is now explicit:
+
+```text
+temporary_lifecycle_authority_scope = LIVE_PRODUCT_LIFECYCLE
+temporary_lifecycle_state_persisted_by_product_runtime = false
+
+cold_runtime_implies_temporary_lifecycle = false
+warm_runtime_implies_temporary_lifecycle = false
+runtime_reassembly_preserves_temporary_lifecycle = false
+
+runtime_tab_presence_implies_temporary_lifecycle = false
+runtime_tab_recreation_restores_temporary_lifecycle = false
+browser_authority_recreation_restores_temporary_lifecycle = false
+
+temporary_lifecycle_requires_fresh_proof_after_runtime_recreation = true
+temporary_lifecycle_requires_fresh_proof_after_tab_recreation = true
+post_close_route_recovery_restores_temporary_lifecycle = false
+```
+
+Regression coverage proves the current production boundary across:
+
+```text
+cold runtime, no runtime tab -> TEMP remains fail-closed
+warm ordinary runtime tab -> TEMP remains fail-closed
+new ChatGPTProductRuntime over the same browser authority -> TEMP remains fail-closed
+runtime tab 77 -> lost -> recreated as 88 -> TEMP remains fail-closed at every stage
+NORMAL execution before runtime reassembly -> does not transfer Temporary authority
+```
+
+This is intentionally compatible with PR8.8: browser authority may be reacquired or a runtime tab may be recreated on demand for ordinary product writes, but those events never recreate a product-mode-specific Temporary lifecycle. If a live Temporary lifecycle is lost, production must require a new independently proven lifecycle rather than reconstruct authority from a tab ID, a raw conversation ID, a direct `/c/<id>` recovery route, or a newly assembled runtime object.
+
 ## 17. Capability semantics
 
-T8-T11 are closed, but until T12 passes, capability remains:
+T8-T12 are closed, but capability remains review-gated:
 
 ```text
 temporary_chat = UNKNOWN
@@ -678,25 +740,27 @@ This does not yet require PR9.0. It does require PR8.7/PR8.8 to model lifecycle 
 
 ## 20. Remaining PR8.7 gates
 
-Core Temporary lifecycle characterization is no longer open. T8-T11 are closed:
+Core Temporary lifecycle characterization and production governance T8-T12 are closed:
 
 ```text
 T8  no normal durable fallback in production path            CLOSED / PASS
 T9  requested/observed conversation-mode provenance          CLOSED / PASS
 T10 TEMP -> NORMAL isolation                                  CLOSED / PASS
 T11 NORMAL -> TEMP isolation                                  CLOSED / PASS
+T12 lifecycle / cold-warm / runtime-tab recreation governance CLOSED / PASS
 ```
 
-Remaining gates are production governance:
+Remaining gate is explicit capability review:
 
 ```text
-T12 lifecycle / cold-warm / runtime-tab recreation governance
 T13 capability UNKNOWN -> AVAILABLE only after review
 ```
 
-Until those gates are closed:
+Until T13 explicitly reviews the accumulated evidence and production implementation boundary:
 
 ```text
 production Temporary send = DISABLED
 temporary_chat capability  = UNKNOWN
 ```
+
+T12 does not itself graduate the capability. It closes lifecycle/recreation governance so T13 can decide whether the remaining gap is an implementation enablement step, further live production evidence, or continued `UNKNOWN`.

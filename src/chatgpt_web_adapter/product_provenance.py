@@ -27,6 +27,19 @@ class ConversationModeEvidenceSource(str, Enum):
     NONE = "NONE"
 
 
+class TemporaryLifecycleState(str, Enum):
+    NOT_ESTABLISHED = "NOT_ESTABLISHED"
+    LIVE = "LIVE"
+    ENDED = "ENDED"
+    UNKNOWN = "UNKNOWN"
+
+
+class TemporaryLifecycleEvidenceSource(str, Enum):
+    RUNTIME_GOVERNANCE_CONTRACT = "RUNTIME_GOVERNANCE_CONTRACT"
+    PRODUCT_LIFECYCLE_OBSERVATION = "PRODUCT_LIFECYCLE_OBSERVATION"
+    NONE = "NONE"
+
+
 def _optional_text(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
@@ -58,6 +71,37 @@ def _conversation_mode_evidence_source(
     if not normalized:
         raise ValueError("conversation mode evidence source must not be empty")
     return ConversationModeEvidenceSource(normalized)
+
+
+def _temporary_lifecycle_state(
+    value: TemporaryLifecycleState | str,
+) -> TemporaryLifecycleState:
+    if isinstance(value, TemporaryLifecycleState):
+        return value
+    if not isinstance(value, str):
+        raise TypeError(
+            "temporary lifecycle state must be a string or TemporaryLifecycleState"
+        )
+    normalized = value.strip().upper()
+    if not normalized:
+        raise ValueError("temporary lifecycle state must not be empty")
+    return TemporaryLifecycleState(normalized)
+
+
+def _temporary_lifecycle_evidence_source(
+    value: TemporaryLifecycleEvidenceSource | str,
+) -> TemporaryLifecycleEvidenceSource:
+    if isinstance(value, TemporaryLifecycleEvidenceSource):
+        return value
+    if not isinstance(value, str):
+        raise TypeError(
+            "temporary lifecycle evidence source must be a string or "
+            "TemporaryLifecycleEvidenceSource"
+        )
+    normalized = value.strip().upper()
+    if not normalized:
+        raise ValueError("temporary lifecycle evidence source must not be empty")
+    return TemporaryLifecycleEvidenceSource(normalized)
 
 
 def _safe_observation_dict(observation: Any) -> dict[str, Any]:
@@ -160,6 +204,56 @@ class ProductConversationModeProvenance:
 
 
 @dataclass(frozen=True)
+class ProductTemporaryLifecycleProvenance:
+    temporary_lifecycle_state: TemporaryLifecycleState
+    lifecycle_evidence_source: TemporaryLifecycleEvidenceSource
+    lifecycle_state_proven: bool
+    live_write_authority_proven: bool
+    proof_detail: str | None = None
+
+    def __post_init__(self) -> None:
+        state = _temporary_lifecycle_state(self.temporary_lifecycle_state)
+        source = _temporary_lifecycle_evidence_source(self.lifecycle_evidence_source)
+        if not isinstance(self.lifecycle_state_proven, bool):
+            raise TypeError("lifecycle_state_proven must be a bool")
+        if not isinstance(self.live_write_authority_proven, bool):
+            raise TypeError("live_write_authority_proven must be a bool")
+        if self.lifecycle_state_proven:
+            if state is TemporaryLifecycleState.UNKNOWN:
+                raise ValueError("proven temporary lifecycle state cannot be UNKNOWN")
+            if source is TemporaryLifecycleEvidenceSource.NONE:
+                raise ValueError(
+                    "proven temporary lifecycle state requires an evidence source"
+                )
+        else:
+            if state is not TemporaryLifecycleState.UNKNOWN:
+                raise ValueError("unproven temporary lifecycle state must be UNKNOWN")
+            if source is not TemporaryLifecycleEvidenceSource.NONE:
+                raise ValueError(
+                    "unproven temporary lifecycle state must use evidence source NONE"
+                )
+        if self.live_write_authority_proven and (
+            not self.lifecycle_state_proven
+            or state is not TemporaryLifecycleState.LIVE
+        ):
+            raise ValueError(
+                "live Temporary write authority requires a proven LIVE lifecycle"
+            )
+        object.__setattr__(self, "temporary_lifecycle_state", state)
+        object.__setattr__(self, "lifecycle_evidence_source", source)
+        object.__setattr__(self, "proof_detail", _optional_text(self.proof_detail))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "temporary_lifecycle_state": self.temporary_lifecycle_state.value,
+            "lifecycle_evidence_source": self.lifecycle_evidence_source.value,
+            "lifecycle_state_proven": self.lifecycle_state_proven,
+            "live_write_authority_proven": self.live_write_authority_proven,
+            "proof_detail": self.proof_detail,
+        }
+
+
+@dataclass(frozen=True)
 class ProductExecutionProvenance:
     product_semantics: str
     transport: str
@@ -170,6 +264,7 @@ class ProductExecutionProvenance:
     identity: ProductIdentityProvenance
     transport_metadata: dict[str, Any]
     conversation_mode: ProductConversationModeProvenance | None = None
+    temporary_lifecycle: ProductTemporaryLifecycleProvenance | None = None
 
     def __post_init__(self) -> None:
         product_semantics = _optional_text(self.product_semantics)
@@ -190,6 +285,13 @@ class ProductExecutionProvenance:
         ):
             raise TypeError(
                 "conversation_mode must be ProductConversationModeProvenance or None"
+            )
+        if self.temporary_lifecycle is not None and not isinstance(
+            self.temporary_lifecycle,
+            ProductTemporaryLifecycleProvenance,
+        ):
+            raise TypeError(
+                "temporary_lifecycle must be ProductTemporaryLifecycleProvenance or None"
             )
         object.__setattr__(self, "product_semantics", product_semantics.lower())
         object.__setattr__(self, "transport", transport.lower())
@@ -213,6 +315,11 @@ class ProductExecutionProvenance:
                 if self.conversation_mode is not None
                 else None
             ),
+            "temporary_lifecycle": (
+                self.temporary_lifecycle.to_dict()
+                if self.temporary_lifecycle is not None
+                else None
+            ),
         }
 
 
@@ -223,6 +330,7 @@ def build_product_execution_provenance(
     observation: Any,
     governance: Mapping[str, Any] | None,
     conversation_mode: ProductConversationModeProvenance | None = None,
+    temporary_lifecycle: ProductTemporaryLifecycleProvenance | None = None,
 ) -> ProductExecutionProvenance:
     """Build generic provenance without inventing backend completion metadata.
 
@@ -239,6 +347,14 @@ def build_product_execution_provenance(
     ):
         raise TypeError(
             "conversation_mode must be ProductConversationModeProvenance or None"
+        )
+
+    if temporary_lifecycle is not None and not isinstance(
+        temporary_lifecycle,
+        ProductTemporaryLifecycleProvenance,
+    ):
+        raise TypeError(
+            "temporary_lifecycle must be ProductTemporaryLifecycleProvenance or None"
         )
 
     governance_payload = dict(governance or {})
@@ -281,4 +397,5 @@ def build_product_execution_provenance(
         identity=identity,
         transport_metadata=_safe_observation_dict(observation),
         conversation_mode=conversation_mode,
+        temporary_lifecycle=temporary_lifecycle,
     )

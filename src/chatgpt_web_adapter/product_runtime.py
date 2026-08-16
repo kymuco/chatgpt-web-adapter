@@ -12,6 +12,9 @@ from .product_provenance import (
     ConversationModeEvidenceSource,
     ProductConversationModeProvenance,
     ProductExecutionProvenance,
+    ProductTemporaryLifecycleProvenance,
+    TemporaryLifecycleEvidenceSource,
+    TemporaryLifecycleState,
     build_product_execution_provenance,
 )
 from .product_transport import (
@@ -67,6 +70,20 @@ def _normal_conversation_mode_provenance() -> ProductConversationModeProvenance:
     )
 
 
+def _not_established_temporary_lifecycle_provenance() -> ProductTemporaryLifecycleProvenance:
+    return ProductTemporaryLifecycleProvenance(
+        temporary_lifecycle_state=TemporaryLifecycleState.NOT_ESTABLISHED,
+        lifecycle_evidence_source=(
+            TemporaryLifecycleEvidenceSource.RUNTIME_GOVERNANCE_CONTRACT
+        ),
+        lifecycle_state_proven=True,
+        live_write_authority_proven=False,
+        proof_detail=(
+            "request blocked before Temporary lifecycle establishment"
+        ),
+    )
+
+
 class ProductConversationModeUnavailableError(RuntimeError):
     """Fail-closed refusal before any product write for an unavailable mode."""
 
@@ -80,6 +97,9 @@ class ProductConversationModeUnavailableError(RuntimeError):
             observed_mode_proven=False,
             proof_detail="request blocked before ProductWriteTransport dispatch",
         )
+        self.temporary_lifecycle_provenance = (
+            _not_established_temporary_lifecycle_provenance()
+        )
         super().__init__(
             "PRODUCT_CONVERSATION_MODE_UNAVAILABLE: "
             f"requested={requested.value} observed=UNKNOWN "
@@ -92,6 +112,7 @@ class ProductConversationModeUnavailableError(RuntimeError):
             "error": type(self).__name__,
             "message": str(self),
             "conversation_mode": self.conversation_mode_provenance.to_dict(),
+            "temporary_lifecycle": self.temporary_lifecycle_provenance.to_dict(),
         }
 
 
@@ -357,6 +378,22 @@ class ChatGPTProductRuntime:
                 "temporary_mode_inherits_normal_provenance": False,
                 "ordinary_runtime_tab_is_temporary_mode_proof": False,
                 "ordinary_conversation_identity_is_temporary_mode_proof": False,
+                "temporary_lifecycle_provenance_model": (
+                    "ProductTemporaryLifecycleProvenance"
+                ),
+                "temporary_lifecycle_authority_scope": "LIVE_PRODUCT_LIFECYCLE",
+                "temporary_lifecycle_state_persisted_by_product_runtime": False,
+                "cold_runtime_implies_temporary_lifecycle": False,
+                "warm_runtime_implies_temporary_lifecycle": False,
+                "runtime_reassembly_preserves_temporary_lifecycle": False,
+                "runtime_tab_presence_implies_temporary_lifecycle": False,
+                "runtime_tab_recreation_restores_temporary_lifecycle": False,
+                "browser_authority_recreation_restores_temporary_lifecycle": False,
+                "temporary_lifecycle_requires_fresh_proof_after_runtime_recreation": (
+                    True
+                ),
+                "temporary_lifecycle_requires_fresh_proof_after_tab_recreation": True,
+                "post_close_route_recovery_restores_temporary_lifecycle": False,
                 "new_chat_supported": True,
                 "continuation_supported": True,
                 "daily_use_entrypoint": "ChatGPTProductRuntime.send",
