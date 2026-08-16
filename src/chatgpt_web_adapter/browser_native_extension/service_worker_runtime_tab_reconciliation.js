@@ -100,19 +100,12 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
   }).catch(() => {});
 });
 
-// The base worker may already have connected and published a stored integer
-// before this wrapper was loaded. Correct broker state immediately from a live
-// Chrome validation. Future reconnect hello messages call the wrapped
-// storedRuntimeTabId() and therefore cannot republish an unvalidated stale id.
 _pr824a3PublishValidatedRuntimeState().catch(() => {});
 
-
-// PR8.8 Browser Authority Lease fencing and production CLOSE primitive.
-//
-// This layer is deliberately below the PR8.7 Temporary-specific wrappers.
-// Browser Authority Lease identity is generic page/runtime authority metadata;
-// it never proves product mode, conversation identity, or Temporary lifecycle.
+// PR8.8 Browser Authority Lease fencing, CLOSE, and read-only live characterization.
 const PR88_BROWSER_AUTHORITY_LEASE_KEY = "browserNativeRuntimeTabAuthorityLeaseId";
+const PR88_RESOURCE_SAMPLE_MIN_MS = 1000;
+const PR88_RESOURCE_SAMPLE_MAX_MS = 15000;
 const _pr88PriorExecuteNativeTurn = executeNativeTurn;
 const _pr88PriorOnNativeMessage = onNativeMessage;
 
@@ -139,10 +132,199 @@ async function _pr88ClearLeaseIdIfMatches(expectedLeaseId) {
   return true;
 }
 
+function _pr88FiniteMetric(value) {
+  return Number.isFinite(value) ? Number(value) : null;
+}
+
+function _pr88MetricValue(metrics, name) {
+  const entry = Array.isArray(metrics)
+    ? metrics.find((metric) => metric?.name === name)
+    : null;
+  return _pr88FiniteMetric(entry?.value);
+}
+
+async function _pr88PerformanceSnapshot(debuggee) {
+  const performanceMetrics = await chrome.debugger.sendCommand(
+    debuggee,
+    "Performance.getMetrics"
+  );
+  let dom = null;
+  try {
+    dom = await chrome.debugger.sendCommand(debuggee, "Memory.getDOMCounters");
+  } catch {
+    dom = null;
+  }
+  const metrics = Array.isArray(performanceMetrics?.metrics)
+    ? performanceMetrics.metrics
+    : [];
+  return {
+    taskDurationS: _pr88MetricValue(metrics, "TaskDuration"),
+    jsHeapUsedBytes: _pr88MetricValue(metrics, "JSHeapUsedSize"),
+    jsHeapTotalBytes: _pr88MetricValue(metrics, "JSHeapTotalSize"),
+    documents: Number.isInteger(dom?.documents)
+      ? dom.documents
+      : _pr88MetricValue(metrics, "Documents"),
+    nodes: Number.isInteger(dom?.nodes)
+      ? dom.nodes
+      : _pr88MetricValue(metrics, "Nodes"),
+    jsEventListeners: Number.isInteger(dom?.jsEventListeners)
+      ? dom.jsEventListeners
+      : _pr88MetricValue(metrics, "JSEventListeners")
+  };
+}
+
+async function _pr88CharacterizationStatus(message) {
+  if (
+    message?.text != null ||
+    message?.conversationId != null ||
+    message?.browserAuthorityLeaseId != null
+  ) {
+    throw new Error("PR8_8_CHARACTERIZATION_STATUS_FLAG_CONFLICT");
+  }
+  const runtimeTabId = await storedRuntimeTabId();
+  return {
+    probeContext: "browser_authority_characterization_support",
+    characterizationSupported: true,
+    resourceSamplingSupported: true,
+    runtimeTabReleaseSupported: true,
+    runtimeTabId,
+    leaseIdPresent: (await _pr88StoredLeaseId()) !== null,
+    readOnly: true
+  };
+}
+
+async function _pr88SampleRuntimeTabResources(message) {
+  if (
+    message?.text != null ||
+    message?.conversationId != null ||
+    message?.browserAuthorityLeaseId != null
+  ) {
+    throw new Error("PR8_8_RESOURCE_SAMPLE_FLAG_CONFLICT");
+  }
+
+  const requested = Number(message?.sampleMs);
+  const sampleMs = Number.isFinite(requested)
+    ? Math.max(
+        PR88_RESOURCE_SAMPLE_MIN_MS,
+        Math.min(PR88_RESOURCE_SAMPLE_MAX_MS, Math.round(requested))
+      )
+    : 5000;
+  const runtimeTabId = await storedRuntimeTabId();
+  if (!Number.isInteger(runtimeTabId)) {
+    throw new Error("PR8_8_RESOURCE_SAMPLE_RUNTIME_TAB_REQUIRED");
+  }
+
+  const tabBefore = await chrome.tabs.get(runtimeTabId);
+  if (!isChatGPTUrl(tabBefore?.url || "")) {
+    throw new Error("PR8_8_RESOURCE_SAMPLE_RUNTIME_TAB_NOT_CHATGPT");
+  }
+
+  const debuggee = { tabId: runtimeTabId };
+  const activatedTabIds = new Set();
+  const onActivated = (activeInfo) => {
+    if (Number.isInteger(activeInfo?.tabId)) {
+      activatedTabIds.add(activeInfo.tabId);
+    }
+  };
+
+  let attached = false;
+  const startedAt = performance.now();
+  chrome.tabs.onActivated.addListener(onActivated);
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await chrome.debugger.sendCommand(debuggee, "Performance.enable");
+    const start = await _pr88PerformanceSnapshot(debuggee);
+    await sleep(sampleMs);
+    const end = await _pr88PerformanceSnapshot(debuggee);
+    const tabAfter = await chrome.tabs.get(runtimeTabId);
+    const tabActiveAfter = Boolean(tabAfter?.active);
+    const observedSampleMs = elapsedMs(startedAt);
+    const taskDelta = (
+      start.taskDurationS !== null &&
+      end.taskDurationS !== null &&
+      end.taskDurationS >= start.taskDurationS
+    )
+      ? end.taskDurationS - start.taskDurationS
+      : null;
+    const taskFraction = taskDelta !== null && observedSampleMs > 0
+      ? Math.max(0, taskDelta / (observedSampleMs / 1000))
+      : null;
+
+    return {
+      probeContext: "browser_authority_runtime_tab_idle_resources",
+      readOnly: true,
+      runtimeTabId,
+      requestedSampleMs: sampleMs,
+      observedSampleMs,
+      taskDurationStartS: start.taskDurationS,
+      taskDurationEndS: end.taskDurationS,
+      taskDurationDeltaS: taskDelta,
+      taskTimeFraction: taskFraction,
+      jsHeapUsedStartBytes: start.jsHeapUsedBytes,
+      jsHeapUsedEndBytes: end.jsHeapUsedBytes,
+      jsHeapUsedMaxBytes: (
+        start.jsHeapUsedBytes !== null && end.jsHeapUsedBytes !== null
+      )
+        ? Math.max(start.jsHeapUsedBytes, end.jsHeapUsedBytes)
+        : (start.jsHeapUsedBytes ?? end.jsHeapUsedBytes),
+      jsHeapTotalStartBytes: start.jsHeapTotalBytes,
+      jsHeapTotalEndBytes: end.jsHeapTotalBytes,
+      documentsStart: Number.isInteger(start.documents) ? start.documents : null,
+      documentsEnd: Number.isInteger(end.documents) ? end.documents : null,
+      nodesStart: Number.isInteger(start.nodes) ? start.nodes : null,
+      nodesEnd: Number.isInteger(end.nodes) ? end.nodes : null,
+      jsEventListenersStart: Number.isInteger(start.jsEventListeners)
+        ? start.jsEventListeners
+        : null,
+      jsEventListenersEnd: Number.isInteger(end.jsEventListeners)
+        ? end.jsEventListeners
+        : null,
+      tabWasActive: Boolean(tabBefore?.active),
+      tabActiveAfter,
+      tabActivatedDuringSample: activatedTabIds.has(runtimeTabId),
+      foregroundActivationObserved: Boolean(
+        tabBefore?.active ||
+        tabActiveAfter === true ||
+        activatedTabIds.has(runtimeTabId)
+      )
+    };
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Runtime tab may have disappeared during diagnostics.
+      }
+    }
+    chrome.tabs.onActivated.removeListener(onActivated);
+  }
+}
+
 executeNativeTurn = async function _executeNativeTurnWithBrowserAuthorityLease(message) {
+  if (message?.characterizeBrowserAuthorityStatus === true) {
+    return _pr88CharacterizationStatus(message);
+  }
+  if (message?.characterizeBrowserAuthorityResources === true) {
+    const result = await _pr88SampleRuntimeTabResources(message);
+    let debuggerAttachedAfter = null;
+    try {
+      const targets = await chrome.debugger.getTargets();
+      debuggerAttachedAfter = Boolean(
+        targets.find((target) => target.tabId === result.runtimeTabId)?.attached
+      );
+    } catch {
+      debuggerAttachedAfter = null;
+    }
+    return {
+      ...result,
+      debuggerAttachedAfter
+    };
+  }
+
   const leaseId = _pr88LeaseId(message?.browserAuthorityLeaseId);
   if (leaseId !== null) {
-    // Fence stale timers before any page-owned mutation or runtime-tab reuse.
     await _pr88StoreLeaseId(leaseId);
   }
 
@@ -201,7 +383,6 @@ async function _pr88ReleaseRuntimeTab(message) {
     throw new Error("BROWSER_NATIVE_RUNTIME_TAB_NOT_CHATGPT");
   }
 
-  // Recheck both fences immediately before CLOSE.
   const finalLeaseId = await _pr88StoredLeaseId();
   const finalTabId = await storedRuntimeTabId();
   if (finalLeaseId !== requestLeaseId) {
@@ -212,9 +393,6 @@ async function _pr88ReleaseRuntimeTab(message) {
   }
 
   await chrome.tabs.remove(storedTabId);
-
-  // The base onRemoved listener normally clears runtime state. Make release
-  // result independent of listener scheduling while never clearing a newer tab.
   await _pr824a3ClearStoredRuntimeTabIdIfMatches(storedTabId);
   await _pr88ClearLeaseIdIfMatches(requestLeaseId);
 
