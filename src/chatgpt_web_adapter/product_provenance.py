@@ -15,11 +15,49 @@ class CompletionSource(str, Enum):
     TRANSPORT_RETURN = "TRANSPORT_RETURN"
 
 
+class ConversationMode(str, Enum):
+    NORMAL = "NORMAL"
+    TEMPORARY = "TEMPORARY"
+    UNKNOWN = "UNKNOWN"
+
+
+class ConversationModeEvidenceSource(str, Enum):
+    TRANSPORT_SEMANTICS_CONTRACT = "TRANSPORT_SEMANTICS_CONTRACT"
+    PRODUCT_MODE_OBSERVATION = "PRODUCT_MODE_OBSERVATION"
+    NONE = "NONE"
+
+
 def _optional_text(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     value = value.strip()
     return value or None
+
+
+def _conversation_mode(value: ConversationMode | str) -> ConversationMode:
+    if isinstance(value, ConversationMode):
+        return value
+    if not isinstance(value, str):
+        raise TypeError("conversation mode must be a string or ConversationMode")
+    normalized = value.strip().upper()
+    if not normalized:
+        raise ValueError("conversation mode must not be empty")
+    return ConversationMode(normalized)
+
+
+def _conversation_mode_evidence_source(
+    value: ConversationModeEvidenceSource | str,
+) -> ConversationModeEvidenceSource:
+    if isinstance(value, ConversationModeEvidenceSource):
+        return value
+    if not isinstance(value, str):
+        raise TypeError(
+            "conversation mode evidence source must be a string or ConversationModeEvidenceSource"
+        )
+    normalized = value.strip().upper()
+    if not normalized:
+        raise ValueError("conversation mode evidence source must not be empty")
+    return ConversationModeEvidenceSource(normalized)
 
 
 def _safe_observation_dict(observation: Any) -> dict[str, Any]:
@@ -84,6 +122,44 @@ class ProductIdentityProvenance:
 
 
 @dataclass(frozen=True)
+class ProductConversationModeProvenance:
+    requested_conversation_mode: ConversationMode
+    observed_conversation_mode: ConversationMode
+    observed_mode_evidence_source: ConversationModeEvidenceSource
+    observed_mode_proven: bool
+    proof_detail: str | None = None
+
+    def __post_init__(self) -> None:
+        requested = _conversation_mode(self.requested_conversation_mode)
+        observed = _conversation_mode(self.observed_conversation_mode)
+        source = _conversation_mode_evidence_source(self.observed_mode_evidence_source)
+        if not isinstance(self.observed_mode_proven, bool):
+            raise TypeError("observed_mode_proven must be a bool")
+        proven = self.observed_mode_proven
+        if proven and observed is ConversationMode.UNKNOWN:
+            raise ValueError("proven observed conversation mode cannot be UNKNOWN")
+        if not proven and observed is not ConversationMode.UNKNOWN:
+            raise ValueError("unproven observed conversation mode must be UNKNOWN")
+        if proven and source is ConversationModeEvidenceSource.NONE:
+            raise ValueError("proven observed conversation mode requires an evidence source")
+        if not proven and source is not ConversationModeEvidenceSource.NONE:
+            raise ValueError("unproven observed conversation mode must use evidence source NONE")
+        object.__setattr__(self, "requested_conversation_mode", requested)
+        object.__setattr__(self, "observed_conversation_mode", observed)
+        object.__setattr__(self, "observed_mode_evidence_source", source)
+        object.__setattr__(self, "proof_detail", _optional_text(self.proof_detail))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "requested_conversation_mode": self.requested_conversation_mode.value,
+            "observed_conversation_mode": self.observed_conversation_mode.value,
+            "observed_mode_evidence_source": self.observed_mode_evidence_source.value,
+            "observed_mode_proven": self.observed_mode_proven,
+            "proof_detail": self.proof_detail,
+        }
+
+
+@dataclass(frozen=True)
 class ProductExecutionProvenance:
     product_semantics: str
     transport: str
@@ -93,6 +169,7 @@ class ProductExecutionProvenance:
     completion: ProductCompletionProvenance
     identity: ProductIdentityProvenance
     transport_metadata: dict[str, Any]
+    conversation_mode: ProductConversationModeProvenance | None = None
 
     def __post_init__(self) -> None:
         product_semantics = _optional_text(self.product_semantics)
@@ -107,6 +184,13 @@ class ProductExecutionProvenance:
             raise TypeError("identity must be ProductIdentityProvenance")
         if not isinstance(self.transport_metadata, dict):
             raise TypeError("transport_metadata must be a dict")
+        if self.conversation_mode is not None and not isinstance(
+            self.conversation_mode,
+            ProductConversationModeProvenance,
+        ):
+            raise TypeError(
+                "conversation_mode must be ProductConversationModeProvenance or None"
+            )
         object.__setattr__(self, "product_semantics", product_semantics.lower())
         object.__setattr__(self, "transport", transport.lower())
         object.__setattr__(self, "write_plane", _optional_text(self.write_plane))
@@ -124,6 +208,11 @@ class ProductExecutionProvenance:
             "completion": self.completion.to_dict(),
             "identity": self.identity.to_dict(),
             "transport_metadata": copy.deepcopy(self.transport_metadata),
+            "conversation_mode": (
+                self.conversation_mode.to_dict()
+                if self.conversation_mode is not None
+                else None
+            ),
         }
 
 
@@ -133,6 +222,7 @@ def build_product_execution_provenance(
     response: Any,
     observation: Any,
     governance: Mapping[str, Any] | None,
+    conversation_mode: ProductConversationModeProvenance | None = None,
 ) -> ProductExecutionProvenance:
     """Build generic provenance without inventing backend completion metadata.
 
@@ -142,6 +232,14 @@ def build_product_execution_provenance(
     message field supplied the finality signal. Nullable ``finish_reason`` is
     preserved exactly as observed instead of being synthesized.
     """
+
+    if conversation_mode is not None and not isinstance(
+        conversation_mode,
+        ProductConversationModeProvenance,
+    ):
+        raise TypeError(
+            "conversation_mode must be ProductConversationModeProvenance or None"
+        )
 
     governance_payload = dict(governance or {})
     canonical_required = governance_payload.get("canonical_readback_required") is True
@@ -182,4 +280,5 @@ def build_product_execution_provenance(
         completion=completion,
         identity=identity,
         transport_metadata=_safe_observation_dict(observation),
+        conversation_mode=conversation_mode,
     )

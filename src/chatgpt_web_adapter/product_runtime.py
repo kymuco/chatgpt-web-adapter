@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,9 @@ from .auth import DEFAULT_AUTH_FILE
 from .client import ChatGPTWebClient, DEFAULT_TIMEOUT_SECONDS
 from .product_capabilities import ProductCapabilities
 from .product_provenance import (
+    ConversationMode,
+    ConversationModeEvidenceSource,
+    ProductConversationModeProvenance,
     ProductExecutionProvenance,
     build_product_execution_provenance,
 )
@@ -49,15 +53,78 @@ def _normalize_conversation_mode(value: str) -> str:
     return normalized
 
 
+def _normal_conversation_mode_provenance() -> ProductConversationModeProvenance:
+    return ProductConversationModeProvenance(
+        requested_conversation_mode=ConversationMode.NORMAL,
+        observed_conversation_mode=ConversationMode.NORMAL,
+        observed_mode_evidence_source=(
+            ConversationModeEvidenceSource.TRANSPORT_SEMANTICS_CONTRACT
+        ),
+        observed_mode_proven=True,
+        proof_detail=(
+            "normal request dispatched through ordinary-mode-only ProductWriteTransport"
+        ),
+    )
+
+
+class ProductConversationModeUnavailableError(RuntimeError):
+    """Fail-closed refusal before any product write for an unavailable mode."""
+
+    def __init__(self, requested_mode: str) -> None:
+        normalized = _normalize_conversation_mode(requested_mode)
+        requested = ConversationMode(normalized.upper())
+        self.conversation_mode_provenance = ProductConversationModeProvenance(
+            requested_conversation_mode=requested,
+            observed_conversation_mode=ConversationMode.UNKNOWN,
+            observed_mode_evidence_source=ConversationModeEvidenceSource.NONE,
+            observed_mode_proven=False,
+            proof_detail="request blocked before ProductWriteTransport dispatch",
+        )
+        super().__init__(
+            "PRODUCT_CONVERSATION_MODE_UNAVAILABLE: "
+            f"requested={requested.value} observed=UNKNOWN "
+            f"conversation_mode={normalized!r} is disabled in production until "
+            "mode-aware Temporary write routing is implemented; fallback=none"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": type(self).__name__,
+            "message": str(self),
+            "conversation_mode": self.conversation_mode_provenance.to_dict(),
+        }
+
+
 def _require_production_write_mode(value: str) -> str:
     mode = _normalize_conversation_mode(value)
     if mode == _TEMPORARY_CONVERSATION_MODE:
-        raise RuntimeError(
-            "PRODUCT_CONVERSATION_MODE_UNAVAILABLE: "
-            "conversation_mode='temporary' is disabled in production until "
-            "mode-aware Temporary write routing is implemented; fallback=none"
-        )
+        raise ProductConversationModeUnavailableError(mode)
     return mode
+
+
+def _validate_or_attach_normal_mode_provenance(
+    provenance: ProductExecutionProvenance,
+) -> ProductExecutionProvenance:
+    mode = provenance.conversation_mode
+    if mode is None:
+        return replace(
+            provenance,
+            conversation_mode=_normal_conversation_mode_provenance(),
+        )
+    if mode.requested_conversation_mode is not ConversationMode.NORMAL:
+        raise RuntimeError(
+            "write transport returned conversation-mode provenance for unexpected "
+            f"requested mode {mode.requested_conversation_mode.value!r}"
+        )
+    if (
+        mode.observed_conversation_mode is not ConversationMode.NORMAL
+        or not mode.observed_mode_proven
+    ):
+        raise RuntimeError(
+            "write transport did not prove NORMAL observed conversation mode for "
+            "a successful normal production execution"
+        )
+    return provenance
 
 
 def _assemble_default_write_transport(
@@ -197,7 +264,7 @@ class ChatGPTProductRuntime:
         on_event: EventCallback = None,
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ProductRuntimeExecution:
-        _require_production_write_mode(conversation_mode)
+        mode = _require_production_write_mode(conversation_mode)
         execution = self.write_transport.send_text_observed(
             text,
             conversation=conversation,
@@ -212,6 +279,10 @@ class ChatGPTProductRuntime:
                 f"{execution.transport!r}"
             )
 
+        if mode != _NORMAL_CONVERSATION_MODE:
+            raise RuntimeError("unexpected enabled production conversation mode")
+        expected_mode = _normal_conversation_mode_provenance()
+
         provenance = execution.provenance
         if provenance is None:
             provenance = build_product_execution_provenance(
@@ -219,6 +290,7 @@ class ChatGPTProductRuntime:
                 response=execution.response,
                 observation=execution.observation,
                 governance=self.write_transport.governance(),
+                conversation_mode=expected_mode,
             )
         elif not isinstance(provenance, ProductExecutionProvenance):
             raise TypeError(
@@ -229,6 +301,8 @@ class ChatGPTProductRuntime:
                 "write transport returned provenance for unexpected transport "
                 f"{provenance.transport!r}"
             )
+        else:
+            provenance = _validate_or_attach_normal_mode_provenance(provenance)
 
         return ProductRuntimeExecution(
             transport=execution.transport,
@@ -262,6 +336,13 @@ class ChatGPTProductRuntime:
                 "temporary_mode_production_enabled": False,
                 "temporary_mode_fail_closed_before_write": True,
                 "temporary_mode_requires_mode_aware_write_routing": True,
+                "conversation_mode_provenance_model": "ProductConversationModeProvenance",
+                "requested_conversation_mode_is_caller_input": True,
+                "normal_observed_mode_evidence_source": (
+                    ConversationModeEvidenceSource.TRANSPORT_SEMANTICS_CONTRACT.value
+                ),
+                "blocked_temporary_observed_mode": ConversationMode.UNKNOWN.value,
+                "temporary_mode_observation_required_before_write": True,
                 "new_chat_supported": True,
                 "continuation_supported": True,
                 "daily_use_entrypoint": "ChatGPTProductRuntime.send",

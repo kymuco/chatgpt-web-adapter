@@ -273,7 +273,7 @@ conversation_identity.value = <id>
 conversation_identity.ordinary_canonical_readable = false/unknown
 ```
 
-Exact field names remain implementation work for T9; the semantic distinction is mandatory.
+T9 closes **conversation-mode provenance**, not Temporary identity-kind typing. `ProductIdentityProvenance` must still not imply that a Temporary product conversation ID is an ordinary canonical conversation resource; explicit Temporary identity/lifecycle typing remains separate work.
 
 ## 9. Finality and observation
 
@@ -379,28 +379,59 @@ The direct route is not sufficient authority.
 
 ## 13. Requested versus observed mode provenance
 
-T9 must make mode provenance first-class.
+T9 makes conversation-mode provenance first-class in `ProductExecutionProvenance` through a nested `ProductConversationModeProvenance` record:
 
-Every Temporary send result should eventually distinguish at least:
+```text
+requested_conversation_mode
+observed_conversation_mode
+observed_mode_evidence_source
+observed_mode_proven
+proof_detail
+```
+
+T9 production implementation status:
+
+```text
+CLOSED / PASS
+```
+
+For the currently enabled ordinary path:
+
+```text
+requested_conversation_mode = NORMAL
+observed_conversation_mode  = NORMAL
+observed_mode_evidence_source = TRANSPORT_SEMANTICS_CONTRACT
+observed_mode_proven = true
+```
+
+`TRANSPORT_SEMANTICS_CONTRACT` is deliberately narrower than a product UI observation. It means the request passed the runtime's explicit NORMAL gate and was dispatched through the current ordinary-mode-only `ProductWriteTransport`; it does **not** claim that a per-turn product UI marker was inspected.
+
+A future successful Temporary execution must use stronger pre-write evidence:
 
 ```text
 requested_conversation_mode = TEMPORARY
-observed_conversation_mode  = TEMPORARY | NORMAL | UNKNOWN
-mode_proof                   = explicit evidence record
-lifecycle_state              = LIVE | ENDED | UNKNOWN
+observed_conversation_mode  = TEMPORARY
+observed_mode_evidence_source = PRODUCT_MODE_OBSERVATION
+observed_mode_proven = true
 ```
 
-Success is allowed only when:
+The ordinary transport contract cannot be reused to manufacture Temporary observation proof.
+
+For the currently blocked Temporary production request, T8 and T9 compose as:
 
 ```text
-requested = TEMPORARY
-observed  = TEMPORARY
-lifecycle = LIVE
+requested_conversation_mode = TEMPORARY
+observed_conversation_mode  = UNKNOWN
+observed_mode_evidence_source = NONE
+observed_mode_proven = false
+write_count = 0
 ```
 
-If the runtime observes `NORMAL` or cannot prove Temporary before the write, the write must not proceed.
+`ProductConversationModeUnavailableError` carries that structured record, so a fail-closed request does not pretend that an unperformed product mutation established observed mode.
 
-A post-write Temporary-looking title, URL fragment, tooltip, or notice is not enough to retroactively authorize a mutation.
+The provenance model rejects contradictory claims: an unproven mode must remain `UNKNOWN`, a proven mode requires a non-`NONE` evidence source, and transport-supplied provenance that contradicts the runtime request is rejected rather than normalized silently.
+
+T9 intentionally does **not** synthesize `lifecycle_state`. Temporary lifecycle authority remains a separate T12 responsibility; requested/observed mode proof alone is not continuation authority.
 
 ## 14. No durable fallback
 
@@ -504,7 +535,7 @@ Likewise, recreating generic browser authority must not automatically recreate a
 
 ## 17. Capability semantics
 
-T8 is closed, but until T9-T12 pass, capability remains:
+T8 and T9 are closed, but until T10-T12 pass, capability remains:
 
 ```text
 temporary_chat = UNKNOWN
@@ -579,16 +610,16 @@ This does not yet require PR9.0. It does require PR8.7/PR8.8 to model lifecycle 
 
 ## 20. Remaining PR8.7 gates
 
-Core Temporary lifecycle characterization is no longer open. T8 is closed:
+Core Temporary lifecycle characterization is no longer open. T8 and T9 are closed:
 
 ```text
-T8  no normal durable fallback in production path   CLOSED / PASS
+T8  no normal durable fallback in production path            CLOSED / PASS
+T9  requested/observed conversation-mode provenance          CLOSED / PASS
 ```
 
 Remaining gates are production governance:
 
 ```text
-T9  requested/observed conversation-mode provenance
 T10 TEMP -> NORMAL isolation
 T11 NORMAL -> TEMP isolation
 T12 lifecycle / cold-warm / runtime-tab recreation governance
