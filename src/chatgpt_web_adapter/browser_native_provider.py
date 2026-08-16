@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import socket
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -44,6 +45,15 @@ class BrowserNativeTurnResult:
     tab_active_after: bool | None = None
     tab_activated_during_turn: bool | None = None
     foreground_activation_observed: bool | None = None
+    browser_authority_lease_id: str | None = None
+
+
+@dataclass(frozen=True)
+class BrowserNativeRuntimeTabReleaseResult:
+    released: bool
+    already_absent: bool
+    runtime_tab_id: int | None
+    browser_authority_lease_id: str
 
 
 class BrowserNativeTurnProvider:
@@ -52,6 +62,11 @@ class BrowserNativeTurnProvider:
     The provider never receives browser cookies, Sentinel credentials, Turnstile
     state, or raw conversation SSE. It only talks to the local Native Messaging
     broker and receives safe turn metadata back from the extension.
+
+    PR8.8 adds a request-thread-local Browser Authority Lease token. The token is
+    safe fencing metadata only: it never grants product semantics and is used to
+    prevent a stale disposal request from closing authority that a newer turn has
+    already claimed.
     """
 
     def __init__(
@@ -68,6 +83,7 @@ class BrowserNativeTurnProvider:
         self.state_dir = Path(state_dir) if state_dir is not None else None
         self.connect_timeout = float(connect_timeout)
         self.turn_timeout = float(turn_timeout)
+        self._authority_context = threading.local()
 
     @property
     def descriptor_path(self) -> Path:
@@ -173,6 +189,19 @@ class BrowserNativeTurnProvider:
         value = response.get(key)
         return value if isinstance(value, bool) else None
 
+    def set_browser_authority_lease(self, lease_id: str) -> None:
+        if not isinstance(lease_id, str) or not lease_id.strip():
+            raise ValueError("browser authority lease_id is required")
+        self._authority_context.lease_id = lease_id.strip()
+
+    def clear_browser_authority_lease(self) -> None:
+        if hasattr(self._authority_context, "lease_id"):
+            del self._authority_context.lease_id
+
+    def _current_browser_authority_lease_id(self) -> str | None:
+        value = getattr(self._authority_context, "lease_id", None)
+        return value if isinstance(value, str) and value else None
+
     def _send_text_request(
         self,
         text: str,
@@ -199,6 +228,7 @@ class BrowserNativeTurnProvider:
         if total_timeout <= 0:
             raise ValueError("timeout must be positive")
         request_id = str(uuid.uuid4())
+        authority_lease_id = self._current_browser_authority_lease_id()
         response = self._rpc(
             {
                 "type": "turn",
@@ -208,6 +238,7 @@ class BrowserNativeTurnProvider:
                 "timeoutMs": int(total_timeout * 1000),
                 "canonicalCompleted": canonical_completed_at_ms is not None,
                 "canonicalCompletedAtMs": canonical_completed_at_ms,
+                "browserAuthorityLeaseId": authority_lease_id,
             },
             timeout=total_timeout + self.connect_timeout,
         )
@@ -232,6 +263,12 @@ class BrowserNativeTurnProvider:
                 status_code=status if isinstance(status, int) else None,
                 request_stage="browser_native_turn",
             )
+        response_lease_id = response.get("browserAuthorityLeaseId")
+        if authority_lease_id is not None and response_lease_id != authority_lease_id:
+            raise RequestError(
+                "BROWSER_NATIVE_AUTHORITY_LEASE_MISMATCH",
+                request_stage="browser_native_turn",
+            )
         return BrowserNativeTurnResult(
             conversation_id=result_conversation_id.strip(),
             turn_exchange_id=response.get("turnExchangeId")
@@ -254,6 +291,9 @@ class BrowserNativeTurnProvider:
             tab_active_after=self._optional_bool(response, "tabActiveAfter"),
             tab_activated_during_turn=self._optional_bool(response, "tabActivatedDuringTurn"),
             foreground_activation_observed=self._optional_bool(response, "foregroundActivationObserved"),
+            browser_authority_lease_id=response_lease_id
+            if isinstance(response_lease_id, str)
+            else None,
         )
 
     def send_text(
@@ -285,4 +325,65 @@ class BrowserNativeTurnProvider:
             conversation=conversation,
             timeout=timeout,
             canonical_completed_at_ms=canonical_completed_at_ms,
+        )
+
+    def release_runtime_tab(
+        self,
+        *,
+        expected_runtime_tab_id: int | None,
+        browser_authority_lease_id: str,
+        timeout: float = 10.0,
+    ) -> BrowserNativeRuntimeTabReleaseResult:
+        """Close only the runtime tab still fenced by the released authority lease.
+
+        This operation is never retried automatically by the provider. A stale
+        lease or tab-id mismatch fails closed in the extension.
+        """
+
+        if expected_runtime_tab_id is not None and (
+            isinstance(expected_runtime_tab_id, bool)
+            or not isinstance(expected_runtime_tab_id, int)
+            or expected_runtime_tab_id <= 0
+        ):
+            raise ValueError("expected_runtime_tab_id must be a positive int or None")
+        if not isinstance(browser_authority_lease_id, str) or not browser_authority_lease_id.strip():
+            raise ValueError("browser_authority_lease_id is required")
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
+
+        request_id = str(uuid.uuid4())
+        lease_id = browser_authority_lease_id.strip()
+        response = self._rpc(
+            {
+                "type": "release_runtime_tab",
+                "request_id": request_id,
+                "expectedRuntimeTabId": expected_runtime_tab_id,
+                "browserAuthorityLeaseId": lease_id,
+                "timeoutMs": int(timeout * 1000),
+            },
+            timeout=timeout + self.connect_timeout,
+        )
+        if response.get("request_id") != request_id:
+            raise RequestError(
+                "BROWSER_NATIVE_RESPONSE_MISMATCH",
+                request_stage="browser_native_runtime_tab_release",
+            )
+        if not response.get("ok"):
+            error = response.get("error") or "BROWSER_NATIVE_RUNTIME_TAB_RELEASE_FAILED"
+            raise RequestError(
+                str(error),
+                request_stage="browser_native_runtime_tab_release",
+            )
+        response_lease_id = response.get("browserAuthorityLeaseId")
+        if response_lease_id != lease_id:
+            raise RequestError(
+                "BROWSER_NATIVE_AUTHORITY_LEASE_MISMATCH",
+                request_stage="browser_native_runtime_tab_release",
+            )
+        runtime_tab_id = response.get("runtimeTabId")
+        return BrowserNativeRuntimeTabReleaseResult(
+            released=bool(response.get("released")),
+            already_absent=bool(response.get("alreadyAbsent")),
+            runtime_tab_id=runtime_tab_id if isinstance(runtime_tab_id, int) else None,
+            browser_authority_lease_id=lease_id,
         )

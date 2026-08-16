@@ -52,6 +52,8 @@ class BrowserNativeBroker:
         self.pending: dict[str, queue.Queue[dict[str, Any]]] = {}
         self.pending_lock = threading.Lock()
         self.write_lock = threading.Lock()
+        # PR8.8: turn mutation and runtime-tab disposal share one authority lock.
+        # A CLOSE can never be forwarded concurrently with a page-owned turn.
         self.turn_lock = threading.Lock()
         self.extension_connected = False
         self.extension_id: str | None = None
@@ -119,7 +121,9 @@ class BrowserNativeBroker:
             return {**base, "ok": False, "error": "BROWSER_NATIVE_PROTOCOL_MISMATCH"}
         if not secrets.compare_digest(str(request.get("token") or ""), self.token):
             return {**base, "ok": False, "error": "BROWSER_NATIVE_UNAUTHORIZED"}
-        if request.get("type") == "ping":
+
+        operation = request.get("type")
+        if operation == "ping":
             return {
                 **base,
                 "ok": True,
@@ -128,7 +132,8 @@ class BrowserNativeBroker:
                 "extensionId": self.extension_id,
                 "runtimeTabId": self.runtime_tab_id,
             }
-        if request.get("type") != "turn":
+
+        if operation not in {"turn", "release_runtime_tab"}:
             return {**base, "ok": False, "error": "BROWSER_NATIVE_UNKNOWN_OPERATION"}
         if not isinstance(request_id, str) or not request_id:
             return {**base, "ok": False, "error": "BROWSER_NATIVE_REQUEST_ID_REQUIRED"}
@@ -136,9 +141,14 @@ class BrowserNativeBroker:
             return {**base, "ok": False, "error": "BROWSER_NATIVE_EXTENSION_NOT_CONNECTED"}
         if not self.turn_lock.acquire(blocking=False):
             return {**base, "ok": False, "error": "BROWSER_NATIVE_BRIDGE_BUSY"}
+
         try:
             timeout_ms = request.get("timeoutMs")
-            timeout = max(1.0, min(float(timeout_ms or 120_000) / 1000.0, 300.0))
+            default_timeout_ms = 120_000 if operation == "turn" else 10_000
+            timeout = max(
+                1.0,
+                min(float(timeout_ms or default_timeout_ms) / 1000.0, 300.0),
+            )
             waiter: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=1)
             with self.pending_lock:
                 self.pending[request_id] = waiter
@@ -153,7 +163,11 @@ class BrowserNativeBroker:
                 try:
                     return waiter.get(timeout=timeout + 5.0)
                 except queue.Empty:
-                    return {**base, "ok": False, "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT"}
+                    return {
+                        **base,
+                        "ok": False,
+                        "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT",
+                    }
             finally:
                 with self.pending_lock:
                     self.pending.pop(request_id, None)
@@ -165,11 +179,23 @@ class BrowserNativeBroker:
             return
         if message.get("type") == "hello":
             self.extension_connected = True
-            self.extension_id = message.get("extensionId") if isinstance(message.get("extensionId"), str) else None
-            self.runtime_tab_id = message.get("runtimeTabId") if isinstance(message.get("runtimeTabId"), int) else None
+            self.extension_id = (
+                message.get("extensionId")
+                if isinstance(message.get("extensionId"), str)
+                else None
+            )
+            self.runtime_tab_id = (
+                message.get("runtimeTabId")
+                if isinstance(message.get("runtimeTabId"), int)
+                else None
+            )
             return
         if message.get("type") == "runtime_state":
-            self.runtime_tab_id = message.get("runtimeTabId") if isinstance(message.get("runtimeTabId"), int) else None
+            self.runtime_tab_id = (
+                message.get("runtimeTabId")
+                if isinstance(message.get("runtimeTabId"), int)
+                else None
+            )
             return
         request_id = message.get("request_id")
         if not isinstance(request_id, str):
