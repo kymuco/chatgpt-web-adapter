@@ -8,7 +8,7 @@
   "permissions": ["debugger", "tabs", "storage", "nativeMessaging"],
   "host_permissions": ["https://chatgpt.com/*"],
   "background": {
-    "service_worker": "service_worker_temporary_chat_manual_ground_truth.js"
+    "service_worker": "service_worker_temporary_chat_route_reopen_probe.js"
   },
   "action": {
     "default_title": "ChatGPT Web Adapter bridge"

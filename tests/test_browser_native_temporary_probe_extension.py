@@ -11,9 +11,13 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
     worker_name = manifest["background"]["service_worker"]
 
     assert manifest["version"] == "0.1.13"
-    assert worker_name == "service_worker_temporary_chat_manual_ground_truth.js"
+    assert worker_name == "service_worker_temporary_chat_route_reopen_probe.js"
 
-    manual_worker = (root / worker_name).read_text(encoding="utf-8")
+    route_worker = (root / worker_name).read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_temporary_chat_manual_ground_truth.js")' in route_worker
+    manual_worker = (
+        root / "service_worker_temporary_chat_manual_ground_truth.js"
+    ).read_text(encoding="utf-8")
     assert 'importScripts("service_worker_temporary_chat_history_probe.js")' in manual_worker
     history_worker = (root / "service_worker_temporary_chat_history_probe.js").read_text(
         encoding="utf-8"
@@ -232,6 +236,28 @@ def test_manual_temporary_ground_truth_requires_visible_page_turn_evidence() -> 
     assert "finalUrlTemporaryQueryTrue" in worker
     assert "sameSourceTab" in worker
     assert "raw response data never leaves this context" in worker
+
+
+def test_temporary_route_reopen_probe_is_explicit_read_only_and_settled() -> None:
+    root = browser_native_extension_dir()
+    worker = (root / "service_worker_temporary_chat_route_reopen_probe.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "probeTemporaryRouteReopen" in worker
+    assert "sourceTemporaryTabConfirmedClosed" in worker
+    assert '`${CHATGPT_ORIGIN}/c/${encodeURIComponent(conversationId)}`' in worker
+    assert "PR87_ROUTE_REOPEN_MAX_OBSERVATION_MS" in worker
+    assert "PR87_ROUTE_REOPEN_STABLE_SAMPLE_COUNT" in worker
+    assert "targetRouteObserved" in worker
+    assert "redirectAwayFromTargetObserved" in worker
+    assert "visibleTurnCount" in worker
+    assert 'recoveryEvidenceStatus = "STABLE_RECOVERED"' in worker
+    assert 'recoveryEvidenceStatus = "TRANSIENT_RECOVERED"' in worker
+    assert "TEMPORARY_CHAT_ROUTE_REOPEN_UNEXPECTED_CONVERSATION_WRITE" in worker
+    assert "Input.insertText" not in worker
+    assert "submitOfficialPageTurn" not in worker
+    assert "Network.getResponseBody" not in worker
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:
