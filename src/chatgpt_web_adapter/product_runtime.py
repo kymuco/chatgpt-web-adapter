@@ -29,6 +29,37 @@ from .product_transport import (
 from .types import ChatMessage, ChatResponse, ConversationStatus
 
 
+_NORMAL_CONVERSATION_MODE = "normal"
+_TEMPORARY_CONVERSATION_MODE = "temporary"
+_SUPPORTED_CONVERSATION_MODES: tuple[str, ...] = (
+    _NORMAL_CONVERSATION_MODE,
+    _TEMPORARY_CONVERSATION_MODE,
+)
+
+
+def _normalize_conversation_mode(value: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError("conversation_mode must be a string")
+    normalized = value.strip().lower()
+    if normalized not in _SUPPORTED_CONVERSATION_MODES:
+        supported = ", ".join(_SUPPORTED_CONVERSATION_MODES)
+        raise ValueError(
+            f"unsupported conversation_mode {value!r}; expected one of: {supported}"
+        )
+    return normalized
+
+
+def _require_production_write_mode(value: str) -> str:
+    mode = _normalize_conversation_mode(value)
+    if mode == _TEMPORARY_CONVERSATION_MODE:
+        raise RuntimeError(
+            "PRODUCT_CONVERSATION_MODE_UNAVAILABLE: "
+            "conversation_mode='temporary' is disabled in production until "
+            "mode-aware Temporary write routing is implemented; fallback=none"
+        )
+    return mode
+
+
 def _assemble_default_write_transport(
     client: CanonicalConversationClient,
     *,
@@ -122,7 +153,9 @@ class ChatGPTProductRuntime:
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
+        conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ChatResponse:
+        _require_production_write_mode(conversation_mode)
         return self.write_transport.send_text(
             text,
             conversation=conversation,
@@ -141,6 +174,7 @@ class ChatGPTProductRuntime:
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
+        conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ChatResponse:
         return self.send_text(
             text,
@@ -149,6 +183,7 @@ class ChatGPTProductRuntime:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
+            conversation_mode=conversation_mode,
         )
 
     def send_text_observed(
@@ -160,7 +195,9 @@ class ChatGPTProductRuntime:
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
+        conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ProductRuntimeExecution:
+        _require_production_write_mode(conversation_mode)
         execution = self.write_transport.send_text_observed(
             text,
             conversation=conversation,
@@ -218,6 +255,13 @@ class ChatGPTProductRuntime:
                 "supported_product_transports": list(SUPPORTED_PRODUCT_TRANSPORTS),
                 "fallback_transport": None,
                 "legacy_direct_write_fallback": False,
+                "conversation_mode_request_values": list(_SUPPORTED_CONVERSATION_MODES),
+                "default_conversation_mode": _NORMAL_CONVERSATION_MODE,
+                "conversation_mode_fallback": None,
+                "silent_conversation_mode_fallback": False,
+                "temporary_mode_production_enabled": False,
+                "temporary_mode_fail_closed_before_write": True,
+                "temporary_mode_requires_mode_aware_write_routing": True,
                 "new_chat_supported": True,
                 "continuation_supported": True,
                 "daily_use_entrypoint": "ChatGPTProductRuntime.send",

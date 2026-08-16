@@ -424,6 +424,30 @@ request TEMPORARY
 
 The earlier automated activation experiment demonstrated why this must be enforced: a Temporary-looking activation path can produce an ordinary durable conversation.
 
+T8 production implementation status:
+
+```text
+CLOSED / PASS
+
+conversation_mode="normal"
+    -> existing ProductWriteTransport dispatch
+
+conversation_mode="temporary"
+    -> PRODUCT_CONVERSATION_MODE_UNAVAILABLE
+    -> fail closed before ProductWriteTransport dispatch
+    -> fallback = none
+    -> zero write
+```
+
+The fail-closed gate is intentionally independent of the current `temporary_chat`
+capability state. Even an accidental or premature `UNKNOWN -> AVAILABLE` capability
+change cannot enable Temporary writes by itself. A future implementation must add
+an explicit mode-aware Temporary write route before this guard can be relaxed.
+
+The existing `ProductWriteTransport` remains ordinary-mode-only in T8. PR8.7 does
+not tunnel `conversation_mode="temporary"` through the ordinary transport and does
+not synthesize Temporary semantics after an ordinary durable write.
+
 ## 15. Mode isolation
 
 T10 and T11 must prove both directions.
@@ -480,7 +504,7 @@ Likewise, recreating generic browser authority must not automatically recreate a
 
 ## 17. Capability semantics
 
-Until T8-T12 pass, capability remains:
+T8 is closed, but until T9-T12 pass, capability remains:
 
 ```text
 temporary_chat = UNKNOWN
@@ -555,10 +579,15 @@ This does not yet require PR9.0. It does require PR8.7/PR8.8 to model lifecycle 
 
 ## 20. Remaining PR8.7 gates
 
-Core Temporary lifecycle characterization is no longer open. Remaining gates are production governance:
+Core Temporary lifecycle characterization is no longer open. T8 is closed:
 
 ```text
-T8  no normal durable fallback in production path
+T8  no normal durable fallback in production path   CLOSED / PASS
+```
+
+Remaining gates are production governance:
+
+```text
 T9  requested/observed conversation-mode provenance
 T10 TEMP -> NORMAL isolation
 T11 NORMAL -> TEMP isolation
