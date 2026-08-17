@@ -1,8 +1,8 @@
 # PR8.8 — Browser Authority Lease / Turn Lifecycle / TTL-disposal foundation
 
-_Status: implementation foundation complete; live resource characterization and high-level product-runtime plumbing remain open_
+_Status: foundation complete; first live characterization passed; high-level product-runtime policy plumbing implemented; independent replication/default-policy review remain open_
 
-_Date: 2026-08-16_
+_Date: 2026-08-17_
 
 _Base: PR8.7 final review `d7f9d7f570bab81c8974ac36ae8e2c5c708978c1`_
 
@@ -20,7 +20,7 @@ Turn Lifecycle
 
 This is required by both ordinary page-owned writes and the PR8.7 Temporary Chat evidence. A browser tab, runtime-tab identifier, or conversation identifier must never be treated as authority merely because it still exists.
 
-This first PR8.8 implementation slice establishes the lease/lifecycle model, opt-in disposal policies, release fencing, and the production CLOSE primitive. It intentionally keeps the compatibility default `PERSISTENT` and does **not** claim that resource-policy selection is fully plumbed through `ChatGPTProductRuntime` yet.
+The foundation establishes the lease/lifecycle model, opt-in disposal policies, release fencing, and the production CLOSE primitive. Follow-on PR8.8 slices added bounded live characterization and high-level product-runtime policy plumbing while intentionally preserving the compatibility default `PERSISTENT`.
 
 ## 2. Observed separation point
 
@@ -92,7 +92,7 @@ transport implementation default = PERSISTENT
 
 `IDLE_TTL` and `TURN_SCOPED` are explicit opt-in policies.
 
-The current lower production runtime supports precedence:
+Policy precedence is:
 
 ```text
 per-turn explicit override
@@ -102,7 +102,7 @@ BrowserOwnedProductWriteRuntime assembly default
 transport implementation default
 ```
 
-A later PR8.8 slice must plumb this policy surface through `BrowserOwnedProductTransport` / `ChatGPTProductRuntime` before the public product-runtime contract is considered complete.
+The follow-on high-level plumbing slice exposes this policy intent through `BrowserOwnedProductTransport` / `ChatGPTProductRuntime` without widening the generic `ProductWriteTransport` protocol with mandatory browser-specific parameters. See `docs/browser_authority_product_runtime_pr8_8.md`.
 
 ## 4. TTL semantics
 
@@ -141,7 +141,7 @@ TURN_SCOPED
     disposal = CLOSE
 ```
 
-`TURN_SCOPED ttl=0` is allowed, but remains opt-in until live validation confirms the current `browser_native_write_completed` release point is safe for immediate CLOSE under real product traffic.
+`TURN_SCOPED ttl=0` is allowed and remains opt-in. The first real Windows/Chrome characterization on 2026-08-17 confirmed that immediate CLOSE after the current `browser_native_write_completed` release point preserved canonical finality and allowed the next ordinary turn to recreate browser authority successfully.
 
 ## 5. Disposal semantics
 
@@ -287,7 +287,7 @@ TTL/disposal never changes retry safety and never converts an ambiguous write in
 
 ## 9. Runtime observation
 
-`BrowserOwnedWriteObservation` now accepts bounded lease/lifecycle metadata from the write-completed event:
+`BrowserOwnedWriteObservation` accepts bounded lease/lifecycle metadata from the write-completed event:
 
 ```text
 browser_authority_lease_id
@@ -310,7 +310,7 @@ The runtime also exposes a diagnostic `lifecycle_snapshot()` for characterizatio
 
 ## 10. Compatibility behavior
 
-No default resource behavior changes in this slice:
+No default resource behavior changes in PR8.8:
 
 ```text
 default policy = PERSISTENT
@@ -333,11 +333,9 @@ Temporary-specific wrappers in the active import chain. This preserves the
 existing PR8.7 probe asset contract while placing generic runtime-tab authority
 governance at the layer that already owns runtime-tab identity reconciliation.
 
-The extension source changed even though the research manifest version is kept
-stable for PR8.7 compatibility, so an unpacked-extension reload is required
-before live PR8.8 validation.
+The extension source changed in the earlier foundation/characterization slice even though the research manifest version was kept stable for PR8.7 compatibility, so an unpacked-extension reload was required before that live validation. The later high-level product-runtime plumbing slice changes Python/docs/tests only and does not itself require another extension reload.
 
-## 11. Unit/regression evidence in this slice
+## 11. Unit/regression evidence
 
 The isolated PR8.8 harness covers:
 
@@ -359,39 +357,46 @@ broker turn/release serialization
 manifest/worker boundary
 ```
 
-This is implementation evidence only. It is not live resource evidence.
-
-## 12. Live evidence still required before PR8.8 closure
-
-The roadmap requires live characterization of at least:
+The high-level plumbing follow-on adds regression gates for:
 
 ```text
-cold-start latency
-warm-reuse latency
-idle CPU
-idle memory
-close -> next-turn latency
-foreground disturbance
-Browser Authority Lease duration
+runtime-default assembly forwarding
+per-turn policy forwarding
+injected-transport fail-closed ownership
+generic ProductWriteTransport call-shape preservation
+Temporary-mode denial precedence
+product-runtime browser-mechanics opacity
 ```
 
-It also requires live confirmation that opt-in immediate/TTL CLOSE does not disturb:
+## 12. First live evidence
+
+The first bounded Windows/Chrome characterization on 2026-08-17 completed all five product writes with zero automatic write retry and no failure:
 
 ```text
-canonical finality
-continuation correctness
-no-duplicate-write safety
-runtime-tab recreation
-foreground behavior
+PERSISTENT initial cold start     PASS
+PERSISTENT warm reuse             PASS
+TURN_SCOPED ttl=0 CLOSE           PASS
+canonical finality after CLOSE    PASS
+next turn after CLOSE recreation  PASS
+IDLE_TTL ttl=5000 CLOSE           PASS
 ```
 
-Until that evidence exists:
+The runtime tab changed from `1949460203` to `1949460207` after the explicit CLOSE, while the same durable conversation continued.
+
+Observed Browser Authority lease duration ranged from 13039 ms to 18435 ms. Canonical finality lag after release ranged from 4343 ms to 6732 ms, directly confirming that release and logical finality are distinct phases.
+
+The bounded idle sample observed approximately 1.47% main-thread task-time fraction and about 100.9 MB maximum JS heap used over about five seconds, with no debugger left attached.
+
+Detailed evidence is recorded in `docs/browser_authority_live_characterization_pr8_8.md`.
+
+This single run closes the first live-safety gate but does **not** justify a default-policy change.
+
+Current policy status remains:
 
 ```text
 PERSISTENT remains default
 IDLE_TTL remains opt-in
 TURN_SCOPED remains opt-in
-PR8.8 overall status = OPEN / LIVE VALIDATION REQUIRED
 ```
 
 ## 13. PR8.7 boundary retained
@@ -410,16 +415,30 @@ Closing/recreating an ordinary runtime tab must not reconstruct a terminated Tem
 
 Likewise, a future live Temporary implementation may keep a product-specific Temporary lifecycle alive only while independently proven; generic browser authority never manufactures that proof.
 
-## 14. Next PR8.8 slice
+The high-level policy surface is resource-lifecycle control only. It does not alter `conversation_mode`, does not create Temporary write authority, and does not treat cold/warm runtime state as Temporary lifecycle evidence.
 
-Next work should add a bounded live characterization runner and collect the resource/latency evidence above on the real Windows browser-native runtime.
+## 14. Remaining PR8.8 work
 
-Only after that evidence should we decide whether:
+High-level policy plumbing is now implemented while preserving `PERSISTENT` as the compatibility default.
+
+Before any default-policy promotion, the next evidence slice should independently replicate multiple cold/warm/CLOSE cycles and compare distributions of:
 
 ```text
-PERSISTENT remains default
-or
-IDLE_TTL becomes the preferred production resource policy
+warm reuse cost
+vs
+post-CLOSE recreation cost
+
+idle runtime-tab resource cost
+vs
+CLOSE/recreation cost
+
+foreground disturbance
+vs
+retention policy
+
+Browser Authority Lease duration
+vs
+canonical finality safety
 ```
 
-`TURN_SCOPED` should remain an explicit low-retention policy unless live measurements demonstrate that immediate CLOSE is both safe and worth its cold-start cost.
+A target HDE assembly may later choose an explicit `IDLE_TTL` without changing the library compatibility default. `TURN_SCOPED` should remain an explicit low-retention policy unless repeated live measurements justify its recreation cost for that call class.

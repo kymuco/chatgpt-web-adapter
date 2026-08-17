@@ -1,8 +1,8 @@
 # PR8.8 — Browser Authority Lease live characterization runner
 
-_Status: runner implemented; real Windows/Chrome evidence still required_
+_Status: runner implemented; first real Windows/Chrome characterization passed 2026-08-17; independent replication still required before default-policy promotion_
 
-_Date: 2026-08-16_
+_Date: 2026-08-17_
 
 _Base foundation commit: `ea6a6cc76868bb61b3b9b21e475cb61e6b4df19b`_
 
@@ -23,6 +23,91 @@ runtime-tab idle activity/memory proxy
 foreground disturbance
 debugger cleanup
 ```
+
+## First live result — 2026-08-17
+
+The first real Windows/Chrome run completed the full bounded sequence:
+
+```text
+ok                      = true
+write budget            = 5
+write attempts          = 5
+write completions       = 5
+automatic write retry   = false
+failure phase           = none
+failure                 = none
+```
+
+All five turns remained in ordinary durable conversation:
+
+```text
+6a82bac1-d7d8-83eb-9b38-a719d91972d7
+```
+
+Observed sequence:
+
+```text
+persistent_initial
+    tab 1949460203 created cold
+    total 24196 ms
+    lease 18435 ms
+    canonical finality lag 5759 ms
+
+persistent_warm
+    tab 1949460203 reused
+    total 21959 ms
+    lease 13867 ms
+    canonical finality lag 5314 ms
+
+turn_scoped_close
+    TURN_SCOPED ttl=0
+    tab 1949460203 reused then CLOSED
+    total 20276 ms
+    lease 13039 ms
+    canonical finality lag 4343 ms
+    final state FINALIZED
+
+post_close_recreation
+    new tab 1949460207 created
+    same conversation continued
+    total 24034 ms
+    lease 16075 ms
+    canonical finality lag 5193 ms
+
+idle_ttl_close
+    IDLE_TTL ttl=5000
+    tab 1949460207 reused then CLOSED
+    total 23856 ms
+    lease 13404 ms
+    canonical finality lag 6732 ms
+    final state FINALIZED
+```
+
+The run therefore provided direct live evidence that:
+
+```text
+Browser Authority Lease != Turn Lifecycle
+runtime tab identity != durable conversation identity
+```
+
+Immediate CLOSE after proven Browser Authority release did not prevent later canonical finality. A newly created runtime tab then continued the same durable conversation.
+
+The bounded idle resource sample reported:
+
+```text
+observed sample                = 5012 ms
+main-thread task-time fraction = 0.0147073 (~1.47%)
+max JS heap used               = 100910588 bytes
+DOM documents                  = 6 -> 6
+DOM nodes                      = 9136 -> 9095
+event listeners                = 1290 -> 1288
+debugger attached after        = false
+tab activated during sample    = false
+```
+
+Every product write did observe foreground activation. The resource sample itself did not activate the already-active runtime tab.
+
+This is one machine/browser/runtime window, not a default-policy promotion result.
 
 ## Safety and write budget
 
@@ -48,7 +133,7 @@ All turns remain in one ordinary durable conversation. If `--conversation` is om
 
 ## Zero-write extension preflight
 
-The unpacked extension must be reloaded after installing this slice.
+The unpacked extension must be reloaded after installing the runner slice.
 
 Before the first product write the runner sends a read-only support probe through the already serialized Native Messaging turn lane. The worker must prove:
 
@@ -115,6 +200,16 @@ post_close_cold_recreation_turn_total_ms
 
 rather than claiming a more precise browser-start component.
 
+In the first run these values were:
+
+```text
+warm reuse turn total             = 21959 ms
+post-CLOSE recreation turn total  = 24034 ms
+observed difference               = 2075 ms (~9.5%)
+```
+
+This single comparison is not a stable performance estimate.
+
 ## TURN_SCOPED ttl=0 gate
 
 Phase 3 selects:
@@ -136,6 +231,8 @@ provider runtime_tab_id = null
 
 If CLOSE is not proven, the experiment stops.
 
+The first live run satisfied this gate with `CLOSED` and still reached canonical `FINALIZED`.
+
 ## Post-CLOSE recreation gate
 
 Phase 4 performs one ordinary `PERSISTENT` continuation after phase 3 proves the runtime tab is absent.
@@ -149,6 +246,8 @@ Turn Lifecycle = FINALIZED
 
 This directly tests that browser-authority recreation does not break ordinary continuation.
 
+The first live run created a different runtime-tab id and continued the same durable conversation successfully.
+
 ## IDLE_TTL gate
 
 Phase 5 selects:
@@ -160,9 +259,11 @@ browser_authority_ttl_ms = <positive configured value>
 
 The runner waits only a bounded interval and requires the same fenced CLOSE evidence. No automatic write retry follows a failed TTL disposal.
 
+The first live run used 5000 ms and confirmed `CLOSED` with no runtime tab remaining.
+
 ## Command
 
-After pulling the commit and reloading the unpacked extension:
+After pulling the runner commit and reloading the unpacked extension:
 
 ```powershell
 python -m chatgpt_web_adapter.browser_authority_live_characterization `
@@ -187,7 +288,7 @@ python -m chatgpt_web_adapter.browser_authority_live_characterization `
 
 A successful single run is evidence for that machine/browser/runtime window only. The runner does not promote any default policy.
 
-Before changing the default away from `PERSISTENT`, PR8.8 still needs review of:
+Before changing the default away from `PERSISTENT`, PR8.8 still needs independent review/replication of:
 
 ```text
 warm reuse cost

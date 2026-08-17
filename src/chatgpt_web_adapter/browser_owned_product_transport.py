@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from .browser_authority_lease import (
+    BrowserAuthorityPolicy,
+    resolve_browser_authority_policy,
+)
 from .browser_native_provider import BrowserNativeTurnProvider
 from .browser_owned_write_runtime import (
     BrowserOwnedProductWriteRuntime,
@@ -121,13 +125,27 @@ def _build_browser_owned_capabilities() -> ProductCapabilities:
 _BROWSER_OWNED_CAPABILITIES = _build_browser_owned_capabilities()
 
 
+def _authority_override_kwargs(
+    *,
+    browser_authority_policy: BrowserAuthorityPolicy | str | None,
+    browser_authority_ttl_ms: int | None,
+) -> dict[str, Any]:
+    if browser_authority_policy is None and browser_authority_ttl_ms is None:
+        return {}
+    return {
+        "browser_authority_policy": browser_authority_policy,
+        "browser_authority_ttl_ms": browser_authority_ttl_ms,
+    }
+
+
 class BrowserOwnedProductTransport:
     """Adapter exposing the proven browser-owned runtime through product protocol.
 
     PR8.4 intentionally wraps rather than rewrites BrowserOwnedProductWriteRuntime.
     PR8.5 adds evidence-backed capability declarations while leaving the proven
     preflight, commit-point recheck, ambiguity classification, and canonical
-    readback mechanics untouched.
+    readback mechanics untouched. PR8.8 exposes Browser Authority resource-lifetime
+    policy at this transport boundary without changing the generic transport protocol.
     """
 
     transport_id = BROWSER_OWNED_PRODUCT_TRANSPORT
@@ -137,12 +155,28 @@ class BrowserOwnedProductTransport:
         canonical_client: Any,
         *,
         provider: BrowserNativeTurnProvider | None = None,
+        browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
+        browser_authority_ttl_ms: int | None = None,
     ) -> None:
         self.canonical_client = require_canonical_conversation_client(canonical_client)
         self.provider = provider or BrowserNativeTurnProvider()
+        self._browser_authority_runtime_policy = browser_authority_policy
+        self._browser_authority_runtime_ttl_ms = browser_authority_ttl_ms
+        self._browser_authority_default_resolution = resolve_browser_authority_policy(
+            runtime_policy=browser_authority_policy,
+            runtime_ttl_ms=browser_authority_ttl_ms,
+        )
+
+        runtime_kwargs: dict[str, Any] = {"provider": self.provider}
+        runtime_kwargs.update(
+            _authority_override_kwargs(
+                browser_authority_policy=browser_authority_policy,
+                browser_authority_ttl_ms=browser_authority_ttl_ms,
+            )
+        )
         self._runtime = BrowserOwnedProductWriteRuntime(
             self.canonical_client,
-            provider=self.provider,
+            **runtime_kwargs,
         )
 
     @staticmethod
@@ -185,7 +219,13 @@ class BrowserOwnedProductTransport:
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
+        browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
+        browser_authority_ttl_ms: int | None = None,
     ) -> ChatResponse:
+        authority_kwargs = _authority_override_kwargs(
+            browser_authority_policy=browser_authority_policy,
+            browser_authority_ttl_ms=browser_authority_ttl_ms,
+        )
         return self._runtime.send_text(
             text,
             conversation=conversation,
@@ -193,6 +233,7 @@ class BrowserOwnedProductTransport:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
+            **authority_kwargs,
         )
 
     def send_text_observed(
@@ -204,7 +245,13 @@ class BrowserOwnedProductTransport:
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
+        browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
+        browser_authority_ttl_ms: int | None = None,
     ) -> ProductRuntimeExecution:
+        authority_kwargs = _authority_override_kwargs(
+            browser_authority_policy=browser_authority_policy,
+            browser_authority_ttl_ms=browser_authority_ttl_ms,
+        )
         execution: BrowserOwnedWriteExecution = self._runtime.send_text_observed(
             text,
             conversation=conversation,
@@ -212,6 +259,7 @@ class BrowserOwnedProductTransport:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
+            **authority_kwargs,
         )
         return ProductRuntimeExecution(
             transport=self.transport_id,
@@ -221,5 +269,21 @@ class BrowserOwnedProductTransport:
 
     def governance(self) -> dict[str, Any]:
         governance = dict(self._runtime.governance())
-        governance["product_semantics"] = ORDINARY_CHATGPT_PRODUCT_SEMANTICS
+        resolution = self._browser_authority_default_resolution
+        governance.update(
+            {
+                "product_semantics": ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+                "browser_authority_product_runtime_policy_supported": True,
+                "browser_authority_runtime_default_configurable": True,
+                "browser_authority_per_turn_override_configurable": True,
+                "browser_authority_policy_configuration_surface": "PRODUCT_RUNTIME",
+                "browser_authority_policy_contract_scope": "RESOURCE_LIFECYCLE_ONLY",
+                "browser_authority_effective_runtime_default_policy": resolution.policy.value,
+                "browser_authority_effective_runtime_default_ttl_ms": resolution.ttl_ms,
+                "browser_authority_runtime_default_policy_source": resolution.policy_source.value,
+                "browser_authority_configured_runtime_ttl_ms": self._browser_authority_runtime_ttl_ms,
+                "browser_authority_policy_exposes_runtime_tab_identity": False,
+                "browser_authority_policy_requires_native_messaging_details": False,
+            }
+        )
         return governance

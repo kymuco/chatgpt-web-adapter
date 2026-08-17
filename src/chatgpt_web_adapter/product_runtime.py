@@ -148,11 +148,43 @@ def _validate_or_attach_normal_mode_provenance(
     return provenance
 
 
+def _browser_authority_override_kwargs(
+    write_transport: ProductWriteTransport,
+    *,
+    browser_authority_policy: str | None,
+    browser_authority_ttl_ms: int | None,
+) -> dict[str, Any]:
+    """Build optional transport kwargs without widening ProductWriteTransport.
+
+    Browser Authority policy is transport-specific resource-lifecycle control.
+    Generic transports therefore keep the stable PR8.4 protocol. A caller may
+    request the optional policy only when the selected transport explicitly
+    advertises support through governance.
+    """
+
+    if browser_authority_policy is None and browser_authority_ttl_ms is None:
+        return {}
+
+    governance = dict(write_transport.governance())
+    if governance.get("browser_authority_product_runtime_policy_supported") is not True:
+        raise ValueError(
+            "browser authority policy overrides are unavailable for the selected "
+            "write transport"
+        )
+
+    return {
+        "browser_authority_policy": browser_authority_policy,
+        "browser_authority_ttl_ms": browser_authority_ttl_ms,
+    }
+
+
 def _assemble_default_write_transport(
     client: CanonicalConversationClient,
     *,
     transport: str,
     provider: Any | None,
+    browser_authority_policy: str | None = None,
+    browser_authority_ttl_ms: int | None = None,
 ) -> ProductWriteTransport:
     if transport != BROWSER_OWNED_PRODUCT_TRANSPORT:
         # normalize_product_transport() makes this unreachable for the current
@@ -162,7 +194,15 @@ def _assemble_default_write_transport(
 
     from .browser_owned_product_transport import BrowserOwnedProductTransport
 
-    return BrowserOwnedProductTransport(client, provider=provider)
+    transport_kwargs: dict[str, Any] = {"provider": provider}
+    if browser_authority_policy is not None or browser_authority_ttl_ms is not None:
+        transport_kwargs.update(
+            {
+                "browser_authority_policy": browser_authority_policy,
+                "browser_authority_ttl_ms": browser_authority_ttl_ms,
+            }
+        )
+    return BrowserOwnedProductTransport(client, **transport_kwargs)
 
 
 class ChatGPTProductRuntime:
@@ -171,6 +211,8 @@ class ChatGPTProductRuntime:
     PR8.4 separates canonical observation from product mutation. PR8.5 adds a
     machine-readable capability surface and provenance-aware observed execution
     without making browser-specific metadata mandatory for future transports.
+    PR8.8 adds optional Browser Authority resource-lifetime policy plumbing while
+    keeping concrete tab/native-messaging mechanics below this runtime boundary.
 
     ``provider=`` remains as a compatibility assembly shortcut for PR8.3
     callers. New composition code should inject ``write_transport=`` or use
@@ -184,6 +226,8 @@ class ChatGPTProductRuntime:
         transport: str = DEFAULT_PRODUCT_TRANSPORT,
         provider: Any | None = None,
         write_transport: ProductWriteTransport | None = None,
+        browser_authority_policy: str | None = None,
+        browser_authority_ttl_ms: int | None = None,
     ) -> None:
         self.transport = normalize_product_transport(transport)
         self.client = require_canonical_conversation_client(client)
@@ -191,12 +235,29 @@ class ChatGPTProductRuntime:
 
         if write_transport is not None and provider is not None:
             raise ValueError("provider and write_transport are mutually exclusive")
+        if write_transport is not None and (
+            browser_authority_policy is not None
+            or browser_authority_ttl_ms is not None
+        ):
+            raise ValueError(
+                "browser authority runtime defaults require runtime-owned transport assembly"
+            )
 
         if write_transport is None:
+            assembly_kwargs: dict[str, Any] = {
+                "transport": self.transport,
+                "provider": provider,
+            }
+            if browser_authority_policy is not None or browser_authority_ttl_ms is not None:
+                assembly_kwargs.update(
+                    {
+                        "browser_authority_policy": browser_authority_policy,
+                        "browser_authority_ttl_ms": browser_authority_ttl_ms,
+                    }
+                )
             write_transport = _assemble_default_write_transport(
                 self.canonical,
-                transport=self.transport,
-                provider=provider,
+                **assembly_kwargs,
             )
         else:
             write_transport = require_product_write_transport(write_transport)
@@ -242,8 +303,15 @@ class ChatGPTProductRuntime:
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
+        browser_authority_policy: str | None = None,
+        browser_authority_ttl_ms: int | None = None,
     ) -> ChatResponse:
         _require_production_write_mode(conversation_mode)
+        authority_kwargs = _browser_authority_override_kwargs(
+            self.write_transport,
+            browser_authority_policy=browser_authority_policy,
+            browser_authority_ttl_ms=browser_authority_ttl_ms,
+        )
         return self.write_transport.send_text(
             text,
             conversation=conversation,
@@ -251,6 +319,7 @@ class ChatGPTProductRuntime:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
+            **authority_kwargs,
         )
 
     def send(
@@ -263,6 +332,8 @@ class ChatGPTProductRuntime:
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
+        browser_authority_policy: str | None = None,
+        browser_authority_ttl_ms: int | None = None,
     ) -> ChatResponse:
         return self.send_text(
             text,
@@ -272,6 +343,8 @@ class ChatGPTProductRuntime:
             on_token=on_token,
             on_event=on_event,
             conversation_mode=conversation_mode,
+            browser_authority_policy=browser_authority_policy,
+            browser_authority_ttl_ms=browser_authority_ttl_ms,
         )
 
     def send_text_observed(
@@ -284,8 +357,15 @@ class ChatGPTProductRuntime:
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
+        browser_authority_policy: str | None = None,
+        browser_authority_ttl_ms: int | None = None,
     ) -> ProductRuntimeExecution:
         mode = _require_production_write_mode(conversation_mode)
+        authority_kwargs = _browser_authority_override_kwargs(
+            self.write_transport,
+            browser_authority_policy=browser_authority_policy,
+            browser_authority_ttl_ms=browser_authority_ttl_ms,
+        )
         execution = self.write_transport.send_text_observed(
             text,
             conversation=conversation,
@@ -293,6 +373,7 @@ class ChatGPTProductRuntime:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
+            **authority_kwargs,
         )
         if execution.transport != self.transport:
             raise RuntimeError(
@@ -343,6 +424,10 @@ class ChatGPTProductRuntime:
 
     def governance(self) -> dict[str, Any]:
         transport_governance = dict(self.write_transport.governance())
+        browser_authority_supported = (
+            transport_governance.get("browser_authority_product_runtime_policy_supported")
+            is True
+        )
         transport_governance.update(
             {
                 "transport": self.transport,
@@ -394,6 +479,22 @@ class ChatGPTProductRuntime:
                 ),
                 "temporary_lifecycle_requires_fresh_proof_after_tab_recreation": True,
                 "post_close_route_recovery_restores_temporary_lifecycle": False,
+                "browser_authority_policy_high_level_surface": True,
+                "browser_authority_selected_transport_policy_support": (
+                    browser_authority_supported
+                ),
+                "browser_authority_policy_override_requires_transport_support": True,
+                "browser_authority_runtime_default_requires_runtime_owned_transport_assembly": (
+                    True
+                ),
+                "browser_authority_policy_contract_scope": "RESOURCE_LIFECYCLE_ONLY",
+                "browser_authority_policy_changes_conversation_identity": False,
+                "browser_authority_policy_changes_conversation_mode": False,
+                "browser_authority_policy_changes_canonical_finality": False,
+                "browser_authority_policy_recreates_temporary_lifecycle": False,
+                "browser_authority_policy_exposes_browser_mechanics": False,
+                "browser_authority_runtime_tab_identity_required_by_caller": False,
+                "browser_authority_native_messaging_details_required_by_caller": False,
                 "new_chat_supported": True,
                 "continuation_supported": True,
                 "daily_use_entrypoint": "ChatGPTProductRuntime.send",
@@ -421,6 +522,8 @@ def assemble_product_runtime(
     client: Any | None = None,
     provider: Any | None = None,
     write_transport: ProductWriteTransport | None = None,
+    browser_authority_policy: str | None = None,
+    browser_authority_ttl_ms: int | None = None,
     auth_file: str | Path = DEFAULT_AUTH_FILE,
     client_timeout: int = DEFAULT_TIMEOUT_SECONDS,
     auto_refresh_auth: bool = True,
@@ -432,7 +535,8 @@ def assemble_product_runtime(
     legacy Sentinel/direct-write machinery. Unknown production transports fail
     closed. A custom protocol-conforming transport can be injected explicitly
     for composition/testing, but its identity must still match the selected
-    production transport.
+    production transport. Browser Authority runtime defaults are accepted only
+    when this function owns transport assembly.
     """
 
     normalized = normalize_product_transport(transport)
@@ -448,17 +552,35 @@ def assemble_product_runtime(
 
     canonical = require_canonical_conversation_client(client)
 
+    runtime_browser_authority_policy = browser_authority_policy
+    runtime_browser_authority_ttl_ms = browser_authority_ttl_ms
     if write_transport is None:
+        assembly_kwargs: dict[str, Any] = {
+            "transport": normalized,
+            "provider": provider,
+        }
+        if browser_authority_policy is not None or browser_authority_ttl_ms is not None:
+            assembly_kwargs.update(
+                {
+                    "browser_authority_policy": browser_authority_policy,
+                    "browser_authority_ttl_ms": browser_authority_ttl_ms,
+                }
+            )
         write_transport = _assemble_default_write_transport(
             canonical,
-            transport=normalized,
-            provider=provider,
+            **assembly_kwargs,
         )
         provider = None
+        # The assembled transport now owns these defaults. Do not present it as
+        # caller-injected configuration to ChatGPTProductRuntime below.
+        runtime_browser_authority_policy = None
+        runtime_browser_authority_ttl_ms = None
 
     return ChatGPTProductRuntime(
         canonical,
         transport=normalized,
         provider=provider,
         write_transport=write_transport,
+        browser_authority_policy=runtime_browser_authority_policy,
+        browser_authority_ttl_ms=runtime_browser_authority_ttl_ms,
     )
