@@ -1,4 +1,4 @@
-importScripts("service_worker_recovery.js");
+importScripts("service_worker_phase_timing_pr8_8.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 
