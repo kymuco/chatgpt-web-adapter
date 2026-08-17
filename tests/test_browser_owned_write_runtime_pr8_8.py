@@ -22,6 +22,11 @@ class FakeProvider:
         self.bound = None
         self.releases = []
 
+    def send_text(self, *args, **kwargs):
+        raise AssertionError(
+            "FakeProvider.send_text() should not be called directly in PR8.8 runtime tests"
+        )
+
     def status(self):
         if self.statuses:
             self.last = self.statuses.pop(0)
@@ -284,6 +289,11 @@ def test_governance_declares_pr88_lease_invariants():
 
 def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(monkeypatch):
     class NoReleaseProvider:
+        def send_text(self, *args, **kwargs):
+            raise AssertionError(
+                "NoReleaseProvider.send_text() should not be called directly"
+            )
+
         def status(self):
             return subject.BrowserNativeBridgeStatus(True, True, runtime_tab_id=41)
 
