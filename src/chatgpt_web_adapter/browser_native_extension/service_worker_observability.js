@@ -1,6 +1,7 @@
 importScripts("service_worker_phase_timing_pr8_8.js");
 importScripts("service_worker_instant_mode_pr8_8.js");
 importScripts("service_worker_instant_selection_repair_pr8_8.js");
+importScripts("service_worker_retained_picker_forensics_pr8_8.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 
