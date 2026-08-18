@@ -15,6 +15,7 @@ importScripts("service_worker_reasoning_effort_slider_geometry_pr8_8.js");
 importScripts("service_worker_instant_effort_slider_contract_pr8_8.js");
 importScripts("service_worker_instant_effort_slider_key_pr8_8.js");
 importScripts("service_worker_instant_effort_slider_selection_pr8_8.js");
+importScripts("service_worker_instant_effort_activation_hardening_pr8_8.js");
 importScripts("service_worker_instant_effort_slider_support_pr8_8.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
