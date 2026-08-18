@@ -1,7 +1,6 @@
 // PR8.8 production Instant selection overlay.
-// Replaces the obsolete Instant menuitem selector with the proven semantic
-// reasoning-effort slider path while preserving the existing leased-write,
-// network-observation, failure-forensics, and canonical-readback machinery.
+// Uses explicit reasoning-effort helpers. No monkey-patching of the shared raw
+// click or slider snapshot primitives is required.
 
 _pr88SelectionEnsureInstant = async function _pr88SelectionEnsureInstantViaEffortSlider(debuggee, context) {
   if (context.selectionChecked === true) return;
@@ -62,16 +61,16 @@ _pr88SelectionEnsureInstant = async function _pr88SelectionEnsureInstantViaEffor
     throw new Error(`PR8_8_INSTANT_EFFORT_PICKER_NOT_PROVEN:${picker?.reason || "identity_mismatch"}`);
   }
 
-  let slider = await _pr88InstantEffortSliderSnapshot(debuggee, "snapshot");
+  let slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
   const alreadyOpen = (
     slider?.found === true && slider?.candidateCount === 1 &&
     slider?.min === 0 && slider?.max === 2 && slider?.stepCount === 3 &&
     slider?.currentControlOpen === true && slider?.currentMode === before.selectedMode
   );
   if (!alreadyOpen) {
-    await _pr88SelectionRawClick(debuggee, picker);
+    await _pr88InstantEffortOpenPickerWithFallback(debuggee, picker, before.selectedMode);
     context.instantEffortPickerClickPerformed = true;
-    slider = await _pr88InstantEffortWaitForSlider(debuggee, before.selectedMode, 3000);
+    slider = await _pr88InstantEffortWaitForResolvedSlider(debuggee, before.selectedMode, 3000);
   }
 
   context.effortSliderCandidateCount = Number.isInteger(slider?.candidateCount) ? slider.candidateCount : 0;
@@ -89,7 +88,7 @@ _pr88SelectionEnsureInstant = async function _pr88SelectionEnsureInstantViaEffor
     throw new Error("PR8_8_INSTANT_EFFORT_CONVERSATION_WRITE_BEFORE_SELECTION");
   }
 
-  const focused = await _pr88InstantEffortSliderSnapshot(debuggee, "focus");
+  const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");
   context.effortSliderFocusProven = focused?.focusProven === true;
   if (
     focused?.found !== true || focused?.candidateCount !== 1 ||
@@ -100,7 +99,7 @@ _pr88SelectionEnsureInstant = async function _pr88SelectionEnsureInstantViaEffor
   await _pr88InstantEffortDispatchHome(debuggee);
   context.effortSliderHomeDispatched = true;
 
-  const settled = await _pr88InstantEffortWaitForSelected(
+  const settled = await _pr88InstantEffortWaitForResolvedSelected(
     debuggee, PR88_INSTANT_EFFORT_SELECTION_SETTLE_TIMEOUT_MS
   );
   const after = settled?.selected || null;
@@ -127,4 +126,3 @@ _pr88SelectionEnsureInstant = async function _pr88SelectionEnsureInstantViaEffor
   context.selectionElapsedMs = _pr88SelectionDurationMs(startedAt);
   context.selectionComplete = true;
 };
-
