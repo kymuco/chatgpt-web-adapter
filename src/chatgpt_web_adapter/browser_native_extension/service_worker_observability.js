@@ -9,6 +9,8 @@ importScripts("service_worker_instant_popup_subtree_forensics_pr8_8.js");
 importScripts("service_worker_picker_trigger_identity_pr8_8.js");
 importScripts("service_worker_picker_trigger_poll_timeline_pr8_8.js");
 importScripts("service_worker_picker_trigger_persistence_pr8_8.js");
+importScripts("service_worker_reasoning_effort_slider_topology_pr8_8.js");
+importScripts("service_worker_reasoning_effort_slider_governance_pr8_8.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 
