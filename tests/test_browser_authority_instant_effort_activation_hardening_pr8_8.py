@@ -1,6 +1,11 @@
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = (
+    Path(__file__).resolve().parents[1]
+    / 'src'
+    / 'chatgpt_web_adapter'
+    / 'browser_native_extension'
+)
 
 
 def test_activation_hardening_contract():
