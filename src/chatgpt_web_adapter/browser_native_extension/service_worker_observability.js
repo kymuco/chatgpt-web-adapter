@@ -3,6 +3,7 @@ importScripts("service_worker_instant_mode_pr8_8.js");
 importScripts("service_worker_instant_selection_repair_pr8_8.js");
 importScripts("service_worker_retained_picker_forensics_pr8_8.js");
 importScripts("service_worker_retained_route_identity_pr8_8.js");
+importScripts("service_worker_orphan_lease_reconciliation_pr8_8.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 
