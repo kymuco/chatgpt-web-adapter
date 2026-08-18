@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .browser_authority_instant_failure_forensics_support_pr8_8 import (
+    POPUP_SUBTREE_SCHEMA,
     _dict,
     _require,
     _validate_route,
@@ -48,6 +49,56 @@ def characterize_failure(runner, report, write_error, conversation: str, forensi
         and selection["unexpected_conversation_write_before_selection_complete"] is False,
         "PR8_8_FRESH_FORENSICS_CONVERSATION_WRITE_DURING_SELECTION",
     )
+
+    target = failure_record["failure_code"] == "OPTION_NOT_FOUND" and failure_record["failure_reason"] in {
+        "instant_option_missing",
+        "instant_option_timeout",
+    }
+    popup_supported = report.get("failure_forensics_support", {}).get("popup_subtree_capture_supported") is True
+    popup = failure_record.get("popup_subtree")
+    if popup_supported:
+        phase[0] = "in_failure_popup_subtree_validation"
+        _require(
+            failure_record.get("popup_subtree_record_available") is True and isinstance(popup, dict),
+            "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_RECORD_NOT_AVAILABLE",
+        )
+        report["in_failure_popup_subtree"] = popup
+        _require(popup.get("schema") == POPUP_SUBTREE_SCHEMA, "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_SCHEMA_MISMATCH")
+        _require(popup.get("captured_at_failure") is True, "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_NOT_CAPTURED_AT_FAILURE")
+        _require(
+            popup.get("capture_status") in {"POPUP_SUBTREE_CAPTURED", "NO_MODE_POPUP_FOUND"},
+            "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_CAPTURE_FAILED",
+        )
+        _require(
+            popup.get("raw_url_exported") is False
+            and popup.get("raw_text_exported") is False
+            and popup.get("raw_html_exported") is False
+            and popup.get("lease_id_exported") is False,
+            "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_PRIVACY_BOUNDARY_VIOLATED",
+        )
+        _require(
+            popup.get("zero_product_writes") is True
+            and popup.get("automatic_retry") is False
+            and popup.get("candidate_cap_dealiased") is True
+            and popup.get("global_candidate_cap_used") is False,
+            "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_GOVERNANCE_CHANGED",
+        )
+        _require(
+            popup.get("route_kind") == "CONVERSATION"
+            and popup.get("observed_conversation_id") == conversation,
+            "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_FAILURE_ROUTE_MISMATCH",
+        )
+        if target:
+            _require(
+                popup.get("capture_status") == "POPUP_SUBTREE_CAPTURED"
+                and popup.get("surface_found") is True,
+                "PR8_8_FRESH_FORENSICS_TARGET_FAILURE_POPUP_SUBTREE_MISSING",
+            )
+            _require(
+                popup.get("selected_surface") is not None
+                and popup["selected_surface"].get("known_mode_descendant_count", 0) > 0,
+                "PR8_8_FRESH_FORENSICS_TARGET_FAILURE_MODE_BEARING_SURFACE_MISSING",
+            )
 
     phase[0] = "retained_tab_resolution"
     retained = runner.provider.characterization_status()
@@ -102,10 +153,6 @@ def characterize_failure(runner, report, write_error, conversation: str, forensi
         "PR8_8_FRESH_FORENSICS_EVIDENCE_BEARING_AUTHORITY_CHANGED",
     )
 
-    target = failure_record["failure_code"] == "OPTION_NOT_FOUND" and failure_record["failure_reason"] in {
-        "instant_option_missing",
-        "instant_option_timeout",
-    }
     report["write_outcome"] = "FAILED_BEFORE_INPUT_FORENSICALLY_CHARACTERIZED"
     report["target_failure_reproduced"] = target
     report["evidence_preservation"] = {
@@ -116,7 +163,9 @@ def characterize_failure(runner, report, write_error, conversation: str, forensi
         "additional_product_writes_after_failure": 0,
         "route_forensics_zero_write": True,
         "picker_surface_forensics_zero_write": report["surface_forensics_performed"],
+        "in_failure_popup_subtree_persisted": popup_supported and isinstance(popup, dict),
     }
+    popup_modes = popup.get("recognized_modes", []) if isinstance(popup, dict) else []
     report["summary"] = {
         "single_live_attempt_completed": True,
         "target_instant_option_failure_reproduced": target,
@@ -127,6 +176,12 @@ def characterize_failure(runner, report, write_error, conversation: str, forensi
         "route_identity_status": route_identity.get("route_identity_status"),
         "conversation_route_matches_expected": exact_route,
         "surface_forensics_performed": report["surface_forensics_performed"],
+        "in_failure_popup_subtree_captured": popup_supported and isinstance(popup, dict) and popup.get("capture_status") == "POPUP_SUBTREE_CAPTURED",
+        "popup_candidate_cap_dealiased": popup.get("candidate_cap_dealiased") if isinstance(popup, dict) else None,
+        "popup_recognized_modes": popup_modes,
+        "popup_instant_mode_label_present": "INSTANT" in popup_modes,
+        "popup_mode_label_count": popup.get("mode_label_count") if isinstance(popup, dict) else None,
+        "popup_actionable_descendant_count": popup.get("actionable_descendant_count") if isinstance(popup, dict) else None,
         "retained_tab_preserved_for_followup": True,
         "automatic_write_retry_attempted": False,
         "write_budget_respected": True,

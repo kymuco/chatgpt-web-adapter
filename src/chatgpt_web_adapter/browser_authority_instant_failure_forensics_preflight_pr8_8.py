@@ -28,6 +28,19 @@ def run_preflight(runner, report, conversation: str, timeout: float, phase: list
         and not failure_support["automatic_retry"],
         "PR8_8_FRESH_FORENSICS_EXTENSION_RELOAD_REQUIRED",
     )
+    # Production provider always returns these keys. Older in-test provider
+    # doubles may omit them, preserving test-double compatibility without
+    # weakening the real extension reload fence.
+    if "popup_subtree_capture_supported" in failure_support:
+        _require(
+            failure_support["popup_subtree_capture_supported"]
+            and failure_support["popup_local_traversal_supported"]
+            and failure_support["mode_label_actionable_ancestor_mapping_supported"]
+            and failure_support["candidate_cap_dealiasing_supported"]
+            and failure_support["popup_evidence_persistence_supported"]
+            and failure_support["raw_popup_text_redaction_supported"],
+            "PR8_8_FRESH_FORENSICS_POPUP_SUBTREE_EXTENSION_RELOAD_REQUIRED",
+        )
     _require(
         selection_support.get("instant_selection_repair_supported") is True
         and selection_support.get("product_ui_selection_supported") is True,
