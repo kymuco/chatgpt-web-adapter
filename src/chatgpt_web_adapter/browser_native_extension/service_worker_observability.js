@@ -22,6 +22,7 @@ importScripts("service_worker_instant_effort_transient_foreground_pr8_8.js");
 importScripts("service_worker_instant_effort_slider_support_pr8_8.js");
 importScripts("service_worker_safe_browser_response_stream_pr8_9.js");
 importScripts("service_worker_safe_browser_response_patch_protocol_pr8_9.js");
+importScripts("service_worker_revision_safe_text_delivery_pr8_9.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 

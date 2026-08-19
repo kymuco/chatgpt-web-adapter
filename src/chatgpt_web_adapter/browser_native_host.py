@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .browser_native_protocol import (
     PROTOCOL_VERSION,
@@ -29,12 +29,26 @@ class _BrokerServer(socketserver.ThreadingTCPServer):
 class _BrokerHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         broker: BrowserNativeBroker = self.server.broker  # type: ignore[attr-defined]
+        request: dict[str, Any] | None = None
         try:
             request = recv_local_message(self.request)
-            response = broker.handle_local_request(request)
+
+            def emit_event(message: dict[str, Any]) -> None:
+                try:
+                    send_local_message(self.request, message)
+                except OSError:
+                    # Observation delivery is best-effort and cannot change the
+                    # already-delegated product write outcome.
+                    pass
+
+            response = broker.handle_local_request(
+                request,
+                event_sink=emit_event if request.get("streamTextObservations") is True else None,
+            )
         except Exception as error:
             response = {
                 "protocol": PROTOCOL_VERSION,
+                "request_id": request.get("request_id") if isinstance(request, dict) else None,
                 "ok": False,
                 "error": f"BROWSER_NATIVE_BROKER_ERROR:{error}",
             }
@@ -111,7 +125,12 @@ class BrowserNativeBroker:
                 }
             )
 
-    def handle_local_request(self, request: dict[str, Any]) -> dict[str, Any]:
+    def handle_local_request(
+        self,
+        request: dict[str, Any],
+        *,
+        event_sink: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
         request_id = request.get("request_id")
         base = {
             "protocol": PROTOCOL_VERSION,
@@ -149,7 +168,7 @@ class BrowserNativeBroker:
                 1.0,
                 min(float(timeout_ms or default_timeout_ms) / 1000.0, 300.0),
             )
-            waiter: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=1)
+            waiter: queue.Queue[dict[str, Any]] = queue.Queue()
             with self.pending_lock:
                 self.pending[request_id] = waiter
             forwarded = {
@@ -160,14 +179,21 @@ class BrowserNativeBroker:
             try:
                 with self.write_lock:
                     write_native_message(sys.stdout.buffer, forwarded)
-                try:
-                    return waiter.get(timeout=timeout + 5.0)
-                except queue.Empty:
-                    return {
-                        **base,
-                        "ok": False,
-                        "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT",
-                    }
+                deadline = time.monotonic() + timeout + 5.0
+                while True:
+                    try:
+                        message = waiter.get(timeout=max(0.01, deadline - time.monotonic()))
+                    except queue.Empty:
+                        return {
+                            **base,
+                            "ok": False,
+                            "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT",
+                        }
+                    if message.get("type") == "turn_event":
+                        if event_sink is not None:
+                            event_sink(message)
+                        continue
+                    return message
             finally:
                 with self.pending_lock:
                     self.pending.pop(request_id, None)
@@ -203,10 +229,7 @@ class BrowserNativeBroker:
         with self.pending_lock:
             waiter = self.pending.get(request_id)
         if waiter is not None:
-            try:
-                waiter.put_nowait(message)
-            except queue.Full:
-                pass
+            waiter.put_nowait(message)
 
 
 def main() -> int:
