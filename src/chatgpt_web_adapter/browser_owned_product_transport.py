@@ -61,7 +61,7 @@ _BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
     CONVERSATION_ATTACH: CapabilityState.AVAILABLE,
     CONVERSATION_READ: CapabilityState.AVAILABLE,
     CONVERSATION_STATUS: CapabilityState.AVAILABLE,
-    STREAMING: CapabilityState.UNKNOWN,
+    STREAMING: CapabilityState.AVAILABLE,
     IMAGES: CapabilityState.UNIMPLEMENTED,
     FILES: CapabilityState.UNKNOWN,
     WEB_SEARCH: CapabilityState.UNKNOWN,
@@ -93,6 +93,11 @@ _BROWSER_OWNED_CAPABILITY_EVIDENCE: dict[str, str] = {
     CONVERSATION_ATTACH: "canonical ChatGPTWebClient attach surface",
     CONVERSATION_READ: "canonical ChatGPTWebClient message-read surface",
     CONVERSATION_STATUS: "canonical ChatGPTWebClient status surface",
+    STREAMING: (
+        "PR8.9.3 production live gate: 33 revision-safe text events reached "
+        "ChatGPTProductRuntime.on_event before browser write completion; first text "
+        "led write completion by 16472 ms; canonical finalization reconciled EXACT_MATCH"
+    ),
     IMAGES: "production ProductWriteTransport currently exposes text turns only",
     TEMPORARY_CHAT: (
         "PR8.7 T13 review: Temporary product semantics and lifecycle are characterized, "
@@ -146,6 +151,8 @@ class BrowserOwnedProductTransport:
     preflight, commit-point recheck, ambiguity classification, and canonical
     readback mechanics untouched. PR8.8 exposes Browser Authority resource-lifetime
     policy at this transport boundary without changing the generic transport protocol.
+    PR8.9 graduates revision-safe `on_event` streaming while keeping canonical
+    readback authoritative for final text and reconciliation.
     """
 
     transport_id = BROWSER_OWNED_PRODUCT_TRANSPORT
@@ -284,6 +291,29 @@ class BrowserOwnedProductTransport:
                 "browser_authority_configured_runtime_ttl_ms": self._browser_authority_runtime_ttl_ms,
                 "browser_authority_policy_exposes_runtime_tab_identity": False,
                 "browser_authority_policy_requires_native_messaging_details": False,
+                "streaming_supported": True,
+                "streaming_contract_version": 1,
+                "streaming_event_surface": "on_event",
+                "streaming_event_types": [
+                    "assistant_text_snapshot",
+                    "assistant_text_delta",
+                    "assistant_text_revision",
+                    "canonical_text_finalized",
+                ],
+                "streaming_source": "CDP_NETWORK_STREAM_RESOURCE_CONTENT",
+                "streaming_delivery": "REVISION_SAFE_EVENT_STREAM",
+                "streaming_canonical_finality": "BROWSERLESS_CANONICAL_HTTP",
+                "streaming_canonical_finality_authoritative": True,
+                "streaming_reconciliation_states": [
+                    "EXACT_MATCH",
+                    "CANONICAL_EXTENDS_STREAM",
+                    "STREAM_REVISED_BY_CANONICAL",
+                    "STREAM_INCOMPLETE",
+                    "UNAVAILABLE",
+                ],
+                "streaming_legacy_on_token_semantics": "FINAL_ONLY",
+                "streaming_raw_sse_exported": False,
+                "streaming_automatic_write_retry": False,
             }
         )
         return governance
