@@ -25,7 +25,8 @@ def test_runtime_source_does_not_expand_private_write_or_protection_paths() -> N
 
 def test_runtime_has_one_browser_native_delegation_site_and_no_retry_loop() -> None:
     source = MODULE.read_text(encoding="utf-8")
-    assert source.count("return send_browser_native(") == 1
+    assert source.count("send_browser_native(") == 1
+    assert "response = send_browser_native(" in source
     assert "while True" not in source
     assert "for attempt" not in source
 

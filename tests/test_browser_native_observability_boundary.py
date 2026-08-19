@@ -17,7 +17,15 @@ def test_current_wrapper_routes_through_observability_layer() -> None:
 
 def test_observability_worker_is_metadata_only() -> None:
     source = (EXT / "service_worker_observability.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_recovery.js")' in source
+    phase_timing = (EXT / "service_worker_phase_timing_pr8_8.js").read_text(
+        encoding="utf-8"
+    )
+
+    # PR8.8 inserts phase timing between observability and the older recovery
+    # layer. Recovery therefore remains in the active import chain without
+    # being re-owned or duplicated by observability itself.
+    assert 'importScripts("service_worker_phase_timing_pr8_8.js")' in source
+    assert 'importScripts("service_worker_recovery.js")' in phase_timing
     assert "chrome.tabs.onActivated" in source
     assert "runtimeTabCreatedForTurn" in source
     for forbidden in (
