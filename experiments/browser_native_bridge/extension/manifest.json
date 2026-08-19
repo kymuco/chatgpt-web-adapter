@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Web Adapter Bridge Probe",
+  "version": "0.0.1",
+  "description": "Research-only probe for reusing an existing authenticated ChatGPT tab without launching a browser per turn.",
+  "minimum_chrome_version": "118",
+  "permissions": ["debugger", "tabs"],
+  "host_permissions": ["https://chatgpt.com/*"],
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ChatGPT bridge probe"
+  }
+}

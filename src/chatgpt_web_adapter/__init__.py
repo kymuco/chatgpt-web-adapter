@@ -12,11 +12,57 @@ from .auth_refresh import (
     refresh_auth_session as _refresh_auth_session,
 )
 from .auth_status import AuthStatus, get_auth_status
+from .browser_native_client import (
+    send_browser_native as _send_browser_native,
+    set_browser_native_turn_provider as _set_browser_native_turn_provider,
+)
+from .browser_native_install import (
+    BrowserNativeInstallResult,
+    EXTENSION_ID as BROWSER_NATIVE_EXTENSION_ID,
+    browser_native_extension_dir,
+    install_native_messaging_host,
+)
+from .browser_native_provider import (
+    BrowserNativeBridgeStatus,
+    BrowserNativeTurnProvider,
+    BrowserNativeTurnResult,
+)
 from .browser_sentinel import ZendriverSentinelBundleProvider
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .prepared_text_send import send_existing_text_prepared as _send_existing_text_prepared
+from .product_capabilities import (
+    ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+    PRODUCT_CAPABILITY_NAMES,
+    CapabilityOwner,
+    CapabilityState,
+    ProductCapabilities,
+    ProductCapability,
+)
+from .product_provenance import (
+    CompletionSource,
+    ProductCompletionProvenance,
+    ProductExecutionProvenance,
+    ProductIdentityProvenance,
+)
+from .product_runtime import (
+    BROWSER_OWNED_PRODUCT_TRANSPORT,
+    DEFAULT_PRODUCT_TRANSPORT,
+    SUPPORTED_PRODUCT_TRANSPORTS,
+    ChatGPTProductRuntime,
+    ProductRuntimeExecution,
+    ProductRuntimeHealth,
+    assemble_product_runtime,
+)
+from .product_transport import CanonicalConversationClient, ProductWriteTransport
+from .public_surface import (
+    PUBLIC_SURFACE_CLASSIFICATION,
+    PUBLIC_SURFACE_TIERS,
+    PRIMARY_PRODUCT_RUNTIME_EXPORTS,
+    PublicSurfaceTier,
+    public_surface_tier,
+)
 from .sentinel_requirements import (
     OBSERVED_FINALIZE_REQUEST_KEYS,
     OBSERVED_FINALIZE_RESPONSE_KEYS,
@@ -94,7 +140,7 @@ from .web_session import (
 
 # The registry is the canonical model-policy source. Keep the legacy monolithic
 # client module synchronized at package import time until its policy constants can
-# be physically removed without mixing that refactor into the live-contract PR.
+# be physically removed without mixing that refactor into the product-runtime work.
 _client_module.DEFAULT_MODEL = DEFAULT_MODEL
 _client_module.DEFAULT_THINKING_MODEL = DEFAULT_THINKING_MODEL
 _client_module.MODEL_ALIASES = MODEL_ALIASES
@@ -117,6 +163,8 @@ ChatGPTWebClient.prefetch_sentinel_bundle = _prefetch_finalized_sentinel_bundle
 ChatGPTWebClient.start_sentinel_bundle_refill = _start_finalized_sentinel_bundle_refill
 ChatGPTWebClient.set_sentinel_challenge_provider = _set_sentinel_challenge_provider
 ChatGPTWebClient.set_sentinel_bundle_provider = _set_sentinel_bundle_provider
+ChatGPTWebClient.set_browser_native_turn_provider = _set_browser_native_turn_provider
+ChatGPTWebClient.send_browser_native = _send_browser_native
 ChatGPTWebClient.refresh_auth = _refresh_auth_session
 ChatGPTWebClient._build_headers = _gate_prepared_build_headers(_original_build_headers)
 ChatGPTWebClient._sanitize_header_value = _redact_ephemeral_write_headers(
@@ -149,6 +197,9 @@ ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pen
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
 WebChatClient = ChatGPTWebClient
 
+# PR8.6 keeps the historical core prefix for import-order compatibility while
+# reclassifying it as shared/compatibility surface. The forward-looking primary
+# production API is PRODUCT_RUNTIME_EXPORTS below.
 CORE_PUBLIC_API = [
     "ChatGPTWebClient",
     "WebChatClient",
@@ -163,6 +214,8 @@ CORE_PUBLIC_API = [
     "AuthData",
     "errors",
 ]
+
+PRODUCT_RUNTIME_EXPORTS = list(PRIMARY_PRODUCT_RUNTIME_EXPORTS)
 
 ERROR_EXPORTS = [
     "WebChatAdapterError",
@@ -181,6 +234,25 @@ ADVANCED_HELPERS = [
 MEDIA_EXPORTS = [
     "MediaItem",
     "MediaSource",
+]
+
+SUPPORT_EXPORTS = [
+    "AuthStatus",
+    "AuthRefreshResult",
+    "BrowserLoginResult",
+    "DEFAULT_AUTH_FILE",
+    "DEFAULT_MODEL",
+    "browser_login",
+    "default_browser_profile_dir",
+    "get_auth_status",
+    "load_auth_data",
+]
+
+PUBLIC_SURFACE_METADATA_EXPORTS = [
+    "PublicSurfaceTier",
+    "PUBLIC_SURFACE_TIERS",
+    "PUBLIC_SURFACE_CLASSIFICATION",
+    "public_surface_tier",
 ]
 
 EXPERIMENTAL_APPROVAL_EXPORTS = [
@@ -207,6 +279,7 @@ EXPERIMENTAL_PREPARE_EXPORTS = [
     "prepare_text_turn",
 ]
 
+# Kept import-compatible, but PR8.6 classifies these as research/diagnostic.
 EXPERIMENTAL_SENTINEL_EXPORTS = [
     "FinalizedSentinelBundle",
     "OBSERVED_FINALIZE_REQUEST_KEYS",
@@ -220,27 +293,34 @@ EXPERIMENTAL_SENTINEL_EXPORTS = [
     "probe_sentinel_requirements_prepare",
 ]
 
-SUPPORT_EXPORTS = [
-    "AuthStatus",
-    "AuthRefreshResult",
-    "BrowserLoginResult",
-    "DEFAULT_AUTH_FILE",
-    "DEFAULT_MODEL",
-    "browser_login",
-    "default_browser_profile_dir",
-    "get_auth_status",
-    "load_auth_data",
+# Kept import-compatible, but direct low-level use is research/diagnostic. The
+# production runtime consumes the browser-native implementation behind its
+# ProductWriteTransport boundary.
+EXPERIMENTAL_BROWSER_NATIVE_EXPORTS = [
+    "BROWSER_NATIVE_EXTENSION_ID",
+    "BrowserNativeBridgeStatus",
+    "BrowserNativeInstallResult",
+    "BrowserNativeTurnProvider",
+    "BrowserNativeTurnResult",
+    "browser_native_extension_dir",
+    "install_native_messaging_host",
 ]
 
 __all__ = [
+    # Historical prefix retained for compatibility.
     *CORE_PUBLIC_API,
+    # Primary production surface is intentionally promoted before legacy extras.
+    *PRODUCT_RUNTIME_EXPORTS,
     *ERROR_EXPORTS,
     *ADVANCED_HELPERS,
     *MEDIA_EXPORTS,
+    *SUPPORT_EXPORTS,
+    *PUBLIC_SURFACE_METADATA_EXPORTS,
+    # Lower-support-level compatibility exports remain available.
     *EXPERIMENTAL_APPROVAL_EXPORTS,
     *EXPERIMENTAL_REQUIRED_ACTION_EXPORTS,
     *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
     *EXPERIMENTAL_PREPARE_EXPORTS,
     *EXPERIMENTAL_SENTINEL_EXPORTS,
-    *SUPPORT_EXPORTS,
+    *EXPERIMENTAL_BROWSER_NATIVE_EXPORTS,
 ]

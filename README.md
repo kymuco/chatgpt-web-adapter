@@ -2,155 +2,117 @@
 
 [![CI](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml)
 
-Python SDK for using an existing ChatGPT web session from Python and terminal tools.
+Product-runtime adapter for using an existing ordinary ChatGPT web session from Python, HDE-style local runtimes, and terminal tools.
 
 > [!WARNING]
 > Not the official OpenAI API.
-> Uses an existing ChatGPT web session.
-> Web backend behavior may change.
+> Uses an existing ChatGPT web session and ordinary ChatGPT product semantics.
+> Browser and web-product behavior may change.
 
-`chatgpt-web-adapter` is a small Python SDK with a dependency-free core for sending prompts, continuing conversations, reading conversation state, uploading images, and handling selected ChatGPT web workflows from Python.
+`chatgpt-web-adapter` now has one forward-looking production surface:
 
-It is designed for terminal tools that use a reusable ChatGPT web session. The
-optional browser extra performs the first interactive login and obtains current
-Sentinel credentials for protected writes. After login, Sentinel capture can run
-headlessly, so no visible browser window is required, but Chromium remains the
-browser engine.
+```text
+ChatGPTProductRuntime
+  -> browserless canonical read/status/session plane
+  -> explicit ProductWriteTransport
+  -> browser-owned page write for protected text turns
+  -> canonical browserless assistant readback
+```
+
+The first proven production write transport is `browser-owned`. It uses one reusable ChatGPT tab owned by the Chrome extension for the protected product write, while canonical reads and session lifecycle remain browserless where possible.
+
+The historical `ChatGPTWebClient` API is still available for compatibility and for capabilities that have not yet graduated into the product runtime. Sentinel/prepared/direct-write and direct browser-native APIs are retained as research or diagnostic surfaces; they are no longer the recommended starting point for new production integrations.
+
+See [ROADMAP.md](ROADMAP.md) for the post-PR8 architecture plan and [docs/public_surface_pr8_6.md](docs/public_surface_pr8_6.md) for the support-tier and compatibility policy.
 
 ## What This Is
 
-`chatgpt-web-adapter` wraps the existing ChatGPT web backend behavior used by a logged-in web session. It focuses on reusable transport, request formatting, response parsing, and conversation helpers.
+`chatgpt-web-adapter` is a local adapter around an authenticated ChatGPT product session. It separates:
 
-The package includes a small auth-management CLI and optional browser bootstrap.
-It does not include localization or local chat-history management from
-`webchat-openai-cli`.
+- **canonical observation** — conversation attach/read/status and session lifecycle;
+- **product mutation** — an explicit product write transport;
+- **runtime orchestration** — `ChatGPTProductRuntime`;
+- **capability declarations** — `AVAILABLE`, `UNSUPPORTED`, `UNKNOWN`, `UNIMPLEMENTED`;
+- **execution provenance** — transport, planes, completion evidence, identity, and transport-specific observations.
 
-## When It Is Useful
-
-- controlling long ChatGPT conversations without loading the browser UI
-- building local tools or CLIs on top of an existing ChatGPT web session
-- continuing existing ChatGPT web conversations by id or URL
-- streaming assistant tokens into terminal or app UIs
-- reading messages and polling conversation status from Python
-- uploading images through the web-session flow
-- inspecting live SSE, websocket handoff, and polling events in a terminal
-- experimenting with HTTP-only approval continuations after a protected send
-
-## When Not To Use This
-
-- when you need a stable, documented API contract
-- when you need OpenAI-supported authentication and long-term platform guarantees
-- when browser automation is acceptable and product-level UI behavior matters more than backend reuse
-- when the workflow depends heavily on approval cards or other fast-changing connector behavior
-- when your tool cannot tolerate breakage from undocumented `chatgpt.com` changes
+It is designed so callers such as HDE do not need to know Chrome tab IDs, extension worker names, Native Messaging details, or Sentinel internals.
 
 ## What This Is Not
 
 `chatgpt-web-adapter` is not:
 
-- the official OpenAI API
-- a replacement for the OpenAI Python SDK
-- a browser automation framework
-- a stable contract for undocumented ChatGPT web internals
+- the official OpenAI API;
+- a replacement for the OpenAI Python SDK;
+- a documented long-term OpenAI platform contract;
+- a browser-challenge bypass, Turnstile solver, proof-token synthesizer, or credential replay system;
+- a full chat application, TUI, or local history product.
 
-## Stable vs Experimental
+If you need an officially supported API contract, use the official OpenAI platform rather than this package.
 
-The SDK has two support levels.
+## Public Surface Tiers
 
-Stable core:
+PR8.6 makes support level explicit.
 
-- `ChatGPTWebClient.send()`
-- `send_to_conversation()`
-- `attach_conversation()`
-- `get_messages()`
-- `get_status()`
-- `wait_until_completed()`
-- image upload for multimodal prompts
+### Primary production
 
-Experimental features:
+Canonical tier: `PRIMARY_PRODUCTION`.
 
-- `approve_pending_action()`
-- `wait_and_approve_pending_actions()`
-- `send_and_auto_approve()`
-- `PayloadBuilder`
-- `validate_payload()`
-- `send_payload()`
+Use these for new product-runtime integrations:
 
-Current new-chat, continuation, and multimodal writes should use the
-official-page Sentinel path:
+- `assemble_product_runtime()`;
+- `ChatGPTProductRuntime`;
+- `ProductWriteTransport`;
+- `CanonicalConversationClient`;
+- capability and provenance models;
+- `chatgpt-web-adapter runtime status`;
+- `chatgpt-web-adapter runtime send`.
 
-```bash
-pip install "chatgpt-web-adapter[browser]"
-```
+### Shared support
+
+Canonical tier: `SHARED_SUPPORT`.
+
+Auth/session helpers, core response/conversation types, and common errors are shared by the production runtime and compatibility surface.
+
+### Compatibility
+
+Canonical tier: `COMPATIBILITY`.
+
+`ChatGPTWebClient` / `WebChatClient` remain import-compatible and supported for existing callers. They also retain features that the production browser-owned text transport has not yet implemented, including existing streaming/media/web-backend workflows.
+
+PR8.6 does **not** emit deprecation warnings and does not remove these APIs. New ordinary text-turn integrations should prefer `ChatGPTProductRuntime`.
+
+### Experimental
+
+Canonical tier: `EXPERIMENTAL`.
+
+Approval, raw-payload, and prepared-web-backend helpers remain experimental because they depend more directly on changing undocumented web behavior.
+
+### Research / diagnostic
+
+Canonical tier: `RESEARCH_DIAGNOSTIC`.
+
+Low-level Sentinel and direct browser-native provider/install symbols remain available for regression diagnosis, implementation work, and feasibility research. They are not the forward-looking application API.
+
+The machine-readable classification is available as:
 
 ```python
-from chatgpt_web_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import PUBLIC_SURFACE_CLASSIFICATION, public_surface_tier
 
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
-response = client.send("Start a new chat from the SDK.")
+print(public_surface_tier("ChatGPTProductRuntime"))
+print(public_surface_tier("ChatGPTWebClient"))
 ```
-
-This provider opens the SDK's persistent Chromium profile, observes a fresh
-prepare/finalize bundle produced by ChatGPT's own page, blocks the browser's
-conversation POST, and keeps the unused one-shot credentials in memory only.
-It is experimental because the web contract and page behavior are undocumented.
-
-The stable core is the main surface intended for building tools on top of an existing ChatGPT web session. Experimental features are exposed because they are useful, but they rely more directly on changing web-client behavior.
-
-## Compatibility Policy
-
-- Stable core APIs are the main compatibility target of the package.
-- Experimental APIs may need faster iteration when the ChatGPT web client changes.
-- A package release does not guarantee that undocumented web behavior on `chatgpt.com` has remained unchanged.
-- When the site changes, experimental flows are expected to break before the stable core send/continue/read flows.
-
-## Known Failure Modes
-
-- expired or mismatched session auth
-  - `accessToken`, cookies, and headers can drift out of sync
-- changed anti-abuse requirements
-  - `chat-requirements`, proof-of-work, or Turnstile expectations can change
-- changed backend payload schema
-  - send/continue flows can fail if required request fields move or change meaning
-- changed SSE response shape
-  - token streaming, finish-reason parsing, or conversation-id extraction can break
-- changed conversation payload schema
-  - attach, status, model detection, and message extraction depend on unstable fields
-- changed upload flow
-  - file creation, upload, or attachment metadata contracts can shift
-- changed approval protocol
-  - approval helpers are especially sensitive to connector and web-client changes
-
-## Features
-
-- zero runtime Python dependencies
-- sync `ChatGPTWebClient`
-- streaming via `on_token` and structured events via `on_event`
-- conversation continuation with returned conversation metadata
-- attach/read/status helpers for existing conversations
-- `auth_data.json` and `.env` auth loading
-- one-time browser login and automatic session refresh
-- image uploads from local paths, `Path`, URL, data URI, or raw bytes
-- experimental HTTP-only tool-approval continuations for web-agent flows
-- experimental raw payload escape hatch for advanced users
-- local `curl`-based transport for compatibility with stock Python
-- example live watcher for SSE, websocket handoff, polling, and approvals
 
 ## Requirements
 
-- Python 3.10+
-- system `curl` available in `PATH`
-- a valid `auth_data.json` for session-backed operations
-- `chatgpt-web-adapter[browser]` for first login and current protected writes
+- Python 3.10-3.14
+- system `curl` available in `PATH` for the canonical web-session client
+- an authenticated ChatGPT web session
+- Chrome/Chromium plus the packaged extension and Native Messaging host for the current `browser-owned` protected-write transport
 
 ## Install
 
 ```bash
-python -m pip install chatgpt-web-adapter
+python -m pip install "chatgpt-web-adapter[browser]"
 ```
 
 For local development and tests:
@@ -160,228 +122,239 @@ python -m pip install -e .[test]
 pytest -q
 ```
 
-## Quick Start
+## Authentication
 
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
-
-response = client.send(
-    "Give me a short summary of this project.",
-)
-
-print(response.text)
-```
-
-## Authentication at a Glance
-
-Install the browser extra and authorize once:
+Authorize the reusable ChatGPT web session once:
 
 ```bash
-pip install "chatgpt-web-adapter[browser]"
 chatgpt-web-adapter auth login --auth-file auth_data.json
 chatgpt-web-adapter auth status --auth-file auth_data.json
 ```
 
-Use `chatgpt-web-adapter auth login --force` when the saved session is rejected
-and you need a completely fresh interactive login.
+The first login is interactive. Subsequent access-token/session renewal is browserless while the reusable session remains valid.
 
-The command opens a persistent Chromium profile, waits for you to finish the
-normal ChatGPT login, and saves reusable cookies and tokens without sending a
-probe chat message. When the access token is missing or near expiry, the client calls
-`/api/auth/session`, updates the access/session metadata, preserves the
-browser-issued cookie jar, and atomically updates the same `auth_data.json`.
+`auth_data.json` contains reusable account credentials. Do not share it. See [docs/authentication.md](docs/authentication.md).
 
-Recommended `auth_data.json` shape:
+## Browser-Owned Runtime Setup
 
-```json
-{
-  "accessToken": "eyJhbGciOi...",
-  "cookies": {
-    "__Secure-next-auth.session-token": "..."
-  },
-  "browserCookies": [
-    {
-      "name": "__Secure-next-auth.session-token.0",
-      "value": "...",
-      "domain": ".chatgpt.com",
-      "path": "/",
-      "secure": true
-    }
-  ],
-  "headers": {
-    "user-agent": "Mozilla/5.0 ..."
-  }
-}
+Register the Native Messaging host:
+
+```powershell
+chatgpt-web-adapter browser-native install
 ```
 
-- `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
-- `cookies` and `headers` should come from the same account/session as the token.
-- `browserCookies` preserves domain/path/expiry metadata needed to recreate a browser session without flattening scoped cookie chunks. Older files without it remain supported.
-- Automatic refresh requires `__Secure-next-auth.session-token` (including chunked variants) or a top-level `sessionToken` in the file.
-- Call `client.refresh_auth()` to refresh immediately. Pass `auto_refresh_auth=False` or `persist_refreshed_auth=False` to opt out of automatic refresh or file updates.
-- Pass `auto_login=True` to `ChatGPTWebClient` to reopen the persistent browser profile only when auth is missing or session refresh fails.
-- `.env` is optional, not required. If present, `accessToken=...` is used only as a fallback when the file token is missing or expired.
-- Older files that still use `api_key` are accepted for backward compatibility, but new examples and new files should use `accessToken`.
-- Inspect or refresh auth without exposing tokens with `chatgpt-web-adapter auth status` and `chatgpt-web-adapter auth refresh`.
-- After the first interactive login, `auto_sentinel=True, sentinel_headless=True` can run protected writes without a visible browser window. Chromium is still required as the browser engine.
+Print the packaged extension directory:
 
-`auth_data.json` is reusable session state, not a standalone replacement for
-the browser profile. The JSON file carries access/session metadata and scoped
-cookie records; the persistent profile supplies the official page environment
-used for current Sentinel capture. See [Authentication and session lifecycle](docs/authentication.md).
+```powershell
+chatgpt-web-adapter browser-native extension-dir
+```
 
-## Common Workflows
+Load that directory through `chrome://extensions` -> Developer mode -> Load unpacked. The packaged extension has stable identity:
 
-### Streaming Callback
+```text
+kjfnkhajljnkbhikmfijcchenlfglaie
+```
+
+Verify the bridge:
+
+```powershell
+chatgpt-web-adapter browser-native status
+```
+
+A healthy bridge reports `available=true` and `extension_connected=true`.
+
+The low-level browser-native API is research/diagnostic. Application code should normally use `ChatGPTProductRuntime`, which assembles the browser-owned transport behind the generic product transport contract.
+
+## Production CLI Quick Start
+
+Read-only runtime readiness and capabilities:
+
+```powershell
+chatgpt-web-adapter runtime status
+```
+
+For an existing conversation:
+
+```powershell
+chatgpt-web-adapter runtime status `
+  --conversation <conversation-id>
+```
+
+Send a new ordinary text turn:
+
+```powershell
+chatgpt-web-adapter runtime send "Hello from the product runtime"
+```
+
+Continue an existing conversation:
+
+```powershell
+chatgpt-web-adapter runtime send `
+  "Continue this conversation" `
+  --conversation <conversation-id>
+```
+
+The production transport set is intentionally closed. Unknown transports fail closed and there is no fallback to the legacy direct-write path.
+
+## Production Python Quick Start
+
+```python
+from chatgpt_web_adapter import assemble_product_runtime
+
+runtime = assemble_product_runtime(
+    transport="browser-owned",
+    auth_file="auth_data.json",
+)
+
+health = runtime.health()
+if not health.ready:
+    raise RuntimeError(health.reason)
+
+print(runtime.capabilities().to_dict())
+
+execution = runtime.send_text_observed("Give me a short project summary.")
+print(execution.response.text)
+print(execution.provenance.to_dict())
+```
+
+For ordinary callers, `runtime.send(...)` is the compact entrypoint when transport observation/provenance is not needed directly.
+
+Canonical lifecycle access remains on the same runtime:
+
+```python
+status = runtime.get_status(conversation_id)
+messages = runtime.get_messages(conversation_id)
+attached = runtime.attach_conversation(conversation_id)
+```
+
+## Capabilities
+
+The product runtime distinguishes four states:
+
+- `AVAILABLE` — implemented and evidence-backed on this transport;
+- `UNSUPPORTED` — known not to be provided by the contract;
+- `UNKNOWN` — not sufficiently characterized;
+- `UNIMPLEMENTED` — product-present or plausible, but not implemented by this runtime surface.
+
+The current browser-owned production transport has evidence-backed ordinary text new-chat/continuation and canonical readback. Other product features are deliberately not implied from what the ChatGPT UI may support.
+
+## Provenance and Completion
+
+`send_text_observed()` returns structured provenance. Completion evidence is separate from optional backend metadata.
+
+A successful turn may therefore report:
+
+```text
+completion.completed = true
+completion.source = CANONICAL_READBACK
+completion.canonical_completion_proven = true
+finish_reason = null
+finish_reason_observed = false
+```
+
+The runtime never fabricates a synthetic `stop` merely because another canonical signal proved completion.
+
+Browser-specific observations such as runtime-tab creation/reuse remain transport metadata rather than mandatory generic product fields.
+
+## Browser UX Note
+
+The extension does not intentionally request foreground activation for its reusable runtime tab. A warm reusable-tab path has been observed to stay inactive. On a cold path where no runtime tab exists, Chrome may still foreground a newly created tab even though the runtime did not request activation. Treat foreground disturbance as an observed browser behavior, not as a guaranteed invariant.
+
+## Compatibility: `ChatGPTWebClient`
+
+Existing applications do not need an immediate rewrite:
 
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
-
-response = client.send(
-    "Stream the answer token by token.",
-    on_token=lambda token: print(token, end="", flush=True),
-)
+client = ChatGPTWebClient(auth_file="auth_data.json")
+messages = client.get_messages("<conversation-id>")
 ```
 
-### Continue an Existing ChatGPT Web Conversation
+The historical client remains the compatibility surface for older workflows. Existing Sentinel-enabled protected-write examples are kept for regression and migration reference, but `auto_sentinel=True` is no longer the recommended architecture for new ordinary text-turn integrations.
 
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
+No PR8.6 compatibility decision silently redirects `ChatGPTWebClient.send()` into `ChatGPTProductRuntime`, and the production runtime never falls back into `ChatGPTWebClient.send()`.
 
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
+## Experimental and Research Workflows
 
-response = client.send_to_conversation(
-    "https://chatgpt.com/c/...",
-    "Continue from this point.",
-)
+Experimental web-backend helpers include:
 
-print(response.text)
-```
-
-### Send an Image in a New Chat
-
-```python
-response = client.send(
-    "What is shown in this image?",
-    media=["screenshot.png"],
-)
-print(response.text)
-```
-
-`send_to_conversation()` attaches to the latest web conversation state, resolves the current parent message automatically, and preserves the detected model when possible. Model detection is best-effort because ChatGPT web payloads can change. If the model cannot be detected, the SDK uses the normal `send()` default model.
-
-### Continue from an SDK Response
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
-
-first = client.send("Start a conversation.")
-second = client.send(
-    "Continue it.",
-    conversation=first.conversation,
-)
-```
-
-Other common APIs:
-
-- read conversation messages with `client.get_messages(...)`
-- poll conversation status with `client.get_status(...)`
-- wait for completion with `client.wait_until_completed(...)`
-- approve selected tool flows with experimental `client.send_and_auto_approve(...)`
-- inspect request latency with [examples/diagnose_latency.py](examples/diagnose_latency.py)
-- inspect live transport events with [examples/watch_conversation.py](examples/watch_conversation.py)
-
-## Examples
-
-- [examples/basic_send.py](examples/basic_send.py) - send one prompt and print response metadata
-- [examples/continue_saved.py](examples/continue_saved.py) - save `ChatConversation` metadata and continue later
-- [examples/attach_existing.py](examples/attach_existing.py) - attach to an existing conversation URL or id
-- [examples/read_messages.py](examples/read_messages.py) - read messages from an existing conversation
-- [examples/status_polling.py](examples/status_polling.py) - poll conversation lifecycle status
-- [examples/approve_tools.py](examples/approve_tools.py) - approve pending tool actions after review
-- [examples/raw_payload.py](examples/raw_payload.py) - send an experimental raw web backend payload
-- [examples/diagnose_latency.py](examples/diagnose_latency.py) - print request and streaming diagnostics
-- [examples/watch_conversation.py](examples/watch_conversation.py) - watch SSE, websocket handoff, polling, and approvals live
-- [examples/github_auto_approve.py](examples/github_auto_approve.py) - specialized GitHub connector approval demo
-
-## Experimental Features
-
-The SDK includes experimental HTTP-only helpers for web-agent/tool approval
-continuations. The initial protected send still uses the Sentinel provider:
-
-- `approve_pending_action()`
-- `wait_and_approve_pending_actions()`
-- `send_and_auto_approve()`
-
-These APIs are useful for ChatGPT web connector flows such as GitHub file creation, but they rely on reverse-engineered web behavior and should be treated as less stable than the base `send()` API.
-
-Approval helpers are not a stable contract of this SDK. They are best-effort compatibility layers over changing ChatGPT web approval behavior and may require updates even when the base send/continue flows still work.
-
-See [USAGE.md](USAGE.md) and [examples/github_auto_approve.py](examples/github_auto_approve.py).
-
-The SDK also includes an experimental raw payload escape hatch for advanced users:
-
-- `PayloadBuilder`
-- `validate_payload()`
-- `send_payload()`
+- `approve_pending_action()`;
+- `wait_and_approve_pending_actions()`;
+- `send_and_auto_approve()`;
+- `PayloadBuilder`;
+- `validate_payload`;
+- `send_payload` through the compatibility client;
+- prepared/raw backend diagnostics.
 
 See [docs/raw_payload.md](docs/raw_payload.md).
 
-This API sends raw ChatGPT web backend payloads. It is not an official or stable API.
+Research/diagnostic surfaces include direct `BrowserNativeTurnProvider`, Native Messaging installation helpers, and Sentinel transaction/provider symbols. These remain available because they are useful for regression diagnosis and future transport comparison; isolation comes before deletion.
 
-The example script includes:
+## Examples
 
-- a neutral repository placeholder instead of a hard-coded demo repo
-- live assistant token printing
-- structured approval progress events
+Primary production example:
 
-## Auth Notes
+- [examples/product_runtime.py](examples/product_runtime.py) — current `ChatGPTProductRuntime`, capabilities, send, and provenance.
 
-The optional browser extra creates the initial `auth_data.json` itself. Subsequent
-access-token refreshes are browserless while the session cookie remains valid.
-Interactive login is needed again only after ChatGPT rejects the reusable session.
+Compatibility examples:
 
-Operationally, there are three distinct paths:
+- [examples/basic_send.py](examples/basic_send.py)
+- [examples/continue_saved.py](examples/continue_saved.py)
+- [examples/attach_existing.py](examples/attach_existing.py)
+- [examples/read_messages.py](examples/read_messages.py)
+- [examples/status_polling.py](examples/status_polling.py)
 
-- read/status operations use the saved web session directly;
-- access-token refresh calls `/api/auth/session` without opening Chromium;
-- protected writes acquire one-shot Sentinel credentials through the persistent
-  Chromium profile, visibly or headlessly.
+Experimental examples:
 
-## Detailed Guide
+- [examples/approve_tools.py](examples/approve_tools.py)
+- [examples/raw_payload.py](examples/raw_payload.py)
+- [examples/github_auto_approve.py](examples/github_auto_approve.py)
 
-For the full SDK walkthrough, including auth flows, `warmup()`, `temporary`, `web_search`, `reasoning_effort`, conversation continuation, image inputs, response objects, and error handling, see [USAGE.md](USAGE.md).
+Research/diagnostic examples:
 
-Operational docs:
+- [examples/browser_native_send.py](examples/browser_native_send.py)
+- [examples/diagnose_latency.py](examples/diagnose_latency.py)
+- [examples/watch_conversation.py](examples/watch_conversation.py)
 
-- [docs/live_smoke_checklist.md](docs/live_smoke_checklist.md)
+PR-specific feasibility probes may also live in `examples/`; they are not automatically part of the public production SDK surface.
+
+## Architecture and Operational Docs
+
+- [ROADMAP.md](ROADMAP.md) — post-PR8 architecture direction and PR9.0 alternatives
+- [docs/public_surface_pr8_6.md](docs/public_surface_pr8_6.md) — support tiers and compatibility decisions
+- [docs/architecture.md](docs/architecture.md) — current runtime/canonical/transport layering
+- [docs/product_runtime_pr8_3.md](docs/product_runtime_pr8_3.md) — production runtime assembly baseline
+- [docs/product_transport_protocol_pr8_4.md](docs/product_transport_protocol_pr8_4.md) — transport/canonical interface separation
+- [docs/product_capabilities_provenance_pr8_5.md](docs/product_capabilities_provenance_pr8_5.md) — capabilities and provenance
+- [docs/browser_native_runtime.md](docs/browser_native_runtime.md) — low-level implementation/setup history
 - [docs/authentication.md](docs/authentication.md)
 - [docs/troubleshooting.md](docs/troubleshooting.md)
-- [docs/release_checklist.md](docs/release_checklist.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/building_on_top.md](docs/building_on_top.md)
+- [docs/raw_payload.md](docs/raw_payload.md)
+- [docs/rename_compatibility.md](docs/rename_compatibility.md)
+
+`USAGE.md` remains a detailed compatibility-client guide for the historical `ChatGPTWebClient` feature set. New ordinary text-turn integrations should start with this README and `examples/product_runtime.py` instead.
+
+## Known Failure Modes
+
+- reusable session auth expires or is revoked;
+- ChatGPT product/page structure changes;
+- the extension or Native Messaging host is not connected;
+- the reusable runtime tab is closed and must be reconciled/recreated;
+- canonical response/message schemas change;
+- experimental legacy backend contracts drift;
+- an ambiguous delegated write requires reconciliation rather than automatic retry.
+
+See [docs/troubleshooting.md](docs/troubleshooting.md).
+
+## Compatibility Policy
+
+- `ChatGPTProductRuntime` is the primary forward-looking production compatibility target.
+- `ChatGPTWebClient` is retained without deprecation in PR8.6 for existing callers and feature coverage not yet present in the product runtime.
+- experimental APIs may evolve faster.
+- research/diagnostic APIs have no application-level stability promise even though imports remain available today.
+- no legacy symbol is removed solely for tree cleanliness; removal requires a separate evidence-backed migration decision.
+- undocumented `chatgpt.com` behavior can change independently of package releases.
 
 ## Package Naming
 
@@ -392,17 +365,3 @@ Canonical package naming is:
 - import: `chatgpt_web_adapter`
 
 See [docs/rename_compatibility.md](docs/rename_compatibility.md).
-
-## Status
-
-Version `0.1.7` is the current browser-session hardening baseline. It includes
-persistent auth, structured cookies, protected text/media writes, headless
-Sentinel capture after first login, and image upload support.
-GitHub Actions validates tests on Python 3.10-3.14 across Ubuntu and Windows and
-checks the package build.
-
-Repository docs:
-
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [SECURITY.md](SECURITY.md)
-- [CHANGELOG.md](CHANGELOG.md)
