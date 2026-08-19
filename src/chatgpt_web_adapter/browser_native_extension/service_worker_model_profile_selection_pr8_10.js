@@ -228,7 +228,10 @@ executeNativeTurn = async function _executeNativeTurnWithModelProfile(message) {
     if (expectedLease && record.browserAuthorityLeaseId !== expectedLease) {
       throw new Error("PR8_10_MODEL_PROFILE_LEASE_MISMATCH");
     }
-    return {modelProfileSelectionSupported: true, ...record};
+    return {
+      modelProfileSelectionSupported: true,
+      modelProfileSelection: record
+    };
   }
 
   const requestedRaw = message?.requiredModelMode;

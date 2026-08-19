@@ -71,6 +71,30 @@ def test_nested_profile_requirements_fail_closed() -> None:
                 pass
 
 
+def test_selection_lookup_uses_nested_record_not_transport_envelope(monkeypatch) -> None:
+    provider = ProductModelProfileProvider()
+    record = {
+        "browserAuthorityLeaseId": "lease-1",
+        "requestedModelMode": "HIGH",
+        "requestedSliderIndex": 2,
+        "selectionComplete": True,
+        "selectedModeAfterProven": True,
+        "selectedModeAfter": "HIGH",
+        "conversationWriteBeforeSelection": False,
+    }
+
+    def fake_characterization_rpc(payload, *, timeout):
+        assert payload["expectedBrowserAuthorityLeaseId"] == "lease-1"
+        return {
+            "modelProfileSelectionSupported": True,
+            "browserAuthorityLeaseId": None,
+            "modelProfileSelection": record,
+        }
+
+    monkeypatch.setattr(provider, "_characterization_rpc", fake_characterization_rpc)
+    assert provider.model_profile_selection_for_lease("lease-1") == record
+
+
 def test_selection_validation_requires_exact_prewrite_proof() -> None:
     good = {
         "browserAuthorityLeaseId": "lease-1",
@@ -99,6 +123,14 @@ def test_extension_uses_semantic_keyboard_slider_selection_and_no_option_guessin
     assert 'conversationWriteBeforeSelection' in source
     assert "Fetch.enable" not in source
     assert "Network.getResponseBody" not in source
+
+
+def test_selection_record_is_namespaced_away_from_transport_lease() -> None:
+    source = (EXTENSION / "service_worker_model_profile_selection_pr8_10.js").read_text(
+        encoding="utf-8"
+    )
+    assert "modelProfileSelection: record" in source
+    assert "return {modelProfileSelectionSupported: true, ...record};" not in source
 
 
 def test_model_profile_overlay_loads_after_pr8_8_selector_before_pr8_9_streaming() -> None:

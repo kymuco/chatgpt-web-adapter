@@ -129,12 +129,18 @@ class ProductModelProfileProvider(BrowserAuthorityCharacterizationProvider):
                 "PR8_10_MODEL_PROFILE_SELECTION_NOT_SUPPORTED",
                 request_stage="model_profile_characterization",
             )
-        if response.get("browserAuthorityLeaseId") != lease_id:
+        record = response.get("modelProfileSelection")
+        if not isinstance(record, dict):
+            raise RequestError(
+                "PR8_10_MODEL_PROFILE_SELECTION_RECORD_MISSING",
+                request_stage="model_profile_characterization",
+            )
+        if record.get("browserAuthorityLeaseId") != lease_id:
             raise RequestError(
                 "PR8_10_MODEL_PROFILE_SELECTION_LEASE_MISMATCH",
                 request_stage="model_profile_characterization",
             )
-        return dict(response)
+        return dict(record)
 
 
 def _prompt(profile: str) -> str:
