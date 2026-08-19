@@ -8,7 +8,7 @@ EXTENSION = ROOT / "experiments" / "browser_native_bridge" / "extension"
 
 
 def test_manifest_is_narrow_and_has_required_debugger_capability() -> None:
-    manifest = json.loads((EXTENSION / "manifest.json").read_text())
+    manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["manifest_version"] == 3
     assert set(manifest["permissions"]) == {"debugger", "tabs"}
     assert manifest["host_permissions"] == ["https://chatgpt.com/*"]
@@ -16,14 +16,14 @@ def test_manifest_is_narrow_and_has_required_debugger_capability() -> None:
 
 
 def test_probe_does_not_request_cookie_or_native_messaging_access_yet() -> None:
-    manifest = json.loads((EXTENSION / "manifest.json").read_text())
+    manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
     permissions = set(manifest["permissions"])
     assert "cookies" not in permissions
     assert "nativeMessaging" not in permissions
 
 
 def test_worker_does_not_call_protected_chat_endpoint_directly() -> None:
-    worker = (EXTENSION / "service_worker.js").read_text()
+    worker = (EXTENSION / "service_worker.js").read_text(encoding="utf-8")
     assert "fetch(" not in worker
     assert "sentinel/chat-requirements" not in worker
     assert "turnstile" not in worker.lower()
@@ -32,16 +32,16 @@ def test_worker_does_not_call_protected_chat_endpoint_directly() -> None:
 
 
 def test_send_requires_explicit_chatgpt_tab_target() -> None:
-    worker = (EXTENSION / "service_worker.js").read_text()
-    popup = (EXTENSION / "popup.js").read_text()
-    html = (EXTENSION / "popup.html").read_text()
+    worker = (EXTENSION / "service_worker.js").read_text(encoding="utf-8")
+    popup = (EXTENSION / "popup.js").read_text(encoding="utf-8")
+    html = (EXTENSION / "popup.html").read_text(encoding="utf-8")
     assert "TAB_ID_REQUIRED" in worker
     assert "tabId" in popup
     assert 'id="tab"' in html
 
 
 def test_raw_stream_body_is_not_returned_or_displayed() -> None:
-    worker = (EXTENSION / "service_worker.js").read_text()
+    worker = (EXTENSION / "service_worker.js").read_text(encoding="utf-8")
     assert "responseBody:" not in worker
     assert "responseBodyBase64Encoded" not in worker
     assert "resume_conversation_token" not in worker
@@ -51,9 +51,9 @@ def test_raw_stream_body_is_not_returned_or_displayed() -> None:
 
 
 def test_repeatability_harness_is_fixed_background_only_and_leak_checked() -> None:
-    worker = (EXTENSION / "service_worker.js").read_text()
-    popup = (EXTENSION / "popup.js").read_text()
-    html = (EXTENSION / "popup.html").read_text()
+    worker = (EXTENSION / "service_worker.js").read_text(encoding="utf-8")
+    popup = (EXTENSION / "popup.js").read_text(encoding="utf-8")
+    html = (EXTENSION / "popup.html").read_text(encoding="utf-8")
     assert "STRESS_TURN_COUNT = 20" in worker
     assert "SDK_BRIDGE_STRESS_" in worker
     assert "STRESS_TARGET_MUST_BE_BACKGROUND" in worker
@@ -66,7 +66,7 @@ def test_repeatability_harness_is_fixed_background_only_and_leak_checked() -> No
 
 def test_repeatability_verifier_exists() -> None:
     verifier = ROOT / "examples" / "verify_browser_native_stress.py"
-    source = verifier.read_text()
+    source = verifier.read_text(encoding="utf-8")
     assert "analyze_stress_messages" in source
     assert "SDK_BRIDGE_STRESS_" in source
     assert '"duplicate_user"' in source
