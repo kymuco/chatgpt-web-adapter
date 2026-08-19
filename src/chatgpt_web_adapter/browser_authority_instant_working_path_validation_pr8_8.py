@@ -4,6 +4,47 @@ from typing import Any
 
 from .browser_authority_instant_effort_selection_pr8_8 import SCHEMA
 
+UNIFIED_GPT56_ROUTE_STATUS = "UNIFIED_GPT_5_6_ROUTE_WITHOUT_EXPLICIT_REASONING"
+
+
+def _evidence(instant: dict[str, Any], name: str) -> dict[str, Any]:
+    value = instant.get(name)
+    return value if isinstance(value, dict) else {}
+
+
+def _strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _is_gpt56_identifier(value: str) -> bool:
+    text = value.strip().lower()
+    return text == "gpt-5-6" or text.startswith(
+        ("gpt-5-6-", "gpt-5-6_", "gpt-5-6.", "gpt-5-6:", "gpt-5-6/")
+    )
+
+
+def _unified_gpt56_route_contract(instant: dict[str, Any]) -> bool:
+    evidence = (
+        _evidence(instant, "request_evidence"),
+        _evidence(instant, "response_evidence"),
+    )
+    identifiers = [
+        identifier
+        for item in evidence
+        for identifier in _strings(item.get("model_identifiers"))
+    ]
+    explicit_reasoning_metadata = any(
+        _strings(item.get("reasoning_hint_keys"))
+        or _strings(item.get("reasoning_states"))
+        for item in evidence
+    )
+    return (
+        any(_is_gpt56_identifier(identifier) for identifier in identifiers)
+        and not explicit_reasoning_metadata
+    )
+
 
 def validate_support(support: dict[str, Any]) -> None:
     required_true = (
@@ -57,3 +98,11 @@ def validate_instant_route(instant: dict[str, Any]) -> None:
         or instant.get("reasoning_route_observed") is True
     ):
         raise RuntimeError("PR8_8_INSTANT_WORKING_PATH_ROUTE_CONTRACT_FAILED")
+
+    if (
+        instant.get("network_route_status") == UNIFIED_GPT56_ROUTE_STATUS
+        and not _unified_gpt56_route_contract(instant)
+    ):
+        raise RuntimeError(
+            "PR8_8_INSTANT_WORKING_PATH_UNIFIED_GPT56_ROUTE_CONTRACT_FAILED"
+        )
