@@ -38,6 +38,17 @@ class RevisionSafeTerminalRenderer:
     but never participate in final-answer reconciliation.
     """
 
+    _GENERIC_COMPLETION_LABELS = {
+        "Web activity complete",
+        "Reasoning summary complete",
+        "Browsing update complete",
+        "Tool activity complete",
+    }
+    _TEXT_ACTIVITY_START_LABELS = {
+        "Reasoning summary",
+        "Browsing update",
+    }
+
     def __init__(self, stream: TextIO | None = None) -> None:
         self.stream = stream if stream is not None else sys.stdout
         self.text = ""
@@ -47,11 +58,18 @@ class RevisionSafeTerminalRenderer:
         self._activity_text: dict[str, str] = {}
         self._activity_text_seen: set[str] = set()
         self._activity_open_id: str | None = None
+        self._output_ends_with_newline = True
+        self._last_activity_status: tuple[str, str] | None = None
 
     def _write(self, text: str) -> None:
         if text:
             self.stream.write(text)
             self.stream.flush()
+            self._output_ends_with_newline = text.endswith("\n")
+
+    def _ensure_line_boundary(self) -> None:
+        if not self._output_ends_with_newline:
+            self._write("\n")
 
     def _replace(self, text: str, *, label: str) -> None:
         if text == self.text:
@@ -59,8 +77,7 @@ class RevisionSafeTerminalRenderer:
         if text.startswith(self.text):
             self._write(text[len(self.text) :])
         else:
-            if self.text and not self.text.endswith("\n"):
-                self._write("\n")
+            self._ensure_line_boundary()
             self._write(f"[{label}]\n{text}")
         self.text = text
 
@@ -79,9 +96,17 @@ class RevisionSafeTerminalRenderer:
         value = event.get("label")
         return value if isinstance(value, str) and value else "Activity"
 
+    def _activity_status_line(self, kind: str, label: str) -> None:
+        status = (kind, label)
+        if status == self._last_activity_status:
+            return
+        self._ensure_line_boundary()
+        self._write(f"[{kind}] {label}\n")
+        self._last_activity_status = status
+
     def _close_activity_text(self) -> None:
         if self._activity_open_id is not None:
-            self._write("\n")
+            self._ensure_line_boundary()
             self._activity_open_id = None
 
     def _render_activity(self, event: dict[str, Any]) -> bool:
@@ -101,7 +126,9 @@ class RevisionSafeTerminalRenderer:
 
         if event_type == ACTIVITY_STARTED:
             self._close_activity_text()
-            self._write(f"[{kind}] {label}\n")
+            if label in self._TEXT_ACTIVITY_START_LABELS:
+                return True
+            self._activity_status_line(kind, label)
             return True
 
         if event_type == ACTIVITY_TEXT_SNAPSHOT:
@@ -109,9 +136,11 @@ class RevisionSafeTerminalRenderer:
             if not isinstance(text, str):
                 return True
             self._close_activity_text()
+            self._ensure_line_boundary()
             self._activity_text[activity_id] = text
             self._activity_text_seen.add(activity_id)
             self._activity_open_id = activity_id
+            self._last_activity_status = None
             self._write(f"[{kind}] {text}")
             return True
 
@@ -121,7 +150,9 @@ class RevisionSafeTerminalRenderer:
                 return True
             if self._activity_open_id != activity_id:
                 self._close_activity_text()
+                self._ensure_line_boundary()
                 self._activity_open_id = activity_id
+                self._last_activity_status = None
                 self._write(f"[{kind}] ")
             self._activity_text[activity_id] = self._activity_text.get(activity_id, "") + delta
             self._activity_text_seen.add(activity_id)
@@ -133,15 +164,20 @@ class RevisionSafeTerminalRenderer:
             if not isinstance(text, str):
                 return True
             self._close_activity_text()
+            self._ensure_line_boundary()
             self._activity_text[activity_id] = text
             self._activity_text_seen.add(activity_id)
             self._activity_open_id = activity_id
+            self._last_activity_status = None
             self._write(f"[{kind} revision]\n{text}")
             return True
 
         self._close_activity_text()
-        if activity_id not in self._activity_text_seen:
-            self._write(f"[{kind}] {label}\n")
+        if activity_id in self._activity_text_seen:
+            return True
+        if label in self._GENERIC_COMPLETION_LABELS:
+            return True
+        self._activity_status_line(kind, label)
         return True
 
     def on_event(self, event: dict[str, Any]) -> None:
@@ -157,6 +193,7 @@ class RevisionSafeTerminalRenderer:
             if not isinstance(text, str):
                 return
             self._close_activity_text()
+            self._last_activity_status = None
             self.seen_text_event = True
             self._replace(text, label="canonical")
             return
@@ -166,6 +203,7 @@ class RevisionSafeTerminalRenderer:
             return
 
         self._close_activity_text()
+        self._last_activity_status = None
         self.seen_text_event = True
         label = (
             "revision"
@@ -181,8 +219,9 @@ class RevisionSafeTerminalRenderer:
             return
         self._finished = True
         self._close_activity_text()
+        self._last_activity_status = None
         if not isinstance(canonical_text, str):
             canonical_text = str(canonical_text)
         self._replace(canonical_text, label="canonical")
-        if not self.text.endswith("\n"):
+        if not self._output_ends_with_newline:
             self._write("\n")

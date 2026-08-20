@@ -1,6 +1,6 @@
 # PR8.12 — Normalized Tool/Search Progress and User-Visible Thinking Stream
 
-Status: IMPLEMENTED — live product gate pending.
+Status: LIVE PRODUCT COVERAGE PROVEN — presentation polish implemented, final regression/live recheck pending.
 
 ## Goal
 
@@ -11,13 +11,17 @@ PR8.9 already streams revision-safe visible assistant answer text. PR8.12 adds a
 The intended terminal experience is approximately:
 
 ```text
-[reasoning] Thinking…
+I’ll verify the current stable release...
 [web] Searching the web…
 [web] Reading sources…
+[reasoning] Thinking…
 [reasoning] <user-visible reasoning recap / summary text when the product exposes it>
 
-<revision-safe assistant answer stream>
+[snapshot]
+<revision-safe final assistant answer stream>
 ```
+
+Ordinary user-visible assistant commentary remains assistant text. PR8.12 does not demote or hide it merely because it appears before tool activity.
 
 ## Two independent planes
 
@@ -39,7 +43,8 @@ Properties:
 - revision-safe;
 - answer sequence is independently validated;
 - canonical HTTP conversation readback remains final authority;
-- normalized activity events cannot affect answer reconciliation.
+- normalized activity events cannot affect answer reconciliation;
+- user-visible assistant commentary before/during tool work remains on this plane.
 
 ### Activity plane
 
@@ -109,7 +114,7 @@ file_search          -> Searching files…
 research             -> Researching…
 ```
 
-Unknown tools are represented only as a generic `Using a tool…` activity.
+Unknown web/tool operations retain a truthful generic status such as `Using the web…` / `Using a tool…`; PR8.12 does not invent a more specific operation when the product schema does not prove one.
 
 Raw tool arguments are used browser-locally only for bounded operation classification. They are never copied to an event. Raw tool results are likewise never exported by the activity layer.
 
@@ -123,23 +128,84 @@ cwa send "<prompt>" --stream
 
 The same `on_event` path now carries both answer and activity planes. Existing non-streaming and JSON behavior is unchanged.
 
-## Terminal rendering
+## First live product gate
 
-Activity statuses are rendered as labelled lines, for example:
+The production browsing prompt was:
 
-```text
-[web] Searching the web…
-[web] Web search complete
+```powershell
+cwa send "Search the web for the latest stable Python release, read at least two sources, and briefly tell me what changed." --stream
 ```
 
-User-visible activity text is streamed independently:
+The observed terminal stream included all of the important surfaces:
 
 ```text
+I’ll verify the current stable release from Python’s official site, then cross-check the release notes...
+[web] Using the web…
+[web] Web activity complete
+[web] Web activity complete
+[web] Using the web…
+[web] Web activity complete
+[reasoning] Thinking…
+[web] Using the web…
+[reasoning] Thinking…
 [reasoning] Reasoning summary
-[reasoning] <snapshot><delta><delta>...
+[reasoning] Обработка заняла 13s
+
+[snapshot]
+The **latest stable Python feature-series release is Python 3.14.7** ...
 ```
 
-Then the ordinary assistant answer starts on a clean line and retains the PR8.9 canonical reconciliation behavior.
+This proves the central PR8.12 capability:
+
+- ordinary user-visible assistant commentary streamed before tool work;
+- normalized web activity appeared while browsing was active;
+- reasoning status/recap surfaces appeared before the final answer;
+- the final assistant answer still arrived through the revision-safe answer plane;
+- no raw tool JSON or raw result payload appeared in the terminal.
+
+The first gate therefore passed the **coverage** objective, but exposed presentation noise.
+
+## Presentation polish after the first live gate
+
+The first live output exposed three cosmetic issues:
+
+```text
+...matter.[web] Using the web…
+[web] Web activity complete
+[web] Web activity complete
+[reasoning] Reasoning summary
+[reasoning] Обработка заняла 13s
+```
+
+PR8.12 polish now makes the renderer:
+
+1. guarantee a line boundary before every activity/status block, so assistant commentary can never be glued to `[web]` / `[reasoning]`;
+2. suppress generic completion-only noise such as repeated `Web activity complete` while preserving specific completions such as `Web search complete` when an operation is actually proven;
+3. suppress consecutive identical status lines;
+4. suppress empty text-activity headings such as `Reasoning summary` / `Browsing update` when the actual user-visible recap/display text is the meaningful next surface;
+5. preserve ordinary assistant commentary exactly as assistant text;
+6. retain `[snapshot]` / `[revision]` semantics when a new assistant text branch begins after intermediate commentary/tool work.
+
+Expected polished shape for the same product behavior:
+
+```text
+I’ll verify the current stable release...
+[web] Using the web…
+[reasoning] Thinking…
+[web] Using the web…
+[reasoning] Thinking…
+[reasoning] Обработка заняла 13s
+[snapshot]
+The latest stable Python release is ...
+```
+
+Specific labels such as `Searching the web…` / `Reading sources…` remain preferred whenever operation classification proves them.
+
+## Terminal rendering invariants
+
+Activity statuses are rendered as labelled lines. User-visible activity text is streamed independently. The ordinary assistant answer starts on a clean line and retains PR8.9 canonical reconciliation behavior.
+
+The renderer never uses content heuristics to decide that ordinary visible assistant text is “only commentary.” If ChatGPT says it to the user, CWA streams it.
 
 ## Safety / authority boundary
 
@@ -167,7 +233,7 @@ The extension does not export through this layer:
 - headers/cookies/credentials;
 - DOM or HTML.
 
-## Required regression gate
+## Required regression gate after polish
 
 ```powershell
 python -m pytest `
@@ -178,37 +244,42 @@ python -m pytest `
   -q
 ```
 
-## Required live gate
+The PR8.12 renderer regression now explicitly covers:
 
-After pulling and reloading the unpacked extension, use a turn that explicitly requires browsing:
+```text
+assistant commentary without newline
+  -> activity starts on a new line
+  -> generic completion noise suppressed
+  -> new final assistant message begins as [snapshot]
+```
+
+and consecutive duplicate status suppression.
+
+## Final live recheck
+
+After pulling the polish and reloading the unpacked extension, rerun:
 
 ```powershell
 cwa send "Search the web for the latest stable Python release, read at least two sources, and briefly tell me what changed." --stream
 ```
 
-Expected minimum evidence:
+Required final evidence:
 
 ```text
-at least one normalized activity line before/during the answer
+user-visible assistant commentary remains present
+activity lines never concatenate with assistant text
+generic completion spam is absent
+reasoning recap text remains present
 complete revision-safe final answer still streams
 no raw JSON tool call is printed
 no raw tool result payload is printed
 canonical final answer remains correct
 ```
 
-Preferred evidence on the current product schema is one or more of:
-
-```text
-[web] Searching the web…
-[web] Reading sources…
-[reasoning] Thinking…
-[reasoning] <visible recap text>
-```
-
 If the live product exposes an additional user-visible content type that is not covered by the current allowlist, that schema should be characterized and added explicitly rather than widening the reducer to arbitrary assistant/tool text.
 
 ## Claim boundary
 
-Until the live gate passes, PR8.12 claims:
+Until the post-polish regression and live recheck pass, PR8.12 claims:
 
-> CWA has a separate normalized activity stream that can carry bounded user-visible reasoning recap/browsing-display text and tool/search progress while preserving PR8.9 answer reconciliation and canonical finality. Production coverage of the current live ChatGPT activity schemas remains pending the explicit live browsing gate.
+> Live product coverage is proven: CWA streams ordinary user-visible assistant commentary, bounded normalized web/tool activity, reasoning status/recap surfaces, and the revision-safe final answer while preserving canonical finality and excluding raw tool/private reasoning payloads. Presentation polish for line boundaries, generic-completion suppression, duplicate statuses, and redundant recap headings is implemented and awaits the final regression/live recheck.

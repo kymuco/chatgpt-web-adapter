@@ -111,10 +111,76 @@ def test_terminal_renderer_prints_activity_then_answer_without_mixing_planes() -
     assert stream.getvalue() == (
         "[web] Searching the web…\n"
         "[web] Web search complete\n"
-        "[reasoning] Reasoning summary\n"
         "[reasoning] I checked sources.\n"
         "Final answer\n"
     )
+
+
+def test_terminal_renderer_separates_commentary_and_suppresses_generic_completion_noise() -> None:
+    stream = StringIO()
+    renderer = RevisionSafeTerminalRenderer(stream)
+
+    events = [
+        {
+            "type": "assistant_text_snapshot",
+            "sequence": 1,
+            "message_id": "commentary-1",
+            "text": "I’ll verify the release first.",
+        },
+        {
+            "type": ACTIVITY_STARTED,
+            "sequence": 1,
+            "activity_id": "web-1",
+            "activity_kind": "web",
+            "label": "Using the web…",
+        },
+        {
+            "type": ACTIVITY_COMPLETED,
+            "sequence": 2,
+            "activity_id": "web-1",
+            "activity_kind": "web",
+            "label": "Web activity complete",
+        },
+        {
+            "type": ACTIVITY_COMPLETED,
+            "sequence": 3,
+            "activity_id": "web-2",
+            "activity_kind": "web",
+            "label": "Web activity complete",
+        },
+        {
+            "type": "assistant_text_snapshot",
+            "sequence": 2,
+            "message_id": "answer-1",
+            "text": "Final answer",
+        },
+    ]
+    for event in events:
+        renderer.on_event(event)
+    renderer.finish("Final answer")
+
+    assert stream.getvalue() == (
+        "I’ll verify the release first.\n"
+        "[web] Using the web…\n"
+        "[snapshot]\n"
+        "Final answer\n"
+    )
+
+
+def test_terminal_renderer_suppresses_consecutive_duplicate_status_lines() -> None:
+    stream = StringIO()
+    renderer = RevisionSafeTerminalRenderer(stream)
+
+    duplicate = {
+        "type": ACTIVITY_STARTED,
+        "activity_kind": "reasoning",
+        "label": "Thinking…",
+    }
+    renderer.on_event({**duplicate, "sequence": 1, "activity_id": "thinking-1"})
+    renderer.on_event({**duplicate, "sequence": 2, "activity_id": "thinking-2"})
+    renderer.finish("")
+
+    assert stream.getvalue() == "[reasoning] Thinking…\n"
 
 
 def test_extension_exports_only_normalized_activity_surface() -> None:
