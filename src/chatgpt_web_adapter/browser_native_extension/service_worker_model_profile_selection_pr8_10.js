@@ -5,6 +5,7 @@
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
+const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = 8000;
 
 const _pr810ModelProfilePriorExecuteNativeTurn = executeNativeTurn;
 const _pr810ModelProfilePriorLocateAndFocusComposer = locateAndFocusComposer;
@@ -27,6 +28,13 @@ function _pr810QueryConflict(message) {
     message?.browserAuthorityLeaseId != null ||
     message?.canonicalCompleted === true
   );
+}
+
+function _pr810InitialModeFailure(before) {
+  const proofKind = typeof before?.proofKind === "string" ? before.proofKind : "unknown";
+  const composerReady = before?.composerReady === true ? "true" : "false";
+  const candidateCount = Number.isInteger(before?.candidateCount) ? before.candidateCount : 0;
+  return `PR8_10_MODEL_PROFILE_INITIAL_MODE_NOT_PROVEN:${proofKind}:composer_ready=${composerReady}:candidate_count=${candidateCount}`;
 }
 
 async function _pr810DispatchKey(debuggee, key, code, virtualKeyCode) {
@@ -86,11 +94,31 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   const targetMode = context.requestedModelMode;
   const targetIndex = PR810_MODEL_MODE_INDEX[targetMode];
 
-  const before = await _pr88InstantSelectedModeSnapshot(debuggee);
+  const initialModeStartedAt = performance.now();
+  const before = await _pr88InstantWaitForSelectedMode(
+    debuggee,
+    PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS
+  );
+  context.initialModeAcquisitionElapsedMs = Math.max(
+    0,
+    Math.round(performance.now() - initialModeStartedAt)
+  );
+  context.initialModeComposerReady = before?.composerReady === true;
   context.selectedModeBefore = before?.selectedMode || null;
   context.selectedModeBeforeProven = before?.selectedModeProven === true;
+  context.selectedModeBeforeProofKind = before?.proofKind || "unknown";
+  context.selectedModeBeforeCandidateCount = Number.isInteger(before?.candidateCount)
+    ? before.candidateCount
+    : 0;
+  context.selectedModeBeforeNearestDistancePx = Number.isFinite(before?.nearestDistancePx)
+    ? Math.max(0, Math.round(before.nearestDistancePx))
+    : null;
+
   if (before?.selectedModeProven !== true || typeof before?.selectedMode !== "string") {
-    throw new Error("PR8_10_MODEL_PROFILE_INITIAL_MODE_NOT_PROVEN");
+    throw new Error(_pr810InitialModeFailure(before));
+  }
+  if (_pr810Mode(before.selectedMode) === null) {
+    throw new Error(`PR8_10_MODEL_PROFILE_INITIAL_MODE_UNSUPPORTED:${before.selectedMode}`);
   }
 
   if (before.selectedMode === targetMode) {
@@ -180,8 +208,20 @@ function _pr810Record(context) {
     browserAuthorityLeaseId: context.leaseId,
     requestedModelMode: context.requestedModelMode,
     requestedSliderIndex: PR810_MODEL_MODE_INDEX[context.requestedModelMode],
+    initialModeAcquisitionTimeoutMs: PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS,
+    initialModeAcquisitionElapsedMs: Number.isFinite(context.initialModeAcquisitionElapsedMs)
+      ? context.initialModeAcquisitionElapsedMs
+      : null,
+    initialModeComposerReady: context.initialModeComposerReady === true,
     selectedModeBefore: context.selectedModeBefore,
     selectedModeBeforeProven: context.selectedModeBeforeProven === true,
+    selectedModeBeforeProofKind: context.selectedModeBeforeProofKind || null,
+    selectedModeBeforeCandidateCount: Number.isInteger(context.selectedModeBeforeCandidateCount)
+      ? context.selectedModeBeforeCandidateCount
+      : 0,
+    selectedModeBeforeNearestDistancePx: Number.isFinite(context.selectedModeBeforeNearestDistancePx)
+      ? context.selectedModeBeforeNearestDistancePx
+      : null,
     selectionPerformed: context.selectionPerformed === true,
     selectionMechanism: context.selectionMechanism || null,
     selectedModeAfter: context.selectedModeAfter,
@@ -216,6 +256,8 @@ executeNativeTurn = async function _executeNativeTurnWithModelProfile(message) {
       supportedProductModes: ["INSTANT", "MEDIUM", "HIGH"],
       sliderIndices: {...PR810_MODEL_MODE_INDEX},
       strictPrewriteVerification: true,
+      boundedInitialModeAcquisition: true,
+      initialModeAcquisitionTimeoutMs: PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS,
       maxProfileMapped: false
     };
   }
