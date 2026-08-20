@@ -24,6 +24,7 @@ importScripts("service_worker_model_profile_selection_pr8_10.js");
 importScripts("service_worker_safe_browser_response_stream_pr8_9.js");
 importScripts("service_worker_safe_browser_response_patch_protocol_pr8_9.js");
 importScripts("service_worker_revision_safe_text_delivery_pr8_9.js");
+importScripts("service_worker_post_answer_tail_timing_pr8_11.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 

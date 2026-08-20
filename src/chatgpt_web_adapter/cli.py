@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
@@ -18,6 +19,10 @@ from .browser_native_provider import BrowserNativeTurnProvider
 from .client import ChatGPTWebClient
 from .conversation_snapshot import snapshot_conversation
 from .exceptions import WebChatAdapterError
+from .post_answer_tail_latency_pr8_11 import (
+    PostAnswerTailTimingProvider,
+    StandaloneTailTimingObserver,
+)
 from .product_runtime import (
     DEFAULT_PRODUCT_TRANSPORT,
     SUPPORTED_PRODUCT_TRANSPORTS,
@@ -128,6 +133,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     send.add_argument("--timeout", type=float, default=150.0)
     send.add_argument("--poll-interval", type=float, default=0.5)
+    send.add_argument(
+        "--timings",
+        action="store_true",
+        help="with --stream, print PR8.11 post-answer tail timing diagnostics to stderr",
+    )
     output_mode = send.add_mutually_exclusive_group()
     output_mode.add_argument(
         "--stream",
@@ -275,20 +285,59 @@ def _run_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _tail_timing_payload(execution: Any, observer: StandaloneTailTimingObserver) -> dict[str, Any]:
+    observation = execution.observation.to_dict()
+    lease_id = observation.get("browser_authority_lease_id")
+    browser_tail: dict[str, Any]
+    if not isinstance(lease_id, str) or not lease_id:
+        browser_tail = {
+            "available": False,
+            "reason": "browser_authority_lease_id_missing",
+        }
+    else:
+        try:
+            browser_tail = PostAnswerTailTimingProvider().timing_for_lease(lease_id)
+            browser_tail["available"] = True
+        except Exception as error:
+            browser_tail = {
+                "available": False,
+                "reason": str(error),
+                "browser_authority_lease_id": lease_id,
+            }
+    return observer.report(browser_tail=browser_tail)
+
+
 def _run_send(args: argparse.Namespace) -> int:
+    if args.timings and not args.stream:
+        raise ValueError("--timings requires --stream")
+
     runtime = assemble_product_runtime(
         transport=args.transport,
         auth_file=args.auth_file,
     )
     renderer = RevisionSafeTerminalRenderer() if args.stream else None
+    timing_observer = (
+        StandaloneTailTimingObserver(renderer.on_event if renderer is not None else None)
+        if args.timings
+        else None
+    )
+    on_event = (
+        timing_observer.on_event
+        if timing_observer is not None
+        else renderer.on_event
+        if renderer is not None
+        else None
+    )
     execution = runtime.send_text_observed(
         args.text,
         conversation=args.conversation,
         timeout=args.timeout,
         poll_interval=args.poll_interval,
-        on_event=renderer.on_event if renderer is not None else None,
+        on_event=on_event,
         model_profile=args.profile,
     )
+    if timing_observer is not None:
+        timing_observer.mark_runtime_return()
 
     if renderer is not None:
         renderer.finish(execution.response.text)
@@ -296,6 +345,16 @@ def _run_send(args: argparse.Namespace) -> int:
         print(json.dumps(_execution_payload(execution), indent=2, ensure_ascii=False))
     else:
         print(execution.response.text)
+
+    if timing_observer is not None:
+        print(
+            json.dumps(
+                {"post_answer_tail_timing": _tail_timing_payload(execution, timing_observer)},
+                indent=2,
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
     return 0
 
 
