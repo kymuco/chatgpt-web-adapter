@@ -7,7 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .browser_native_protocol import (
     PROTOCOL_VERSION,
@@ -59,14 +59,8 @@ class BrowserNativeRuntimeTabReleaseResult:
 class BrowserNativeTurnProvider:
     """Send ordinary text turns through the official ChatGPT page runtime.
 
-    The provider never receives browser cookies, Sentinel credentials, Turnstile
-    state, or raw conversation SSE. It only talks to the local Native Messaging
-    broker and receives safe turn metadata back from the extension.
-
-    PR8.8 adds a request-thread-local Browser Authority Lease token. The token is
-    safe fencing metadata only: it never grants product semantics and is used to
-    prevent a stale disposal request from closing authority that a newer turn has
-    already claimed.
+    PR8.9 adds optional revision-safe text event frames over the same loopback
+    request. Raw conversation SSE still never leaves the extension.
     """
 
     def __init__(
@@ -133,10 +127,17 @@ class BrowserNativeTurnProvider:
             )
         return payload
 
-    def _rpc(self, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+    def _rpc(
+        self,
+        payload: dict[str, Any],
+        *,
+        timeout: float,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
         deadline = time.monotonic() + timeout
         last_error: BaseException | None = None
         while time.monotonic() < deadline:
+            request_sent = False
             try:
                 descriptor = self._load_descriptor()
                 request = {
@@ -151,15 +152,37 @@ class BrowserNativeTurnProvider:
                 ) as sock:
                     sock.settimeout(remaining)
                     send_local_message(sock, request)
-                    response = recv_local_message(sock)
-                    if response.get("protocol") != PROTOCOL_VERSION:
-                        raise RequestError(
-                            "BROWSER_NATIVE_PROTOCOL_MISMATCH: invalid broker response",
-                            request_stage="browser_native_bridge",
-                        )
-                    return response
+                    request_sent = True
+                    while True:
+                        response = recv_local_message(sock)
+                        if response.get("protocol") != PROTOCOL_VERSION:
+                            raise RequestError(
+                                "BROWSER_NATIVE_PROTOCOL_MISMATCH: invalid broker response",
+                                request_stage="browser_native_bridge",
+                            )
+                        if response.get("type") == "turn_event":
+                            if response.get("request_id") != payload.get("request_id"):
+                                raise RequestError(
+                                    "BROWSER_NATIVE_RESPONSE_MISMATCH",
+                                    request_stage="browser_native_bridge",
+                                )
+                            event = response.get("event")
+                            if isinstance(event, dict) and on_event is not None:
+                                try:
+                                    on_event(dict(event))
+                                except Exception:
+                                    # Observation callbacks cannot invalidate or
+                                    # replay an already-delegated product write.
+                                    pass
+                            continue
+                        return response
             except (RequestError, OSError, EOFError, ValueError) as error:
                 last_error = error
+                if request_sent:
+                    raise RequestError(
+                        f"BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION: {error}",
+                        request_stage="browser_native_bridge",
+                    ) from error
                 if time.monotonic() >= deadline:
                     break
                 time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
@@ -209,6 +232,7 @@ class BrowserNativeTurnProvider:
         conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None,
         timeout: float | None,
         canonical_completed_at_ms: int | None,
+        on_text_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> BrowserNativeTurnResult:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text is required")
@@ -239,8 +263,10 @@ class BrowserNativeTurnProvider:
                 "canonicalCompleted": canonical_completed_at_ms is not None,
                 "canonicalCompletedAtMs": canonical_completed_at_ms,
                 "browserAuthorityLeaseId": authority_lease_id,
+                "streamTextObservations": on_text_event is not None,
             },
             timeout=total_timeout + self.connect_timeout,
+            on_event=on_text_event,
         )
         if response.get("request_id") != request_id:
             raise RequestError(
@@ -310,6 +336,24 @@ class BrowserNativeTurnProvider:
             canonical_completed_at_ms=None,
         )
 
+    def send_text_streaming(
+        self,
+        text: str,
+        *,
+        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        timeout: float | None = None,
+        on_text_event: Callable[[dict[str, Any]], None],
+    ) -> BrowserNativeTurnResult:
+        if not callable(on_text_event):
+            raise TypeError("on_text_event must be callable")
+        return self._send_text_request(
+            text,
+            conversation=conversation,
+            timeout=timeout,
+            canonical_completed_at_ms=None,
+            on_text_event=on_text_event,
+        )
+
     def send_text_with_stale_ui_recovery(
         self,
         text: str,
@@ -318,13 +362,30 @@ class BrowserNativeTurnProvider:
         timeout: float | None = None,
         canonical_completed_at_ms: int,
     ) -> BrowserNativeTurnResult:
-        """Authorize one bounded pre-input reload using fresh canonical completion evidence."""
-
         return self._send_text_request(
             text,
             conversation=conversation,
             timeout=timeout,
             canonical_completed_at_ms=canonical_completed_at_ms,
+        )
+
+    def send_text_with_stale_ui_recovery_streaming(
+        self,
+        text: str,
+        *,
+        conversation: ConversationRef | ChatConversation | dict[str, Any] | str,
+        timeout: float | None = None,
+        canonical_completed_at_ms: int,
+        on_text_event: Callable[[dict[str, Any]], None],
+    ) -> BrowserNativeTurnResult:
+        if not callable(on_text_event):
+            raise TypeError("on_text_event must be callable")
+        return self._send_text_request(
+            text,
+            conversation=conversation,
+            timeout=timeout,
+            canonical_completed_at_ms=canonical_completed_at_ms,
+            on_text_event=on_text_event,
         )
 
     def release_runtime_tab(
@@ -334,12 +395,6 @@ class BrowserNativeTurnProvider:
         browser_authority_lease_id: str,
         timeout: float = 10.0,
     ) -> BrowserNativeRuntimeTabReleaseResult:
-        """Close only the runtime tab still fenced by the released authority lease.
-
-        This operation is never retried automatically by the provider. A stale
-        lease or tab-id mismatch fails closed in the extension.
-        """
-
         if expected_runtime_tab_id is not None and (
             isinstance(expected_runtime_tab_id, bool)
             or not isinstance(expected_runtime_tab_id, int)

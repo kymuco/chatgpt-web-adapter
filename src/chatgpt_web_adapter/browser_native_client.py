@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import inspect
 import time
 from typing import Any, Callable
 
 from .browser_native_provider import BrowserNativeTurnProvider
 from .exceptions import ConversationTimeoutError, RequestError
+from .revision_safe_streaming_pr8_9 import RevisionSafeTextAccumulator
 from .types import (
     ChatConversation,
     ChatMetrics,
@@ -95,6 +97,42 @@ def _wait_for_new_final_assistant(
         time.sleep(max(0.2, interval))
 
 
+def _emit_revision_safe_event(
+    self: Any,
+    on_event: Callable[[dict[str, Any]], None] | None,
+    event: dict[str, Any],
+) -> None:
+    if on_event is None:
+        return
+    event_type = event.get("type")
+    if not isinstance(event_type, str) or not event_type:
+        return
+    payload = {key: value for key, value in event.items() if key != "type"}
+    try:
+        self._emit_event(on_event, event_type, **payload)
+    except Exception:
+        # PR8.9 observation callbacks never change write authority or authorize
+        # replay after delegation.
+        pass
+
+
+
+def _provider_supports_revision_safe_streaming(provider: Any) -> bool:
+    if not callable(getattr(provider, "send_text_streaming", None)):
+        return False
+    rpc = getattr(provider, "_rpc", None)
+    if not callable(rpc):
+        return False
+    try:
+        parameters = inspect.signature(rpc).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.name == "on_event" or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
+
 def send_browser_native(
     self: Any,
     prompt: str,
@@ -107,10 +145,9 @@ def send_browser_native(
 ) -> ChatResponse:
     """Send one ordinary text turn through the persistent ChatGPT browser tab.
 
-    The official page owns the protected write. For continuation turns, a fresh
-    canonical ``completed`` status may authorize one bounded stale-UI reload
-    before any text is inserted. After the write finishes, the existing SDK
-    read path fetches the canonical final assistant message.
+    PR8.9 exposes revision-safe early assistant text through ``on_event`` while
+    keeping canonical readback authoritative. ``on_token`` intentionally remains
+    final-only because it cannot retract revisions.
     """
 
     provider = getattr(self, "_browser_native_turn_provider", None)
@@ -133,6 +170,10 @@ def send_browser_native(
         canonical_status_before_turn = _canonical_status_value(self, conversation)
 
     recovery_send = getattr(provider, "send_text_with_stale_ui_recovery", None)
+    recovery_stream_send = getattr(
+        provider, "send_text_with_stale_ui_recovery_streaming", None
+    )
+    stream_send = getattr(provider, "send_text_streaming", None)
     canonical_status_recovery_confirm = None
     recovery_authorized = False
     if (
@@ -152,13 +193,39 @@ def send_browser_native(
         stale_ui_recovery_authorized=recovery_authorized,
     )
 
+    stream_state = RevisionSafeTextAccumulator()
+
+    def handle_text_event(event: dict[str, Any]) -> None:
+        normalized = stream_state.apply(event)
+        if normalized is not None:
+            _emit_revision_safe_event(self, on_event, normalized)
+
+    streaming_requested = (
+        on_event is not None and _provider_supports_revision_safe_streaming(provider)
+    )
     if recovery_authorized:
         canonical_completed_at_ms = int(time.time() * 1000)
-        turn = recovery_send(
+        if streaming_requested and callable(recovery_stream_send):
+            turn = recovery_stream_send(
+                prompt,
+                conversation=conversation,
+                timeout=timeout,
+                canonical_completed_at_ms=canonical_completed_at_ms,
+                on_text_event=handle_text_event,
+            )
+        else:
+            turn = recovery_send(
+                prompt,
+                conversation=conversation,
+                timeout=timeout,
+                canonical_completed_at_ms=canonical_completed_at_ms,
+            )
+    elif streaming_requested and callable(stream_send):
+        turn = stream_send(
             prompt,
             conversation=conversation,
             timeout=timeout,
-            canonical_completed_at_ms=canonical_completed_at_ms,
+            on_text_event=handle_text_event,
         )
     else:
         turn = provider.send_text(prompt, conversation=conversation, timeout=timeout)
@@ -179,6 +246,7 @@ def send_browser_native(
         tab_active_after_write=turn.tab_active_after,
         tab_activated_during_turn=turn.tab_activated_during_turn,
         foreground_activation_observed=turn.foreground_activation_observed,
+        revision_safe_stream_observation_count=stream_state.observation_count,
     )
 
     remaining = max(1.0, timeout - (time.monotonic() - started))
@@ -213,6 +281,16 @@ def send_browser_native(
             turn_exchange_id=turn.turn_exchange_id,
         ),
     )
+
+    finalization = stream_state.finalization_event(
+        canonical_text=final_message.text,
+        conversation_id=turn.conversation_id,
+        message_id=final_message.message_id,
+        model=final_message.model,
+        finish_reason=final_message.finish_reason,
+    )
+    _emit_revision_safe_event(self, on_event, finalization)
+
     if on_token is not None and response.text:
         on_token(response.text)
     self._emit_event(
@@ -222,5 +300,9 @@ def send_browser_native(
         message_id=final_message.message_id,
         model=final_message.model,
         total=total,
+        stream_canonical_reconciliation=finalization["reconciliation"],
+        revision_safe_stream_observation_count=stream_state.observation_count,
+        revision_safe_stream_revision_count=stream_state.revision_count,
+        revision_safe_stream_delivery_incomplete=stream_state.delivery_incomplete,
     )
     return response

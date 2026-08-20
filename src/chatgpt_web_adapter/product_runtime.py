@@ -178,6 +178,29 @@ def _browser_authority_override_kwargs(
     }
 
 
+def _model_profile_override_kwargs(
+    write_transport: ProductWriteTransport,
+    *,
+    model_profile: str | None,
+) -> dict[str, Any]:
+    """Build the optional semantic profile requirement for supporting transports.
+
+    PR8.10 deliberately keeps the generic ProductWriteTransport protocol stable.
+    A caller can request a semantic profile only when the selected transport
+    explicitly advertises the strict pre-write selection contract.
+    """
+
+    if model_profile is None:
+        return {}
+
+    governance = dict(write_transport.governance())
+    if governance.get("model_profile_product_runtime_selection_supported") is not True:
+        raise ValueError(
+            "model profile selection is unavailable for the selected write transport"
+        )
+    return {"model_profile": model_profile}
+
+
 def _assemble_default_write_transport(
     client: CanonicalConversationClient,
     *,
@@ -213,6 +236,8 @@ class ChatGPTProductRuntime:
     without making browser-specific metadata mandatory for future transports.
     PR8.8 adds optional Browser Authority resource-lifetime policy plumbing while
     keeping concrete tab/native-messaging mechanics below this runtime boundary.
+    PR8.10 adds a transport-governed semantic ``model_profile=`` turn requirement
+    without widening the generic ProductWriteTransport protocol.
 
     ``provider=`` remains as a compatibility assembly shortcut for PR8.3
     callers. New composition code should inject ``write_transport=`` or use
@@ -305,12 +330,19 @@ class ChatGPTProductRuntime:
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
         browser_authority_policy: str | None = None,
         browser_authority_ttl_ms: int | None = None,
+        model_profile: str | None = None,
     ) -> ChatResponse:
         _require_production_write_mode(conversation_mode)
-        authority_kwargs = _browser_authority_override_kwargs(
+        transport_kwargs = _browser_authority_override_kwargs(
             self.write_transport,
             browser_authority_policy=browser_authority_policy,
             browser_authority_ttl_ms=browser_authority_ttl_ms,
+        )
+        transport_kwargs.update(
+            _model_profile_override_kwargs(
+                self.write_transport,
+                model_profile=model_profile,
+            )
         )
         return self.write_transport.send_text(
             text,
@@ -319,7 +351,7 @@ class ChatGPTProductRuntime:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
-            **authority_kwargs,
+            **transport_kwargs,
         )
 
     def send(
@@ -334,6 +366,7 @@ class ChatGPTProductRuntime:
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
         browser_authority_policy: str | None = None,
         browser_authority_ttl_ms: int | None = None,
+        model_profile: str | None = None,
     ) -> ChatResponse:
         return self.send_text(
             text,
@@ -345,6 +378,7 @@ class ChatGPTProductRuntime:
             conversation_mode=conversation_mode,
             browser_authority_policy=browser_authority_policy,
             browser_authority_ttl_ms=browser_authority_ttl_ms,
+            model_profile=model_profile,
         )
 
     def send_text_observed(
@@ -359,12 +393,19 @@ class ChatGPTProductRuntime:
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
         browser_authority_policy: str | None = None,
         browser_authority_ttl_ms: int | None = None,
+        model_profile: str | None = None,
     ) -> ProductRuntimeExecution:
         mode = _require_production_write_mode(conversation_mode)
-        authority_kwargs = _browser_authority_override_kwargs(
+        transport_kwargs = _browser_authority_override_kwargs(
             self.write_transport,
             browser_authority_policy=browser_authority_policy,
             browser_authority_ttl_ms=browser_authority_ttl_ms,
+        )
+        transport_kwargs.update(
+            _model_profile_override_kwargs(
+                self.write_transport,
+                model_profile=model_profile,
+            )
         )
         execution = self.write_transport.send_text_observed(
             text,
@@ -373,7 +414,7 @@ class ChatGPTProductRuntime:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
-            **authority_kwargs,
+            **transport_kwargs,
         )
         if execution.transport != self.transport:
             raise RuntimeError(
@@ -426,6 +467,10 @@ class ChatGPTProductRuntime:
         transport_governance = dict(self.write_transport.governance())
         browser_authority_supported = (
             transport_governance.get("browser_authority_product_runtime_policy_supported")
+            is True
+        )
+        model_profile_supported = (
+            transport_governance.get("model_profile_product_runtime_selection_supported")
             is True
         )
         transport_governance.update(
@@ -495,6 +540,13 @@ class ChatGPTProductRuntime:
                 "browser_authority_policy_exposes_browser_mechanics": False,
                 "browser_authority_runtime_tab_identity_required_by_caller": False,
                 "browser_authority_native_messaging_details_required_by_caller": False,
+                "model_profile_high_level_surface": True,
+                "model_profile_selected_transport_support": model_profile_supported,
+                "model_profile_override_requires_transport_support": True,
+                "model_profile_fallback": None,
+                "silent_model_profile_fallback": False,
+                "model_profile_state_scope": "TURN_REQUIREMENT",
+                "model_profile_preservation_scope_proven": False,
                 "new_chat_supported": True,
                 "continuation_supported": True,
                 "daily_use_entrypoint": "ChatGPTProductRuntime.send",

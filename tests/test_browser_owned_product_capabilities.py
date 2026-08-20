@@ -13,10 +13,14 @@ from chatgpt_web_adapter.product_capabilities import (
     CONVERSATION_STATUS,
     FILES,
     IMAGES,
+    MODEL_PRESERVATION,
+    MODEL_SELECTION,
     MULTIMODAL_CONTINUATION,
     NEW_CHAT,
     PRODUCT_CAPABILITY_NAMES,
     PRODUCT_MEMORY_PERSONALIZATION,
+    REASONING_PRESERVATION,
+    REASONING_SELECTION,
     STREAMING,
     TEXT_TURNS,
     WEB_SEARCH,
@@ -49,6 +53,8 @@ class _Provider:
 
 
 def test_browser_owned_capability_matrix_is_complete_and_evidence_conservative() -> None:
+    # A custom legacy provider cannot inherit the production PR8.10 selection
+    # claim merely because the transport class knows about profiles.
     transport = BrowserOwnedProductTransport(_Client(), provider=_Provider())
 
     capabilities = transport.capabilities()
@@ -61,26 +67,65 @@ def test_browser_owned_capability_matrix_is_complete_and_evidence_conservative()
     assert capabilities.state(CONVERSATION_ATTACH) is CapabilityState.AVAILABLE
     assert capabilities.state(CONVERSATION_READ) is CapabilityState.AVAILABLE
     assert capabilities.state(CONVERSATION_STATUS) is CapabilityState.AVAILABLE
+    assert capabilities.state(STREAMING) is CapabilityState.AVAILABLE
 
     assert capabilities.state(IMAGES) is CapabilityState.UNIMPLEMENTED
     assert capabilities.state(APPROVALS) is CapabilityState.UNIMPLEMENTED
     assert capabilities.state(MULTIMODAL_CONTINUATION) is CapabilityState.UNIMPLEMENTED
 
-    assert capabilities.state(STREAMING) is CapabilityState.UNKNOWN
     assert capabilities.state(FILES) is CapabilityState.UNKNOWN
     assert capabilities.state(WEB_SEARCH) is CapabilityState.UNKNOWN
     assert capabilities.state(PRODUCT_MEMORY_PERSONALIZATION) is CapabilityState.UNKNOWN
+    assert capabilities.state(MODEL_SELECTION) is CapabilityState.UNKNOWN
+    assert capabilities.state(REASONING_SELECTION) is CapabilityState.UNKNOWN
+    assert capabilities.state(MODEL_PRESERVATION) is CapabilityState.UNKNOWN
+    assert capabilities.state(REASONING_PRESERVATION) is CapabilityState.UNKNOWN
 
     assert capabilities.get(CANONICAL_READBACK).owner is CapabilityOwner.CANONICAL
     assert capabilities.get(PRODUCT_MEMORY_PERSONALIZATION).owner is CapabilityOwner.PRODUCT
     assert capabilities.get(TEXT_TURNS).owner is CapabilityOwner.TRANSPORT
+    assert capabilities.get(STREAMING).owner is CapabilityOwner.TRANSPORT
+    assert capabilities.get(STREAMING).evidence is not None
+    assert "PR8.9.3 production live gate" in capabilities.get(STREAMING).evidence
+
+
+def test_default_browser_owned_provider_graduates_only_proven_pr8_10_selection() -> None:
+    transport = BrowserOwnedProductTransport(_Client())
+
+    capabilities = transport.capabilities()
+
+    assert capabilities.state(MODEL_SELECTION) is CapabilityState.AVAILABLE
+    assert capabilities.state(REASONING_SELECTION) is CapabilityState.AVAILABLE
+    assert capabilities.state(MODEL_PRESERVATION) is CapabilityState.UNKNOWN
+    assert capabilities.state(REASONING_PRESERVATION) is CapabilityState.UNKNOWN
+    assert "PR8.10.1 production live gate" in capabilities.get(MODEL_SELECTION).evidence
+    assert "PR8.10.1 production live gate" in capabilities.get(REASONING_SELECTION).evidence
 
 
 def test_browser_owned_capability_governance_declares_ordinary_product_semantics() -> None:
-    transport = BrowserOwnedProductTransport(_Client(), provider=_Provider())
+    transport = BrowserOwnedProductTransport(_Client())
 
     governance = transport.governance()
 
     assert governance["product_semantics"] == "ordinary-chatgpt"
     assert governance["canonical_readback_required"] is True
     assert governance["automatic_write_retry"] is False
+    assert governance["streaming_supported"] is True
+    assert governance["streaming_event_surface"] == "on_event"
+    assert governance["streaming_canonical_finality_authoritative"] is True
+    assert governance["streaming_legacy_on_token_semantics"] == "FINAL_ONLY"
+    assert governance["model_profile_product_runtime_selection_supported"] is True
+    assert governance["model_profile_request_values"] == ["FAST", "BALANCED", "DEEP"]
+    assert governance["model_profile_product_modes"] == {
+        "FAST": "INSTANT",
+        "BALANCED": "MEDIUM",
+        "DEEP": "HIGH",
+    }
+    assert governance["model_profile_slider_indices"] == {
+        "FAST": 0,
+        "BALANCED": 1,
+        "DEEP": 2,
+    }
+    assert governance["model_profile_max_mapped"] is False
+    assert governance["model_profile_strict_prewrite_verification"] is True
+    assert governance["model_profile_preservation_scope_proven"] is False
