@@ -24,6 +24,10 @@ def _optional_int(value: Any) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
 def _delta_ms(start: int | None, end: int | None) -> int | None:
     if start is None or end is None or end < start:
         return None
@@ -116,6 +120,7 @@ class StandaloneTailTimingObserver:
         self._started_at = monotonic()
         self._events: dict[str, int] = {}
         self._text_event_count = 0
+        self._canonical_readback: dict[str, Any] = {}
 
     def _now_ms(self) -> int:
         return max(0, round((self._monotonic() - self._started_at) * 1000))
@@ -136,6 +141,12 @@ class StandaloneTailTimingObserver:
                 self._events["canonical_finalized_ms"] = now_ms
             elif event_type == "browser_native_readback_completed":
                 self._events["readback_completed_ms"] = now_ms
+                read_count = _optional_int(event.get("canonical_payload_read_count"))
+                reused = _optional_bool(event.get("canonical_payload_reused_for_attach"))
+                if read_count is not None:
+                    self._canonical_readback["canonical_payload_read_count"] = read_count
+                if reused is not None:
+                    self._canonical_readback["canonical_payload_reused_for_attach"] = reused
         if self.downstream is not None:
             self.downstream(event)
 
@@ -170,5 +181,6 @@ class StandaloneTailTimingObserver:
                 ),
                 "last_text_to_runtime_return": _delta_ms(last_text, runtime_return),
             },
+            "canonical_readback": dict(self._canonical_readback),
             "browser_tail_timing": dict(browser_tail) if isinstance(browser_tail, dict) else None,
         }

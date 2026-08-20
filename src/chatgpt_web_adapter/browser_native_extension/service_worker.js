@@ -504,7 +504,6 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
       // Optional safe metadata only.
     }
 
-    await sleep(500);
     diagnostics.completionReadyWaitMs = await waitForComposerReady(
       debuggee,
       Math.min(remainingMs(startedAt, timeoutMs), DEFAULT_READY_TIMEOUT_MS)

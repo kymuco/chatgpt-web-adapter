@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import chatgpt_web_adapter.cli as cli
+from chatgpt_web_adapter.browser_native_client import send_browser_native
+from chatgpt_web_adapter.browser_native_provider import BrowserNativeTurnResult
 from chatgpt_web_adapter.post_answer_tail_latency_pr8_11 import (
     PostAnswerTailTimingProvider,
     StandaloneTailTimingObserver,
@@ -34,6 +36,17 @@ def test_tail_overlay_is_numeric_observability_only() -> None:
     assert "Input.insertText" not in source
     assert "Input.dispatchMouseEvent" not in source
     assert "raw SSE" in source
+
+
+def test_base_turn_removes_redundant_fixed_post_network_sleep() -> None:
+    source = (EXTENSION / "service_worker.js").read_text(encoding="utf-8")
+    start = source.index("let safeMetadata = { conversationId: null, turnExchangeId: null };")
+    end = source.index("const finalTab = await chrome.tabs.get(tabId);", start)
+    completion = source[start:end]
+    assert "await sleep(500);" not in completion
+    assert "waitForComposerReady(" in completion
+    assert "consecutiveReady >= 2" in source
+    assert "await sleep(250);" in source
 
 
 def test_tail_provider_normalizes_bounded_record(monkeypatch) -> None:
@@ -85,6 +98,86 @@ def test_local_observer_measures_stream_to_return_tail() -> None:
     assert report["local_tail_deltas_ms"]["last_text_to_write_completed"] == 600
     assert report["local_tail_deltas_ms"]["write_completed_to_canonical_finalized"] == 100
     assert report["local_tail_deltas_ms"]["last_text_to_runtime_return"] == 720
+
+
+def _canonical_payload() -> dict:
+    return {
+        "conversation_id": "conversation-1",
+        "title": "Single canonical payload",
+        "current_node": "assistant-node",
+        "mapping": {
+            "assistant-node": {
+                "id": "assistant-node",
+                "parent": None,
+                "children": [],
+                "message": {
+                    "id": "new-assistant",
+                    "author": {"role": "assistant"},
+                    "recipient": "all",
+                    "content": {
+                        "content_type": "text",
+                        "parts": ["CANONICAL_ONE_READ"],
+                    },
+                    "metadata": {
+                        "finish_details": {"type": "stop"},
+                        "model_slug": "gpt-test",
+                    },
+                },
+            }
+        },
+    }
+
+
+class _SinglePayloadProvider:
+    def send_text(self, text, *, conversation=None, timeout=None):
+        return BrowserNativeTurnResult(
+            conversation_id="conversation-1",
+            turn_exchange_id="turn-1",
+            response_status=200,
+            response_mime_type="text/event-stream",
+            final_url="https://chatgpt.com/c/conversation-1",
+            tab_id=17,
+            tab_was_active=False,
+            elapsed_ms=100,
+        )
+
+
+class _SinglePayloadClient:
+    def __init__(self) -> None:
+        self._browser_native_turn_provider = _SinglePayloadProvider()
+        self.payload_reads = 0
+        self.events = []
+
+    def _get_conversation_payload(self, conversation_id):
+        assert conversation_id == "conversation-1"
+        self.payload_reads += 1
+        return _canonical_payload()
+
+    def _emit_event(self, callback, event_type, **payload):
+        event = {"type": event_type, **payload}
+        self.events.append(event)
+        if callback is not None:
+            callback(event)
+
+
+def test_canonical_finality_reuses_one_payload_for_message_status_and_attach() -> None:
+    client = _SinglePayloadClient()
+
+    response = send_browser_native(
+        client,
+        "hello",
+        timeout=2,
+        poll_interval=0.01,
+    )
+
+    assert response.text == "CANONICAL_ONE_READ"
+    assert response.title == "Single canonical payload"
+    assert response.conversation.message_id == "new-assistant"
+    assert response.request.observed_model == "gpt-test"
+    assert client.payload_reads == 1
+    readback = [event for event in client.events if event["type"] == "browser_native_readback_completed"]
+    assert readback[-1]["canonical_payload_read_count"] == 1
+    assert readback[-1]["canonical_payload_reused_for_attach"] is True
 
 
 def _execution():
