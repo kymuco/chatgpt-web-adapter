@@ -60,7 +60,7 @@ def test_thread_local_lease_is_forwarded_to_turn_and_echo_verified(monkeypatch):
     provider = BrowserNativeTurnProvider()
     seen = {}
 
-    def fake_rpc(payload, *, timeout):
+    def fake_rpc(payload, *, timeout, on_event=None):
         seen.update(payload)
         return {
             "protocol": 1,
@@ -88,7 +88,7 @@ def test_unbound_research_turn_remains_compatible(monkeypatch):
     provider = BrowserNativeTurnProvider()
     seen = {}
 
-    def fake_rpc(payload, *, timeout):
+    def fake_rpc(payload, *, timeout, on_event=None):
         seen.update(payload)
         return {
             "protocol": 1,

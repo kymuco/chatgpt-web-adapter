@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
 from .browser_authority_lease import (
@@ -66,9 +67,9 @@ _BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
     FILES: CapabilityState.UNKNOWN,
     WEB_SEARCH: CapabilityState.UNKNOWN,
     TEMPORARY_CHAT: CapabilityState.UNIMPLEMENTED,
-    MODEL_SELECTION: CapabilityState.UNKNOWN,
+    MODEL_SELECTION: CapabilityState.AVAILABLE,
     MODEL_PRESERVATION: CapabilityState.UNKNOWN,
-    REASONING_SELECTION: CapabilityState.UNKNOWN,
+    REASONING_SELECTION: CapabilityState.AVAILABLE,
     REASONING_PRESERVATION: CapabilityState.UNKNOWN,
     PRODUCT_MEMORY_PERSONALIZATION: CapabilityState.UNKNOWN,
     TOOLS_CONNECTORS: CapabilityState.UNKNOWN,
@@ -103,24 +104,47 @@ _BROWSER_OWNED_CAPABILITY_EVIDENCE: dict[str, str] = {
         "PR8.7 T13 review: Temporary product semantics and lifecycle are characterized, "
         "but the production ProductWriteTransport has no mode-aware Temporary write route"
     ),
+    MODEL_SELECTION: (
+        "PR8.10.1 production live gate: FAST/DEEP/BALANCED strictly selected "
+        "INSTANT/HIGH/MEDIUM before write across slider states 0/2/1 with no "
+        "automatic write retry"
+    ),
+    REASONING_SELECTION: (
+        "PR8.10.1 production live gate: semantic reasoning profiles mapped to the "
+        "proven INSTANT/MEDIUM/HIGH effort slider and were independently proven "
+        "before each conversation write"
+    ),
     APPROVALS: "production ProductWriteTransport has no approval continuation surface",
     MULTIMODAL_CONTINUATION: "production ProductWriteTransport currently exposes text turns only",
 }
 
+_PROFILE_SELECTION_CAPABILITIES = frozenset({MODEL_SELECTION, REASONING_SELECTION})
 
-def _build_browser_owned_capabilities() -> ProductCapabilities:
+
+def _build_browser_owned_capabilities(
+    *,
+    profile_selection_supported: bool = True,
+) -> ProductCapabilities:
     return ProductCapabilities.from_entries(
         transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
         product_semantics=ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
         entries=(
             ProductCapability(
                 name=name,
-                state=_BROWSER_OWNED_CAPABILITY_STATES[name],
+                state=(
+                    _BROWSER_OWNED_CAPABILITY_STATES[name]
+                    if profile_selection_supported or name not in _PROFILE_SELECTION_CAPABILITIES
+                    else CapabilityState.UNKNOWN
+                ),
                 owner=_BROWSER_OWNED_CAPABILITY_OWNERS.get(
                     name,
                     CapabilityOwner.TRANSPORT,
                 ),
-                evidence=_BROWSER_OWNED_CAPABILITY_EVIDENCE.get(name),
+                evidence=(
+                    _BROWSER_OWNED_CAPABILITY_EVIDENCE.get(name)
+                    if profile_selection_supported or name not in _PROFILE_SELECTION_CAPABILITIES
+                    else "configured browser-native provider does not expose PR8.10 profile requirements"
+                ),
             )
             for name in PRODUCT_CAPABILITY_NAMES
         ),
@@ -152,7 +176,9 @@ class BrowserOwnedProductTransport:
     readback mechanics untouched. PR8.8 exposes Browser Authority resource-lifetime
     policy at this transport boundary without changing the generic transport protocol.
     PR8.9 graduates revision-safe `on_event` streaming while keeping canonical
-    readback authoritative for final text and reconciliation.
+    readback authoritative for final text and reconciliation. PR8.10 graduates
+    strict semantic FAST/BALANCED/DEEP model-profile selection through the same
+    browser-owned write path while leaving preservation scope unclaimed.
     """
 
     transport_id = BROWSER_OWNED_PRODUCT_TRANSPORT
@@ -166,7 +192,17 @@ class BrowserOwnedProductTransport:
         browser_authority_ttl_ms: int | None = None,
     ) -> None:
         self.canonical_client = require_canonical_conversation_client(canonical_client)
-        self.provider = provider or BrowserNativeTurnProvider()
+        if provider is None:
+            # Lazy import avoids a product_runtime -> transport -> PR8.10 ->
+            # product_runtime import cycle while making the proven profile-aware
+            # provider the production browser-owned default.
+            from .product_model_profile_pr8_10 import ProductModelProfileProvider
+
+            provider = ProductModelProfileProvider()
+        self.provider = provider
+        self._model_profile_selection_supported = callable(
+            getattr(self.provider, "require_profile", None)
+        )
         self._browser_authority_runtime_policy = browser_authority_policy
         self._browser_authority_runtime_ttl_ms = browser_authority_ttl_ms
         self._browser_authority_default_resolution = resolve_browser_authority_policy(
@@ -208,6 +244,17 @@ class BrowserOwnedProductTransport:
             runtime_tab_preexisting=health.runtime_tab_preexisting,
         )
 
+    def _model_profile_context(self, model_profile: str | None):
+        if model_profile is None:
+            return nullcontext()
+        require_profile = getattr(self.provider, "require_profile", None)
+        if not callable(require_profile):
+            raise ValueError(
+                "model profile selection is unavailable for the configured "
+                "browser-native provider"
+            )
+        return require_profile(model_profile)
+
     def health(
         self,
         conversation: ConversationInput = None,
@@ -215,7 +262,9 @@ class BrowserOwnedProductTransport:
         return self._health_from_runtime(self._runtime.health(conversation))
 
     def capabilities(self) -> ProductCapabilities:
-        return _BROWSER_OWNED_CAPABILITIES
+        if self._model_profile_selection_supported:
+            return _BROWSER_OWNED_CAPABILITIES
+        return _build_browser_owned_capabilities(profile_selection_supported=False)
 
     def send_text(
         self,
@@ -228,20 +277,22 @@ class BrowserOwnedProductTransport:
         on_event: EventCallback = None,
         browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
         browser_authority_ttl_ms: int | None = None,
+        model_profile: str | None = None,
     ) -> ChatResponse:
         authority_kwargs = _authority_override_kwargs(
             browser_authority_policy=browser_authority_policy,
             browser_authority_ttl_ms=browser_authority_ttl_ms,
         )
-        return self._runtime.send_text(
-            text,
-            conversation=conversation,
-            timeout=timeout,
-            poll_interval=poll_interval,
-            on_token=on_token,
-            on_event=on_event,
-            **authority_kwargs,
-        )
+        with self._model_profile_context(model_profile):
+            return self._runtime.send_text(
+                text,
+                conversation=conversation,
+                timeout=timeout,
+                poll_interval=poll_interval,
+                on_token=on_token,
+                on_event=on_event,
+                **authority_kwargs,
+            )
 
     def send_text_observed(
         self,
@@ -254,20 +305,22 @@ class BrowserOwnedProductTransport:
         on_event: EventCallback = None,
         browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
         browser_authority_ttl_ms: int | None = None,
+        model_profile: str | None = None,
     ) -> ProductRuntimeExecution:
         authority_kwargs = _authority_override_kwargs(
             browser_authority_policy=browser_authority_policy,
             browser_authority_ttl_ms=browser_authority_ttl_ms,
         )
-        execution: BrowserOwnedWriteExecution = self._runtime.send_text_observed(
-            text,
-            conversation=conversation,
-            timeout=timeout,
-            poll_interval=poll_interval,
-            on_token=on_token,
-            on_event=on_event,
-            **authority_kwargs,
-        )
+        with self._model_profile_context(model_profile):
+            execution: BrowserOwnedWriteExecution = self._runtime.send_text_observed(
+                text,
+                conversation=conversation,
+                timeout=timeout,
+                poll_interval=poll_interval,
+                on_token=on_token,
+                on_event=on_event,
+                **authority_kwargs,
+            )
         return ProductRuntimeExecution(
             transport=self.transport_id,
             response=execution.response,
@@ -291,6 +344,27 @@ class BrowserOwnedProductTransport:
                 "browser_authority_configured_runtime_ttl_ms": self._browser_authority_runtime_ttl_ms,
                 "browser_authority_policy_exposes_runtime_tab_identity": False,
                 "browser_authority_policy_requires_native_messaging_details": False,
+                "model_profile_product_runtime_selection_supported": (
+                    self._model_profile_selection_supported
+                ),
+                "model_profile_request_values": ["FAST", "BALANCED", "DEEP"],
+                "model_profile_product_modes": {
+                    "FAST": "INSTANT",
+                    "BALANCED": "MEDIUM",
+                    "DEEP": "HIGH",
+                },
+                "model_profile_slider_indices": {
+                    "FAST": 0,
+                    "BALANCED": 1,
+                    "DEEP": 2,
+                },
+                "model_profile_max_mapped": False,
+                "model_profile_fallback": None,
+                "silent_model_profile_fallback": False,
+                "model_profile_strict_prewrite_verification": True,
+                "model_profile_state_scope": "TURN_REQUIREMENT",
+                "model_profile_preservation_scope_proven": False,
+                "model_profile_automatic_write_retry": False,
                 "streaming_supported": True,
                 "streaming_contract_version": 1,
                 "streaming_event_surface": "on_event",
