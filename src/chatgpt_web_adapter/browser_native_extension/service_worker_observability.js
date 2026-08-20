@@ -30,6 +30,7 @@ importScripts("service_worker_early_product_completion_repair_pr8_11_1.js");
 importScripts("service_worker_normalized_activity_stream_pr8_12.js");
 importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
 importScripts("service_worker_answer_channel_pr8_12.js");
+importScripts("service_worker_temporary_chat_production_pr8_13.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 

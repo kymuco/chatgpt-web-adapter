@@ -51,8 +51,14 @@ from .product_transport import (
     TokenCallback,
     require_canonical_conversation_client,
 )
+from .temporary_product_runtime_pr8_13 import (
+    TEMPORARY_READBACK_PLANE,
+    TemporaryProductWriteRuntime,
+)
 from .types import ChatResponse
 
+_NORMAL_CONVERSATION_MODE = "normal"
+_TEMPORARY_CONVERSATION_MODE = "temporary"
 
 _BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
     TEXT_TURNS: CapabilityState.AVAILABLE,
@@ -66,7 +72,7 @@ _BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
     IMAGES: CapabilityState.UNIMPLEMENTED,
     FILES: CapabilityState.UNKNOWN,
     WEB_SEARCH: CapabilityState.UNKNOWN,
-    TEMPORARY_CHAT: CapabilityState.UNIMPLEMENTED,
+    TEMPORARY_CHAT: CapabilityState.UNKNOWN,
     MODEL_SELECTION: CapabilityState.AVAILABLE,
     MODEL_PRESERVATION: CapabilityState.UNKNOWN,
     REASONING_SELECTION: CapabilityState.AVAILABLE,
@@ -90,19 +96,19 @@ _BROWSER_OWNED_CAPABILITY_EVIDENCE: dict[str, str] = {
     TEXT_TURNS: "PR8.3 live ordinary-product text turns",
     NEW_CHAT: "PR8.3 live new-chat production gate",
     CONTINUATION: "PR8.3 live continuation production gate",
-    CANONICAL_READBACK: "browser-owned writer requires canonical final assistant readback",
+    CANONICAL_READBACK: "browser-owned durable writer requires canonical final assistant readback",
     CONVERSATION_ATTACH: "canonical ChatGPTWebClient attach surface",
     CONVERSATION_READ: "canonical ChatGPTWebClient message-read surface",
     CONVERSATION_STATUS: "canonical ChatGPTWebClient status surface",
     STREAMING: (
-        "PR8.9.3 production live gate: 33 revision-safe text events reached "
-        "ChatGPTProductRuntime.on_event before browser write completion; first text "
-        "led write completion by 16472 ms; canonical finalization reconciled EXACT_MATCH"
+        "PR8.9.3 production live gate: revision-safe visible assistant text reached "
+        "ChatGPTProductRuntime.on_event before browser write completion; PR8.12 adds "
+        "normalized user-visible activity and final-only rendering"
     ),
     IMAGES: "production ProductWriteTransport currently exposes text turns only",
     TEMPORARY_CHAT: (
-        "PR8.7 T13 review: Temporary product semantics and lifecycle are characterized, "
-        "but the production ProductWriteTransport has no mode-aware Temporary write route"
+        "PR8.13 production route implemented with Fetch-paused prewrite proof and "
+        "opaque live-lifecycle continuation authority; production live graduation pending"
     ),
     MODEL_SELECTION: (
         "PR8.10.1 production live gate: FAST/DEEP/BALANCED strictly selected "
@@ -167,19 +173,17 @@ def _authority_override_kwargs(
     }
 
 
-class BrowserOwnedProductTransport:
-    """Adapter exposing the proven browser-owned runtime through product protocol.
+def _normalize_mode(value: str) -> str:
+    if not isinstance(value, str):
+        raise TypeError("conversation_mode must be a string")
+    mode = value.strip().lower()
+    if mode not in {_NORMAL_CONVERSATION_MODE, _TEMPORARY_CONVERSATION_MODE}:
+        raise ValueError("conversation_mode must be 'normal' or 'temporary'")
+    return mode
 
-    PR8.4 intentionally wraps rather than rewrites BrowserOwnedProductWriteRuntime.
-    PR8.5 adds evidence-backed capability declarations while leaving the proven
-    preflight, commit-point recheck, ambiguity classification, and canonical
-    readback mechanics untouched. PR8.8 exposes Browser Authority resource-lifetime
-    policy at this transport boundary without changing the generic transport protocol.
-    PR8.9 graduates revision-safe `on_event` streaming while keeping canonical
-    readback authoritative for final text and reconciliation. PR8.10 graduates
-    strict semantic FAST/BALANCED/DEEP model-profile selection through the same
-    browser-owned write path while leaving preservation scope unclaimed.
-    """
+
+class BrowserOwnedProductTransport:
+    """Browser-owned ordinary-product transport with mode-specific finality."""
 
     transport_id = BROWSER_OWNED_PRODUCT_TRANSPORT
 
@@ -193,9 +197,6 @@ class BrowserOwnedProductTransport:
     ) -> None:
         self.canonical_client = require_canonical_conversation_client(canonical_client)
         if provider is None:
-            # Lazy import avoids a product_runtime -> transport -> PR8.10 ->
-            # product_runtime import cycle while making the proven profile-aware
-            # provider the production browser-owned default.
             from .product_model_profile_pr8_10 import ProductModelProfileProvider
 
             provider = ProductModelProfileProvider()
@@ -221,6 +222,7 @@ class BrowserOwnedProductTransport:
             self.canonical_client,
             **runtime_kwargs,
         )
+        self._temporary_runtime = TemporaryProductWriteRuntime(self.provider)
 
     @staticmethod
     def _health_from_runtime(
@@ -250,10 +252,21 @@ class BrowserOwnedProductTransport:
         require_profile = getattr(self.provider, "require_profile", None)
         if not callable(require_profile):
             raise ValueError(
-                "model profile selection is unavailable for the configured "
-                "browser-native provider"
+                "model profile selection is unavailable for the configured browser-native provider"
             )
         return require_profile(model_profile)
+
+    @staticmethod
+    def _require_temporary_default_authority_policy(
+        *,
+        browser_authority_policy: BrowserAuthorityPolicy | str | None,
+        browser_authority_ttl_ms: int | None,
+    ) -> None:
+        if browser_authority_policy is not None or browser_authority_ttl_ms is not None:
+            raise ValueError(
+                "PR8.13 Temporary Chat does not yet expose Browser Authority TTL overrides; "
+                "the live Temporary lifecycle owns its dedicated tab until explicit end"
+            )
 
     def health(
         self,
@@ -278,12 +291,28 @@ class BrowserOwnedProductTransport:
         browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
         browser_authority_ttl_ms: int | None = None,
         model_profile: str | None = None,
+        conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ChatResponse:
-        authority_kwargs = _authority_override_kwargs(
-            browser_authority_policy=browser_authority_policy,
-            browser_authority_ttl_ms=browser_authority_ttl_ms,
-        )
+        mode = _normalize_mode(conversation_mode)
         with self._model_profile_context(model_profile):
+            if mode == _TEMPORARY_CONVERSATION_MODE:
+                self._require_temporary_default_authority_policy(
+                    browser_authority_policy=browser_authority_policy,
+                    browser_authority_ttl_ms=browser_authority_ttl_ms,
+                )
+                return self._temporary_runtime.send_text(
+                    text,
+                    conversation=conversation,
+                    timeout=timeout,
+                    poll_interval=poll_interval,
+                    on_token=on_token,
+                    on_event=on_event,
+                )
+
+            authority_kwargs = _authority_override_kwargs(
+                browser_authority_policy=browser_authority_policy,
+                browser_authority_ttl_ms=browser_authority_ttl_ms,
+            )
             return self._runtime.send_text(
                 text,
                 conversation=conversation,
@@ -306,12 +335,28 @@ class BrowserOwnedProductTransport:
         browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
         browser_authority_ttl_ms: int | None = None,
         model_profile: str | None = None,
+        conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ProductRuntimeExecution:
-        authority_kwargs = _authority_override_kwargs(
-            browser_authority_policy=browser_authority_policy,
-            browser_authority_ttl_ms=browser_authority_ttl_ms,
-        )
+        mode = _normalize_mode(conversation_mode)
         with self._model_profile_context(model_profile):
+            if mode == _TEMPORARY_CONVERSATION_MODE:
+                self._require_temporary_default_authority_policy(
+                    browser_authority_policy=browser_authority_policy,
+                    browser_authority_ttl_ms=browser_authority_ttl_ms,
+                )
+                return self._temporary_runtime.send_text_observed(
+                    text,
+                    conversation=conversation,
+                    timeout=timeout,
+                    poll_interval=poll_interval,
+                    on_token=on_token,
+                    on_event=on_event,
+                )
+
+            authority_kwargs = _authority_override_kwargs(
+                browser_authority_policy=browser_authority_policy,
+                browser_authority_ttl_ms=browser_authority_ttl_ms,
+            )
             execution: BrowserOwnedWriteExecution = self._runtime.send_text_observed(
                 text,
                 conversation=conversation,
@@ -326,6 +371,12 @@ class BrowserOwnedProductTransport:
             response=execution.response,
             observation=execution.observation,
         )
+
+    def end_temporary_lifecycle(self) -> bool:
+        return self._temporary_runtime.close()
+
+    def temporary_lifecycle_snapshot(self) -> dict[str, Any]:
+        return self._temporary_runtime.lifecycle_snapshot()
 
     def governance(self) -> dict[str, Any]:
         governance = dict(self._runtime.governance())
@@ -344,20 +395,14 @@ class BrowserOwnedProductTransport:
                 "browser_authority_configured_runtime_ttl_ms": self._browser_authority_runtime_ttl_ms,
                 "browser_authority_policy_exposes_runtime_tab_identity": False,
                 "browser_authority_policy_requires_native_messaging_details": False,
-                "model_profile_product_runtime_selection_supported": (
-                    self._model_profile_selection_supported
-                ),
+                "model_profile_product_runtime_selection_supported": self._model_profile_selection_supported,
                 "model_profile_request_values": ["FAST", "BALANCED", "DEEP"],
                 "model_profile_product_modes": {
                     "FAST": "INSTANT",
                     "BALANCED": "MEDIUM",
                     "DEEP": "HIGH",
                 },
-                "model_profile_slider_indices": {
-                    "FAST": 0,
-                    "BALANCED": 1,
-                    "DEEP": 2,
-                },
+                "model_profile_slider_indices": {"FAST": 0, "BALANCED": 1, "DEEP": 2},
                 "model_profile_max_mapped": False,
                 "model_profile_fallback": None,
                 "silent_model_profile_fallback": False,
@@ -373,21 +418,36 @@ class BrowserOwnedProductTransport:
                     "assistant_text_delta",
                     "assistant_text_revision",
                     "canonical_text_finalized",
+                    "activity_started",
+                    "activity_text_snapshot",
+                    "activity_text_delta",
+                    "activity_text_revision",
+                    "activity_completed",
                 ],
                 "streaming_source": "CDP_NETWORK_STREAM_RESOURCE_CONTENT",
                 "streaming_delivery": "REVISION_SAFE_EVENT_STREAM",
                 "streaming_canonical_finality": "BROWSERLESS_CANONICAL_HTTP",
                 "streaming_canonical_finality_authoritative": True,
-                "streaming_reconciliation_states": [
-                    "EXACT_MATCH",
-                    "CANONICAL_EXTENDS_STREAM",
-                    "STREAM_REVISED_BY_CANONICAL",
-                    "STREAM_INCOMPLETE",
-                    "UNAVAILABLE",
-                ],
                 "streaming_legacy_on_token_semantics": "FINAL_ONLY",
                 "streaming_raw_sse_exported": False,
                 "streaming_automatic_write_retry": False,
+                "temporary_chat_product_runtime_selection_supported": True,
+                "temporary_chat_capability_live_graduated": False,
+                "temporary_chat_prewrite_proof": (
+                    "FETCH_PAUSED_PAGE_GENERATED_HISTORY_AND_TRAINING_DISABLED_TRUE"
+                ),
+                "temporary_chat_request_body_exported": False,
+                "temporary_chat_request_body_rewritten": False,
+                "temporary_chat_durable_fallback": None,
+                "temporary_chat_automatic_write_retry": False,
+                "temporary_chat_canonical_get_required": False,
+                "temporary_chat_finality_plane": TEMPORARY_READBACK_PLANE,
+                "temporary_chat_lifecycle_authority": "OPAQUE_PROCESS_LOCAL_TOKEN",
+                "temporary_chat_conversation_id_alone_is_authority": False,
+                "temporary_chat_runtime_reassembly_restores_lifecycle": False,
+                "temporary_chat_tab_recreation_restores_lifecycle": False,
+                "temporary_chat_explicit_lifecycle_end_supported": True,
+                "temporary_chat_browser_authority_ttl_override_supported": False,
             }
         )
         return governance

@@ -48,6 +48,7 @@ def _execution_payload(execution: Any) -> dict[str, Any]:
         "message_id": response.conversation.message_id,
         "finish_reason": response.conversation.finish_reason,
         "observed_model": response.request.observed_model,
+        "temporary": response.request.temporary,
         "backend_status": response.metrics.backend_status,
         "runtime_observation": execution.observation.to_dict(),
         "provenance": provenance.to_dict() if provenance is not None else None,
@@ -113,11 +114,19 @@ def _build_parser() -> argparse.ArgumentParser:
 
     send = commands.add_parser(
         "send",
-        help="send one ordinary ChatGPT turn; defaults to DEEP / product HIGH",
+        help="send one ChatGPT product turn; defaults to DEEP / product HIGH",
     )
     add_auth_file(send)
     send.add_argument("text")
     send.add_argument("--conversation")
+    send.add_argument(
+        "--temporary",
+        action="store_true",
+        help=(
+            "use a fresh one-shot Temporary Chat lifecycle; no durable fallback; "
+            "same-lifecycle continuation is an SDK/runtime surface"
+        ),
+    )
     send.add_argument(
         "--transport",
         choices=SUPPORTED_PRODUCT_TRANSPORTS,
@@ -317,6 +326,13 @@ def _run_send(args: argparse.Namespace) -> int:
         raise ValueError("--timings requires --stream")
     if args.final_only and not args.stream:
         raise ValueError("--final-only requires --stream")
+    if args.temporary and args.conversation:
+        raise ValueError(
+            "standalone --temporary is a fresh one-shot lifecycle; Temporary continuation "
+            "requires the same live ChatGPTProductRuntime instance"
+        )
+    if args.temporary and args.timings:
+        raise ValueError("--timings is not yet defined for Temporary page-owned finality")
 
     runtime = assemble_product_runtime(
         transport=args.transport,
@@ -339,17 +355,31 @@ def _run_send(args: argparse.Namespace) -> int:
         if renderer is not None
         else None
     )
-    execution = runtime.send_text_observed(
-        args.text,
-        conversation=args.conversation,
-        timeout=args.timeout,
-        poll_interval=args.poll_interval,
-        on_event=on_event,
-        model_profile=args.profile,
-    )
-    if timing_observer is not None:
-        timing_observer.mark_runtime_return()
 
+    execution = None
+    try:
+        execution = runtime.send_text_observed(
+            args.text,
+            conversation=args.conversation,
+            timeout=args.timeout,
+            poll_interval=args.poll_interval,
+            on_event=on_event,
+            model_profile=args.profile,
+            conversation_mode="temporary" if args.temporary else "normal",
+        )
+        if timing_observer is not None:
+            timing_observer.mark_runtime_return()
+        if args.temporary:
+            runtime.end_temporary_chat()
+    except Exception:
+        if args.temporary:
+            try:
+                runtime.end_temporary_chat()
+            except Exception:
+                pass
+        raise
+
+    assert execution is not None
     if renderer is not None:
         renderer.finish(execution.response.text)
     elif args.json:
