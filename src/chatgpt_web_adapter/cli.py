@@ -16,6 +16,7 @@ from .browser_native_install import (
 )
 from .browser_native_provider import BrowserNativeTurnProvider
 from .client import ChatGPTWebClient
+from .conversation_snapshot import snapshot_conversation
 from .exceptions import WebChatAdapterError
 from .product_runtime import (
     DEFAULT_PRODUCT_TRANSPORT,
@@ -51,6 +52,35 @@ def _build_parser() -> argparse.ArgumentParser:
 
     refresh = auth_commands.add_parser("refresh", help="refresh tokens without browser login")
     add_auth_file(refresh)
+
+    snapshot = commands.add_parser(
+        "snapshot",
+        help="write a deterministic user/assistant conversation snapshot",
+    )
+    add_auth_file(snapshot)
+    snapshot.add_argument("conversation", help="raw conversation id or ChatGPT conversation URL")
+    snapshot.add_argument(
+        "--name",
+        default="conversation",
+        help="file-name prefix; defaults to 'conversation'",
+    )
+    snapshot.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("."),
+        help="directory for snapshot files",
+    )
+    snapshot.add_argument(
+        "--index",
+        type=int,
+        help="explicit positive snapshot number; otherwise the next number is selected",
+    )
+    snapshot.add_argument("--timeout", type=float, default=120.0)
+    snapshot.add_argument(
+        "--context-only",
+        action="store_true",
+        help="skip the raw conversation-payload backup",
+    )
 
     browser_native = commands.add_parser(
         "browser-native",
@@ -166,6 +196,27 @@ def _run_auth(args: argparse.Namespace) -> int:
     return 2
 
 
+def _run_snapshot(args: argparse.Namespace) -> int:
+    client = ChatGPTWebClient(
+        auth_file=args.auth_file,
+        timeout=args.timeout,
+    )
+    result = snapshot_conversation(
+        client,
+        args.conversation,
+        output_dir=args.output_dir,
+        name=args.name,
+        index=args.index,
+        include_raw_payload=not args.context_only,
+    )
+
+    print(f"context:     {result.context_path.resolve()}")
+    if result.raw_payload_path is not None:
+        print(f"raw payload: {result.raw_payload_path.resolve()}")
+    print(f"messages:    {result.message_count}")
+    return 0
+
+
 def _run_browser_native(args: argparse.Namespace) -> int:
     if args.browser_native_command == "install":
         result = install_native_messaging_host(
@@ -264,6 +315,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "auth":
             return _run_auth(args)
+        if args.command == "snapshot":
+            return _run_snapshot(args)
         if args.command == "browser-native":
             return _run_browser_native(args)
         if args.command == "runtime":
