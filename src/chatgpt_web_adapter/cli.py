@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .auth_browser import browser_login
@@ -23,6 +23,30 @@ from .product_runtime import (
     SUPPORTED_PRODUCT_TRANSPORTS,
     assemble_product_runtime,
 )
+from .standalone_send import (
+    DEFAULT_STANDALONE_MODEL_PROFILE,
+    STANDALONE_MODEL_PROFILES,
+    RevisionSafeTerminalRenderer,
+    normalize_standalone_model_profile,
+)
+
+
+def _execution_payload(execution: Any) -> dict[str, Any]:
+    response = execution.response
+    provenance = execution.provenance
+    return {
+        "transport": execution.transport,
+        "ok": True,
+        "text": response.text,
+        "title": response.title,
+        "conversation_id": response.conversation.conversation_id,
+        "message_id": response.conversation.message_id,
+        "finish_reason": response.conversation.finish_reason,
+        "observed_model": response.request.observed_model,
+        "backend_status": response.metrics.backend_status,
+        "runtime_observation": execution.observation.to_dict(),
+        "provenance": provenance.to_dict() if provenance is not None else None,
+    }
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -80,6 +104,40 @@ def _build_parser() -> argparse.ArgumentParser:
         "--context-only",
         action="store_true",
         help="skip the raw conversation-payload backup",
+    )
+
+    send = commands.add_parser(
+        "send",
+        help="send one ordinary ChatGPT turn; defaults to DEEP / product HIGH",
+    )
+    add_auth_file(send)
+    send.add_argument("text")
+    send.add_argument("--conversation")
+    send.add_argument(
+        "--transport",
+        choices=SUPPORTED_PRODUCT_TRANSPORTS,
+        default=DEFAULT_PRODUCT_TRANSPORT,
+        help="explicit product transport; no automatic fallback is performed",
+    )
+    send.add_argument(
+        "--profile",
+        type=normalize_standalone_model_profile,
+        choices=STANDALONE_MODEL_PROFILES,
+        default=DEFAULT_STANDALONE_MODEL_PROFILE,
+        help="semantic model profile; default DEEP maps to proven product HIGH",
+    )
+    send.add_argument("--timeout", type=float, default=150.0)
+    send.add_argument("--poll-interval", type=float, default=0.5)
+    output_mode = send.add_mutually_exclusive_group()
+    output_mode.add_argument(
+        "--stream",
+        action="store_true",
+        help="render revision-safe assistant text while generation is in progress",
+    )
+    output_mode.add_argument(
+        "--json",
+        action="store_true",
+        help="print the structured observed execution instead of plain text",
     )
 
     browser_native = commands.add_parser(
@@ -217,6 +275,30 @@ def _run_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_send(args: argparse.Namespace) -> int:
+    runtime = assemble_product_runtime(
+        transport=args.transport,
+        auth_file=args.auth_file,
+    )
+    renderer = RevisionSafeTerminalRenderer() if args.stream else None
+    execution = runtime.send_text_observed(
+        args.text,
+        conversation=args.conversation,
+        timeout=args.timeout,
+        poll_interval=args.poll_interval,
+        on_event=renderer.on_event if renderer is not None else None,
+        model_profile=args.profile,
+    )
+
+    if renderer is not None:
+        renderer.finish(execution.response.text)
+    elif args.json:
+        print(json.dumps(_execution_payload(execution), indent=2, ensure_ascii=False))
+    else:
+        print(execution.response.text)
+    return 0
+
+
 def _run_browser_native(args: argparse.Namespace) -> int:
     if args.browser_native_command == "install":
         result = install_native_messaging_host(
@@ -285,27 +367,7 @@ def _run_runtime(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             poll_interval=args.poll_interval,
         )
-        response = execution.response
-        provenance = execution.provenance
-        print(
-            json.dumps(
-                {
-                    "transport": execution.transport,
-                    "ok": True,
-                    "text": response.text,
-                    "title": response.title,
-                    "conversation_id": response.conversation.conversation_id,
-                    "message_id": response.conversation.message_id,
-                    "finish_reason": response.conversation.finish_reason,
-                    "observed_model": response.request.observed_model,
-                    "backend_status": response.metrics.backend_status,
-                    "runtime_observation": execution.observation.to_dict(),
-                    "provenance": provenance.to_dict() if provenance is not None else None,
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
+        print(json.dumps(_execution_payload(execution), indent=2, ensure_ascii=False))
         return 0
     return 2
 
@@ -317,6 +379,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_auth(args)
         if args.command == "snapshot":
             return _run_snapshot(args)
+        if args.command == "send":
+            return _run_send(args)
         if args.command == "browser-native":
             return _run_browser_native(args)
         if args.command == "runtime":
