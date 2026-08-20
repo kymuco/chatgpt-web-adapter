@@ -1,6 +1,6 @@
 # PR8.11.1 — Early Product-Completion Signal Characterization and Network-Tail Boundary
 
-Status: REPAIR IMPLEMENTED — live repair gate pending.
+Status: CLOSED — PASS.
 
 ## Trigger
 
@@ -22,11 +22,11 @@ canonical_payload_read_count = 1
 canonical_payload_reused_for_attach = true
 ```
 
-The remaining dominant browser-side region was therefore the interval between the last visible assistant-text update and `Network.loadingFinished`.
+The remaining dominant browser-side region was the interval between the last visible assistant-text update and `Network.loadingFinished`.
 
-PR8.11.1 first characterized terminal product signals inside that interval and now implements a fail-closed early boundary selected from the live evidence.
+PR8.11.1 characterized terminal product signals inside that interval, rejected unsafe early candidates, and then implemented a fail-closed early browser completion boundary.
 
-## Live characterization evidence
+## Characterization live evidence
 
 The characterization gate produced:
 
@@ -51,14 +51,14 @@ Network.loadingFinished -> native complete       = 267 ms
 last text -> native complete                    = 3921 ms
 ```
 
-The run had clean characterization health:
+Characterization health:
 
 ```text
 composer_probe_error_count       = 0
 characterization_error_count     = 0
 ```
 
-### Important false-terminal finding
+### False-terminal finding
 
 A generic message status:
 
@@ -66,11 +66,11 @@ A generic message status:
 finished_successfully = 6935 ms
 ```
 
-appeared **before** the first visible assistant text at 8388 ms.
+appeared before the first visible assistant text at 8388 ms.
 
-Therefore a completed-looking status alone is not a safe current-answer terminal boundary. PR8.11.1 repairs the classifier so any candidate terminal timestamp that predates the first visible assistant text is excluded from `earliest_terminal_signal`.
+Therefore a completed-looking status alone is not a safe current-answer terminal boundary. PR8.11.1 excludes any candidate terminal timestamp that predates the first visible assistant text from `earliest_terminal_signal`.
 
-The current-answer signals that matter were instead observed together with the final visible assistant text:
+The current-answer terminal evidence instead appeared together with the final visible assistant text:
 
 ```text
 finish_reason = stop
@@ -80,7 +80,7 @@ is_complete = true
 
 ## Why composer readiness is not the production boundary
 
-The characterization also disproved the planned conjunction:
+The characterization disproved the planned conjunction:
 
 ```text
 terminal signal AND two consecutive composer-ready observations
@@ -88,22 +88,20 @@ terminal signal AND two consecutive composer-ready observations
 
 as the best latency boundary.
 
-On the live run:
+On the live characterization run:
 
 ```text
 last text -> second composer-ready = 2719 ms
 second composer-ready -> Network.loadingFinished = 935 ms
 ```
 
-Requiring composer readiness would therefore recover only the final ~935 ms of the 3.655 s network tail.
+Requiring composer readiness would recover only the final ~935 ms of the 3.655 s network tail.
 
-More importantly, composer readiness is not required to prove finality of the current response. The next turn already performs its own bounded `waitForComposerReady()` before writing. Current-turn correctness remains governed by canonical HTTP readback after browser-native completion.
+Composer readiness is also not required to prove finality of the current response. The next turn performs its own bounded `waitForComposerReady()` before writing. Current-turn correctness remains governed by canonical HTTP readback after browser-native completion.
 
 ## Production repair
 
-PR8.11.1 now adds a fail-closed early browser completion race.
-
-The eligible product terminal proof is deliberately narrower than the full characterization surface and stronger than a single field:
+The eligible product terminal proof is deliberately stronger than a single field:
 
 ```text
 visible assistant text observed
@@ -113,7 +111,7 @@ AND
 (current assistant end_turn=true OR metadata is_complete=true)
 ```
 
-The conjunction is evaluated only after the established PR8.9 SSE/patch parser and PR8.11.1 characterization layer have fully processed the current SSE block. On the live run all three terminal signals were observed at the same `12047 ms` boundary, so this strengthening should not add measurable latency.
+The conjunction is evaluated only after the established PR8.9 SSE/patch parser and PR8.11.1 characterization layer fully process the current SSE block.
 
 The page turn accepts this candidate only when all of the following are already true:
 
@@ -121,7 +119,7 @@ The page turn accepts this candidate only when all of the following are already 
 conversation POST was observed
 HTTP response was observed
 response status == 200
-current ChatGPT tab already resolves to /c/<conversation_id>
+current ChatGPT tab resolves to /c/<conversation_id>
 ```
 
 If every condition is proven:
@@ -147,100 +145,136 @@ There is no automatic retry and no second write.
 
 ## Why early detach is bounded
 
-The early boundary does not claim that the underlying browser network request has physically ended. It claims only that CWA no longer needs to block the caller on the remaining response-stream housekeeping once all early-boundary conditions are proven.
+The early boundary does not claim that the underlying browser network request has physically ended. It only stops CWA from blocking the caller on response-stream housekeeping after the bounded terminal conjunction and response/identity proofs are complete.
 
-Detaching the CDP debugger stops CWA observation; it does not cancel the page's already-delegated network request.
+Detaching the CDP debugger stops CWA observation; it does not cancel the already-delegated page request.
 
-Correctness remains protected after return from the extension because `browser_native_client.py` still requires canonical conversation payload finality before returning the assistant response to the caller.
+Correctness remains protected because `browser_native_client.py` still requires canonical conversation payload finality before returning the assistant response. If canonical finality is not yet available, the bounded canonical poll continues. Stream text is never promoted to final response authority.
 
-If canonical finality is not yet available, the existing bounded canonical poll continues. Stream text is never promoted to final response authority.
+On an accepted early boundary, `Network.getResponseBody` is intentionally skipped because the response may still be streaming. Response-body-derived metadata such as `turn_exchange_id` may therefore be absent; this field is optional and is not canonical-finality authority.
 
-## Optional metadata tradeoff
+## Final live repair gate
 
-On an accepted early boundary, `Network.getResponseBody` is intentionally skipped because the response is still streaming.
-
-Therefore response-body-derived metadata such as `turn_exchange_id` may be absent on that turn. This field is already optional in `BrowserNativeTurnResult` and is not used as canonical finality authority.
-
-Conversation and final assistant identity continue to come from the canonical conversation payload.
-
-## Characterization surface
-
-The existing PR8.11.1 timing record still reports bounded timestamps for:
+The production repair run produced:
 
 ```text
-first / last assistant text mutation
-assistant finish_reason
-assistant end_turn=true
-assistant metadata is_complete=true
-assistant completed/finished message status
-message_marker
-stream_handoff
-[DONE]
-first composer-ready observation after assistant text
-second consecutive composer-ready observation after assistant text
-Network.loadingFinished
-official page-turn completion
+local last_text_event_ms               = 20964
+local write_completed_ms               = 20987
+local canonical_finalized_ms           = 23183
+local runtime_return_ms                = 23183
+
+last_text_to_write_completed           = 23 ms
+write_completed_to_canonical_finalized = 2196 ms
+last_text_to_runtime_return            = 2219 ms
 ```
 
-It stores no prompt text, assistant text, raw SSE, response bodies, headers, credentials, cookies, DOM, or HTML.
-
-## Required repair gate
-
-After pulling the repair and reloading the unpacked extension, run focused regression first:
-
-```powershell
-python -m pytest `
-  tests/test_early_product_completion_repair_pr8_11_1.py `
-  tests/test_early_product_completion_pr8_11_1.py `
-  tests/test_post_answer_tail_latency_pr8_11.py `
-  tests/test_revision_safe_text_delivery_pr8_9.py `
-  tests/test_browser_native_client.py `
-  tests/test_standalone_send_cli.py `
-  -q
-```
-
-Then run the same live response shape:
-
-```powershell
-cmd /d /s /c 'cwa send "Produce exactly 12 numbered plain-text lines about computing, each around 12 words." --stream --timings 2> pr8_11_1_repair.json'
-
-Get-Content pr8_11_1_repair.json
-```
-
-### Required semantic invariants
+Browser-local evidence:
 
 ```text
-streamed assistant response remains complete
+last_assistant_text_observed_ms        = 20939
+native_complete_ms                     = 20940
+last_text_to_native_complete_ms        = 1 ms
+network_complete_ms                    = null
+last_text_to_network_complete_ms       = null
+network_complete_to_native_complete_ms = null
+```
+
+Terminal evidence on the same run:
+
+```text
+assistant_finish_reason                = stop
+assistant_finish_reason_observed_ms    = 20939
+assistant_end_turn_observed_ms         = 20939
+assistant_is_complete_observed_ms      = 20939
+earliest_terminal_signal_kind          = assistant_finish_reason
+earliest_terminal_signal_ms            = 20939
+last_text_to_earliest_terminal_signal_ms = 0
+```
+
+The generic completed status again arrived too early:
+
+```text
+assistant_completed_status             = finished_successfully
+assistant_completed_status_observed_ms = 15595
+first_assistant_text_observed_ms       = 17473
+```
+
+and was correctly excluded from terminal authority.
+
+The repair did not wait for later housekeeping signals:
+
+```text
+done_sentinel_observed_ms              = null
+first_composer_ready_after_text_ms      = null
+consecutive_composer_ready_after_text_ms = null
+network_complete_ms                    = null
+```
+
+This is the intended result: the browser-native blocking tail collapsed from the earlier 3921 ms measurement to 1 ms while canonical finality remained mandatory.
+
+## Canonical readback evidence
+
+The final live run retained the PR8.11 one-payload canonical path:
+
+```text
+canonical_payload_read_count = 1
 canonical_payload_reused_for_attach = true
-canonical final text remains authoritative
-no automatic retry
-no debugger attachment leak
 ```
 
-### Expected evidence if the fresh-chat route is resolvable early
+The remaining approximately 2.2 seconds after the browser phase were therefore canonical authoritative readback latency, not artificial browser completion waiting.
 
-The accepted early path should make the PR8.11 browser timing look approximately like:
+## Regression evidence
+
+Focused PR8.11/PR8.11.1 regression before the full suite:
 
 ```text
-last_assistant_text_observed_ms ~= native_complete_ms
-network_complete_ms = null
-last_text_to_network_complete_ms = null
-last_text_to_native_complete_ms << previous 3921 ms
+44 passed in 0.23s
 ```
 
-and the repaired terminal classifier should report:
+The first full-suite run then exposed two compatibility failures in the legacy `_wait_for_new_final_assistant()` return contract. That regression was repaired without changing the early completion boundary or single-payload canonical production path.
+
+Compatibility regression after the fix:
 
 ```text
-earliest_terminal_signal_kind = assistant_finish_reason
-last_text_to_earliest_terminal_signal_ms ~= 0
+8 passed in 0.50s
 ```
 
-`write_completed_ms` should move close to the last visible text, causing canonical readback to begin several seconds earlier.
+Final full suite:
 
-If the fresh new-chat URL has not yet resolved to `/c/<id>` when the terminal conjunction arrives, PR8.11.1 must fail closed to the old network path. In that case the timing report will still contain `network_complete_ms`, and no early-boundary success is claimed.
+```text
+1186 passed in 25.59s
+```
 
-## Claim boundary
+No failures remained.
 
-Until the repair live gate passes, PR8.11.1 claims:
+## Data boundary
 
-> Live characterization proved that current visible assistant finish_reason, end_turn and is_complete arrive with the final text while generic completed status can appear too early. CWA now implements a fail-closed conjunctive assistant-terminal completion race that preserves HTTP-200 proof, resolvable conversation identity, synchronous cleanup, and mandatory canonical finality; measured production latency improvement remains pending the explicit live repair gate.
+The PR8.11.1 timing surface stores only bounded timestamps, counts, lease identity, and small terminal enums. It does not persist or export:
+
+- prompt text;
+- assistant text;
+- raw SSE;
+- response bodies;
+- headers;
+- cookies or credentials;
+- DOM or HTML.
+
+## Final classification
+
+PR8.11.1 = PASS.
+
+Proven outcomes:
+
+- generic completed status can occur before the current visible answer and is not safe terminal authority;
+- visible assistant `finish_reason` plus `end_turn` or `is_complete` provides a bounded current-answer terminal conjunction on the characterized production route;
+- early completion additionally requires observed POST, HTTP 200, and resolved `/c/<conversation_id>` identity;
+- fail-closed fallback to `Network.loadingFinished` remains available when those proofs are absent;
+- browser-native post-text completion collapsed from 3921 ms to 1 ms on the live repair gate;
+- end-to-end post-text runtime tail improved to 2219 ms on that run;
+- canonical HTTP finality remained authoritative;
+- canonical happy-path readback remained one payload and was reused for attach;
+- no automatic retry or second write was introduced;
+- focused compatibility gate: `8 passed in 0.50s`;
+- final full suite: `1186 passed in 25.59s`.
+
+PR8.11 and PR8.11.1 are closed. The next standalone runtime feature can proceed independently.

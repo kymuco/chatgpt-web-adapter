@@ -1,12 +1,12 @@
 # PR8.11 — Post-Answer Tail Latency Attribution and Completion-Path Repair
 
-Status: REPAIR IMPLEMENTED — post-repair live timing gate pending.
+Status: CLOSED — PASS.
 
 ## Trigger
 
-Standalone revision-safe streaming is visibly useful, but a manual production run exposed a post-answer latency tail: ChatGPT's UI and the terminal stream can already show the completed assistant answer while `cwa send` remains blocked afterwards.
+Standalone revision-safe streaming is visibly useful, but a manual production run exposed a post-answer latency tail: ChatGPT's UI and the terminal stream could already show the completed assistant answer while `cwa send` remained blocked afterwards.
 
-The relevant completion chain is:
+The relevant completion chain was:
 
 ```text
 last visible assistant stream event
@@ -17,7 +17,7 @@ last visible assistant stream event
   -> CLI return
 ```
 
-PR8.11 attributes that tail and removes redundant work without weakening canonical finality.
+PR8.11 attributed that tail and removed redundant work without weakening canonical finality.
 
 ## Pre-repair live evidence
 
@@ -25,13 +25,6 @@ Focused regression before the live timing run:
 
 ```text
 24 passed in 0.25s
-```
-
-The live standalone run used:
-
-```powershell
-cwa send "Produce exactly 12 numbered plain-text lines about computing, each around 12 words." `
-  --stream --timings
 ```
 
 Observed local callback timing:
@@ -63,7 +56,7 @@ network_complete_to_native_complete_ms = 784
 last_text_to_native_complete_ms        = 3816
 ```
 
-This establishes three distinct post-visible-text regions:
+This established three distinct post-visible-text regions:
 
 ```text
 last text -> network complete        3032 ms
@@ -71,11 +64,11 @@ network complete -> native complete   784 ms
 native complete -> canonical final   3937 ms
 ```
 
-The result disproves the narrower hypothesis that the whole tail was only the known 500 ms fixed sleep.
+The result disproved the narrower hypothesis that the whole tail was only the known 500 ms fixed sleep.
 
 ## Repair A — remove redundant fixed browser delay
 
-Before PR8.11 repair, the proven page-turn path performed:
+Before PR8.11 repair, the page-turn path performed:
 
 ```text
 Network.loadingFinished
@@ -84,29 +77,18 @@ Network.loadingFinished
   -> waitForComposerReady()
 ```
 
-`waitForComposerReady()` already performs bounded polling and requires two consecutive ready observations separated by a 250 ms interval. The explicit 500 ms delay therefore added latency without adding an independent completion proof.
+`waitForComposerReady()` already performs bounded polling and requires two consecutive ready observations. PR8.11 removed only the fixed 500 ms sleep.
 
-PR8.11 removes only the fixed sleep:
+The following remained unchanged:
 
-```text
-Network.loadingFinished
-  -> Network.getResponseBody (optional safe metadata)
-  -> waitForComposerReady()
-```
-
-The following remain unchanged:
-
-- two consecutive composer-ready observations are still required;
-- polling remains bounded;
-- debugger cleanup remains synchronous;
-- Browser Authority release semantics remain unchanged;
-- no background cleanup is introduced.
-
-Expected direct saving on the measured run is approximately 500 ms from the 784 ms `network_complete_to_native_complete_ms` region.
+- two consecutive composer-ready observations on the network-complete fallback path;
+- bounded polling;
+- synchronous debugger cleanup;
+- Browser Authority release semantics;
+- no background cleanup;
+- no automatic write retry.
 
 ## Repair B — collapse serial canonical reads to one payload
-
-The larger post-native tail was traced to repeated reads of the same canonical conversation endpoint.
 
 Before repair, the happy path performed serially:
 
@@ -116,11 +98,9 @@ get_messages()        -> canonical conversation payload read #2
 attach_conversation() -> canonical conversation payload read #3
 ```
 
-All three ultimately call `_get_conversation_payload(conversation_id)`.
+All three ultimately read the same canonical conversation payload.
 
-The measured post-native/canonical tail was 3937 ms. Three serial payload reads make this consistent with roughly 1.3 s per canonical fetch on that run.
-
-PR8.11 now uses one canonical payload per polling iteration and derives from that same payload:
+PR8.11 changed the production path to use one canonical payload per polling iteration and derive from it:
 
 ```text
 ConversationStatus
@@ -129,16 +109,39 @@ finish reason / final-message identity
 conversation title / attach metadata
 ```
 
-The canonical payload remains authoritative. The revision-safe browser stream is not promoted to finality authority.
+The canonical payload remains authoritative. Revision-safe browser streaming is not finality authority.
 
-On the normal happy path where the first canonical payload after browser completion is already final:
+Normal happy-path evidence:
 
 ```text
 canonical_payload_read_count = 1
 canonical_payload_reused_for_attach = true
 ```
 
-Custom/lightweight clients without `_get_conversation_payload` retain the previous compatibility path.
+Lightweight/custom clients without `_get_conversation_payload` retain the compatibility path.
+
+## First post-repair live evidence
+
+The first PR8.11 repair run produced:
+
+```text
+last text -> network complete         2922 ms
+network complete -> native complete    279 ms
+native complete -> canonical final    1956 ms
+last text -> runtime return           5158 ms
+```
+
+Compared with the pre-repair run:
+
+```text
+network -> native        784 ms -> 279 ms
+native -> canonical     3937 ms -> 1956 ms
+last text -> return     7753 ms -> 5158 ms
+```
+
+This removed approximately 2.6 seconds of post-visible-answer latency while keeping canonical finality intact.
+
+The remaining dominant browser-side delay was then isolated to the interval between the final visible assistant text and `Network.loadingFinished`; that region was delegated to PR8.11.1 for a separately proven completion boundary.
 
 ## Browser-local timing surface
 
@@ -167,53 +170,64 @@ Use:
 cwa send "<prompt>" --stream --timings
 ```
 
-Assistant text remains on stdout. The diagnostic is printed to stderr.
+Assistant text remains on stdout. Diagnostic timing data is printed to stderr.
 
-The local report now also includes:
+The report includes:
 
 ```text
 canonical_readback.canonical_payload_read_count
 canonical_readback.canonical_payload_reused_for_attach
 ```
 
-This lets the post-repair live gate prove both latency improvement and single-payload canonical reuse.
+## Compatibility repair discovered by full regression
 
-## Required post-repair live gate
+After the latency optimization, full regression found two legacy helper-contract failures. `_wait_for_new_final_assistant()` had changed from returning the final message directly to returning a readback tuple.
 
-After pulling the repair and reloading the unpacked extension once, run the same shape of response:
-
-```powershell
-cwa send "Produce exactly 12 numbered plain-text lines about computing, each around 12 words." `
-  --stream --timings 2> pr8_11_tail_after.json
-
-Get-Content pr8_11_tail_after.json
-```
-
-Required semantic invariants:
+The compatibility repair restored the default historical contract:
 
 ```text
-browser_tail_timing.available = true
-assistant_text_observation_count > 0
-canonical_readback.canonical_payload_read_count = 1
-canonical_readback.canonical_payload_reused_for_attach = true
-canonical final text remains authoritative
-revision-safe streaming remains functional
-no automatic retry
+_wait_for_new_final_assistant(...)
+  -> message
 ```
 
-Expected latency changes, not hard pass thresholds:
+while production explicitly requests the optimized readback tuple internally:
 
 ```text
-network_complete_to_native_complete_ms should lose the fixed ~500 ms component
-write_completed_to_canonical_finalized should materially shrink when one canonical read is sufficient
+_wait_for_new_final_assistant(..., include_readback=True)
+  -> (message, canonical_payload, canonical_payload_read_count)
 ```
 
-`last_text_to_network_complete_ms` is intentionally not changed by this repair. The pre-repair run measured that server/network-tail region at 3032 ms; changing it would require a separate proof of an earlier safe completion boundary.
+Therefore the public/internal legacy behavior is preserved without losing the one-payload production optimization.
 
-## Claim boundary
+Compatibility regression after the fix:
 
-Until the post-repair live gate is run, PR8.11 claims:
+```text
+8 passed in 0.50s
+```
 
-> The post-answer tail is attributed into browser/network/native/canonical regions, and two redundant serial latency sources have been removed without weakening canonical finality or Browser Authority semantics.
+## Final regression gate
 
-It does not yet claim a measured post-repair latency improvement.
+Final full suite:
+
+```text
+1186 passed in 25.59s
+```
+
+No failing tests remained.
+
+## Final classification
+
+PR8.11 = PASS.
+
+Proven outcomes:
+
+- post-visible-answer latency was decomposed into browser/network/native/canonical phases;
+- the fixed 500 ms browser delay was removed;
+- serial canonical reads were collapsed to one authoritative payload on the production happy path;
+- legacy helper compatibility was restored after full-suite detection;
+- canonical finality remained authoritative;
+- revision-safe streaming remained functional;
+- no automatic retry or second product write was introduced;
+- final full suite: `1186 passed in 25.59s`.
+
+The remaining network-tail problem was not hidden or weakened; it was isolated and then repaired separately by PR8.11.1.
