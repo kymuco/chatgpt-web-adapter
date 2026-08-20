@@ -13,6 +13,7 @@ from .revision_safe_streaming_pr8_9 import (
 )
 
 SCHEMA = 1
+EARLY_COMPLETION_SCHEMA = 1
 _TEXT_EVENT_TYPES = {
     ASSISTANT_TEXT_SNAPSHOT,
     ASSISTANT_TEXT_DELTA,
@@ -28,6 +29,13 @@ def _optional_bool(value: Any) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
+def _optional_str(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
 def _delta_ms(start: int | None, end: int | None) -> int | None:
     if start is None or end is None or end < start:
         return None
@@ -35,7 +43,7 @@ def _delta_ms(start: int | None, end: int | None) -> int | None:
 
 
 class PostAnswerTailTimingProvider(BrowserAuthorityCharacterizationProvider):
-    """Read-only access to the PR8.11 numeric browser-local tail record."""
+    """Read-only access to PR8.11/PR8.11.1 browser-local completion timing."""
 
     def support(self, *, timeout: float = 5.0) -> dict[str, Any]:
         response = self._characterization_rpc(
@@ -103,6 +111,94 @@ class PostAnswerTailTimingProvider(BrowserAuthorityCharacterizationProvider):
         }
         for output_name, wire_name in mapping.items():
             result[output_name] = _optional_int(record.get(wire_name))
+
+        try:
+            early = self.early_completion_for_lease(lease_id, timeout=timeout)
+            early["available"] = True
+        except Exception as error:
+            early = {
+                "available": False,
+                "reason": str(error),
+                "browser_authority_lease_id": lease_id,
+            }
+        result["early_product_completion"] = early
+        return result
+
+    def early_completion_for_lease(
+        self,
+        lease_id: str,
+        *,
+        timeout: float = 5.0,
+    ) -> dict[str, Any]:
+        """Return bounded PR8.11.1 terminal-signal/composer timing for one lease."""
+
+        if not isinstance(lease_id, str) or not lease_id.strip():
+            raise ValueError("lease_id is required")
+        lease_id = lease_id.strip()
+        response = self._characterization_rpc(
+            {
+                "characterizeEarlyProductCompletion": True,
+                "expectedBrowserAuthorityLeaseId": lease_id,
+            },
+            timeout=timeout,
+        )
+        if response.get("earlyProductCompletionSupported") is not True:
+            raise RequestError(
+                "PR8_11_1_EARLY_COMPLETION_NOT_SUPPORTED",
+                request_stage="early_product_completion",
+            )
+        record = response.get("earlyProductCompletion")
+        if not isinstance(record, dict):
+            raise RequestError(
+                "PR8_11_1_EARLY_COMPLETION_RECORD_MISSING",
+                request_stage="early_product_completion",
+            )
+        if record.get("browserAuthorityLeaseId") != lease_id:
+            raise RequestError(
+                "PR8_11_1_EARLY_COMPLETION_LEASE_MISMATCH",
+                request_stage="early_product_completion",
+            )
+        if _optional_int(record.get("schemaVersion")) != EARLY_COMPLETION_SCHEMA:
+            raise RequestError(
+                "PR8_11_1_EARLY_COMPLETION_SCHEMA_MISMATCH",
+                request_stage="early_product_completion",
+            )
+
+        int_mapping = {
+            "assistant_text_observation_count": "assistantTextObservationCount",
+            "composer_probe_count": "composerProbeCount",
+            "composer_probe_error_count": "composerProbeErrorCount",
+            "characterization_error_count": "characterizationErrorCount",
+            "write_delegated_ms": "writeDelegatedMs",
+            "first_assistant_text_observed_ms": "firstAssistantTextObservedMs",
+            "last_assistant_text_observed_ms": "lastAssistantTextObservedMs",
+            "assistant_finish_reason_observed_ms": "assistantFinishReasonObservedMs",
+            "assistant_end_turn_observed_ms": "assistantEndTurnObservedMs",
+            "assistant_is_complete_observed_ms": "assistantIsCompleteObservedMs",
+            "assistant_completed_status_observed_ms": "assistantCompletedStatusObservedMs",
+            "message_marker_observed_ms": "messageMarkerObservedMs",
+            "stream_handoff_observed_ms": "streamHandoffObservedMs",
+            "done_sentinel_observed_ms": "doneSentinelObservedMs",
+            "first_composer_ready_after_text_ms": "firstComposerReadyAfterTextMs",
+            "consecutive_composer_ready_after_text_ms": "consecutiveComposerReadyAfterTextMs",
+            "network_complete_ms": "networkCompleteMs",
+            "official_page_turn_complete_ms": "officialPageTurnCompleteMs",
+            "earliest_terminal_signal_ms": "earliestTerminalSignalMs",
+            "last_text_to_earliest_terminal_signal_ms": "lastTextToEarliestTerminalSignalMs",
+            "last_text_to_composer_ready_ms": "lastTextToComposerReadyMs",
+            "earliest_terminal_signal_to_network_complete_ms": "earliestTerminalSignalToNetworkCompleteMs",
+            "composer_ready_to_network_complete_ms": "composerReadyToNetworkCompleteMs",
+            "last_text_to_network_complete_ms": "lastTextToNetworkCompleteMs",
+        }
+        result: dict[str, Any] = {
+            "schema": EARLY_COMPLETION_SCHEMA,
+            "browser_authority_lease_id": lease_id,
+            "assistant_finish_reason": _optional_str(record.get("assistantFinishReason")),
+            "assistant_completed_status": _optional_str(record.get("assistantCompletedStatus")),
+            "earliest_terminal_signal_kind": _optional_str(record.get("earliestTerminalSignalKind")),
+        }
+        for output_name, wire_name in int_mapping.items():
+            result[output_name] = _optional_int(record.get(wire_name))
         return result
 
 
@@ -153,7 +249,12 @@ class StandaloneTailTimingObserver:
     def mark_runtime_return(self) -> None:
         self._events["runtime_return_ms"] = self._now_ms()
 
-    def report(self, *, browser_tail: dict[str, Any] | None = None) -> dict[str, Any]:
+    def report(
+        self,
+        *,
+        browser_tail: dict[str, Any] | None = None,
+        early_product_completion: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         first_text = self._events.get("first_text_event_ms")
         last_text = self._events.get("last_text_event_ms")
         write_completed = self._events.get("write_completed_ms")
@@ -183,4 +284,9 @@ class StandaloneTailTimingObserver:
             },
             "canonical_readback": dict(self._canonical_readback),
             "browser_tail_timing": dict(browser_tail) if isinstance(browser_tail, dict) else None,
+            "early_product_completion": (
+                dict(early_product_completion)
+                if isinstance(early_product_completion, dict)
+                else None
+            ),
         }
