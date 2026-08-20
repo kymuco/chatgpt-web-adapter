@@ -30,12 +30,13 @@ def normalize_standalone_model_profile(value: str) -> str:
 
 
 class RevisionSafeTerminalRenderer:
-    """Render answer text plus PR8.12 normalized activity progress truthfully.
+    """Render PR8.9 answer text and PR8.12 activity truthfully.
 
-    PR8.9 assistant text remains revision-safe and canonical-authoritative.
-    PR8.12 activity is a separate observational plane: bounded status lines and
-    explicitly user-visible recap/display text can be printed while tools run,
-    but never participate in final-answer reconciliation.
+    The default mode reproduces the user-visible ChatGPT turn: assistant
+    commentary, normalized activity, recap/display text, then the revision-safe
+    final answer. ``final_answer_only=True`` suppresses every intermediate plane
+    and renders only the terminal assistant answer while keeping canonical
+    readback authoritative.
     """
 
     _GENERIC_COMPLETION_LABELS = {
@@ -49,8 +50,14 @@ class RevisionSafeTerminalRenderer:
         "Browsing update",
     }
 
-    def __init__(self, stream: TextIO | None = None) -> None:
+    def __init__(
+        self,
+        stream: TextIO | None = None,
+        *,
+        final_answer_only: bool = False,
+    ) -> None:
         self.stream = stream if stream is not None else sys.stdout
+        self.final_answer_only = bool(final_answer_only)
         self.text = ""
         self.seen_text_event = False
         self._finished = False
@@ -60,6 +67,13 @@ class RevisionSafeTerminalRenderer:
         self._activity_open_id: str | None = None
         self._output_ends_with_newline = True
         self._last_activity_status: tuple[str, str] | None = None
+
+        # Final-only state. Explicit OpenAI output-channel evidence wins. When
+        # the web payload omits that marker, activity plus a new assistant
+        # message id provides a conservative compatibility fallback.
+        self._final_only_activity_seen = False
+        self._final_only_suppressed_message_ids: set[str] = set()
+        self._final_only_active_message_id: str | None = None
 
     def _write(self, text: str) -> None:
         if text:
@@ -96,6 +110,19 @@ class RevisionSafeTerminalRenderer:
         value = event.get("label")
         return value if isinstance(value, str) and value else "Activity"
 
+    @staticmethod
+    def _message_id(event: dict[str, Any]) -> str | None:
+        value = event.get("message_id")
+        return value if isinstance(value, str) and value else None
+
+    @staticmethod
+    def _assistant_channel(event: dict[str, Any]) -> str | None:
+        value = event.get("channel")
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip().lower()
+        return normalized if normalized in {"final", "commentary"} else None
+
     def _activity_status_line(self, kind: str, label: str) -> None:
         status = (kind, label)
         if status == self._last_activity_status:
@@ -119,6 +146,10 @@ class RevisionSafeTerminalRenderer:
             ACTIVITY_COMPLETED,
         }:
             return False
+
+        if self.final_answer_only:
+            self._final_only_activity_seen = True
+            return True
 
         activity_id = self._activity_id(event)
         kind = self._activity_kind(event)
@@ -180,6 +211,43 @@ class RevisionSafeTerminalRenderer:
         self._activity_status_line(kind, label)
         return True
 
+    def _final_only_accepts(self, event: dict[str, Any]) -> bool:
+        if not self.final_answer_only:
+            return True
+
+        message_id = self._message_id(event)
+        channel = self._assistant_channel(event)
+
+        if channel == "commentary":
+            if message_id:
+                self._final_only_suppressed_message_ids.add(message_id)
+            return False
+
+        if channel == "final":
+            if self._final_only_active_message_id is None:
+                self._final_only_active_message_id = message_id
+            return (
+                self._final_only_active_message_id is None
+                or message_id is None
+                or message_id == self._final_only_active_message_id
+            )
+
+        if self._final_only_active_message_id is not None:
+            return message_id is None or message_id == self._final_only_active_message_id
+
+        if self._final_only_activity_seen:
+            if message_id is None or message_id not in self._final_only_suppressed_message_ids:
+                self._final_only_active_message_id = message_id
+                return True
+            return False
+
+        # Without an explicit channel or a product activity boundary, emitting
+        # would risk leaking a commentary preamble. Fail closed; finish() will
+        # still print canonical final text if no streamable final marker appears.
+        if message_id:
+            self._final_only_suppressed_message_ids.add(message_id)
+        return False
+
     def on_event(self, event: dict[str, Any]) -> None:
         if not isinstance(event, dict):
             return
@@ -196,6 +264,9 @@ class RevisionSafeTerminalRenderer:
             self._last_activity_status = None
             self.seen_text_event = True
             self._replace(text, label="canonical")
+            return
+
+        if not self._final_only_accepts(event):
             return
 
         normalized = self._accumulator.apply(event)

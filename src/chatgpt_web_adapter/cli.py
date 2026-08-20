@@ -138,6 +138,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="with --stream, print PR8.11 post-answer tail timing diagnostics to stderr",
     )
+    send.add_argument(
+        "--final-only",
+        action="store_true",
+        help="with --stream, hide intermediate commentary/activity and stream only the final answer",
+    )
     output_mode = send.add_mutually_exclusive_group()
     output_mode.add_argument(
         "--stream",
@@ -310,12 +315,18 @@ def _tail_timing_payload(execution: Any, observer: StandaloneTailTimingObserver)
 def _run_send(args: argparse.Namespace) -> int:
     if args.timings and not args.stream:
         raise ValueError("--timings requires --stream")
+    if args.final_only and not args.stream:
+        raise ValueError("--final-only requires --stream")
 
     runtime = assemble_product_runtime(
         transport=args.transport,
         auth_file=args.auth_file,
     )
-    renderer = RevisionSafeTerminalRenderer() if args.stream else None
+    renderer = (
+        RevisionSafeTerminalRenderer(final_answer_only=args.final_only)
+        if args.stream
+        else None
+    )
     timing_observer = (
         StandaloneTailTimingObserver(renderer.on_event if renderer is not None else None)
         if args.timings

@@ -42,12 +42,16 @@ _pr89BrowserStreamRecordAssistant = async function _pr89RecordAssistantWithDeliv
   const requestId = _pr89DeliveryRequestId;
   if (typeof requestId !== "string" || !requestId) return;
 
+  const channel = candidate?.channel === "final" || candidate?.channel === "commentary"
+    ? candidate.channel
+    : null;
   const event = {
     type: _pr89DeliveryEventType(kind),
     sequence: context.assistantTextEventCount,
     observed_at_ms: _pr89BrowserStreamElapsedMs(context),
     message_id: candidate.messageId || null,
     content_type: candidate.contentType || null,
+    channel,
     text_length: text.length,
     finish_reason: candidate.finishReason || null,
     before_network_complete: context.loadingFinishedMs === null
