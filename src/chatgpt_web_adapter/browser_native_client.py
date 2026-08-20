@@ -83,14 +83,16 @@ def _wait_for_new_final_assistant(
     baseline_assistant_ids: set[str],
     timeout: float,
     interval: float,
-) -> tuple[Any, dict[str, Any] | None, int | None]:
-    """Wait for canonical finality, reusing one conversation payload per poll.
+    include_readback: bool = False,
+) -> Any | tuple[Any, dict[str, Any] | None, int | None]:
+    """Wait for canonical finality, optionally returning the reused payload.
 
-    Real ``ChatGPTWebClient`` instances expose ``_get_conversation_payload``.
-    On that production path PR8.11 derives status, assistant messages and attach
-    metadata from the same canonical payload instead of issuing three serial
-    reads after browser completion. Lightweight/custom clients without the
-    private canonical reader retain the previous get_status/get_messages path.
+    The default return remains the historical assistant-message object. PR8.11
+    production callers opt into ``include_readback=True`` so status, assistant
+    messages and attach metadata can be derived from one canonical payload per
+    poll instead of issuing three serial reads after browser completion.
+    Lightweight/custom clients without the private canonical reader retain the
+    previous get_status/get_messages path.
     """
 
     deadline = time.monotonic() + timeout
@@ -117,9 +119,13 @@ def _wait_for_new_final_assistant(
                 for candidate in reversed(candidates):
                     finish_reason = getattr(candidate, "finish_reason", None)
                     if isinstance(finish_reason, str) and bool(finish_reason.strip()):
-                        return candidate, payload, canonical_payload_read_count
+                        if include_readback:
+                            return candidate, payload, canonical_payload_read_count
+                        return candidate
                     if _status_finalizes_message(last_status, candidate.message_id):
-                        return candidate, payload, canonical_payload_read_count
+                        if include_readback:
+                            return candidate, payload, canonical_payload_read_count
+                        return candidate
         else:
             try:
                 last_status = self.get_status(conversation_id)
@@ -141,9 +147,13 @@ def _wait_for_new_final_assistant(
             for candidate in reversed(candidates):
                 finish_reason = getattr(candidate, "finish_reason", None)
                 if isinstance(finish_reason, str) and bool(finish_reason.strip()):
-                    return candidate, None, None
+                    if include_readback:
+                        return candidate, None, None
+                    return candidate
                 if _status_finalizes_message(last_status, candidate.message_id):
-                    return candidate, None, None
+                    if include_readback:
+                        return candidate, None, None
+                    return candidate
 
         if time.monotonic() >= deadline:
             raise ConversationTimeoutError(
@@ -313,6 +323,7 @@ def send_browser_native(
         baseline_assistant_ids=baseline_assistant_ids,
         timeout=remaining,
         interval=poll_interval,
+        include_readback=True,
     )
 
     if canonical_payload is not None:
