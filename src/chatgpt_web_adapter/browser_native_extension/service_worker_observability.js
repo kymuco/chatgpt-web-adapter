@@ -27,6 +27,8 @@ importScripts("service_worker_revision_safe_text_delivery_pr8_9.js");
 importScripts("service_worker_post_answer_tail_timing_pr8_11.js");
 importScripts("service_worker_early_product_completion_pr8_11_1.js");
 importScripts("service_worker_early_product_completion_repair_pr8_11_1.js");
+importScripts("service_worker_normalized_activity_stream_pr8_12.js");
+importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 
