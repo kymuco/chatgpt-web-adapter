@@ -17,7 +17,7 @@ def _execution(text: str = "assistant reply"):
             message_id="assistant-1",
             finish_reason="stop",
         ),
-        request=SimpleNamespace(observed_model="gpt-test"),
+        request=SimpleNamespace(observed_model="gpt-test", temporary=False),
         metrics=SimpleNamespace(backend_status=200),
     )
     observation = SimpleNamespace(
@@ -83,6 +83,7 @@ def test_standalone_send_defaults_to_deep_high_policy(monkeypatch, capsys) -> No
             "poll_interval": 0.5,
             "on_event": None,
             "model_profile": "DEEP",
+            "conversation_mode": "normal",
         },
     )
 
@@ -110,6 +111,7 @@ def test_standalone_send_profile_is_case_insensitive(monkeypatch, capsys) -> Non
     assert capsys.readouterr().out == "assistant reply\n"
     assert runtime.send_call[1]["conversation"] == "conversation-1"
     assert runtime.send_call[1]["model_profile"] == "FAST"
+    assert runtime.send_call[1]["conversation_mode"] == "normal"
     assert runtime.send_call[1]["timeout"] == 25.0
     assert runtime.send_call[1]["poll_interval"] == 0.25
 
@@ -123,9 +125,11 @@ def test_standalone_send_json_keeps_structured_execution(monkeypatch, capsys) ->
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
     assert runtime.send_call[1]["model_profile"] == "DEEP"
+    assert runtime.send_call[1]["conversation_mode"] == "normal"
     assert payload["ok"] is True
     assert payload["text"] == "assistant reply"
     assert payload["conversation_id"] == "conversation-1"
+    assert payload["temporary"] is False
     assert payload["runtime_observation"]["runtime_tab_id"] == 77
     assert payload["provenance"]["completion"]["source"] == "CANONICAL_READBACK"
 
