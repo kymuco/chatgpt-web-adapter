@@ -22,11 +22,12 @@ def test_session_identity_overlays_load_after_temporary_production_layer() -> No
     assert source.index(production) < source.index(identity) < source.index(flush)
 
 
-def test_session_identity_uses_only_live_stream_handoff_metadata() -> None:
+def test_session_identity_uses_only_bounded_live_sse_envelope_metadata() -> None:
     source = _source("service_worker_temporary_session_identity_pr8_13.js")
-    assert 'payload.type !== "stream_handoff"' in source
-    assert "payload.conversation_id" in source
-    assert "payload.turn_exchange_id" in source
+    assert "value.conversation_id ?? value.conversationId" in source
+    assert "value.turn_exchange_id ?? value.turnExchangeId" in source
+    assert '["payload", "data", "result", "turn"]' in source
+    assert "Do not recursively inspect arbitrary tool" in source
     assert "Network.getResponseBody" not in source
     assert "backend-api/conversation" not in source
     assert "chrome.tabs.update" not in source
@@ -43,7 +44,7 @@ def test_continuation_stream_identity_must_match_live_session_identity() -> None
     source = _source("service_worker_temporary_session_identity_pr8_13.js")
     assert "temporaryContext.expectedConversationId !== null" in source
     assert "identity.conversationId !== temporaryContext.expectedConversationId" in source
-    assert "TEMPORARY_STREAM_HANDOFF_CONVERSATION_MISMATCH" in source
+    assert "TEMPORARY_STREAM_IDENTITY_CONVERSATION_MISMATCH" in source
 
 
 def test_missing_base_turn_identity_can_be_filled_before_native_turn_returns() -> None:
