@@ -9,6 +9,32 @@
 const _pr813SessionIdentityPriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
 const _pr813SessionIdentityPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
+function _pr813SessionIdentityDirect(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const conversationId = _pr813ConversationId(
+    value.conversation_id ?? value.conversationId
+  );
+  if (!conversationId) return null;
+  const turnExchangeId = typeof (value.turn_exchange_id ?? value.turnExchangeId) === "string" &&
+    (value.turn_exchange_id ?? value.turnExchangeId).trim()
+    ? (value.turn_exchange_id ?? value.turnExchangeId).trim()
+    : null;
+  return { conversationId, turnExchangeId };
+}
+
+function _pr813SessionIdentityFromPayload(payload) {
+  const direct = _pr813SessionIdentityDirect(payload);
+  if (direct) return direct;
+
+  // Bounded envelope traversal only. Do not recursively inspect arbitrary tool,
+  // message, metadata, or attachment objects for conversation-shaped strings.
+  for (const key of ["payload", "data", "result", "turn"]) {
+    const nested = _pr813SessionIdentityDirect(payload?.[key]);
+    if (nested) return nested;
+  }
+  return null;
+}
+
 function _pr813SessionIdentityFromSseBlock(block) {
   const lines = String(block || "").split(/\r?\n/);
   const dataLines = [];
@@ -26,14 +52,8 @@ function _pr813SessionIdentityFromSseBlock(block) {
   } catch {
     return null;
   }
-  if (!payload || payload.type !== "stream_handoff") return null;
-
-  const conversationId = _pr813ConversationId(payload.conversation_id);
-  if (!conversationId) return null;
-  const turnExchangeId = typeof payload.turn_exchange_id === "string" && payload.turn_exchange_id.trim()
-    ? payload.turn_exchange_id.trim()
-    : null;
-  return { conversationId, turnExchangeId };
+  if (!payload || typeof payload !== "object") return null;
+  return _pr813SessionIdentityFromPayload(payload);
 }
 
 _pr89BrowserStreamProcessSseEvent = async function _pr813ProcessSseWithTemporarySessionIdentity(
@@ -48,7 +68,7 @@ _pr89BrowserStreamProcessSseEvent = async function _pr813ProcessSseWithTemporary
         temporaryContext.expectedConversationId !== null &&
         identity.conversationId !== temporaryContext.expectedConversationId
       ) {
-        temporaryContext.modeViolation = "TEMPORARY_STREAM_HANDOFF_CONVERSATION_MISMATCH";
+        temporaryContext.modeViolation = "TEMPORARY_STREAM_IDENTITY_CONVERSATION_MISMATCH";
       } else {
         temporaryContext.ephemeralConversationId = identity.conversationId;
         if (identity.turnExchangeId) {
