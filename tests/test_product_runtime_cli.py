@@ -60,7 +60,7 @@ class _Runtime:
                 message_id="assistant-1",
                 finish_reason="stop",
             ),
-            request=SimpleNamespace(observed_model="gpt-test"),
+            request=SimpleNamespace(observed_model="gpt-test", temporary=False),
             metrics=SimpleNamespace(backend_status=200),
         )
         observation = SimpleNamespace(
@@ -151,6 +151,7 @@ def test_runtime_send_cli_returns_machine_readable_product_result(monkeypatch, c
     assert payload["ok"] is True
     assert payload["conversation_id"] == "conversation-1"
     assert payload["message_id"] == "assistant-1"
+    assert payload["temporary"] is False
     assert payload["backend_status"] == 200
     assert payload["runtime_observation"]["runtime_tab_id"] == 77
     assert payload["provenance"]["completion"]["source"] == "CANONICAL_READBACK"
