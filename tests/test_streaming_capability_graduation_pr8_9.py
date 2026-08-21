@@ -8,6 +8,11 @@ from chatgpt_web_adapter.browser_owned_product_transport import BrowserOwnedProd
 from chatgpt_web_adapter.product_capabilities import STREAMING, CapabilityOwner, CapabilityState
 from chatgpt_web_adapter.product_runtime import ChatGPTProductRuntime
 from chatgpt_web_adapter.revision_safe_streaming_pr8_9 import (
+    ACTIVITY_COMPLETED,
+    ACTIVITY_STARTED,
+    ACTIVITY_TEXT_DELTA,
+    ACTIVITY_TEXT_REVISION,
+    ACTIVITY_TEXT_SNAPSHOT,
     ASSISTANT_TEXT_DELTA,
     ASSISTANT_TEXT_REVISION,
     ASSISTANT_TEXT_SNAPSHOT,
@@ -43,7 +48,7 @@ class _Provider:
         raise AssertionError("graduation tests must not send")
 
 
-def test_streaming_capability_is_available_with_pr89_production_evidence() -> None:
+def test_streaming_capability_is_available_with_pr89_and_pr812_production_evidence() -> None:
     transport = BrowserOwnedProductTransport(_Client(), provider=_Provider())
     capability = transport.capabilities().get(STREAMING)
 
@@ -52,7 +57,7 @@ def test_streaming_capability_is_available_with_pr89_production_evidence() -> No
     assert capability.owner is CapabilityOwner.TRANSPORT
     assert capability.evidence is not None
     assert "PR8.9.3 production live gate" in capability.evidence
-    assert "EXACT_MATCH" in capability.evidence
+    assert "PR8.12" in capability.evidence
 
 
 def test_streaming_governance_freezes_revision_safe_public_contract() -> None:
@@ -67,6 +72,11 @@ def test_streaming_governance_freezes_revision_safe_public_contract() -> None:
         ASSISTANT_TEXT_DELTA,
         ASSISTANT_TEXT_REVISION,
         CANONICAL_TEXT_FINALIZED,
+        ACTIVITY_STARTED,
+        ACTIVITY_TEXT_SNAPSHOT,
+        ACTIVITY_TEXT_DELTA,
+        ACTIVITY_TEXT_REVISION,
+        ACTIVITY_COMPLETED,
     ]
     assert governance["streaming_source"] == "CDP_NETWORK_STREAM_RESOURCE_CONTENT"
     assert governance["streaming_delivery"] == "REVISION_SAFE_EVENT_STREAM"

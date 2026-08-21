@@ -67,22 +67,23 @@ class _Transport:
         return {"transport": self.transport_id}
 
 
-def test_t13_classifies_browser_owned_temporary_chat_as_unimplemented() -> None:
+def test_pr813_graduates_browser_owned_temporary_chat_to_available() -> None:
     capability = _BROWSER_OWNED_CAPABILITIES.get(TEMPORARY_CHAT)
 
     assert capability is not None
-    assert capability.state is CapabilityState.UNIMPLEMENTED
+    assert capability.state is CapabilityState.AVAILABLE
     assert capability.owner is CapabilityOwner.TRANSPORT
     assert capability.evidence is not None
-    assert "PR8.7 T13 review" in capability.evidence
-    assert "no mode-aware Temporary write route" in capability.evidence
+    assert "PR8.13 production live gate" in capability.evidence
+    assert "two Temporary writes" in capability.evidence
+    assert "1222 passed" in capability.evidence
 
 
-def test_t13_does_not_claim_temporary_chat_available() -> None:
-    assert _BROWSER_OWNED_CAPABILITIES.state(TEMPORARY_CHAT) is not CapabilityState.AVAILABLE
+def test_pr813_browser_owned_temporary_chat_is_available_after_live_graduation() -> None:
+    assert _BROWSER_OWNED_CAPABILITIES.state(TEMPORARY_CHAT) is CapabilityState.AVAILABLE
 
 
-def test_unimplemented_classification_does_not_relax_t8_fail_closed_gate() -> None:
+def test_unimplemented_classification_does_not_relax_fail_closed_gate() -> None:
     transport = _Transport(CapabilityState.UNIMPLEMENTED)
     runtime = ChatGPTProductRuntime(_Client(), write_transport=transport)
 
@@ -97,7 +98,7 @@ def test_unimplemented_classification_does_not_relax_t8_fail_closed_gate() -> No
     assert payload["temporary_lifecycle"]["live_write_authority_proven"] is False
 
 
-def test_even_premature_available_classification_cannot_enable_temporary_dispatch() -> None:
+def test_capability_state_alone_cannot_enable_temporary_dispatch() -> None:
     transport = _Transport(CapabilityState.AVAILABLE)
     runtime = ChatGPTProductRuntime(_Client(), write_transport=transport)
 

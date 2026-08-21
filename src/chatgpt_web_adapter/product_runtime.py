@@ -8,6 +8,7 @@ from .auth import DEFAULT_AUTH_FILE
 from .client import ChatGPTWebClient, DEFAULT_TIMEOUT_SECONDS
 from .product_capabilities import ProductCapabilities
 from .product_provenance import (
+    CompletionSource,
     ConversationMode,
     ConversationModeEvidenceSource,
     ProductConversationModeProvenance,
@@ -65,7 +66,7 @@ def _normal_conversation_mode_provenance() -> ProductConversationModeProvenance:
         ),
         observed_mode_proven=True,
         proof_detail=(
-            "normal request dispatched through ordinary-mode-only ProductWriteTransport"
+            "normal request dispatched through ordinary-mode ProductWriteTransport"
         ),
     )
 
@@ -78,9 +79,7 @@ def _not_established_temporary_lifecycle_provenance() -> ProductTemporaryLifecyc
         ),
         lifecycle_state_proven=True,
         live_write_authority_proven=False,
-        proof_detail=(
-            "request blocked before Temporary lifecycle establishment"
-        ),
+        proof_detail="request blocked before Temporary lifecycle establishment",
     )
 
 
@@ -103,8 +102,8 @@ class ProductConversationModeUnavailableError(RuntimeError):
         super().__init__(
             "PRODUCT_CONVERSATION_MODE_UNAVAILABLE: "
             f"requested={requested.value} observed=UNKNOWN "
-            f"conversation_mode={normalized!r} is disabled in production until "
-            "mode-aware Temporary write routing is implemented; fallback=none"
+            f"conversation_mode={normalized!r} is unavailable on the selected "
+            "production transport; fallback=none"
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -116,11 +115,26 @@ class ProductConversationModeUnavailableError(RuntimeError):
         }
 
 
-def _require_production_write_mode(value: str) -> str:
-    mode = _normalize_conversation_mode(value)
-    if mode == _TEMPORARY_CONVERSATION_MODE:
+def _conversation_mode_override_kwargs(
+    write_transport: ProductWriteTransport,
+    *,
+    conversation_mode: str,
+) -> tuple[str, dict[str, Any]]:
+    """Resolve a caller mode without widening the generic PR8.4 protocol.
+
+    Normal remains the compatibility/default path and therefore adds no transport
+    kwarg. Temporary is dispatched only when the selected transport explicitly
+    advertises the PR8.13 mode-aware route; otherwise it fails before write.
+    """
+
+    mode = _normalize_conversation_mode(conversation_mode)
+    if mode == _NORMAL_CONVERSATION_MODE:
+        return mode, {}
+
+    governance = dict(write_transport.governance())
+    if governance.get("temporary_chat_product_runtime_selection_supported") is not True:
         raise ProductConversationModeUnavailableError(mode)
-    return mode
+    return mode, {"conversation_mode": _TEMPORARY_CONVERSATION_MODE}
 
 
 def _validate_or_attach_normal_mode_provenance(
@@ -148,20 +162,52 @@ def _validate_or_attach_normal_mode_provenance(
     return provenance
 
 
+def _validate_temporary_mode_provenance(
+    provenance: ProductExecutionProvenance,
+) -> ProductExecutionProvenance:
+    mode = provenance.conversation_mode
+    lifecycle = provenance.temporary_lifecycle
+    if mode is None:
+        raise RuntimeError("Temporary execution is missing conversation-mode provenance")
+    if (
+        mode.requested_conversation_mode is not ConversationMode.TEMPORARY
+        or mode.observed_conversation_mode is not ConversationMode.TEMPORARY
+        or mode.observed_mode_evidence_source
+        is not ConversationModeEvidenceSource.PRODUCT_MODE_OBSERVATION
+        or not mode.observed_mode_proven
+    ):
+        raise RuntimeError(
+            "successful Temporary execution did not prove requested/observed TEMPORARY mode"
+        )
+    if lifecycle is None:
+        raise RuntimeError("Temporary execution is missing lifecycle provenance")
+    if (
+        lifecycle.temporary_lifecycle_state is not TemporaryLifecycleState.LIVE
+        or lifecycle.lifecycle_evidence_source
+        is not TemporaryLifecycleEvidenceSource.PRODUCT_LIFECYCLE_OBSERVATION
+        or not lifecycle.lifecycle_state_proven
+        or not lifecycle.live_write_authority_proven
+    ):
+        raise RuntimeError(
+            "successful Temporary execution did not prove LIVE lifecycle write authority"
+        )
+    if (
+        provenance.completion.source is not CompletionSource.TRANSPORT_RETURN
+        or provenance.completion.canonical_completion_proven
+    ):
+        raise RuntimeError(
+            "Temporary execution must use page-owned transport finality without "
+            "fabricating ordinary canonical completion"
+        )
+    return provenance
+
+
 def _browser_authority_override_kwargs(
     write_transport: ProductWriteTransport,
     *,
     browser_authority_policy: str | None,
     browser_authority_ttl_ms: int | None,
 ) -> dict[str, Any]:
-    """Build optional transport kwargs without widening ProductWriteTransport.
-
-    Browser Authority policy is transport-specific resource-lifecycle control.
-    Generic transports therefore keep the stable PR8.4 protocol. A caller may
-    request the optional policy only when the selected transport explicitly
-    advertises support through governance.
-    """
-
     if browser_authority_policy is None and browser_authority_ttl_ms is None:
         return {}
 
@@ -171,7 +217,6 @@ def _browser_authority_override_kwargs(
             "browser authority policy overrides are unavailable for the selected "
             "write transport"
         )
-
     return {
         "browser_authority_policy": browser_authority_policy,
         "browser_authority_ttl_ms": browser_authority_ttl_ms,
@@ -183,13 +228,6 @@ def _model_profile_override_kwargs(
     *,
     model_profile: str | None,
 ) -> dict[str, Any]:
-    """Build the optional semantic profile requirement for supporting transports.
-
-    PR8.10 deliberately keeps the generic ProductWriteTransport protocol stable.
-    A caller can request a semantic profile only when the selected transport
-    explicitly advertises the strict pre-write selection contract.
-    """
-
     if model_profile is None:
         return {}
 
@@ -210,9 +248,6 @@ def _assemble_default_write_transport(
     browser_authority_ttl_ms: int | None = None,
 ) -> ProductWriteTransport:
     if transport != BROWSER_OWNED_PRODUCT_TRANSPORT:
-        # normalize_product_transport() makes this unreachable for the current
-        # production registry. Keep the branch explicit so future transports
-        # cannot accidentally fall through to browser-owned.
         raise ValueError(f"no production transport assembler registered for {transport!r}")
 
     from .browser_owned_product_transport import BrowserOwnedProductTransport
@@ -229,20 +264,7 @@ def _assemble_default_write_transport(
 
 
 class ChatGPTProductRuntime:
-    """Implementation-independent ordinary-ChatGPT product runtime.
-
-    PR8.4 separates canonical observation from product mutation. PR8.5 adds a
-    machine-readable capability surface and provenance-aware observed execution
-    without making browser-specific metadata mandatory for future transports.
-    PR8.8 adds optional Browser Authority resource-lifetime policy plumbing while
-    keeping concrete tab/native-messaging mechanics below this runtime boundary.
-    PR8.10 adds a transport-governed semantic ``model_profile=`` turn requirement
-    without widening the generic ProductWriteTransport protocol.
-
-    ``provider=`` remains as a compatibility assembly shortcut for PR8.3
-    callers. New composition code should inject ``write_transport=`` or use
-    ``assemble_product_runtime()``.
-    """
+    """Implementation-independent ordinary ChatGPT product runtime."""
 
     def __init__(
         self,
@@ -295,8 +317,6 @@ class ChatGPTProductRuntime:
 
         self.write_transport = write_transport
         self._transport = write_transport
-        # Private PR8.3 compatibility alias for existing tests/diagnostics. The
-        # runtime itself never dispatches through this attribute.
         self._writer = getattr(write_transport, "_runtime", write_transport)
 
     def health(
@@ -332,7 +352,10 @@ class ChatGPTProductRuntime:
         browser_authority_ttl_ms: int | None = None,
         model_profile: str | None = None,
     ) -> ChatResponse:
-        _require_production_write_mode(conversation_mode)
+        _mode, mode_kwargs = _conversation_mode_override_kwargs(
+            self.write_transport,
+            conversation_mode=conversation_mode,
+        )
         transport_kwargs = _browser_authority_override_kwargs(
             self.write_transport,
             browser_authority_policy=browser_authority_policy,
@@ -344,6 +367,7 @@ class ChatGPTProductRuntime:
                 model_profile=model_profile,
             )
         )
+        transport_kwargs.update(mode_kwargs)
         return self.write_transport.send_text(
             text,
             conversation=conversation,
@@ -395,7 +419,10 @@ class ChatGPTProductRuntime:
         browser_authority_ttl_ms: int | None = None,
         model_profile: str | None = None,
     ) -> ProductRuntimeExecution:
-        mode = _require_production_write_mode(conversation_mode)
+        mode, mode_kwargs = _conversation_mode_override_kwargs(
+            self.write_transport,
+            conversation_mode=conversation_mode,
+        )
         transport_kwargs = _browser_authority_override_kwargs(
             self.write_transport,
             browser_authority_policy=browser_authority_policy,
@@ -407,6 +434,8 @@ class ChatGPTProductRuntime:
                 model_profile=model_profile,
             )
         )
+        transport_kwargs.update(mode_kwargs)
+
         execution = self.write_transport.send_text_observed(
             text,
             conversation=conversation,
@@ -422,30 +451,39 @@ class ChatGPTProductRuntime:
                 f"{execution.transport!r}"
             )
 
-        if mode != _NORMAL_CONVERSATION_MODE:
-            raise RuntimeError("unexpected enabled production conversation mode")
-        expected_mode = _normal_conversation_mode_provenance()
-
         provenance = execution.provenance
-        if provenance is None:
-            provenance = build_product_execution_provenance(
-                transport=self.transport,
-                response=execution.response,
-                observation=execution.observation,
-                governance=self.write_transport.governance(),
-                conversation_mode=expected_mode,
-            )
-        elif not isinstance(provenance, ProductExecutionProvenance):
-            raise TypeError(
-                "write transport execution provenance must be ProductExecutionProvenance or None"
-            )
-        elif provenance.transport != self.transport:
-            raise RuntimeError(
-                "write transport returned provenance for unexpected transport "
-                f"{provenance.transport!r}"
-            )
+        if mode == _NORMAL_CONVERSATION_MODE:
+            expected_mode = _normal_conversation_mode_provenance()
+            if provenance is None:
+                provenance = build_product_execution_provenance(
+                    transport=self.transport,
+                    response=execution.response,
+                    observation=execution.observation,
+                    governance=self.write_transport.governance(),
+                    conversation_mode=expected_mode,
+                )
+            elif not isinstance(provenance, ProductExecutionProvenance):
+                raise TypeError(
+                    "write transport execution provenance must be ProductExecutionProvenance or None"
+                )
+            elif provenance.transport != self.transport:
+                raise RuntimeError(
+                    "write transport returned provenance for unexpected transport "
+                    f"{provenance.transport!r}"
+                )
+            else:
+                provenance = _validate_or_attach_normal_mode_provenance(provenance)
         else:
-            provenance = _validate_or_attach_normal_mode_provenance(provenance)
+            if not isinstance(provenance, ProductExecutionProvenance):
+                raise RuntimeError(
+                    "Temporary production execution requires transport-proven mode/lifecycle provenance"
+                )
+            if provenance.transport != self.transport:
+                raise RuntimeError(
+                    "write transport returned Temporary provenance for unexpected transport "
+                    f"{provenance.transport!r}"
+                )
+            provenance = _validate_temporary_mode_provenance(provenance)
 
         return ProductRuntimeExecution(
             transport=execution.transport,
@@ -453,6 +491,24 @@ class ChatGPTProductRuntime:
             observation=execution.observation,
             provenance=provenance,
         )
+
+    def end_temporary_chat(self) -> bool:
+        end = getattr(self.write_transport, "end_temporary_lifecycle", None)
+        if not callable(end):
+            raise ProductConversationModeUnavailableError(_TEMPORARY_CONVERSATION_MODE)
+        return bool(end())
+
+    def temporary_lifecycle_snapshot(self) -> dict[str, Any]:
+        snapshot = getattr(self.write_transport, "temporary_lifecycle_snapshot", None)
+        if not callable(snapshot):
+            return {
+                "state": "NOT_ESTABLISHED",
+                "conversation_id": None,
+                "token_present": False,
+                "token_exported": False,
+            }
+        value = snapshot()
+        return dict(value) if isinstance(value, dict) else {}
 
     def get_status(self, conversation: Any) -> ConversationStatus:
         return self.canonical.get_status(conversation)
@@ -473,6 +529,10 @@ class ChatGPTProductRuntime:
             transport_governance.get("model_profile_product_runtime_selection_supported")
             is True
         )
+        temporary_supported = (
+            transport_governance.get("temporary_chat_product_runtime_selection_supported")
+            is True
+        )
         transport_governance.update(
             {
                 "transport": self.transport,
@@ -484,7 +544,7 @@ class ChatGPTProductRuntime:
                 "default_conversation_mode": _NORMAL_CONVERSATION_MODE,
                 "conversation_mode_fallback": None,
                 "silent_conversation_mode_fallback": False,
-                "temporary_mode_production_enabled": False,
+                "temporary_mode_production_enabled": temporary_supported,
                 "temporary_mode_fail_closed_before_write": True,
                 "temporary_mode_requires_mode_aware_write_routing": True,
                 "conversation_mode_provenance_model": "ProductConversationModeProvenance",
@@ -492,7 +552,9 @@ class ChatGPTProductRuntime:
                 "normal_observed_mode_evidence_source": (
                     ConversationModeEvidenceSource.TRANSPORT_SEMANTICS_CONTRACT.value
                 ),
-                "blocked_temporary_observed_mode": ConversationMode.UNKNOWN.value,
+                "blocked_temporary_observed_mode": (
+                    None if temporary_supported else ConversationMode.UNKNOWN.value
+                ),
                 "temporary_mode_observation_required_before_write": True,
                 "conversation_mode_state_scope": "REQUEST",
                 "conversation_mode_state_persisted": False,
@@ -508,9 +570,7 @@ class ChatGPTProductRuntime:
                 "temporary_mode_inherits_normal_provenance": False,
                 "ordinary_runtime_tab_is_temporary_mode_proof": False,
                 "ordinary_conversation_identity_is_temporary_mode_proof": False,
-                "temporary_lifecycle_provenance_model": (
-                    "ProductTemporaryLifecycleProvenance"
-                ),
+                "temporary_lifecycle_provenance_model": "ProductTemporaryLifecycleProvenance",
                 "temporary_lifecycle_authority_scope": "LIVE_PRODUCT_LIFECYCLE",
                 "temporary_lifecycle_state_persisted_by_product_runtime": False,
                 "cold_runtime_implies_temporary_lifecycle": False,
@@ -519,19 +579,18 @@ class ChatGPTProductRuntime:
                 "runtime_tab_presence_implies_temporary_lifecycle": False,
                 "runtime_tab_recreation_restores_temporary_lifecycle": False,
                 "browser_authority_recreation_restores_temporary_lifecycle": False,
-                "temporary_lifecycle_requires_fresh_proof_after_runtime_recreation": (
-                    True
-                ),
+                "temporary_lifecycle_requires_fresh_proof_after_runtime_recreation": True,
                 "temporary_lifecycle_requires_fresh_proof_after_tab_recreation": True,
                 "post_close_route_recovery_restores_temporary_lifecycle": False,
+                "temporary_lifecycle_explicit_end_surface": (
+                    "ChatGPTProductRuntime.end_temporary_chat" if temporary_supported else None
+                ),
                 "browser_authority_policy_high_level_surface": True,
                 "browser_authority_selected_transport_policy_support": (
                     browser_authority_supported
                 ),
                 "browser_authority_policy_override_requires_transport_support": True,
-                "browser_authority_runtime_default_requires_runtime_owned_transport_assembly": (
-                    True
-                ),
+                "browser_authority_runtime_default_requires_runtime_owned_transport_assembly": True,
                 "browser_authority_policy_contract_scope": "RESOURCE_LIFECYCLE_ONLY",
                 "browser_authority_policy_changes_conversation_identity": False,
                 "browser_authority_policy_changes_conversation_mode": False,
@@ -583,12 +642,8 @@ def assemble_product_runtime(
 ) -> ChatGPTProductRuntime:
     """Assemble the production ordinary-ChatGPT runtime.
 
-    Assembly never performs interactive browser login and never enables the
-    legacy Sentinel/direct-write machinery. Unknown production transports fail
-    closed. A custom protocol-conforming transport can be injected explicitly
-    for composition/testing, but its identity must still match the selected
-    production transport. Browser Authority runtime defaults are accepted only
-    when this function owns transport assembly.
+    Assembly never performs interactive browser login and never enables legacy
+    Sentinel/direct-write machinery. Unknown production transports fail closed.
     """
 
     normalized = normalize_product_transport(transport)
@@ -623,8 +678,6 @@ def assemble_product_runtime(
             **assembly_kwargs,
         )
         provider = None
-        # The assembled transport now owns these defaults. Do not present it as
-        # caller-injected configuration to ChatGPTProductRuntime below.
         runtime_browser_authority_policy = None
         runtime_browser_authority_ttl_ms = None
 

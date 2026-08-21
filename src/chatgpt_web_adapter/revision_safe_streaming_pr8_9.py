@@ -8,6 +8,21 @@ ASSISTANT_TEXT_DELTA = "assistant_text_delta"
 ASSISTANT_TEXT_REVISION = "assistant_text_revision"
 CANONICAL_TEXT_FINALIZED = "canonical_text_finalized"
 
+ACTIVITY_STARTED = "activity_started"
+ACTIVITY_TEXT_SNAPSHOT = "activity_text_snapshot"
+ACTIVITY_TEXT_DELTA = "activity_text_delta"
+ACTIVITY_TEXT_REVISION = "activity_text_revision"
+ACTIVITY_COMPLETED = "activity_completed"
+ACTIVITY_EVENT_TYPES = frozenset(
+    {
+        ACTIVITY_STARTED,
+        ACTIVITY_TEXT_SNAPSHOT,
+        ACTIVITY_TEXT_DELTA,
+        ACTIVITY_TEXT_REVISION,
+        ACTIVITY_COMPLETED,
+    }
+)
+
 EXACT_MATCH = "EXACT_MATCH"
 CANONICAL_EXTENDS_STREAM = "CANONICAL_EXTENDS_STREAM"
 STREAM_REVISED_BY_CANONICAL = "STREAM_REVISED_BY_CANONICAL"
@@ -37,6 +52,10 @@ class RevisionSafeTextAccumulator:
 
     Sequence gaps never fail the product write. They mark the observation stream
     incomplete so canonical finalization can reconcile conservatively.
+
+    PR8.12 normalized activity events are intentionally a separate plane. They
+    pass through unchanged and never participate in assistant-text sequence,
+    reconciliation, or canonical finality.
     """
 
     text: str = ""
@@ -52,6 +71,8 @@ class RevisionSafeTextAccumulator:
         if not isinstance(event, dict):
             return None
         event_type = event.get("type")
+        if event_type in ACTIVITY_EVENT_TYPES:
+            return dict(event)
         if event_type not in _TEXT_EVENT_TYPES:
             return None
         sequence = _positive_int(event.get("sequence"))

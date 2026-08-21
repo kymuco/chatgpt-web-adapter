@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Sequence
+import sys
+from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .auth_browser import browser_login
@@ -16,12 +17,42 @@ from .browser_native_install import (
 )
 from .browser_native_provider import BrowserNativeTurnProvider
 from .client import ChatGPTWebClient
+from .conversation_snapshot import snapshot_conversation
 from .exceptions import WebChatAdapterError
+from .post_answer_tail_latency_pr8_11 import (
+    PostAnswerTailTimingProvider,
+    StandaloneTailTimingObserver,
+)
 from .product_runtime import (
     DEFAULT_PRODUCT_TRANSPORT,
     SUPPORTED_PRODUCT_TRANSPORTS,
     assemble_product_runtime,
 )
+from .standalone_send import (
+    DEFAULT_STANDALONE_MODEL_PROFILE,
+    STANDALONE_MODEL_PROFILES,
+    RevisionSafeTerminalRenderer,
+    normalize_standalone_model_profile,
+)
+
+
+def _execution_payload(execution: Any) -> dict[str, Any]:
+    response = execution.response
+    provenance = execution.provenance
+    return {
+        "transport": execution.transport,
+        "ok": True,
+        "text": response.text,
+        "title": response.title,
+        "conversation_id": response.conversation.conversation_id,
+        "message_id": response.conversation.message_id,
+        "finish_reason": response.conversation.finish_reason,
+        "observed_model": response.request.observed_model,
+        "temporary": response.request.temporary,
+        "backend_status": response.metrics.backend_status,
+        "runtime_observation": execution.observation.to_dict(),
+        "provenance": provenance.to_dict() if provenance is not None else None,
+    }
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -51,6 +82,87 @@ def _build_parser() -> argparse.ArgumentParser:
 
     refresh = auth_commands.add_parser("refresh", help="refresh tokens without browser login")
     add_auth_file(refresh)
+
+    snapshot = commands.add_parser(
+        "snapshot",
+        help="write a deterministic user/assistant conversation snapshot",
+    )
+    add_auth_file(snapshot)
+    snapshot.add_argument("conversation", help="raw conversation id or ChatGPT conversation URL")
+    snapshot.add_argument(
+        "--name",
+        default="conversation",
+        help="file-name prefix; defaults to 'conversation'",
+    )
+    snapshot.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("."),
+        help="directory for snapshot files",
+    )
+    snapshot.add_argument(
+        "--index",
+        type=int,
+        help="explicit positive snapshot number; otherwise the next number is selected",
+    )
+    snapshot.add_argument("--timeout", type=float, default=120.0)
+    snapshot.add_argument(
+        "--context-only",
+        action="store_true",
+        help="skip the raw conversation-payload backup",
+    )
+
+    send = commands.add_parser(
+        "send",
+        help="send one ChatGPT product turn; defaults to DEEP / product HIGH",
+    )
+    add_auth_file(send)
+    send.add_argument("text")
+    send.add_argument("--conversation")
+    send.add_argument(
+        "--temporary",
+        action="store_true",
+        help=(
+            "use a fresh one-shot Temporary Chat lifecycle; no durable fallback; "
+            "same-lifecycle continuation is an SDK/runtime surface"
+        ),
+    )
+    send.add_argument(
+        "--transport",
+        choices=SUPPORTED_PRODUCT_TRANSPORTS,
+        default=DEFAULT_PRODUCT_TRANSPORT,
+        help="explicit product transport; no automatic fallback is performed",
+    )
+    send.add_argument(
+        "--profile",
+        type=normalize_standalone_model_profile,
+        choices=STANDALONE_MODEL_PROFILES,
+        default=DEFAULT_STANDALONE_MODEL_PROFILE,
+        help="semantic model profile; default DEEP maps to proven product HIGH",
+    )
+    send.add_argument("--timeout", type=float, default=150.0)
+    send.add_argument("--poll-interval", type=float, default=0.5)
+    send.add_argument(
+        "--timings",
+        action="store_true",
+        help="with --stream, print PR8.11 post-answer tail timing diagnostics to stderr",
+    )
+    send.add_argument(
+        "--final-only",
+        action="store_true",
+        help="with --stream, hide intermediate commentary/activity and stream only the final answer",
+    )
+    output_mode = send.add_mutually_exclusive_group()
+    output_mode.add_argument(
+        "--stream",
+        action="store_true",
+        help="render revision-safe assistant text while generation is in progress",
+    )
+    output_mode.add_argument(
+        "--json",
+        action="store_true",
+        help="print the structured observed execution instead of plain text",
+    )
 
     browser_native = commands.add_parser(
         "browser-native",
@@ -166,6 +278,127 @@ def _run_auth(args: argparse.Namespace) -> int:
     return 2
 
 
+def _run_snapshot(args: argparse.Namespace) -> int:
+    client = ChatGPTWebClient(
+        auth_file=args.auth_file,
+        timeout=args.timeout,
+    )
+    result = snapshot_conversation(
+        client,
+        args.conversation,
+        output_dir=args.output_dir,
+        name=args.name,
+        index=args.index,
+        include_raw_payload=not args.context_only,
+    )
+
+    print(f"context:     {result.context_path.resolve()}")
+    if result.raw_payload_path is not None:
+        print(f"raw payload: {result.raw_payload_path.resolve()}")
+    print(f"messages:    {result.message_count}")
+    return 0
+
+
+def _tail_timing_payload(execution: Any, observer: StandaloneTailTimingObserver) -> dict[str, Any]:
+    observation = execution.observation.to_dict()
+    lease_id = observation.get("browser_authority_lease_id")
+    browser_tail: dict[str, Any]
+    if not isinstance(lease_id, str) or not lease_id:
+        browser_tail = {
+            "available": False,
+            "reason": "browser_authority_lease_id_missing",
+        }
+    else:
+        try:
+            browser_tail = PostAnswerTailTimingProvider().timing_for_lease(lease_id)
+            browser_tail["available"] = True
+        except Exception as error:
+            browser_tail = {
+                "available": False,
+                "reason": str(error),
+                "browser_authority_lease_id": lease_id,
+            }
+    return observer.report(browser_tail=browser_tail)
+
+
+def _run_send(args: argparse.Namespace) -> int:
+    if args.timings and not args.stream:
+        raise ValueError("--timings requires --stream")
+    if args.final_only and not args.stream:
+        raise ValueError("--final-only requires --stream")
+    if args.temporary and args.conversation:
+        raise ValueError(
+            "standalone --temporary is a fresh one-shot lifecycle; Temporary continuation "
+            "requires the same live ChatGPTProductRuntime instance"
+        )
+    if args.temporary and args.timings:
+        raise ValueError("--timings is not yet defined for Temporary page-owned finality")
+
+    runtime = assemble_product_runtime(
+        transport=args.transport,
+        auth_file=args.auth_file,
+    )
+    renderer = (
+        RevisionSafeTerminalRenderer(final_answer_only=args.final_only)
+        if args.stream
+        else None
+    )
+    timing_observer = (
+        StandaloneTailTimingObserver(renderer.on_event if renderer is not None else None)
+        if args.timings
+        else None
+    )
+    on_event = (
+        timing_observer.on_event
+        if timing_observer is not None
+        else renderer.on_event
+        if renderer is not None
+        else None
+    )
+
+    execution = None
+    try:
+        execution = runtime.send_text_observed(
+            args.text,
+            conversation=args.conversation,
+            timeout=args.timeout,
+            poll_interval=args.poll_interval,
+            on_event=on_event,
+            model_profile=args.profile,
+            conversation_mode="temporary" if args.temporary else "normal",
+        )
+        if timing_observer is not None:
+            timing_observer.mark_runtime_return()
+        if args.temporary:
+            runtime.end_temporary_chat()
+    except Exception:
+        if args.temporary:
+            try:
+                runtime.end_temporary_chat()
+            except Exception:
+                pass
+        raise
+
+    assert execution is not None
+    if renderer is not None:
+        renderer.finish(execution.response.text)
+    elif args.json:
+        print(json.dumps(_execution_payload(execution), indent=2, ensure_ascii=False))
+    else:
+        print(execution.response.text)
+
+    if timing_observer is not None:
+        print(
+            json.dumps(
+                {"post_answer_tail_timing": _tail_timing_payload(execution, timing_observer)},
+                indent=2,
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+    return 0
+
+
 def _run_browser_native(args: argparse.Namespace) -> int:
     if args.browser_native_command == "install":
         result = install_native_messaging_host(
@@ -234,27 +467,7 @@ def _run_runtime(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             poll_interval=args.poll_interval,
         )
-        response = execution.response
-        provenance = execution.provenance
-        print(
-            json.dumps(
-                {
-                    "transport": execution.transport,
-                    "ok": True,
-                    "text": response.text,
-                    "title": response.title,
-                    "conversation_id": response.conversation.conversation_id,
-                    "message_id": response.conversation.message_id,
-                    "finish_reason": response.conversation.finish_reason,
-                    "observed_model": response.request.observed_model,
-                    "backend_status": response.metrics.backend_status,
-                    "runtime_observation": execution.observation.to_dict(),
-                    "provenance": provenance.to_dict() if provenance is not None else None,
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
+        print(json.dumps(_execution_payload(execution), indent=2, ensure_ascii=False))
         return 0
     return 2
 
@@ -264,6 +477,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "auth":
             return _run_auth(args)
+        if args.command == "snapshot":
+            return _run_snapshot(args)
+        if args.command == "send":
+            return _run_send(args)
         if args.command == "browser-native":
             return _run_browser_native(args)
         if args.command == "runtime":

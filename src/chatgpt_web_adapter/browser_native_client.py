@@ -6,8 +6,11 @@ from typing import Any, Callable
 
 from .browser_native_provider import BrowserNativeTurnProvider
 from .exceptions import ConversationTimeoutError, RequestError
+from .messages import _chat_message_from_node, _current_branch_nodes
 from .revision_safe_streaming_pr8_9 import RevisionSafeTextAccumulator
+from .status import _status_from_payload
 from .types import (
+    AttachedConversation,
     ChatConversation,
     ChatMetrics,
     ChatRequestDiagnostics,
@@ -54,6 +57,25 @@ def _status_finalizes_message(status: Any, message_id: str) -> bool:
     )
 
 
+def _assistant_candidates_from_payload(
+    payload: dict[str, Any],
+    *,
+    baseline_assistant_ids: set[str],
+) -> list[Any]:
+    candidates: list[Any] = []
+    for node_id, node in _current_branch_nodes(payload):
+        message = _chat_message_from_node(node_id, node)
+        if message is None or getattr(message, "role", None) != "assistant":
+            continue
+        message_id = getattr(message, "message_id", None)
+        if not isinstance(message_id, str) or message_id in baseline_assistant_ids:
+            continue
+        if not bool(getattr(message, "text", "").strip()):
+            continue
+        candidates.append(message)
+    return candidates
+
+
 def _wait_for_new_final_assistant(
     self: Any,
     conversation_id: str,
@@ -61,33 +83,78 @@ def _wait_for_new_final_assistant(
     baseline_assistant_ids: set[str],
     timeout: float,
     interval: float,
-) -> Any:
+    include_readback: bool = False,
+) -> Any | tuple[Any, dict[str, Any] | None, int | None]:
+    """Wait for canonical finality, optionally returning the reused payload.
+
+    The default return remains the historical assistant-message object. PR8.11
+    production callers opt into ``include_readback=True`` so status, assistant
+    messages and attach metadata can be derived from one canonical payload per
+    poll instead of issuing three serial reads after browser completion.
+    Lightweight/custom clients without the private canonical reader retain the
+    previous get_status/get_messages path.
+    """
+
     deadline = time.monotonic() + timeout
     last_status = None
+    canonical_reader = getattr(self, "_get_conversation_payload", None)
+    use_single_payload = callable(canonical_reader)
+    canonical_payload_read_count = 0
+
     while True:
-        try:
-            last_status = self.get_status(conversation_id)
-        except Exception:
-            last_status = None
-        messages = self.get_messages(
-            conversation_id,
-            limit=None,
-            roles={"assistant"},
-            include_empty=True,
-        )
-        candidates = [
-            message
-            for message in messages
-            if isinstance(getattr(message, "message_id", None), str)
-            and message.message_id not in baseline_assistant_ids
-            and bool(getattr(message, "text", "").strip())
-        ]
-        for candidate in reversed(candidates):
-            finish_reason = getattr(candidate, "finish_reason", None)
-            if isinstance(finish_reason, str) and bool(finish_reason.strip()):
-                return candidate
-            if _status_finalizes_message(last_status, candidate.message_id):
-                return candidate
+        if use_single_payload:
+            payload = None
+            try:
+                canonical_payload_read_count += 1
+                payload = canonical_reader(conversation_id)
+            except Exception:
+                payload = None
+
+            if isinstance(payload, dict):
+                last_status = _status_from_payload(payload)
+                candidates = _assistant_candidates_from_payload(
+                    payload,
+                    baseline_assistant_ids=baseline_assistant_ids,
+                )
+                for candidate in reversed(candidates):
+                    finish_reason = getattr(candidate, "finish_reason", None)
+                    if isinstance(finish_reason, str) and bool(finish_reason.strip()):
+                        if include_readback:
+                            return candidate, payload, canonical_payload_read_count
+                        return candidate
+                    if _status_finalizes_message(last_status, candidate.message_id):
+                        if include_readback:
+                            return candidate, payload, canonical_payload_read_count
+                        return candidate
+        else:
+            try:
+                last_status = self.get_status(conversation_id)
+            except Exception:
+                last_status = None
+            messages = self.get_messages(
+                conversation_id,
+                limit=None,
+                roles={"assistant"},
+                include_empty=True,
+            )
+            candidates = [
+                message
+                for message in messages
+                if isinstance(getattr(message, "message_id", None), str)
+                and message.message_id not in baseline_assistant_ids
+                and bool(getattr(message, "text", "").strip())
+            ]
+            for candidate in reversed(candidates):
+                finish_reason = getattr(candidate, "finish_reason", None)
+                if isinstance(finish_reason, str) and bool(finish_reason.strip()):
+                    if include_readback:
+                        return candidate, None, None
+                    return candidate
+                if _status_finalizes_message(last_status, candidate.message_id):
+                    if include_readback:
+                        return candidate, None, None
+                    return candidate
+
         if time.monotonic() >= deadline:
             raise ConversationTimeoutError(
                 "browser-native write completed but canonical assistant readback did not finish",
@@ -250,24 +317,40 @@ def send_browser_native(
     )
 
     remaining = max(1.0, timeout - (time.monotonic() - started))
-    final_message = _wait_for_new_final_assistant(
+    final_message, canonical_payload, canonical_payload_read_count = _wait_for_new_final_assistant(
         self,
         turn.conversation_id,
         baseline_assistant_ids=baseline_assistant_ids,
         timeout=remaining,
         interval=poll_interval,
+        include_readback=True,
     )
-    attached = self.attach_conversation(turn.conversation_id)
-    conversation_data = attached.conversation.to_dict()
-    conversation_data.update(
-        {
-            "conversation_id": turn.conversation_id,
-            "message_id": final_message.message_id,
-            "finish_reason": final_message.finish_reason,
-            "is_thinking": False,
-        }
-    )
-    result_conversation = ChatConversation.from_dict(conversation_data)
+
+    if canonical_payload is not None:
+        result_conversation = ChatConversation(
+            conversation_id=turn.conversation_id,
+            message_id=final_message.message_id,
+            parent_message_id=final_message.message_id,
+            finish_reason=final_message.finish_reason,
+            is_thinking=False,
+        )
+        attached = AttachedConversation.from_payload(
+            canonical_payload,
+            conversation=result_conversation,
+        )
+    else:
+        attached = self.attach_conversation(turn.conversation_id)
+        conversation_data = attached.conversation.to_dict()
+        conversation_data.update(
+            {
+                "conversation_id": turn.conversation_id,
+                "message_id": final_message.message_id,
+                "finish_reason": final_message.finish_reason,
+                "is_thinking": False,
+            }
+        )
+        result_conversation = ChatConversation.from_dict(conversation_data)
+
     total = time.monotonic() - started
     response = ChatResponse(
         text=final_message.text,
@@ -300,6 +383,8 @@ def send_browser_native(
         message_id=final_message.message_id,
         model=final_message.model,
         total=total,
+        canonical_payload_read_count=canonical_payload_read_count,
+        canonical_payload_reused_for_attach=canonical_payload is not None,
         stream_canonical_reconciliation=finalization["reconciliation"],
         revision_safe_stream_observation_count=stream_state.observation_count,
         revision_safe_stream_revision_count=stream_state.revision_count,

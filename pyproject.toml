@@ -39,6 +39,7 @@ browser = ["zendriver==0.15.3"]
 
 [project.scripts]
 chatgpt-web-adapter = "chatgpt_web_adapter.cli:main"
+cwa = "chatgpt_web_adapter.cli:main"
 chatgpt-web-adapter-native-host = "chatgpt_web_adapter.browser_native_host:main"
 
 [tool.setuptools]

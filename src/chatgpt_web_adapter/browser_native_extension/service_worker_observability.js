@@ -24,6 +24,16 @@ importScripts("service_worker_model_profile_selection_pr8_10.js");
 importScripts("service_worker_safe_browser_response_stream_pr8_9.js");
 importScripts("service_worker_safe_browser_response_patch_protocol_pr8_9.js");
 importScripts("service_worker_revision_safe_text_delivery_pr8_9.js");
+importScripts("service_worker_post_answer_tail_timing_pr8_11.js");
+importScripts("service_worker_early_product_completion_pr8_11_1.js");
+importScripts("service_worker_early_product_completion_repair_pr8_11_1.js");
+importScripts("service_worker_normalized_activity_stream_pr8_12.js");
+importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
+importScripts("service_worker_answer_channel_pr8_12.js");
+importScripts("service_worker_temporary_chat_production_pr8_13.js");
+importScripts("service_worker_temporary_session_identity_pr8_13.js");
+importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");
+importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");
 
 const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
 
