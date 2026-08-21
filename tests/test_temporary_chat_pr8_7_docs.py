@@ -37,15 +37,19 @@ def test_pr87_live_evidence_preserves_corrected_temporary_ground_truth() -> None
     assert "production conversation_mode=\"temporary\" = NOT ENABLED" in text
 
 
-def test_pr87_t13_review_and_transport_use_final_unimplemented_classification() -> None:
+def test_pr87_t13_review_remains_historical_while_pr813_transport_validation_advances() -> None:
     review = REVIEW_DOC.read_text(encoding="utf-8")
     transport = TRANSPORT.read_text(encoding="utf-8")
 
+    # PR8.7 remains an immutable record of the decision made before the
+    # production Temporary route existed.
     assert "temporary_chat = UNIMPLEMENTED" in review
     assert 'production conversation_mode="temporary" = DISABLED' in review
     assert "UNKNOWN -> UNIMPLEMENTED" in review
     assert "AVAILABLE graduation          = DENIED" in review
 
-    assert "TEMPORARY_CHAT: CapabilityState.UNIMPLEMENTED" in transport
-    assert "PR8.7 T13 review" in transport
-    assert 'TEMPORARY_CHAT: "PR8.7' not in transport
+    # The current branch is PR8.13 validation state, not the historical PR8.7
+    # implementation state. Graduation to AVAILABLE is a separate closure step.
+    assert "TEMPORARY_CHAT: CapabilityState.UNKNOWN" in transport
+    assert "PR8.13 production route implemented" in transport
+    assert "production live graduation pending" in transport
