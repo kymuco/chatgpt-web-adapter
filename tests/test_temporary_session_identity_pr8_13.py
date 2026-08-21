@@ -11,13 +11,15 @@ def _source(name: str) -> str:
     return (EXT / name).read_text(encoding="utf-8")
 
 
-def test_session_identity_overlay_loads_after_temporary_production_layer() -> None:
+def test_session_identity_overlays_load_after_temporary_production_layer() -> None:
     source = _source("service_worker_observability.js")
     production = 'importScripts("service_worker_temporary_chat_production_pr8_13.js");'
     identity = 'importScripts("service_worker_temporary_session_identity_pr8_13.js");'
+    flush = 'importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");'
     assert production in source
     assert identity in source
-    assert source.index(production) < source.index(identity)
+    assert flush in source
+    assert source.index(production) < source.index(identity) < source.index(flush)
 
 
 def test_session_identity_uses_only_live_stream_handoff_metadata() -> None:
@@ -50,3 +52,25 @@ def test_missing_base_turn_identity_can_be_filled_before_native_turn_returns() -
     assert "temporaryContext.ephemeralConversationId" in source
     assert "conversationId," in source
     assert "turnExchangeId," in source
+
+
+def test_fresh_temporary_identity_flush_uses_extension_local_sentinel_only() -> None:
+    source = _source("service_worker_temporary_fresh_identity_flush_pr8_13.js")
+    assert "PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in source
+    assert "_pr813ConversationIdWithFreshIdentitySentinel" in source
+    assert "conversationId: PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in source
+    assert "LIVE_SSE_STREAM" in source
+    assert "TEMPORARY_SESSION_ROUTING_IDENTITY_MISSING_AFTER_STREAM_FLUSH" in source
+    assert "Network.getResponseBody" not in source
+    assert "Fetch.continueRequest" not in source
+    assert "backend-api/conversation" not in source
+    assert "chrome.tabs.update" not in source
+    assert "/c/" not in source
+
+
+def test_fresh_identity_sentinel_resolves_only_from_live_temporary_context() -> None:
+    source = _source("service_worker_temporary_fresh_identity_flush_pr8_13.js")
+    assert "_pr813TemporaryTurnContext" in source
+    assert "ephemeralConversationId" in source
+    assert "_pr813LiveTemporaryLifecycle" in source
+    assert "conversationId: resolvedConversationId" in source
