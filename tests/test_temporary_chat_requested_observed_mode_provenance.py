@@ -96,7 +96,7 @@ def test_normal_observed_execution_has_requested_and_observed_mode_provenance() 
         "observed_conversation_mode": "NORMAL",
         "observed_mode_evidence_source": "TRANSPORT_SEMANTICS_CONTRACT",
         "observed_mode_proven": True,
-        "proof_detail": "normal request dispatched through ordinary-mode-only ProductWriteTransport",
+        "proof_detail": "normal request dispatched through ordinary-mode ProductWriteTransport",
     }
 
 
