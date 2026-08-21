@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .artifact_manifest import (
+    SNAPSHOT_ARTIFACT_KIND,
+    SNAPSHOT_CONTRACT,
+    artifact_file_entry,
+    build_artifact_manifest,
+    write_artifact_manifest,
+)
 from .types import ChatConversation, ChatMessage, ConversationRef
 
 _CONTEXT_SEPARATOR = "\n\n---\n\n"
@@ -19,6 +26,7 @@ class ConversationSnapshot:
     context_path: Path
     raw_payload_path: Path | None
     message_count: int
+    manifest_path: Path | None = None
 
 
 def _normalize_snapshot_name(name: str) -> str:
@@ -99,12 +107,13 @@ def snapshot_conversation(
     index: int | None = None,
     include_raw_payload: bool = True,
 ) -> ConversationSnapshot:
-    """Write a deterministic user/assistant context snapshot of one conversation.
+    """Write a curated current-branch context bundle plus a stable manifest.
 
     The context contains only current-branch user messages and assistant messages
     addressed to the user (recipient absent or ``all``). Internal assistant-to-tool
     traffic is deliberately excluded. A raw conversation payload can be written as
-    a forensic backup alongside the clean context.
+    a forensic backup alongside the clean context. The manifest is written last and
+    acts as the completion marker for the artifact bundle.
     """
 
     normalized_name = _normalize_snapshot_name(name)
@@ -121,11 +130,14 @@ def snapshot_conversation(
         if include_raw_payload
         else None
     )
+    manifest_path = directory / f"{normalized_name}_chat_snapshot_{normalized_index}.manifest.json"
 
     if context_path.exists():
         raise FileExistsError(f"snapshot context already exists: {context_path}")
     if raw_payload_path is not None and raw_payload_path.exists():
         raise FileExistsError(f"snapshot raw payload already exists: {raw_payload_path}")
+    if manifest_path.exists():
+        raise FileExistsError(f"snapshot manifest already exists: {manifest_path}")
 
     messages = client.get_messages(
         conversation,
@@ -136,23 +148,46 @@ def snapshot_conversation(
     selected = _context_messages(list(messages))
     context_text = render_snapshot_context(selected)
 
-    raw_payload: Any | None = None
+    raw_text: str | None = None
     if raw_payload_path is not None:
         ref = ConversationRef.from_any(conversation)
         raw_payload = client._get_conversation_payload(ref.conversation_id)
         raw_text = json.dumps(raw_payload, ensure_ascii=False, indent=2) + "\n"
-    else:
-        raw_text = None
 
-    context_path.write_text(context_text, encoding="utf-8")
+    context_path.write_text(context_text, encoding="utf-8", newline="\n")
     if raw_payload_path is not None and raw_text is not None:
-        raw_payload_path.write_text(raw_text, encoding="utf-8")
+        raw_payload_path.write_text(raw_text, encoding="utf-8", newline="\n")
 
     ref = ConversationRef.from_any(conversation)
+    manifest_files = [
+        artifact_file_entry(
+            context_path,
+            role="context",
+            media_type="text/markdown; charset=utf-8",
+        )
+    ]
+    if raw_payload_path is not None:
+        manifest_files.append(
+            artifact_file_entry(
+                raw_payload_path,
+                role="raw_payload",
+                media_type="application/json; charset=utf-8",
+            )
+        )
+    manifest = build_artifact_manifest(
+        artifact_kind=SNAPSHOT_ARTIFACT_KIND,
+        contract=SNAPSHOT_CONTRACT,
+        conversation_id=ref.conversation_id,
+        index=normalized_index,
+        files=manifest_files,
+    )
+    write_artifact_manifest(manifest_path, manifest)
+
     return ConversationSnapshot(
         conversation_id=ref.conversation_id,
         index=normalized_index,
         context_path=context_path,
         raw_payload_path=raw_payload_path,
         message_count=len(selected),
+        manifest_path=manifest_path,
     )
