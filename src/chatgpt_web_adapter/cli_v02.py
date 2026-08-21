@@ -9,6 +9,7 @@ from typing import Any, Sequence
 from . import cli as legacy_cli
 from .auth import DEFAULT_AUTH_FILE
 from .conversation_snapshot import snapshot_conversation
+from .doctor import run_doctor
 from .export import EXPORT_FORMAT_ALIASES, write_conversation_export
 from .product_runtime import (
     DEFAULT_PRODUCT_TRANSPORT,
@@ -128,7 +129,7 @@ def _add_inspection_common(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--json",
         action="store_true",
-        help="print the stable PR8.14 machine-readable schema",
+        help="print the stable machine-readable schema",
     )
 
 
@@ -194,6 +195,28 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="print the stable artifact envelope and embedded manifest",
+    )
+
+    doctor = root.add_parser(
+        "doctor",
+        help="run read-only environment, bridge, runtime, and artifact diagnostics",
+    )
+    _add_inspection_common(doctor)
+    doctor.add_argument(
+        "--conversation",
+        help="optional durable conversation id or URL for canonical runtime health",
+    )
+    doctor.add_argument(
+        "--profile-dir",
+        type=Path,
+        help="optional persistent browser profile override for auth diagnostics",
+    )
+    doctor.add_argument(
+        "--artifact",
+        action="append",
+        type=Path,
+        default=[],
+        help="PR8.15 artifact manifest to verify; repeat for multiple manifests",
     )
 
     return parser
@@ -384,6 +407,31 @@ def _run_export_artifact(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _run_doctor(args: argparse.Namespace) -> int:
+    report = run_doctor(
+        auth_file=args.auth_file,
+        profile_dir=args.profile_dir,
+        transport=args.transport,
+        conversation=args.conversation,
+        artifacts=args.artifact,
+    )
+    if args.json:
+        _json_print(report.to_dict())
+    else:
+        print(f"CWA doctor: {'PASS' if report.ok else 'FAIL'}")
+        for check in report.checks:
+            print(f"[{check.status.value}] {check.id}: {check.summary}")
+            if check.remediation and check.status.value in {"WARN", "FAIL"}:
+                print(f"  remediation: {check.remediation}")
+        counts = report.summary
+        print(
+            "summary: "
+            f"pass={counts['pass']} warn={counts['warn']} "
+            f"fail={counts['fail']} skip={counts['skip']}"
+        )
+    return EXIT_OK if report.ok else EXIT_UNAVAILABLE
+
+
 def _legacy_dispatch(args: argparse.Namespace) -> int:
     if args.command == "auth":
         return legacy_cli._run_auth(args)
@@ -448,6 +496,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_snapshot_artifact(args)
         if args.command == "export":
             return _run_export_artifact(args)
+        if args.command == "doctor":
+            return _run_doctor(args)
         return _legacy_dispatch(args)
     except Exception as error:
         exit_code = _error_exit_code(error)
