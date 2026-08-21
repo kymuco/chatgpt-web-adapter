@@ -54,6 +54,7 @@ from .product_transport import (
 from .temporary_product_runtime_pr8_13 import (
     TEMPORARY_READBACK_PLANE,
     TemporaryProductWriteRuntime,
+    TemporaryProductWriteRuntimeError,
 )
 from .types import ChatResponse
 
@@ -272,6 +273,42 @@ class BrowserOwnedProductTransport:
                 "the live Temporary lifecycle owns its dedicated tab until explicit end"
             )
 
+    def _temporary_session_routing_conversation(
+        self,
+        conversation: ConversationInput,
+    ) -> str | None:
+        """Resolve private Temporary routing without exposing id-based continuation.
+
+        Public callers must omit ``conversation`` for Temporary mode. If a LIVE
+        Temporary lifecycle already exists in this transport instance, its stored
+        ephemeral conversation id is used only as the low-level product routing
+        key. The id is never accepted as public continuation authority.
+        """
+
+        if conversation is not None:
+            raise TemporaryProductWriteRuntimeError(
+                "PR8_13_1_TEMPORARY_EXPLICIT_CONVERSATION_FORBIDDEN: "
+                "Temporary continuation is session-scoped; omit conversation and reuse "
+                "the same ChatGPTProductRuntime instance",
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+                request_stage="temporary_session_api_preflight",
+            )
+
+        snapshot = self._temporary_runtime.lifecycle_snapshot()
+        if snapshot.get("state") != "LIVE":
+            return None
+
+        conversation_id = snapshot.get("conversation_id")
+        if not isinstance(conversation_id, str) or not conversation_id.strip():
+            raise TemporaryProductWriteRuntimeError(
+                "PR8_13_1_TEMPORARY_LIVE_SESSION_ROUTING_ID_MISSING",
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+                request_stage="temporary_session_api_preflight",
+            )
+        return conversation_id.strip()
+
     def health(
         self,
         conversation: ConversationInput = None,
@@ -304,9 +341,12 @@ class BrowserOwnedProductTransport:
                     browser_authority_policy=browser_authority_policy,
                     browser_authority_ttl_ms=browser_authority_ttl_ms,
                 )
+                routing_conversation = self._temporary_session_routing_conversation(
+                    conversation
+                )
                 return self._temporary_runtime.send_text(
                     text,
-                    conversation=conversation,
+                    conversation=routing_conversation,
                     timeout=timeout,
                     poll_interval=poll_interval,
                     on_token=on_token,
@@ -348,9 +388,12 @@ class BrowserOwnedProductTransport:
                     browser_authority_policy=browser_authority_policy,
                     browser_authority_ttl_ms=browser_authority_ttl_ms,
                 )
+                routing_conversation = self._temporary_session_routing_conversation(
+                    conversation
+                )
                 return self._temporary_runtime.send_text_observed(
                     text,
-                    conversation=conversation,
+                    conversation=routing_conversation,
                     timeout=timeout,
                     poll_interval=poll_interval,
                     on_token=on_token,
@@ -462,6 +505,12 @@ class BrowserOwnedProductTransport:
                 "temporary_chat_live_gate_product_write_budget": 2,
                 "temporary_chat_live_gate_product_write_completions": 2,
                 "temporary_chat_full_regression_passed": 1222,
+                "temporary_chat_public_continuation_model": "LIVE_RUNTIME_SESSION_ONLY",
+                "temporary_chat_public_conversation_argument_supported": False,
+                "temporary_chat_same_runtime_implicit_continuation": True,
+                "temporary_chat_explicit_conversation_argument_fail_closed_before_write": True,
+                "temporary_chat_internal_routing_identity_is_public_authority": False,
+                "temporary_chat_new_session_after_explicit_end": True,
             }
         )
         return governance
