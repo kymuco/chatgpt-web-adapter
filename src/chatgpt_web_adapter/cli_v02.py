@@ -8,6 +8,8 @@ from typing import Any, Sequence
 
 from . import cli as legacy_cli
 from .auth import DEFAULT_AUTH_FILE
+from .conversation_snapshot import snapshot_conversation
+from .export import EXPORT_FORMAT_ALIASES, write_conversation_export
 from .product_runtime import (
     DEFAULT_PRODUCT_TRANSPORT,
     SUPPORTED_PRODUCT_TRANSPORTS,
@@ -103,6 +105,18 @@ def _configure_send_profile(parser: argparse.ArgumentParser) -> None:
     raise RuntimeError("PR8_14_SEND_PROFILE_ARGUMENT_MISSING")
 
 
+def _configure_snapshot_artifact(parser: argparse.ArgumentParser) -> None:
+    root = _root_subparsers(parser)
+    snapshot = root.choices.get("snapshot")
+    if snapshot is None:
+        raise RuntimeError("PR8_15_SNAPSHOT_COMMAND_MISSING")
+    snapshot.add_argument(
+        "--json",
+        action="store_true",
+        help="print the stable artifact envelope and embedded manifest",
+    )
+
+
 def _add_inspection_common(command: argparse.ArgumentParser) -> None:
     command.add_argument("--auth-file", type=Path, default=DEFAULT_AUTH_FILE)
     command.add_argument(
@@ -122,6 +136,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = legacy_cli._build_parser()
     parser.prog = "cwa"
     _configure_send_profile(parser)
+    _configure_snapshot_artifact(parser)
     root = _root_subparsers(parser)
 
     status = root.add_parser(
@@ -159,6 +174,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="include messages whose normalized text is empty",
     )
 
+    export = root.add_parser(
+        "export",
+        help="write a normalized current-branch export plus stable artifact manifest",
+    )
+    export.add_argument("conversation", help="raw conversation id or ChatGPT conversation URL")
+    export.add_argument("--auth-file", type=Path, default=DEFAULT_AUTH_FILE)
+    export.add_argument(
+        "--format",
+        choices=tuple(EXPORT_FORMAT_ALIASES),
+        default="markdown",
+        help="export representation: markdown/md, jsonl, or txt/text",
+    )
+    export.add_argument("--name", default="conversation", help="artifact file-name prefix")
+    export.add_argument("--output-dir", type=Path, default=Path("."))
+    export.add_argument("--index", type=int)
+    export.add_argument("--timeout", type=float, default=120.0)
+    export.add_argument(
+        "--json",
+        action="store_true",
+        help="print the stable artifact envelope and embedded manifest",
+    )
+
     return parser
 
 
@@ -174,6 +211,35 @@ def _runtime_for(args: argparse.Namespace):
         transport=args.transport,
         auth_file=args.auth_file,
     )
+
+
+def _read_manifest(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("artifact manifest must contain a JSON object")
+    return payload
+
+
+def _artifact_payload(
+    *,
+    command: str,
+    conversation_id: str,
+    index: int,
+    message_count: int,
+    manifest_path: Path,
+    paths: dict[str, Path],
+) -> dict[str, Any]:
+    return {
+        "schema": CLI_CONTRACT_SCHEMA,
+        "command": command,
+        "ok": True,
+        "conversation_id": conversation_id,
+        "index": index,
+        "message_count": message_count,
+        "manifest_path": str(manifest_path.resolve()),
+        "paths": {role: str(path.resolve()) for role, path in sorted(paths.items())},
+        "manifest": _read_manifest(manifest_path),
+    }
 
 
 def _run_status(args: argparse.Namespace) -> int:
@@ -255,11 +321,72 @@ def _run_messages(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _run_snapshot_artifact(args: argparse.Namespace) -> int:
+    client = legacy_cli.ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
+    result = snapshot_conversation(
+        client,
+        args.conversation,
+        output_dir=args.output_dir,
+        name=args.name,
+        index=args.index,
+        include_raw_payload=not args.context_only,
+    )
+    if result.manifest_path is None:
+        raise RuntimeError("PR8_15_SNAPSHOT_MANIFEST_MISSING")
+    paths = {"context": result.context_path}
+    if result.raw_payload_path is not None:
+        paths["raw_payload"] = result.raw_payload_path
+    payload = _artifact_payload(
+        command="snapshot",
+        conversation_id=result.conversation_id,
+        index=result.index,
+        message_count=result.message_count,
+        manifest_path=result.manifest_path,
+        paths=paths,
+    )
+    if args.json:
+        _json_print(payload)
+    else:
+        print(f"context:     {result.context_path.resolve()}")
+        if result.raw_payload_path is not None:
+            print(f"raw payload: {result.raw_payload_path.resolve()}")
+        print(f"manifest:    {result.manifest_path.resolve()}")
+        print(f"messages:    {result.message_count}")
+    return EXIT_OK
+
+
+def _run_export_artifact(args: argparse.Namespace) -> int:
+    client = legacy_cli.ChatGPTWebClient(auth_file=args.auth_file, timeout=args.timeout)
+    result = write_conversation_export(
+        client,
+        args.conversation,
+        output_dir=args.output_dir,
+        name=args.name,
+        index=args.index,
+        format=args.format,
+    )
+    payload = _artifact_payload(
+        command="export",
+        conversation_id=result.conversation_id,
+        index=result.index,
+        message_count=result.message_count,
+        manifest_path=result.manifest_path,
+        paths={"export": result.export_path},
+    )
+    payload["format"] = result.format
+    if args.json:
+        _json_print(payload)
+    else:
+        print(f"export:      {result.export_path.resolve()}")
+        print(f"manifest:    {result.manifest_path.resolve()}")
+        print(f"format:      {result.format}")
+        print(f"messages:    {result.message_count}")
+    return EXIT_OK
+
+
 def _legacy_dispatch(args: argparse.Namespace) -> int:
     if args.command == "auth":
         return legacy_cli._run_auth(args)
-    if args.command == "snapshot":
-        return legacy_cli._run_snapshot(args)
     if args.command == "send":
         return legacy_cli._run_send(args)
     if args.command == "browser-native":
@@ -317,6 +444,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_capabilities(args)
         if args.command == "messages":
             return _run_messages(args)
+        if args.command == "snapshot":
+            return _run_snapshot_artifact(args)
+        if args.command == "export":
+            return _run_export_artifact(args)
         return _legacy_dispatch(args)
     except Exception as error:
         exit_code = _error_exit_code(error)
