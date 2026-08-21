@@ -67,18 +67,18 @@ class _Transport:
         return {"transport": self.transport_id}
 
 
-def test_t13_classifies_browser_owned_temporary_chat_as_unimplemented() -> None:
+def test_pr813_keeps_browser_owned_temporary_chat_unknown_until_closure_commit() -> None:
     capability = _BROWSER_OWNED_CAPABILITIES.get(TEMPORARY_CHAT)
 
     assert capability is not None
-    assert capability.state is CapabilityState.UNIMPLEMENTED
+    assert capability.state is CapabilityState.UNKNOWN
     assert capability.owner is CapabilityOwner.TRANSPORT
     assert capability.evidence is not None
-    assert "PR8.7 T13 review" in capability.evidence
-    assert "no mode-aware Temporary write route" in capability.evidence
+    assert "PR8.13 production route implemented" in capability.evidence
+    assert "live graduation pending" in capability.evidence
 
 
-def test_t13_does_not_claim_temporary_chat_available() -> None:
+def test_pr813_validation_phase_does_not_claim_temporary_chat_available() -> None:
     assert _BROWSER_OWNED_CAPABILITIES.state(TEMPORARY_CHAT) is not CapabilityState.AVAILABLE
 
 
