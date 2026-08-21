@@ -428,6 +428,13 @@ class BrowserOwnedProductTransport:
                 "streaming_delivery": "REVISION_SAFE_EVENT_STREAM",
                 "streaming_canonical_finality": "BROWSERLESS_CANONICAL_HTTP",
                 "streaming_canonical_finality_authoritative": True,
+                "streaming_reconciliation_states": [
+                    "EXACT_MATCH",
+                    "CANONICAL_EXTENDS_STREAM",
+                    "STREAM_REVISED_BY_CANONICAL",
+                    "STREAM_INCOMPLETE",
+                    "UNAVAILABLE",
+                ],
                 "streaming_legacy_on_token_semantics": "FINAL_ONLY",
                 "streaming_raw_sse_exported": False,
                 "streaming_automatic_write_retry": False,
