@@ -72,7 +72,7 @@ _BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
     IMAGES: CapabilityState.UNIMPLEMENTED,
     FILES: CapabilityState.UNKNOWN,
     WEB_SEARCH: CapabilityState.UNKNOWN,
-    TEMPORARY_CHAT: CapabilityState.UNKNOWN,
+    TEMPORARY_CHAT: CapabilityState.AVAILABLE,
     MODEL_SELECTION: CapabilityState.AVAILABLE,
     MODEL_PRESERVATION: CapabilityState.UNKNOWN,
     REASONING_SELECTION: CapabilityState.AVAILABLE,
@@ -102,13 +102,17 @@ _BROWSER_OWNED_CAPABILITY_EVIDENCE: dict[str, str] = {
     CONVERSATION_STATUS: "canonical ChatGPTWebClient status surface",
     STREAMING: (
         "PR8.9.3 production live gate: revision-safe visible assistant text reached "
-        "ChatGPTProductRuntime.on_event before browser write completion; PR8.12 adds "
-        "normalized user-visible activity and final-only rendering"
+        "ChatGPTProductRuntime.on_event before browser write completion with EXACT_MATCH "
+        "canonical reconciliation; PR8.12 adds normalized user-visible activity and "
+        "final-only rendering"
     ),
     IMAGES: "production ProductWriteTransport currently exposes text turns only",
     TEMPORARY_CHAT: (
-        "PR8.13 production route implemented with Fetch-paused prewrite proof and "
-        "opaque live-lifecycle continuation authority; production live graduation pending"
+        "PR8.13 production live gate: two Temporary writes completed in one proven LIVE "
+        "lifecycle with Fetch-paused history_and_training_disabled prewrite proof, stable "
+        "session routing identity, page-owned finality, canonical 404 while live and after "
+        "close, explicit lifecycle end, post-end continuation blocked before write, no "
+        "automatic write retry, and no durable fallback; full regression 1222 passed"
     ),
     MODEL_SELECTION: (
         "PR8.10.1 production live gate: FAST/DEEP/BALANCED strictly selected "
@@ -439,13 +443,13 @@ class BrowserOwnedProductTransport:
                 "streaming_raw_sse_exported": False,
                 "streaming_automatic_write_retry": False,
                 "temporary_chat_product_runtime_selection_supported": True,
-                "temporary_chat_capability_live_graduated": False,
+                "temporary_chat_capability_live_graduated": True,
                 "temporary_chat_prewrite_proof": (
                     "FETCH_PAUSED_PAGE_GENERATED_HISTORY_AND_TRAINING_DISABLED_TRUE"
                 ),
                 "temporary_chat_request_body_exported": False,
                 "temporary_chat_request_body_rewritten": False,
-                "temporary_chat_durable_fallback": None,
+                "temporary_chat_durable_fallback": False,
                 "temporary_chat_automatic_write_retry": False,
                 "temporary_chat_canonical_get_required": False,
                 "temporary_chat_finality_plane": TEMPORARY_READBACK_PLANE,
@@ -455,6 +459,9 @@ class BrowserOwnedProductTransport:
                 "temporary_chat_tab_recreation_restores_lifecycle": False,
                 "temporary_chat_explicit_lifecycle_end_supported": True,
                 "temporary_chat_browser_authority_ttl_override_supported": False,
+                "temporary_chat_live_gate_product_write_budget": 2,
+                "temporary_chat_live_gate_product_write_completions": 2,
+                "temporary_chat_full_regression_passed": 1222,
             }
         )
         return governance
