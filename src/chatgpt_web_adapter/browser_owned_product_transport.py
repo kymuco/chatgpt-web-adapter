@@ -475,6 +475,7 @@ class BrowserOwnedProductTransport:
                 "streaming_delivery": "REVISION_SAFE_EVENT_STREAM",
                 "streaming_canonical_finality": "BROWSERLESS_CANONICAL_HTTP",
                 "streaming_canonical_finality_authoritative": True,
+                "incremental_observation_is_canonical_finality": False,
                 "streaming_reconciliation_states": [
                     "EXACT_MATCH",
                     "CANONICAL_EXTENDS_STREAM",
