@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from .product_capabilities import (
     ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
@@ -28,6 +29,11 @@ STABLE_PRODUCT_RUNTIME_OPERATIONS: tuple[str, ...] = (
     "temporary_lifecycle_snapshot",
     "governance",
 )
+
+_CANONICAL_INTERFACE = "CanonicalConversationClient"
+_WRITE_TRANSPORT_INTERFACE = "ProductWriteTransport"
+_INCREMENTAL_FINALITY_KEY = "incremental_observation_is_canonical_finality"
+_LEGACY_CANONICAL_FINALITY_KEY = "streaming_canonical_finality_authoritative"
 
 
 @dataclass(frozen=True)
@@ -95,6 +101,54 @@ def _require_true(governance: Mapping[str, Any], name: str) -> bool:
     return True
 
 
+def _require_none(governance: Mapping[str, Any], name: str) -> None:
+    if name not in governance:
+        raise RuntimeError(
+            f"product runtime contract requires explicit {name}=None; observed missing"
+        )
+    value = governance[name]
+    if value is not None:
+        raise RuntimeError(
+            f"product runtime contract requires {name}=None; observed {value!r}"
+        )
+    return None
+
+
+def _require_value(
+    governance: Mapping[str, Any],
+    name: str,
+    expected: Any,
+) -> Any:
+    value = governance.get(name)
+    if value != expected:
+        raise RuntimeError(
+            f"product runtime contract requires {name}={expected!r}; observed {value!r}"
+        )
+    return value
+
+
+def _require_incremental_observation_not_final(
+    governance: Mapping[str, Any],
+) -> bool:
+    """Require explicit evidence that incremental observation is not finality.
+
+    Schema 1 accepts the direct PR9 governance key. For the already-released 0.2
+    browser-owned implementation, the older explicit statement that canonical
+    finality is authoritative is accepted as equivalent evidence. Missing evidence
+    and contradictory direct declarations both fail closed.
+    """
+
+    if _INCREMENTAL_FINALITY_KEY in governance:
+        return _require_false(governance, _INCREMENTAL_FINALITY_KEY)
+    if governance.get(_LEGACY_CANONICAL_FINALITY_KEY) is True:
+        return False
+    raise RuntimeError(
+        "product runtime contract requires explicit non-incremental finality evidence; "
+        f"expected {_INCREMENTAL_FINALITY_KEY}=False or "
+        f"{_LEGACY_CANONICAL_FINALITY_KEY}=True"
+    )
+
+
 def build_product_runtime_contract(
     *,
     transport: str,
@@ -105,29 +159,61 @@ def build_product_runtime_contract(
 
     if not isinstance(capabilities, ProductCapabilities):
         raise TypeError("capabilities must be ProductCapabilities")
+    if not isinstance(governance, Mapping):
+        raise TypeError("governance must be a mapping")
     if not isinstance(transport, str) or not transport.strip():
         raise ValueError("runtime transport identity is required")
+
     normalized_transport = transport.strip().lower()
+    expected_support_tier = product_transport_support_tier(normalized_transport)
+
     if capabilities.transport != normalized_transport:
         raise RuntimeError(
             "runtime contract capability transport mismatch: "
             f"{capabilities.transport!r} != {normalized_transport!r}"
+        )
+    if capabilities.runtime_contract_schema != PRODUCT_RUNTIME_CONTRACT_SCHEMA:
+        raise RuntimeError(
+            "runtime contract capability schema mismatch: "
+            f"{capabilities.runtime_contract_schema!r} != "
+            f"{PRODUCT_RUNTIME_CONTRACT_SCHEMA!r}"
+        )
+    if capabilities.transport_support_tier != expected_support_tier:
+        raise RuntimeError(
+            "runtime contract capability support-tier mismatch: "
+            f"{capabilities.transport_support_tier!r} != {expected_support_tier!r}"
         )
     if capabilities.product_semantics != ORDINARY_CHATGPT_PRODUCT_SEMANTICS:
         raise RuntimeError(
             "ChatGPTProductRuntime contract requires ordinary ChatGPT product semantics"
         )
 
+    _require_value(governance, "transport", normalized_transport)
+    _require_value(
+        governance,
+        "product_semantics",
+        ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+    )
+    canonical_interface = _require_value(
+        governance,
+        "canonical_interface",
+        _CANONICAL_INTERFACE,
+    )
+    write_transport_interface = _require_value(
+        governance,
+        "write_transport_interface",
+        _WRITE_TRANSPORT_INTERFACE,
+    )
+
     automatic_write_retry = _require_false(governance, "automatic_write_retry")
-    if governance.get("fallback_transport") is not None:
-        raise RuntimeError(
-            "product runtime contract requires fallback_transport=None; observed "
-            f"{governance.get('fallback_transport')!r}"
-        )
+    fallback_transport = _require_none(governance, "fallback_transport")
     _require_false(governance, "legacy_direct_write_fallback")
     ambiguous_write_requires_reconciliation = _require_true(
         governance,
         "ambiguous_write_requires_reconciliation",
+    )
+    incremental_observation_is_canonical_finality = (
+        _require_incremental_observation_not_final(governance)
     )
     browser_implementation_required_by_caller = _require_false(
         governance,
@@ -138,21 +224,19 @@ def build_product_runtime_contract(
         schema=PRODUCT_RUNTIME_CONTRACT_SCHEMA,
         product_semantics=capabilities.product_semantics,
         transport=normalized_transport,
-        transport_support_tier=product_transport_support_tier(normalized_transport),
-        canonical_interface=str(
-            governance.get("canonical_interface") or "CanonicalConversationClient"
-        ),
-        write_transport_interface=str(
-            governance.get("write_transport_interface") or "ProductWriteTransport"
-        ),
+        transport_support_tier=expected_support_tier,
+        canonical_interface=canonical_interface,
+        write_transport_interface=write_transport_interface,
         operations=STABLE_PRODUCT_RUNTIME_OPERATIONS,
         capability_states=tuple(state.value for state in CapabilityState),
         automatic_write_retry=automatic_write_retry,
-        fallback_transport=None,
+        fallback_transport=fallback_transport,
         ambiguous_write_requires_reconciliation=(
             ambiguous_write_requires_reconciliation
         ),
-        incremental_observation_is_canonical_finality=False,
+        incremental_observation_is_canonical_finality=(
+            incremental_observation_is_canonical_finality
+        ),
         browser_implementation_required_by_caller=(
             browser_implementation_required_by_caller
         ),
@@ -174,8 +258,25 @@ def product_runtime_contract(runtime: Any) -> ProductRuntimeContract:
         raise TypeError("runtime must expose a non-empty transport identity")
     if not callable(capabilities) or not callable(governance):
         raise TypeError("runtime must expose callable capabilities() and governance()")
+
+    missing_operations = tuple(
+        name
+        for name in STABLE_PRODUCT_RUNTIME_OPERATIONS
+        if not callable(getattr(runtime, name, None))
+    )
+    if missing_operations:
+        missing = ", ".join(missing_operations)
+        raise TypeError(
+            "runtime does not implement the frozen schema-1 operation surface: "
+            f"{missing}"
+        )
+
+    governance_payload = governance()
+    if not isinstance(governance_payload, Mapping):
+        raise TypeError("runtime governance() must return a mapping")
+
     return build_product_runtime_contract(
         transport=transport,
         capabilities=capabilities(),
-        governance=dict(governance()),
+        governance=governance_payload,
     )
