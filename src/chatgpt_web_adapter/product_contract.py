@@ -18,7 +18,6 @@ STABLE_PRODUCT_RUNTIME_OPERATIONS: tuple[str, ...] = (
     "health",
     "readiness",
     "capabilities",
-    "contract",
     "send",
     "send_text",
     "send_text_observed",
@@ -106,6 +105,8 @@ def build_product_runtime_contract(
 
     if not isinstance(capabilities, ProductCapabilities):
         raise TypeError("capabilities must be ProductCapabilities")
+    if not isinstance(transport, str) or not transport.strip():
+        raise ValueError("runtime transport identity is required")
     normalized_transport = transport.strip().lower()
     if capabilities.transport != normalized_transport:
         raise RuntimeError(
@@ -155,4 +156,26 @@ def build_product_runtime_contract(
         browser_implementation_required_by_caller=(
             browser_implementation_required_by_caller
         ),
+    )
+
+
+def product_runtime_contract(runtime: Any) -> ProductRuntimeContract:
+    """Inspect the frozen public contract of a ChatGPTProductRuntime-like object.
+
+    The inspector intentionally lives outside the runtime class so PR9.0 can add
+    a versioned contract without changing the already-released 0.2 runtime method
+    surface. Future transports are validated against the same upper contract.
+    """
+
+    transport = getattr(runtime, "transport", None)
+    capabilities = getattr(runtime, "capabilities", None)
+    governance = getattr(runtime, "governance", None)
+    if not isinstance(transport, str) or not transport.strip():
+        raise TypeError("runtime must expose a non-empty transport identity")
+    if not callable(capabilities) or not callable(governance):
+        raise TypeError("runtime must expose callable capabilities() and governance()")
+    return build_product_runtime_contract(
+        transport=transport,
+        capabilities=capabilities(),
+        governance=dict(governance()),
     )
