@@ -25,6 +25,50 @@ The historical `ChatGPTWebClient` API is still available for compatibility and f
 
 See [ROADMAP.md](ROADMAP.md) for the post-PR8 architecture plan and [docs/public_surface_pr8_6.md](docs/public_surface_pr8_6.md) for the support-tier and compatibility policy.
 
+## CWA 0.2 CLI Quick Start
+
+After installation and browser-owned runtime setup, the stable command surface is:
+
+```powershell
+cwa doctor --json
+cwa status --json
+cwa capabilities --json
+cwa send "Give me a short project summary." --profile HIGH
+cwa messages <conversation-id> --json
+cwa snapshot <conversation-id> --name project --output-dir ./artifacts --json
+cwa export <conversation-id> --format jsonl --name project --output-dir ./artifacts --json
+```
+
+The accepted public CLI model-profile names are:
+
+```text
+INSTANT <-> FAST
+MEDIUM  <-> BALANCED
+HIGH    <-> DEEP
+```
+
+Product-native names are preferred in CLI documentation. Direct Python runtime profile keys remain the semantic `FAST` / `BALANCED` / `DEEP` contract.
+
+Temporary Chat is available through the same public CLI surface:
+
+```powershell
+cwa send "Answer briefly." --temporary --profile INSTANT
+```
+
+CWA 0.2 intentionally freezes the proven text path first. Image upload, file attachment, multimodal continuation, web search/tools/connectors, and future browserless write transports remain later capability work rather than being implied by the current UI.
+
+## Release Integrity
+
+The 0.2 release candidate is validated as an exact wheel/sdist pair. CI verifies package metadata, console entry points, all packaged browser-extension `.json`/`.js` files, installed CLI help surfaces, and pre-setup `cwa doctor` behavior from a disposable environment rather than an editable checkout.
+
+A real tagged release additionally requires:
+
+```text
+GitHub tag version == pyproject package version == dated CHANGELOG release heading
+```
+
+See [docs/release_checklist.md](docs/release_checklist.md) for the complete release gate.
+
 ## What This Is
 
 `chatgpt-web-adapter` is a local adapter around an authenticated ChatGPT product session. It separates:
@@ -332,6 +376,7 @@ PR-specific feasibility probes may also live in `examples/`; they are not automa
 - [docs/troubleshooting.md](docs/troubleshooting.md)
 - [docs/raw_payload.md](docs/raw_payload.md)
 - [docs/rename_compatibility.md](docs/rename_compatibility.md)
+- [docs/release_checklist.md](docs/release_checklist.md)
 
 `USAGE.md` remains a detailed compatibility-client guide for the historical `ChatGPTWebClient` feature set. New ordinary text-turn integrations should start with this README and `examples/product_runtime.py` instead.
 
