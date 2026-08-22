@@ -33,7 +33,6 @@ STABLE_PRODUCT_RUNTIME_OPERATIONS: tuple[str, ...] = (
 _CANONICAL_INTERFACE = "CanonicalConversationClient"
 _WRITE_TRANSPORT_INTERFACE = "ProductWriteTransport"
 _INCREMENTAL_FINALITY_KEY = "incremental_observation_is_canonical_finality"
-_LEGACY_CANONICAL_FINALITY_KEY = "streaming_canonical_finality_authoritative"
 
 
 @dataclass(frozen=True)
@@ -127,28 +126,6 @@ def _require_value(
     return value
 
 
-def _require_incremental_observation_not_final(
-    governance: Mapping[str, Any],
-) -> bool:
-    """Require explicit evidence that incremental observation is not finality.
-
-    Schema 1 accepts the direct PR9 governance key. For the already-released 0.2
-    browser-owned implementation, the older explicit statement that canonical
-    finality is authoritative is accepted as equivalent evidence. Missing evidence
-    and contradictory direct declarations both fail closed.
-    """
-
-    if _INCREMENTAL_FINALITY_KEY in governance:
-        return _require_false(governance, _INCREMENTAL_FINALITY_KEY)
-    if governance.get(_LEGACY_CANONICAL_FINALITY_KEY) is True:
-        return False
-    raise RuntimeError(
-        "product runtime contract requires explicit non-incremental finality evidence; "
-        f"expected {_INCREMENTAL_FINALITY_KEY}=False or "
-        f"{_LEGACY_CANONICAL_FINALITY_KEY}=True"
-    )
-
-
 def build_product_runtime_contract(
     *,
     transport: str,
@@ -212,8 +189,9 @@ def build_product_runtime_contract(
         governance,
         "ambiguous_write_requires_reconciliation",
     )
-    incremental_observation_is_canonical_finality = (
-        _require_incremental_observation_not_final(governance)
+    incremental_observation_is_canonical_finality = _require_false(
+        governance,
+        _INCREMENTAL_FINALITY_KEY,
     )
     browser_implementation_required_by_caller = _require_false(
         governance,
