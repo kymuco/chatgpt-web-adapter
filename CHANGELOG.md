@@ -8,7 +8,7 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 - runtime-contract: add schema-1 `ProductRuntimeContract` inspection, validate the complete stable runtime operation/interface boundary, and fail closed on missing or contradictory retry, fallback, reconciliation, finality, transport, or product-semantics governance
 - transport: classify built-in `browser-owned` as `PRODUCTION` while unknown/future transports default to `EXPERIMENTAL`; keep transport support tier independent from capability state and derive support/schema metadata rather than accepting caller self-promotion
-- compatibility: preserve the released `ChatGPTProductRuntime` method surface and the minimal `ProductWriteTransport` protocol while exposing new contract/support metadata through the primary Python SDK and capability/health serialization
+- compatibility: preserve the released `ChatGPTProductRuntime`, `ProductRuntimeHealth`, and minimal `ProductWriteTransport` surfaces while exposing new contract/support authority through the primary Python SDK and capability/contract serialization
 
 ## 0.2.0 - 2026-08-22
 
