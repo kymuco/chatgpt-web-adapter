@@ -45,6 +45,8 @@ governance
 
 The separate `product_runtime_contract(runtime)` inspector is intentionally additive. PR9.0 does not require adding another method to the already-released `ChatGPTProductRuntime` class.
 
+The inspector verifies that every schema-1 operation is actually callable before returning a conforming contract. It does not manufacture an operation list for a partial runtime-like object.
+
 ## Stable interface split
 
 ```text
@@ -62,9 +64,9 @@ ChatGPTProductRuntime
 
 Application callers depend on these product-level interfaces. They do not depend on Chrome tab ids, extension workers, Native Messaging implementation details, debugger target ids, Sentinel internals or concrete writer classes.
 
-`ProductWriteTransport` now explicitly permits runtime-mediated keyword extensions on its write methods. This reflects the existing model/Temporary/browser-authority dispatch behavior and gives future transports a clean implementation seam without changing the application-facing runtime API.
+`ProductWriteTransport` remains deliberately minimal so existing transport implementations do not need to accept arbitrary future keyword arguments merely to satisfy the base protocol. Concrete transports may expose additional capability-gated keyword options consumed by `ChatGPTProductRuntime`; those concrete signatures remain implementation details.
 
-Concrete transport keyword arguments remain implementation details; applications should request product intent through `ChatGPTProductRuntime`.
+Applications should request product intent through `ChatGPTProductRuntime`, not by depending on concrete transport keyword names. New product-level intents may extend the runtime and transport implementation together without exposing browser mechanics above this boundary.
 
 ## Capability state and transport support tier are independent
 
@@ -106,7 +108,7 @@ future browserless transport:
 
 `AVAILABLE` answers whether a capability is implemented and evidence-backed on that transport. `EXPERIMENTAL` answers what stability/support promise applies to the transport itself.
 
-Unknown future transport identities default conservatively to `EXPERIMENTAL` until explicitly graduated.
+Transport support tier and runtime-contract schema are derived CWA metadata. Callers and transport implementations cannot self-promote a transport by supplying constructor metadata. Unknown future transport identities default conservatively to `EXPERIMENTAL` until explicitly graduated.
 
 ## Browser-owned v1 production baseline
 
@@ -133,15 +135,21 @@ Images, general files, multimodal continuation, web search, tools/connectors and
 Schema 1 requires the runtime contract to preserve:
 
 ```text
+transport identity agrees across runtime, governance and capabilities
+product semantics = ordinary-chatgpt
+canonical interface = CanonicalConversationClient
+write interface = ProductWriteTransport
 automatic_write_retry = false
-fallback_transport = none
+fallback_transport = explicitly none
 legacy_direct_write_fallback = false
 ambiguous_write_requires_reconciliation = true
-incremental observation != canonical finality
+incremental_observation_is_canonical_finality = false
 runtime caller does not depend on concrete browser implementation
 ```
 
-The contract inspector fails closed when these invariants are violated instead of describing an unsafe runtime as conforming.
+The browser-owned production transport now declares `incremental_observation_is_canonical_finality=False` explicitly. The contract inspector requires that exact evidence; missing or contradictory finality governance fails closed.
+
+The inspector also rejects a missing fallback declaration, interface drift, transport-identity disagreement, support-tier disagreement, and an incomplete stable operation surface instead of filling those gaps with expected values.
 
 Ordinary ChatGPT product semantics remain first-class. A transport must not silently substitute a different API/product surface while claiming equivalence.
 
@@ -171,6 +179,8 @@ Browserless work must not require CMA, HDE or ordinary SDK callers to redesign t
 
 A browserless capability may become `AVAILABLE` while the transport remains `EXPERIMENTAL`. Site-protocol drift is therefore represented honestly rather than hidden inside capability state.
 
+A PR9.1 transport must satisfy the same schema-1 fail-closed invariants rather than inheriting browser-owned production status or browser implementation assumptions.
+
 ## Acceptance gate
 
 PR9.0 is complete when:
@@ -178,8 +188,9 @@ PR9.0 is complete when:
 - schema-1 runtime contract metadata is public and deterministic;
 - browser-owned is explicitly machine-readable as `PRODUCTION`;
 - capability state and transport support tier are orthogonal;
-- the transport protocol is formally suitable for future runtime-mediated implementation extensions;
+- the transport/canonical boundary remains minimal and suitable for alternative implementations;
+- stable operations and interface identities are validated rather than merely reported;
 - existing CWA 0.2 runtime behavior remains compatible;
-- contract violations fail closed;
+- contract violations and missing evidence fail closed;
 - the full regression/release CI remains green;
 - no downstream-specific CMA/HDE orchestration enters the CWA SDK boundary.
