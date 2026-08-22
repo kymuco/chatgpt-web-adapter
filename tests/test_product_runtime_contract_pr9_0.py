@@ -68,10 +68,37 @@ class _Transport:
 
     def governance(self):
         return {
+            "product_semantics": "ordinary-chatgpt",
             "automatic_write_retry": False,
             "canonical_readback_required": True,
             "ambiguous_write_requires_reconciliation": True,
+            "incremental_observation_is_canonical_finality": False,
         }
+
+
+def _capabilities(transport: str = "browser-owned") -> ProductCapabilities:
+    return ProductCapabilities.from_entries(
+        transport=transport,
+        entries=(),
+    )
+
+
+def _conforming_governance(
+    *,
+    transport: str = "browser-owned",
+) -> dict[str, object]:
+    return {
+        "transport": transport,
+        "product_semantics": "ordinary-chatgpt",
+        "canonical_interface": "CanonicalConversationClient",
+        "write_transport_interface": "ProductWriteTransport",
+        "automatic_write_retry": False,
+        "fallback_transport": None,
+        "legacy_direct_write_fallback": False,
+        "ambiguous_write_requires_reconciliation": True,
+        "incremental_observation_is_canonical_finality": False,
+        "runtime_depends_on_concrete_browser_transport": False,
+    }
 
 
 def test_browser_owned_is_frozen_production_transport() -> None:
@@ -183,43 +210,112 @@ def test_runtime_contract_freezes_standalone_sdk_invariants() -> None:
     assert "governance" in payload["operations"]
 
 
-def test_contract_fails_closed_if_transport_governance_violates_no_retry() -> None:
-    capabilities = ProductCapabilities.from_entries(
+def test_contract_accepts_existing_browser_owned_canonical_finality_evidence() -> None:
+    governance = _conforming_governance()
+    governance.pop("incremental_observation_is_canonical_finality")
+    governance["streaming_canonical_finality_authoritative"] = True
+
+    contract = build_product_runtime_contract(
         transport="browser-owned",
-        entries=(),
+        capabilities=_capabilities(),
+        governance=governance,
     )
-    governance = {
-        "automatic_write_retry": True,
-        "fallback_transport": None,
-        "legacy_direct_write_fallback": False,
-        "ambiguous_write_requires_reconciliation": True,
-        "runtime_depends_on_concrete_browser_transport": False,
-    }
+
+    assert contract.incremental_observation_is_canonical_finality is False
+
+
+def test_contract_fails_closed_if_incremental_observation_claims_finality() -> None:
+    governance = _conforming_governance()
+    governance["incremental_observation_is_canonical_finality"] = True
+    governance["streaming_canonical_finality_authoritative"] = True
+
+    with pytest.raises(
+        RuntimeError,
+        match="incremental_observation_is_canonical_finality=False",
+    ):
+        build_product_runtime_contract(
+            transport="browser-owned",
+            capabilities=_capabilities(),
+            governance=governance,
+        )
+
+
+def test_contract_fails_closed_if_incremental_finality_evidence_is_missing() -> None:
+    governance = _conforming_governance()
+    governance.pop("incremental_observation_is_canonical_finality")
+
+    with pytest.raises(RuntimeError, match="non-incremental finality evidence"):
+        build_product_runtime_contract(
+            transport="browser-owned",
+            capabilities=_capabilities(),
+            governance=governance,
+        )
+
+
+def test_contract_fails_closed_if_transport_governance_violates_no_retry() -> None:
+    governance = _conforming_governance()
+    governance["automatic_write_retry"] = True
 
     with pytest.raises(RuntimeError, match="automatic_write_retry=False"):
         build_product_runtime_contract(
             transport="browser-owned",
-            capabilities=capabilities,
+            capabilities=_capabilities(),
             governance=governance,
         )
 
 
 def test_contract_fails_closed_if_hidden_fallback_is_present() -> None:
-    capabilities = ProductCapabilities.from_entries(
-        transport="browser-owned",
-        entries=(),
-    )
-    governance = {
-        "automatic_write_retry": False,
-        "fallback_transport": "legacy",
-        "legacy_direct_write_fallback": False,
-        "ambiguous_write_requires_reconciliation": True,
-        "runtime_depends_on_concrete_browser_transport": False,
-    }
+    governance = _conforming_governance()
+    governance["fallback_transport"] = "legacy"
 
     with pytest.raises(RuntimeError, match="fallback_transport=None"):
         build_product_runtime_contract(
             transport="browser-owned",
-            capabilities=capabilities,
+            capabilities=_capabilities(),
             governance=governance,
         )
+
+
+def test_contract_fails_closed_if_fallback_declaration_is_missing() -> None:
+    governance = _conforming_governance()
+    governance.pop("fallback_transport")
+
+    with pytest.raises(RuntimeError, match="explicit fallback_transport=None"):
+        build_product_runtime_contract(
+            transport="browser-owned",
+            capabilities=_capabilities(),
+            governance=governance,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("canonical_interface", "ConcreteCanonicalClient"),
+        ("write_transport_interface", "ConcreteBrowserWriter"),
+    ),
+)
+def test_contract_fails_closed_if_interface_boundary_drifts(
+    field: str,
+    value: str,
+) -> None:
+    governance = _conforming_governance()
+    governance[field] = value
+
+    with pytest.raises(RuntimeError, match=field):
+        build_product_runtime_contract(
+            transport="browser-owned",
+            capabilities=_capabilities(),
+            governance=governance,
+        )
+
+
+def test_runtime_inspector_requires_every_frozen_operation() -> None:
+    runtime = SimpleNamespace(
+        transport="browser-owned",
+        capabilities=lambda: _capabilities(),
+        governance=lambda: _conforming_governance(),
+    )
+
+    with pytest.raises(RuntimeError, match="operation surface"):
+        adapter.product_runtime_contract(runtime)
