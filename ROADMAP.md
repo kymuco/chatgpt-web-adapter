@@ -289,12 +289,19 @@ Historical compatibility/media paths may provide evidence and implementation mat
 
 Browser-owned production support and browserless experimental support are evaluated independently.
 
+Capability state and transport support tier are separate axes. Do not invent composite capability states to encode both.
+
 Example:
 
 ```text
 images:
-  browser-owned = AVAILABLE
-  browserless    = UNKNOWN / EXPERIMENTAL / AVAILABLE-experimental
+  browser-owned:
+    capability = AVAILABLE
+    support     = PRODUCTION
+
+  browserless:
+    capability = UNKNOWN or AVAILABLE
+    support     = EXPERIMENTAL
 ```
 
 Do not flatten transport-specific evidence into one false global claim.
