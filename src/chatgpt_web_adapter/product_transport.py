@@ -108,13 +108,12 @@ class CanonicalSessionClient(Protocol):
 
 @runtime_checkable
 class ProductWriteTransport(Protocol):
-    """Replaceable ordinary-product write contract below ChatGPTProductRuntime.
+    """Minimal replaceable ordinary-product write contract.
 
-    Runtime-mediated keyword options are deliberately allowed so new transports
-    can implement product features such as conversation mode or model intent
-    without changing the application-facing ChatGPTProductRuntime API. Callers
-    should invoke those options through ChatGPTProductRuntime rather than relying
-    on concrete transport keyword names.
+    The base protocol intentionally stays narrow for compatibility. Concrete
+    transports may expose additional capability-gated keyword options consumed by
+    ChatGPTProductRuntime, but callers should request those product intents through
+    the runtime rather than depending on transport-specific signatures.
     """
 
     @property
@@ -136,7 +135,6 @@ class ProductWriteTransport(Protocol):
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
-        **kwargs: Any,
     ) -> ChatResponse: ...
 
     def send_text_observed(
@@ -148,7 +146,6 @@ class ProductWriteTransport(Protocol):
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
-        **kwargs: Any,
     ) -> ProductRuntimeExecution: ...
 
     def governance(self) -> dict[str, Any]: ...
