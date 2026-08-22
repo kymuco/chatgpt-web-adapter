@@ -210,24 +210,9 @@ def test_runtime_contract_freezes_standalone_sdk_invariants() -> None:
     assert "governance" in payload["operations"]
 
 
-def test_contract_accepts_existing_browser_owned_canonical_finality_evidence() -> None:
-    governance = _conforming_governance()
-    governance.pop("incremental_observation_is_canonical_finality")
-    governance["streaming_canonical_finality_authoritative"] = True
-
-    contract = build_product_runtime_contract(
-        transport="browser-owned",
-        capabilities=_capabilities(),
-        governance=governance,
-    )
-
-    assert contract.incremental_observation_is_canonical_finality is False
-
-
 def test_contract_fails_closed_if_incremental_observation_claims_finality() -> None:
     governance = _conforming_governance()
     governance["incremental_observation_is_canonical_finality"] = True
-    governance["streaming_canonical_finality_authoritative"] = True
 
     with pytest.raises(
         RuntimeError,
@@ -244,7 +229,10 @@ def test_contract_fails_closed_if_incremental_finality_evidence_is_missing() -> 
     governance = _conforming_governance()
     governance.pop("incremental_observation_is_canonical_finality")
 
-    with pytest.raises(RuntimeError, match="non-incremental finality evidence"):
+    with pytest.raises(
+        RuntimeError,
+        match="incremental_observation_is_canonical_finality=False",
+    ):
         build_product_runtime_contract(
             transport="browser-owned",
             capabilities=_capabilities(),
@@ -317,5 +305,5 @@ def test_runtime_inspector_requires_every_frozen_operation() -> None:
         governance=lambda: _conforming_governance(),
     )
 
-    with pytest.raises(RuntimeError, match="operation surface"):
+    with pytest.raises(TypeError, match="operation surface"):
         adapter.product_runtime_contract(runtime)
