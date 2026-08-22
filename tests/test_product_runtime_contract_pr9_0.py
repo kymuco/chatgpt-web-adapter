@@ -151,6 +151,8 @@ def test_contract_metadata_is_derived_not_caller_self_declared() -> None:
             transport_support_tier="EXPERIMENTAL",
         )
 
+    # Health stays on the released 0.2 constructor/schema rather than becoming
+    # another authority source for contract/support metadata.
     with pytest.raises(TypeError, match="runtime_contract_schema"):
         ProductRuntimeHealth(
             transport="browser-owned",
@@ -166,12 +168,12 @@ def test_contract_metadata_is_derived_not_caller_self_declared() -> None:
         )
 
 
-def test_runtime_health_serializes_contract_schema_and_support_tier() -> None:
+def test_runtime_health_serialization_remains_frozen_to_0_2_shape() -> None:
     payload = _Transport().health("conversation-1").to_dict()
 
-    assert payload["runtime_contract_schema"] == 1
     assert payload["transport"] == "browser-owned"
-    assert payload["transport_support_tier"] == "PRODUCTION"
+    assert "runtime_contract_schema" not in payload
+    assert "transport_support_tier" not in payload
 
 
 def test_runtime_contract_freezes_standalone_sdk_invariants() -> None:
