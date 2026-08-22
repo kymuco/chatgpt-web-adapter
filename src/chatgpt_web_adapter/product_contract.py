@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .product_capabilities import (
@@ -37,12 +37,16 @@ _INCREMENTAL_FINALITY_KEY = "incremental_observation_is_canonical_finality"
 
 @dataclass(frozen=True)
 class ProductRuntimeContract:
-    """Versioned standalone SDK contract above concrete product transports."""
+    """Versioned standalone SDK contract above concrete product transports.
 
-    schema: int
+    Schema and transport support tier are authority metadata owned by CWA. They
+    are derived from the frozen schema registry and transport identity rather
+    than accepted from callers. Direct construction therefore cannot self-promote
+    an unknown transport or publish an arbitrary schema value.
+    """
+
     product_semantics: str
     transport: str
-    transport_support_tier: ProductTransportSupportTier
     canonical_interface: str
     write_transport_interface: str
     operations: tuple[str, ...]
@@ -52,6 +56,69 @@ class ProductRuntimeContract:
     ambiguous_write_requires_reconciliation: bool
     incremental_observation_is_canonical_finality: bool
     browser_implementation_required_by_caller: bool
+    schema: int = field(
+        init=False,
+        default=PRODUCT_RUNTIME_CONTRACT_SCHEMA,
+    )
+    transport_support_tier: ProductTransportSupportTier = field(
+        init=False,
+        default=ProductTransportSupportTier.EXPERIMENTAL,
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.transport, str) or not self.transport.strip():
+            raise ValueError("runtime contract transport identity is required")
+        normalized_transport = self.transport.strip().lower()
+        object.__setattr__(self, "transport", normalized_transport)
+        object.__setattr__(
+            self,
+            "transport_support_tier",
+            product_transport_support_tier(normalized_transport),
+        )
+
+        if self.product_semantics != ORDINARY_CHATGPT_PRODUCT_SEMANTICS:
+            raise RuntimeError(
+                "ProductRuntimeContract requires ordinary ChatGPT product semantics"
+            )
+        if self.canonical_interface != _CANONICAL_INTERFACE:
+            raise RuntimeError(
+                "ProductRuntimeContract requires canonical_interface="
+                f"{_CANONICAL_INTERFACE!r}; observed {self.canonical_interface!r}"
+            )
+        if self.write_transport_interface != _WRITE_TRANSPORT_INTERFACE:
+            raise RuntimeError(
+                "ProductRuntimeContract requires write_transport_interface="
+                f"{_WRITE_TRANSPORT_INTERFACE!r}; observed {self.write_transport_interface!r}"
+            )
+        if self.operations != STABLE_PRODUCT_RUNTIME_OPERATIONS:
+            raise RuntimeError(
+                "ProductRuntimeContract requires the complete frozen schema-1 operation surface"
+            )
+        expected_states = tuple(state.value for state in CapabilityState)
+        if self.capability_states != expected_states:
+            raise RuntimeError(
+                "ProductRuntimeContract requires the frozen capability-state set"
+            )
+        if self.automatic_write_retry is not False:
+            raise RuntimeError(
+                "ProductRuntimeContract requires automatic_write_retry=False"
+            )
+        if self.fallback_transport is not None:
+            raise RuntimeError("ProductRuntimeContract requires fallback_transport=None")
+        if self.ambiguous_write_requires_reconciliation is not True:
+            raise RuntimeError(
+                "ProductRuntimeContract requires ambiguous_write_requires_reconciliation=True"
+            )
+        if self.incremental_observation_is_canonical_finality is not False:
+            raise RuntimeError(
+                "ProductRuntimeContract requires "
+                "incremental_observation_is_canonical_finality=False"
+            )
+        if self.browser_implementation_required_by_caller is not False:
+            raise RuntimeError(
+                "ProductRuntimeContract requires "
+                "browser_implementation_required_by_caller=False"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -124,6 +191,55 @@ def _require_value(
             f"product runtime contract requires {name}={expected!r}; observed {value!r}"
         )
     return value
+
+
+def _validate_raw_write_transport_governance(
+    runtime: Any,
+    *,
+    normalized_transport: str,
+) -> None:
+    """Reject transport-level fallback declarations before runtime normalization.
+
+    ChatGPTProductRuntime.governance() intentionally adds high-level no-fallback
+    defaults. An injected transport can still expose its own contradictory
+    governance, so schema-1 certification must inspect that raw declaration before
+    the runtime view can mask it.
+    """
+
+    write_transport = getattr(runtime, "write_transport", None)
+    transport_id = getattr(write_transport, "transport_id", None)
+    if not isinstance(transport_id, str) or not transport_id.strip():
+        raise TypeError(
+            "runtime must expose an inspectable write_transport with transport_id"
+        )
+    if transport_id.strip().lower() != normalized_transport:
+        raise RuntimeError(
+            "runtime contract write-transport identity mismatch: "
+            f"{transport_id!r} != {normalized_transport!r}"
+        )
+
+    raw_governance = getattr(write_transport, "governance", None)
+    if not callable(raw_governance):
+        raise TypeError(
+            "runtime write_transport must expose callable governance() for schema-1 validation"
+        )
+    raw_payload = raw_governance()
+    if not isinstance(raw_payload, Mapping):
+        raise TypeError("runtime write_transport governance() must return a mapping")
+
+    if "fallback_transport" in raw_payload and raw_payload["fallback_transport"] is not None:
+        raise RuntimeError(
+            "product runtime contract rejects raw write-transport fallback_transport="
+            f"{raw_payload['fallback_transport']!r}"
+        )
+    if (
+        "legacy_direct_write_fallback" in raw_payload
+        and raw_payload["legacy_direct_write_fallback"] is not False
+    ):
+        raise RuntimeError(
+            "product runtime contract rejects raw write-transport "
+            "legacy_direct_write_fallback; expected False"
+        )
 
 
 def build_product_runtime_contract(
@@ -199,10 +315,8 @@ def build_product_runtime_contract(
     )
 
     return ProductRuntimeContract(
-        schema=PRODUCT_RUNTIME_CONTRACT_SCHEMA,
         product_semantics=capabilities.product_semantics,
         transport=normalized_transport,
-        transport_support_tier=expected_support_tier,
         canonical_interface=canonical_interface,
         write_transport_interface=write_transport_interface,
         operations=STABLE_PRODUCT_RUNTIME_OPERATIONS,
@@ -249,12 +363,18 @@ def product_runtime_contract(runtime: Any) -> ProductRuntimeContract:
             f"{missing}"
         )
 
+    normalized_transport = transport.strip().lower()
+    _validate_raw_write_transport_governance(
+        runtime,
+        normalized_transport=normalized_transport,
+    )
+
     governance_payload = governance()
     if not isinstance(governance_payload, Mapping):
         raise TypeError("runtime governance() must return a mapping")
 
     return build_product_runtime_contract(
-        transport=transport,
+        transport=normalized_transport,
         capabilities=capabilities(),
         governance=governance_payload,
     )
