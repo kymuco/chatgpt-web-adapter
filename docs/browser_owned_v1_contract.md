@@ -110,6 +110,8 @@ future browserless transport:
 
 Transport support tier and runtime-contract schema are derived CWA metadata. Callers and transport implementations cannot self-promote a transport by supplying constructor metadata. Unknown future transport identities default conservatively to `EXPERIMENTAL` until explicitly graduated.
 
+The authority-bearing schema/tier metadata is exposed through `ProductCapabilities` and `ProductRuntimeContract`, where transport identity is cross-validated. `ProductRuntimeHealth` remains the released 0.2 observational readiness payload and is intentionally not extended with support-tier or contract-schema authority. This avoids turning a transport-supplied health observation into a second, potentially contradictory support classification.
+
 ## Browser-owned v1 production baseline
 
 The built-in `browser-owned` transport is the PR9.0 production baseline.
@@ -190,7 +192,7 @@ PR9.0 is complete when:
 - capability state and transport support tier are orthogonal;
 - the transport/canonical boundary remains minimal and suitable for alternative implementations;
 - stable operations and interface identities are validated rather than merely reported;
-- existing CWA 0.2 runtime behavior remains compatible;
+- existing CWA 0.2 runtime and health serialization remain compatible;
 - contract violations and missing evidence fail closed;
 - the full regression/release CI remains green;
 - no downstream-specific CMA/HDE orchestration enters the CWA SDK boundary.
