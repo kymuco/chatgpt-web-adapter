@@ -198,12 +198,12 @@ def _validate_raw_write_transport_governance(
     *,
     normalized_transport: str,
 ) -> None:
-    """Reject transport-level fallback declarations before runtime normalization.
+    """Require explicit transport-level no-fallback evidence before normalization.
 
     ChatGPTProductRuntime.governance() intentionally adds high-level no-fallback
-    defaults. An injected transport can still expose its own contradictory
-    governance, so schema-1 certification must inspect that raw declaration before
-    the runtime view can mask it.
+    defaults. An injected transport can still expose contradictory or incomplete
+    governance, so schema-1 certification must inspect the raw declaration before
+    the runtime view can mask it. Missing declarations fail closed as well.
     """
 
     write_transport = getattr(runtime, "write_transport", None)
@@ -227,19 +227,8 @@ def _validate_raw_write_transport_governance(
     if not isinstance(raw_payload, Mapping):
         raise TypeError("runtime write_transport governance() must return a mapping")
 
-    if "fallback_transport" in raw_payload and raw_payload["fallback_transport"] is not None:
-        raise RuntimeError(
-            "product runtime contract rejects raw write-transport fallback_transport="
-            f"{raw_payload['fallback_transport']!r}"
-        )
-    if (
-        "legacy_direct_write_fallback" in raw_payload
-        and raw_payload["legacy_direct_write_fallback"] is not False
-    ):
-        raise RuntimeError(
-            "product runtime contract rejects raw write-transport "
-            "legacy_direct_write_fallback; expected False"
-        )
+    _require_none(raw_payload, "fallback_transport")
+    _require_false(raw_payload, "legacy_direct_write_fallback")
 
 
 def build_product_runtime_contract(
