@@ -22,23 +22,6 @@ _BUILTIN_PRODUCT_TRANSPORT_SUPPORT_TIERS: dict[str, ProductTransportSupportTier]
 }
 
 
-def normalize_product_transport_support_tier(
-    value: ProductTransportSupportTier | str,
-) -> ProductTransportSupportTier:
-    if isinstance(value, ProductTransportSupportTier):
-        return value
-    if not isinstance(value, str):
-        raise TypeError("transport support tier must be a string or ProductTransportSupportTier")
-    normalized = value.strip().upper()
-    try:
-        return ProductTransportSupportTier(normalized)
-    except ValueError as error:
-        supported = ", ".join(tier.value for tier in ProductTransportSupportTier)
-        raise ValueError(
-            f"unsupported transport support tier {value!r}; expected one of: {supported}"
-        ) from error
-
-
 def product_transport_support_tier(transport: Any) -> ProductTransportSupportTier:
     """Return the frozen support tier for a transport identity.
 
