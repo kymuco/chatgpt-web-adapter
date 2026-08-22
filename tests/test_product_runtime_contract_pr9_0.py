@@ -70,6 +70,8 @@ class _Transport:
         return {
             "product_semantics": "ordinary-chatgpt",
             "automatic_write_retry": False,
+            "fallback_transport": None,
+            "legacy_direct_write_fallback": False,
             "canonical_readback_required": True,
             "ambiguous_write_requires_reconciliation": True,
             "incremental_observation_is_canonical_finality": False,
