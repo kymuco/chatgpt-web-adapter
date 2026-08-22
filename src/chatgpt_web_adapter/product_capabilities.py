@@ -4,6 +4,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterable
 
+from .product_support import (
+    PRODUCT_RUNTIME_CONTRACT_SCHEMA,
+    ProductTransportSupportTier,
+    normalize_product_transport_support_tier,
+    product_transport_support_tier,
+)
+
 ORDINARY_CHATGPT_PRODUCT_SEMANTICS = "ordinary-chatgpt"
 
 TEXT_TURNS = "text_turns"
@@ -118,6 +125,8 @@ class ProductCapabilities:
     transport: str
     product_semantics: str
     entries: tuple[ProductCapability, ...]
+    runtime_contract_schema: int = PRODUCT_RUNTIME_CONTRACT_SCHEMA
+    transport_support_tier: ProductTransportSupportTier | str | None = None
 
     def __post_init__(self) -> None:
         transport = _required_name(self.transport).lower()
@@ -130,9 +139,24 @@ class ProductCapabilities:
             if entry.name in seen:
                 raise ValueError(f"duplicate capability declaration: {entry.name}")
             seen.add(entry.name)
+
+        schema = int(self.runtime_contract_schema)
+        if schema != PRODUCT_RUNTIME_CONTRACT_SCHEMA:
+            raise ValueError(
+                "unsupported product runtime contract schema "
+                f"{schema}; expected {PRODUCT_RUNTIME_CONTRACT_SCHEMA}"
+            )
+        support_tier = (
+            product_transport_support_tier(transport)
+            if self.transport_support_tier is None
+            else normalize_product_transport_support_tier(self.transport_support_tier)
+        )
+
         object.__setattr__(self, "transport", transport)
         object.__setattr__(self, "product_semantics", semantics)
         object.__setattr__(self, "entries", entries)
+        object.__setattr__(self, "runtime_contract_schema", schema)
+        object.__setattr__(self, "transport_support_tier", support_tier)
 
     @classmethod
     def from_entries(
@@ -141,11 +165,13 @@ class ProductCapabilities:
         transport: str,
         entries: Iterable[ProductCapability],
         product_semantics: str = ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+        transport_support_tier: ProductTransportSupportTier | str | None = None,
     ) -> "ProductCapabilities":
         return cls(
             transport=transport,
             product_semantics=product_semantics,
             entries=tuple(entries),
+            transport_support_tier=transport_support_tier,
         )
 
     def get(self, name: str) -> ProductCapability | None:
@@ -162,8 +188,12 @@ class ProductCapabilities:
         return entry.state
 
     def to_dict(self) -> dict[str, Any]:
+        support_tier = self.transport_support_tier
+        assert isinstance(support_tier, ProductTransportSupportTier)
         return {
+            "runtime_contract_schema": self.runtime_contract_schema,
             "transport": self.transport,
+            "transport_support_tier": support_tier.value,
             "product_semantics": self.product_semantics,
             "capabilities": {
                 entry.name: entry.to_dict()
