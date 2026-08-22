@@ -115,6 +115,30 @@ def test_capability_state_and_transport_support_tier_are_orthogonal() -> None:
     assert experimental["capabilities"]["text_turns"]["state"] == "AVAILABLE"
 
 
+def test_contract_metadata_is_derived_not_caller_self_declared() -> None:
+    with pytest.raises(TypeError, match="transport_support_tier"):
+        ProductCapabilities(
+            transport="browser-owned",
+            product_semantics="ordinary-chatgpt",
+            entries=(),
+            transport_support_tier="EXPERIMENTAL",
+        )
+
+    with pytest.raises(TypeError, match="runtime_contract_schema"):
+        ProductRuntimeHealth(
+            transport="browser-owned",
+            ready=True,
+            reason="READY",
+            conversation_id=None,
+            canonical_status=None,
+            canonical_read_checked=False,
+            read_plane="CANONICAL",
+            session_plane="CANONICAL_SESSION",
+            write_plane="BROWSER_OWNED",
+            runtime_contract_schema=999,
+        )
+
+
 def test_runtime_health_serializes_contract_schema_and_support_tier() -> None:
     payload = _Transport().health("conversation-1").to_dict()
 
