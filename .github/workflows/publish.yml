@@ -14,18 +14,18 @@ concurrency:
 
 jobs:
   publish:
-    name: Build and publish package
+    name: Build, verify and publish package
     runs-on: ubuntu-latest
     environment: pypi
 
     steps:
-      - name: Checkout repository
+      - name: Checkout tagged release
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.x"
+          python-version: "3.13"
 
       - name: Install build tools
         run: python -m pip install --upgrade build twine
@@ -35,6 +35,18 @@ jobs:
 
       - name: Check distributions
         run: python -m twine check dist/*
+
+      - name: Verify tagged release contract
+        run: >-
+          python tools/release_gate.py
+          --dist-dir dist
+          --tag "${{ github.event.release.tag_name }}"
+
+      - name: Install and smoke-test exact wheel
+        run: >-
+          python tools/installed_wheel_smoke.py
+          --wheel-dir dist
+          --expected-version "${{ github.event.release.tag_name }}"
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
