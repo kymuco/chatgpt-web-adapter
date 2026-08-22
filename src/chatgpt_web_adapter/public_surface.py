@@ -17,6 +17,11 @@ PRIMARY_PRODUCT_RUNTIME_EXPORTS: tuple[str, ...] = (
     "BROWSER_OWNED_PRODUCT_TRANSPORT",
     "DEFAULT_PRODUCT_TRANSPORT",
     "SUPPORTED_PRODUCT_TRANSPORTS",
+    "PRODUCT_RUNTIME_CONTRACT_SCHEMA",
+    "ProductTransportSupportTier",
+    "product_transport_support_tier",
+    "ProductRuntimeContract",
+    "product_runtime_contract",
     "ORDINARY_CHATGPT_PRODUCT_SEMANTICS",
     "PRODUCT_CAPABILITY_NAMES",
     "CapabilityState",
@@ -132,7 +137,7 @@ PUBLIC_SURFACE_CLASSIFICATION: Mapping[str, PublicSurfaceTier] = MappingProxyTyp
 
 
 def public_surface_tier(symbol: str) -> PublicSurfaceTier | None:
-    """Return the PR8.6 support tier for a root-package symbol, if classified."""
+    """Return the support tier for a classified root-package symbol."""
 
     if not isinstance(symbol, str):
         raise TypeError("symbol must be a string")
