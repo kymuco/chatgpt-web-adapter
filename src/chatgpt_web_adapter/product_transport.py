@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
 from .product_capabilities import ProductCapabilities
 from .product_provenance import ProductExecutionProvenance
-from .product_support import (
-    PRODUCT_RUNTIME_CONTRACT_SCHEMA,
-    ProductTransportSupportTier,
-    product_transport_support_tier,
-)
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
 
 BROWSER_OWNED_PRODUCT_TRANSPORT = "browser-owned"
@@ -35,7 +30,7 @@ def normalize_product_transport(value: str) -> str:
 
 @dataclass(frozen=True)
 class ProductRuntimeHealth:
-    """Implementation-independent runtime readiness plus transport metadata."""
+    """Implementation-independent runtime readiness plus optional transport metadata."""
 
     transport: str
     ready: bool
@@ -54,30 +49,9 @@ class ProductRuntimeHealth:
     extension_connected: bool | None = None
     runtime_tab_id: int | None = None
     runtime_tab_preexisting: bool | None = None
-    runtime_contract_schema: int = field(
-        init=False,
-        default=PRODUCT_RUNTIME_CONTRACT_SCHEMA,
-    )
-    transport_support_tier: ProductTransportSupportTier = field(
-        init=False,
-        default=ProductTransportSupportTier.EXPERIMENTAL,
-    )
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.transport, str) or not self.transport.strip():
-            raise ValueError("runtime health transport identity is required")
-        transport = self.transport.strip().lower()
-        object.__setattr__(self, "transport", transport)
-        object.__setattr__(
-            self,
-            "transport_support_tier",
-            product_transport_support_tier(transport),
-        )
 
     def to_dict(self) -> dict[str, Any]:
-        payload = asdict(self)
-        payload["transport_support_tier"] = self.transport_support_tier.value
-        return payload
+        return asdict(self)
 
 
 @dataclass(frozen=True)
