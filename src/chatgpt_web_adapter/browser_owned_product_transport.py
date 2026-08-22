@@ -431,6 +431,8 @@ class BrowserOwnedProductTransport:
         governance.update(
             {
                 "product_semantics": ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+                "fallback_transport": None,
+                "legacy_direct_write_fallback": False,
                 "browser_authority_product_runtime_policy_supported": True,
                 "browser_authority_runtime_default_configurable": True,
                 "browser_authority_per_turn_override_configurable": True,
@@ -475,6 +477,7 @@ class BrowserOwnedProductTransport:
                 "streaming_delivery": "REVISION_SAFE_EVENT_STREAM",
                 "streaming_canonical_finality": "BROWSERLESS_CANONICAL_HTTP",
                 "streaming_canonical_finality_authoritative": True,
+                "incremental_observation_is_canonical_finality": False,
                 "streaming_reconciliation_states": [
                     "EXACT_MATCH",
                     "CANONICAL_EXTENDS_STREAM",

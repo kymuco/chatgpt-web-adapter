@@ -40,6 +40,7 @@ from .product_capabilities import (
     ProductCapabilities,
     ProductCapability,
 )
+from .product_contract import ProductRuntimeContract, product_runtime_contract
 from .product_provenance import (
     CompletionSource,
     ProductCompletionProvenance,
@@ -54,6 +55,11 @@ from .product_runtime import (
     ProductRuntimeExecution,
     ProductRuntimeHealth,
     assemble_product_runtime,
+)
+from .product_support import (
+    PRODUCT_RUNTIME_CONTRACT_SCHEMA,
+    ProductTransportSupportTier,
+    product_transport_support_tier,
 )
 from .product_transport import CanonicalConversationClient, ProductWriteTransport
 from .public_surface import (
@@ -197,8 +203,7 @@ ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pen
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
 WebChatClient = ChatGPTWebClient
 
-# PR8.6 keeps the historical core prefix for import-order compatibility while
-# reclassifying it as shared/compatibility surface. The forward-looking primary
+# The historical core prefix remains import-compatible. The forward-looking
 # production API is PRODUCT_RUNTIME_EXPORTS below.
 CORE_PUBLIC_API = [
     "ChatGPTWebClient",
@@ -279,7 +284,7 @@ EXPERIMENTAL_PREPARE_EXPORTS = [
     "prepare_text_turn",
 ]
 
-# Kept import-compatible, but PR8.6 classifies these as research/diagnostic.
+# Kept import-compatible, but classified as research/diagnostic.
 EXPERIMENTAL_SENTINEL_EXPORTS = [
     "FinalizedSentinelBundle",
     "OBSERVED_FINALIZE_REQUEST_KEYS",

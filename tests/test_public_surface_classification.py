@@ -3,7 +3,6 @@ from __future__ import annotations
 import chatgpt_web_adapter as adapter
 
 
-
 def test_every_root_public_export_has_exactly_one_surface_tier() -> None:
     classified = adapter.PUBLIC_SURFACE_CLASSIFICATION
 
@@ -26,6 +25,11 @@ def test_primary_product_runtime_is_forward_looking_surface() -> None:
         "CanonicalConversationClient",
         "ProductCapabilities",
         "ProductExecutionProvenance",
+        "PRODUCT_RUNTIME_CONTRACT_SCHEMA",
+        "ProductTransportSupportTier",
+        "ProductRuntimeContract",
+        "product_runtime_contract",
+        "product_transport_support_tier",
     ):
         assert adapter.public_surface_tier(symbol) is primary
 

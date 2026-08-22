@@ -1,8 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Iterable
+
+from .product_support import (
+    PRODUCT_RUNTIME_CONTRACT_SCHEMA,
+    ProductTransportSupportTier,
+    product_transport_support_tier,
+)
 
 ORDINARY_CHATGPT_PRODUCT_SEMANTICS = "ordinary-chatgpt"
 
@@ -118,6 +124,14 @@ class ProductCapabilities:
     transport: str
     product_semantics: str
     entries: tuple[ProductCapability, ...]
+    runtime_contract_schema: int = field(
+        init=False,
+        default=PRODUCT_RUNTIME_CONTRACT_SCHEMA,
+    )
+    transport_support_tier: ProductTransportSupportTier = field(
+        init=False,
+        default=ProductTransportSupportTier.EXPERIMENTAL,
+    )
 
     def __post_init__(self) -> None:
         transport = _required_name(self.transport).lower()
@@ -130,9 +144,15 @@ class ProductCapabilities:
             if entry.name in seen:
                 raise ValueError(f"duplicate capability declaration: {entry.name}")
             seen.add(entry.name)
+
         object.__setattr__(self, "transport", transport)
         object.__setattr__(self, "product_semantics", semantics)
         object.__setattr__(self, "entries", entries)
+        object.__setattr__(
+            self,
+            "transport_support_tier",
+            product_transport_support_tier(transport),
+        )
 
     @classmethod
     def from_entries(
@@ -163,7 +183,9 @@ class ProductCapabilities:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "runtime_contract_schema": self.runtime_contract_schema,
             "transport": self.transport,
+            "transport_support_tier": self.transport_support_tier.value,
             "product_semantics": self.product_semantics,
             "capabilities": {
                 entry.name: entry.to_dict()

@@ -43,7 +43,7 @@ class ProductRuntimeHealth:
     write_plane: str
     automatic_write_retry: bool = False
     fallback_transport: str | None = None
-    # PR8.3 compatibility metadata. Future non-browser transports are not
+    # Browser-owned compatibility metadata. Future non-browser transports are not
     # required to synthesize these fields.
     bridge_available: bool | None = None
     extension_connected: bool | None = None
@@ -75,19 +75,20 @@ class CanonicalConversationClient(Protocol):
 
 @runtime_checkable
 class CanonicalSessionClient(Protocol):
-    """Optional canonical session/auth lifecycle surface.
-
-    Product-runtime orchestration does not require explicit refresh yet. The
-    existing canonical client may implement this while browserless automatic
-    session renewal remains assembly/client-owned.
-    """
+    """Optional canonical session/auth lifecycle surface."""
 
     def refresh_auth(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 @runtime_checkable
 class ProductWriteTransport(Protocol):
-    """Implementation-independent ordinary-product write contract."""
+    """Minimal replaceable ordinary-product write contract.
+
+    The base protocol intentionally stays narrow for compatibility. Concrete
+    transports may expose additional capability-gated keyword options consumed by
+    ChatGPTProductRuntime, but callers should request those product intents through
+    the runtime rather than depending on transport-specific signatures.
+    """
 
     @property
     def transport_id(self) -> str: ...

@@ -6,6 +6,10 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- runtime-contract: add schema-1 `ProductRuntimeContract` inspection, validate the complete stable runtime operation/interface boundary, and fail closed on missing or contradictory retry, fallback, reconciliation, finality, transport, or product-semantics governance
+- transport: classify built-in `browser-owned` as `PRODUCTION` while unknown/future transports default to `EXPERIMENTAL`; keep transport support tier independent from capability state and derive support/schema metadata rather than accepting caller self-promotion
+- compatibility: preserve the released `ChatGPTProductRuntime`, `ProductRuntimeHealth`, and minimal `ProductWriteTransport` surfaces while exposing new contract/support authority through the primary Python SDK and capability/contract serialization
+
 ## 0.2.0 - 2026-08-22
 
 - runtime: graduate `ChatGPTProductRuntime` as the primary forward-looking text-turn boundary with browser-owned product writes, canonical browserless read/status/final readback where available, explicit completion provenance, no automatic ambiguous-write retry, and no hidden compatibility fallback
