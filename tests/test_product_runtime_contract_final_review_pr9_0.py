@@ -106,6 +106,7 @@ def _direct_contract_kwargs(*, transport: str = "future-browserless") -> dict:
         "capability_states": tuple(state.value for state in CapabilityState),
         "automatic_write_retry": False,
         "fallback_transport": None,
+        "legacy_direct_write_fallback": False,
         "ambiguous_write_requires_reconciliation": True,
         "incremental_observation_is_canonical_finality": False,
         "browser_implementation_required_by_caller": False,
@@ -167,6 +168,7 @@ def test_direct_contract_construction_derives_schema_and_support_tier() -> None:
     assert contract.schema == adapter.PRODUCT_RUNTIME_CONTRACT_SCHEMA == 1
     assert contract.transport == "future-browserless"
     assert contract.transport_support_tier is ProductTransportSupportTier.EXPERIMENTAL
+    assert contract.legacy_direct_write_fallback is False
 
 
 def test_direct_contract_cannot_self_supply_schema_or_support_tier() -> None:
@@ -180,6 +182,22 @@ def test_direct_contract_cannot_self_supply_schema_or_support_tier() -> None:
             **kwargs,
             transport_support_tier=ProductTransportSupportTier.PRODUCTION,
         )
+
+
+def test_direct_contract_requires_legacy_fallback_invariant() -> None:
+    kwargs = _direct_contract_kwargs()
+    kwargs.pop("legacy_direct_write_fallback")
+
+    with pytest.raises(TypeError, match="legacy_direct_write_fallback"):
+        ProductRuntimeContract(**kwargs)
+
+
+def test_direct_contract_rejects_legacy_fallback() -> None:
+    kwargs = _direct_contract_kwargs(transport="browser-owned")
+    kwargs["legacy_direct_write_fallback"] = True
+
+    with pytest.raises(RuntimeError, match="legacy_direct_write_fallback=False"):
+        ProductRuntimeContract(**kwargs)
 
 
 def test_direct_contract_constructor_rejects_unsafe_invariants() -> None:

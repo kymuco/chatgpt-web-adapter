@@ -53,6 +53,7 @@ class ProductRuntimeContract:
     capability_states: tuple[str, ...]
     automatic_write_retry: bool
     fallback_transport: str | None
+    legacy_direct_write_fallback: bool
     ambiguous_write_requires_reconciliation: bool
     incremental_observation_is_canonical_finality: bool
     browser_implementation_required_by_caller: bool
@@ -105,6 +106,10 @@ class ProductRuntimeContract:
             )
         if self.fallback_transport is not None:
             raise RuntimeError("ProductRuntimeContract requires fallback_transport=None")
+        if self.legacy_direct_write_fallback is not False:
+            raise RuntimeError(
+                "ProductRuntimeContract requires legacy_direct_write_fallback=False"
+            )
         if self.ambiguous_write_requires_reconciliation is not True:
             raise RuntimeError(
                 "ProductRuntimeContract requires ambiguous_write_requires_reconciliation=True"
@@ -136,6 +141,7 @@ class ProductRuntimeContract:
             "invariants": {
                 "automatic_write_retry": self.automatic_write_retry,
                 "fallback_transport": self.fallback_transport,
+                "legacy_direct_write_fallback": self.legacy_direct_write_fallback,
                 "ambiguous_write_requires_reconciliation": (
                     self.ambiguous_write_requires_reconciliation
                 ),
@@ -289,7 +295,10 @@ def build_product_runtime_contract(
 
     automatic_write_retry = _require_false(governance, "automatic_write_retry")
     fallback_transport = _require_none(governance, "fallback_transport")
-    _require_false(governance, "legacy_direct_write_fallback")
+    legacy_direct_write_fallback = _require_false(
+        governance,
+        "legacy_direct_write_fallback",
+    )
     ambiguous_write_requires_reconciliation = _require_true(
         governance,
         "ambiguous_write_requires_reconciliation",
@@ -312,6 +321,7 @@ def build_product_runtime_contract(
         capability_states=tuple(state.value for state in CapabilityState),
         automatic_write_retry=automatic_write_retry,
         fallback_transport=fallback_transport,
+        legacy_direct_write_fallback=legacy_direct_write_fallback,
         ambiguous_write_requires_reconciliation=(
             ambiguous_write_requires_reconciliation
         ),
