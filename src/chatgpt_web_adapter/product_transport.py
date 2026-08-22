@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Protocol, runtime_checkable
 
 from .product_capabilities import ProductCapabilities
@@ -8,7 +8,6 @@ from .product_provenance import ProductExecutionProvenance
 from .product_support import (
     PRODUCT_RUNTIME_CONTRACT_SCHEMA,
     ProductTransportSupportTier,
-    normalize_product_transport_support_tier,
     product_transport_support_tier,
 )
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
@@ -55,33 +54,29 @@ class ProductRuntimeHealth:
     extension_connected: bool | None = None
     runtime_tab_id: int | None = None
     runtime_tab_preexisting: bool | None = None
-    runtime_contract_schema: int = PRODUCT_RUNTIME_CONTRACT_SCHEMA
-    transport_support_tier: ProductTransportSupportTier | str | None = None
+    runtime_contract_schema: int = field(
+        init=False,
+        default=PRODUCT_RUNTIME_CONTRACT_SCHEMA,
+    )
+    transport_support_tier: ProductTransportSupportTier = field(
+        init=False,
+        default=ProductTransportSupportTier.EXPERIMENTAL,
+    )
 
     def __post_init__(self) -> None:
-        transport = self.transport.strip().lower()
-        if not transport:
+        if not isinstance(self.transport, str) or not self.transport.strip():
             raise ValueError("runtime health transport identity is required")
-        schema = int(self.runtime_contract_schema)
-        if schema != PRODUCT_RUNTIME_CONTRACT_SCHEMA:
-            raise ValueError(
-                "unsupported product runtime contract schema "
-                f"{schema}; expected {PRODUCT_RUNTIME_CONTRACT_SCHEMA}"
-            )
-        support_tier = (
-            product_transport_support_tier(transport)
-            if self.transport_support_tier is None
-            else normalize_product_transport_support_tier(self.transport_support_tier)
-        )
+        transport = self.transport.strip().lower()
         object.__setattr__(self, "transport", transport)
-        object.__setattr__(self, "runtime_contract_schema", schema)
-        object.__setattr__(self, "transport_support_tier", support_tier)
+        object.__setattr__(
+            self,
+            "transport_support_tier",
+            product_transport_support_tier(transport),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
-        support_tier = self.transport_support_tier
-        assert isinstance(support_tier, ProductTransportSupportTier)
-        payload["transport_support_tier"] = support_tier.value
+        payload["transport_support_tier"] = self.transport_support_tier.value
         return payload
 
 
