@@ -6,6 +6,19 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+## 0.2.0 - 2026-08-22
+
+- runtime: graduate `ChatGPTProductRuntime` as the primary forward-looking text-turn boundary with browser-owned product writes, canonical browserless read/status/final readback where available, explicit completion provenance, no automatic ambiguous-write retry, and no hidden compatibility fallback
+- streaming: add revision-safe streaming/finality handling and stable final-only observation without fabricating completion metadata
+- models: stabilize product-native CLI profile aliases `INSTANT`, `MEDIUM`, and `HIGH` alongside compatibility aliases `FAST`, `BALANCED`, and `DEEP`; `MAX` remains intentionally unmapped because no fourth proven selector is frozen
+- temporary: graduate Temporary Chat for production text turns with session-local identity, explicit lifecycle closure, fail-closed fresh-session startup readiness, and no durable-conversation authority derived from Temporary ids
+- cli: add the stable `cwa` surface for `send`, `status`, `capabilities`, `messages`, `snapshot`, `export`, and read-only `doctor`, with frozen exit-code classes for success, unavailable state, usage failure, operational failure, and reconciliation-required boundaries
+- artifacts: separate canonical `messages`, portable current-branch `export`, curated `snapshot`, and schema-1 completion manifests that record media type, exact byte count, and SHA-256 identity for emitted files
+- diagnostics: add `cwa doctor` checks for environment, auth, Native Messaging install/registration, browser bridge, product runtime, capabilities, and optional artifact-integrity verification without performing login, refresh, install, reload, product writes, retries, fallbacks, or artifact repair
+- packaging: stage the distribution at `0.2.0`, harden Linux/Windows CI across Python 3.10-3.14, validate exact wheel/sdist contents and console entry points, smoke-test the installed wheel from a disposable environment outside the source checkout, and gate Trusted Publishing on tag/version/changelog agreement
+- docs: preserve compatibility/research support tiers and historical examples while documenting the stable 0.2 `cwa` path, release integrity, and intentionally deferred image/file/multimodal/tools/browserless-write work
+- compatibility: retain `ChatGPTWebClient`, experimental raw/backend helpers, and low-level Sentinel/browser-native surfaces under their existing support tiers rather than silently promoting them into the frozen 0.2 product-runtime contract
+
 ## 0.1.7 - 2026-08-11
 
 - auth: persist structured `browserCookies` with domain/path/expiry metadata while retaining the backward-compatible flat `cookies` map
