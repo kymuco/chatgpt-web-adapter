@@ -1,39 +1,76 @@
 # CWA ↔ CMA Coordination Roadmap
 
-_Last synchronized: 2026-08-20_
+_Last synchronized: 2026-08-22_
 
-This document is the cross-repository planning contract between `chatgpt-web-adapter` (CWA) and `codexia-manual-agent` (CMA). It is intentionally narrower than either repository's full roadmap. When an older roadmap paragraph uses broader language such as “HDE owns workflow meaning” or “CWA is transport only”, this document defines the current ownership boundary for CWA ↔ CMA work.
+This document is the cross-repository coordination contract between `chatgpt-web-adapter` (CWA) and `codexia-manual-agent` (CMA).
+
+It does **not** make CWA a CMA support project. CWA is a standalone SDK / CLI / local ChatGPT product bridge with its own roadmap, releases and users. CMA is one demanding downstream consumer of the public CWA contract.
+
+The purpose of this document is narrower:
+
+- preserve the ownership boundary;
+- record version/integration checkpoints;
+- prevent duplicate implementation across repositories;
+- keep CMA migrations explicit when CWA evolves.
+
+For CWA feature sequencing, [`../ROADMAP.md`](../ROADMAP.md) is authoritative.
+
+---
 
 ## 1. Architectural split
 
 ```text
 ChatGPT product
-      ↓
-CWA — product bridge
-      ↓
+      |
+      v
+CWA — standalone product bridge / SDK / CLI
+      |
+      v
 CMA provider/runtime
-      ↓
+      |
+      v
 CMA project/orchestration layer
-      ↓
+      |
+      v
 CMA local authority + workspace/Git execution
 ```
 
+CWA is also directly consumable by HDE, terminal users, Python applications and other local tools:
+
+```text
+                    CWA
+                     |
+        +------------+------------+
+        |            |            |
+        v            v            v
+       CMA          HDE      other callers
+```
+
+CMA must therefore consume CWA through the same public product contract available to other callers rather than through CMA-specific hooks.
+
+---
+
+## 2. Ownership boundary
+
 ### CWA owns product/runtime primitives
 
-CWA owns facts and mechanisms that are intrinsic to the ChatGPT product bridge:
+CWA owns facts and mechanisms intrinsic to the ChatGPT product bridge:
 
 - ordinary ChatGPT product transport;
 - canonical conversation reads, status, attach/session identity and finality;
 - browser-owned product writes and Browser Authority lifecycle;
+- explicit transport selection;
 - durable vs Temporary Chat product semantics;
 - semantic model/reasoning profiles and selection provenance;
 - revision-safe assistant text streaming;
-- normalized user-visible activity/tool/search streaming;
+- normalized user-visible product activity;
 - optional final-answer-only streaming;
 - product capabilities and execution provenance;
 - canonical reconciliation and ambiguous-write handling;
-- deterministic product-level `ConversationSnapshot` artifacts;
-- low-level CLI/SDK diagnostics such as status/messages/capabilities/doctor.
+- product `ConversationSnapshot` / export artifacts;
+- product-level CLI/SDK diagnostics such as status/messages/capabilities/doctor;
+- images/files/multimodal/search/tool observations when those capabilities graduate;
+- experimental browserless direct-request transport work under CWA support-tier rules.
 
 CWA must not own project cognition, project history meaning, task orchestration, local tool authority, workspace mutation policy or Git policy.
 
@@ -56,121 +93,106 @@ CMA owns semantics that exist because a project is being worked on rather than b
 - deterministic project resume/recovery;
 - bounded autonomous work policy.
 
-CMA must not depend on Chrome tab ids, service-worker internals, Native Messaging details or the concrete CWA browser writer.
+CMA must not depend on Chrome tab ids, service-worker internals, Native Messaging details, debugger target ids, private web protocol details or the concrete CWA transport implementation.
 
-## 2. Terminology boundary
+---
 
-Two names are deliberately kept distinct.
+## 3. Terminology boundary
+
+Two names remain deliberately distinct.
 
 ### CWA `ConversationSnapshot`
 
-A transport/product artifact describing what was actually present in a ChatGPT conversation. It may contain deterministic user/assistant context output and an optional raw product payload backup.
+A product/transport artifact describing what was present in a ChatGPT conversation. It may contain deterministic user/assistant context and optional product payload evidence according to the CWA artifact contract.
 
 ### CMA `ProjectContextCheckpoint`
 
-A semantic project artifact describing what the project should carry forward after one or more conversations. It is produced by CMA policy, not by CWA transport logic.
+A semantic project artifact describing what the project should carry forward after one or more conversations. It is produced by CMA policy, not CWA transport logic.
 
-The intended flow is:
+The intended flow remains:
 
 ```text
 CWA ConversationSnapshot
-        ↓ source/provenance
+        |
+        v
 CMA Summarizer
-        ↓
+        |
+        v
 HistoryDelta
-        ↓
+        |
+        v
 ProjectContextCheckpoint
 ```
 
-CMA should therefore not introduce another orchestration object called `ConversationSnapshot`.
+CMA should not introduce another orchestration object named `ConversationSnapshot`.
 
-Likewise, orchestration results use `WorkResult`, not `ResultReceipt`. The word `receipt` remains reserved for authority/security concepts such as authorization receipts and mutation receipts/observations.
+Likewise, orchestration results use `WorkResult`, not `ResultReceipt`. `receipt` remains reserved for authority/security/mutation evidence where appropriate.
 
-## 3. Synchronized execution order
+---
 
-CWA and CMA can advance in parallel because their next milestones are on different layers.
+## 4. Current synchronization checkpoint
 
 ### CWA
 
-1. **PR8.12 — normalized activity + final-only streaming**
-   - full user-visible turn stream is implemented and live-covered;
-   - presentation polish is complete;
-   - `--stream --final-only` is implemented as an optional quieter surface.
-2. **PR8.13 — Temporary Chat production graduation**
-   - production `conversation_mode="temporary"` path;
-   - pre-write Temporary proof;
-   - same-lifecycle continuation authority where supported;
-   - Temporary-specific finality/recovery semantics;
-   - no durable fallback.
-3. **Standalone/runtime stabilization for 0.2**
-   - README quick start for `cwa send` and `cwa snapshot`;
-   - `cwa status`, `cwa messages`, `cwa capabilities`;
-   - explicit snapshot vs export distinction;
-   - `cwa doctor`;
-   - stable artifact manifest/CLI contracts and exit codes;
-   - Windows/Linux CI, wheel/sdist smoke, changelog and release cleanup.
+CWA 0.2.0 is released and frozen as the current stable baseline:
 
-CWA should not add project summarization, history merge, Director/Worker state machines or project rollover as part of this sequence.
+```text
+version     0.2.0
+tag         v0.2.0
+commit      f1ebfd671c45153a3279163dc624e0af7c00e3f9
+release     2026-08-22
+```
+
+The release includes the stable product-runtime text contract required for CMA migration:
+
+- `ChatGPTProductRuntime`;
+- health/capability inspection;
+- durable text turns;
+- Temporary text turns;
+- model profile intent and provenance;
+- revision-safe/final-only streaming;
+- canonical status/messages/attach/readback;
+- finality/reconciliation semantics;
+- no automatic ambiguous-write retry;
+- product conversation artifacts;
+- stable CLI/diagnostic surfaces.
+
+CWA 0.2 intentionally leaves images/files/multimodal/search/tools and browserless production writes outside the stable product-runtime contract.
 
 ### CMA
 
-1. **M2.4.1 — exact patch proposal contract** — COMPLETE.
-2. **M2.4.2 — complete preimage/namespace revalidation + exact execution plan**
-   - revalidate the entire multi-file preimage set before authority consumption;
-   - bind an execution plan to accepted M2.3 create/replace primitives.
-3. **M2.4.3 — multi-file application and failure semantics**
-   - define the commit model;
-   - all-or-fail where supportable, otherwise explicit bounded partial-failure semantics;
-   - no silent best-effort mutation.
-4. **M2.4.4 — changed-file mutation observations/receipts**
-   - digest-bound per-file/set execution observations;
-   - exact changed-file/failure evidence.
-5. **M2.4.5 — rollback, crash and recovery semantics**
-   - recover from interrupted multi-file application according to the chosen commit model.
-6. **M2.4.6 — model patch request → bounded proposal → local human approval**
-   - the remote model may propose a bounded patch request;
-   - it still receives no direct write authority;
-   - execution remains under CMA local authority.
-7. **M2.5 — explicit Git mutation governance**
-   - commit and push remain distinct authorized actions;
-   - workspace mutation never implies Git authority.
-8. **M3.0 — CWA Product Runtime provider migration**
-   - move CMA off the old `ChatGPTWebClient.send()/send_to_conversation()` integration contract;
-   - consume stable `ChatGPTProductRuntime` capabilities/provenance/streaming surfaces;
-   - keep browser internals below the CWA boundary.
-9. **M3.1 — durable `ProjectState` + event journal**
-   - persistent exact chronology for project/runtime decisions, tool results, authority outcomes and conversation identities.
-10. **M3.2 — Summarizer + `HistoryDelta` + `ProjectContextCheckpoint` + rollover**
-    - project-semantic context compression and deterministic handoff;
-    - CWA snapshots are inputs/provenance, not the project memory format.
-11. **M3.3 — Director/Worker protocol**
-    - `WorkOrder` issuance;
-    - `WorkResult` return contract;
-    - conversation allocation and role boundaries.
-12. **M3.4 — project execution state machine**
+At the current synchronization point, CMA has completed M2.4.4 — exact changed-file mutation observations and digest-bound set receipts.
+
+The synchronized next sequence remains:
 
 ```text
-INIT
-→ DIRECTING
-→ WORK_READY
-→ EXECUTING
-→ VERIFYING
-→ REVIEW_READY
-→ DIRECTING
-
-terminal:
-COMPLETE / BLOCKED / FAILED / ESCALATED / BUDGET_EXHAUSTED
+M2.4.5
+rollback / crash / recovery semantics
+        |
+        v
+M2.4.6
+model patch request
+ -> bounded proposal
+ -> local human approval
+        |
+        v
+M2.5
+explicit Git mutation governance
+        |
+        v
+M3.0
+CWA Product Runtime provider migration
 ```
 
-13. **M3.5 — deterministic resume/recovery and multi-conversation lifecycle**
-    - interrupted Director/Worker work can be reconstructed from durable state;
-    - no duplicate side effect is inferred from conversational state alone.
-14. **M4 — Computational Lab** builds on the completed project runtime.
-15. **M5 — bounded automation** adds limited autonomous continuation with explicit budgets and stop policies.
+CMA may continue its local-authority work independently while CWA begins PR9.
 
-## 4. Integration contract
+---
 
-CMA should consume CWA through a provider boundary conceptually shaped like:
+## 5. CMA M3.0 — explicit CWA 0.2 migration gate
+
+CMA M3.0 should migrate off the old compatibility integration based on direct `ChatGPTWebClient.send()` / `send_to_conversation()` usage and consume the stable CWA product runtime instead.
+
+Conceptual provider boundary:
 
 ```text
 CWA ChatGPTProductRuntime
@@ -182,35 +204,181 @@ CWA ChatGPTProductRuntime
     answer/activity stream events
     execution provenance
     product ConversationSnapshot
-          ↓
+          |
+          v
 CMA provider adapter
-          ↓
+          |
+          v
 Director / Worker / Summarizer
-          ↓
+          |
+          v
 ProjectState + WorkOrder + WorkResult
 HistoryDelta + ProjectContextCheckpoint
-          ↓
+          |
+          v
 CMA local authority / workspace / Git governance
 ```
 
-CWA events are observations. They do not become CMA authority.
+### M3.0 pin
 
-CMA authority objects are local. They do not become CWA product-transport concerns.
+M3.0 should record an explicit dependency baseline:
 
-## 5. Explicit non-overlap rules
+```text
+CWA version  = 0.2.0
+CWA tag      = v0.2.0
+CWA commit   = f1ebfd671c45153a3279163dc624e0af7c00e3f9
+```
+
+and record the exact capability assumptions CMA relies on.
+
+CMA must not implicitly follow moving CWA `main`.
+
+---
+
+## 6. CWA PR9 proceeds independently
+
+CWA no longer needs to wait for CMA M3.0 before continuing its own product roadmap.
+
+The post-0.2 sequence is owned by CWA:
+
+```text
+PR9.0
+finish browser-owned generation
++ freeze mature standalone SDK architecture
+        |
+        v
+PR9.1
+experimental browserless direct-request transport
+        |
+        v
+PR9.2
+images / files / multimodal product-runtime graduation
+        |
+        v
+PR9.3
+search / tools / rich product observations
+        |
+        v
+PR9.4
+CWA 0.3 stabilization/release
+```
+
+CMA does not get CWA-specific milestone numbers in its own roadmap and CWA does not get CMA orchestration milestone numbers in its roadmap.
+
+The projects synchronize at explicit version boundaries instead.
+
+---
+
+## 7. Browser-owned and browserless coordination rule
+
+CMA M3.0 should rely on the stable 0.2 browser-owned product contract.
+
+Future CWA browserless work is explicitly experimental:
+
+```text
+BrowserOwnedProductTransport
+    production baseline
+
+BrowserlessRequestTransport
+    experimental direct-request path
+```
+
+CMA must not silently switch transports merely because a browserless experiment exists.
+
+Any future CMA use of browserless CWA should be an explicit dependency/configuration decision with capability checks and support-tier awareness.
+
+This keeps site-protocol drift inside CWA rather than leaking private request details into CMA.
+
+---
+
+## 8. Capability and version migration policy
+
+After M3.0, CMA should treat CWA as a versioned dependency.
+
+When CWA releases a new version:
+
+```text
+new CWA release
+      |
+      v
+CMA evaluates public capability delta
+      |
+      +-- no needed change -> remain pinned
+      |
+      `-- desired capability -> explicit migration PR
+```
+
+Examples:
+
+- CMA can remain on 0.2 while CWA experiments with browserless PR9.1.
+- CMA may later migrate to a 0.3 release to consume rich product observations or multimodal support.
+- CMA should never depend on experimental internals merely because they are present in CWA source.
+
+---
+
+## 9. Explicit non-overlap rules
 
 - CWA does not summarize project history; CMA does.
 - CWA does not decide when project context rolls over; CMA does.
 - CWA does not create `WorkOrder`; CMA does.
-- CWA does not interpret tool/search activity as project progress; CMA may interpret normalized observations if useful.
+- CWA does not interpret product search/tool activity as project progress; CMA may interpret normalized observations.
 - CMA does not reimplement ChatGPT stream parsing; it consumes CWA events.
 - CMA does not select or mutate Chrome/browser internals; it requests CWA product intent.
+- CMA does not implement browserless private web protocol details; CWA owns those experiments.
 - CMA patch authority does not imply Git commit/push authority.
-- GitHub-first project workflows do not bypass M2.4/M2.5 authority boundaries.
+- GitHub-first project workflows do not bypass CMA local authority boundaries.
 - Neither project treats conversational success text as proof that a filesystem/Git side effect occurred; local execution observations remain authoritative for local effects.
+- CWA product events are observations, not CMA local authority.
+- CMA local authority objects are not CWA product-transport concerns.
 
-## 6. Release synchronization checkpoint
+---
 
-Before CMA M3.0 is considered complete, CWA should have a stable enough 0.2-facing contract for the surfaces CMA consumes. CMA may integrate earlier against the feature branch for development, but the M3.0 completion gate should pin an explicit CWA version/commit and record the exact capability assumptions.
+## 10. Development cadence coordination
 
-After M3.0, future CWA implementation changes remain replaceable behind the product-runtime contract and should not require CMA orchestration redesign.
+CWA post-0.2 development now prefers large vertical milestones:
+
+```text
+implementation
++ deterministic tests
++ failure semantics
++ bounded live validation
++ docs/compatibility
+= one completed PR
+```
+
+CMA may continue using its own evidence/authority cadence where local mutation safety requires it.
+
+The two repositories do not need identical PR granularity.
+
+Cross-project coordination should happen at:
+
+- stable public contract changes;
+- explicit version pins;
+- capability additions/removals;
+- breaking migration requirements;
+- evidence that the current ownership boundary is wrong.
+
+Routine CWA polish should not block CMA, and routine CMA orchestration work should not block CWA.
+
+---
+
+## 11. Canonical relationship after CWA 0.2
+
+```text
+CWA
+standalone product bridge
+owns ChatGPT product/runtime mechanics
+        |
+        | stable versioned contract
+        v
+CMA
+project/orchestration runtime
+owns project meaning + local authority
+```
+
+The integration is intentionally asymmetric:
+
+- CWA does not know it is serving CMA;
+- CMA knows which CWA contract/version it consumes.
+
+That asymmetry is a feature. It keeps CWA reusable and keeps CMA insulated from browser/web-product implementation changes.
