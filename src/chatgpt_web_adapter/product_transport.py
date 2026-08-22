@@ -5,6 +5,12 @@ from typing import Any, Callable, Protocol, runtime_checkable
 
 from .product_capabilities import ProductCapabilities
 from .product_provenance import ProductExecutionProvenance
+from .product_support import (
+    PRODUCT_RUNTIME_CONTRACT_SCHEMA,
+    ProductTransportSupportTier,
+    normalize_product_transport_support_tier,
+    product_transport_support_tier,
+)
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
 
 BROWSER_OWNED_PRODUCT_TRANSPORT = "browser-owned"
@@ -30,7 +36,7 @@ def normalize_product_transport(value: str) -> str:
 
 @dataclass(frozen=True)
 class ProductRuntimeHealth:
-    """Implementation-independent runtime readiness plus optional transport metadata."""
+    """Implementation-independent runtime readiness plus transport metadata."""
 
     transport: str
     ready: bool
@@ -43,15 +49,40 @@ class ProductRuntimeHealth:
     write_plane: str
     automatic_write_retry: bool = False
     fallback_transport: str | None = None
-    # PR8.3 compatibility metadata. Future non-browser transports are not
+    # Browser-owned compatibility metadata. Future non-browser transports are not
     # required to synthesize these fields.
     bridge_available: bool | None = None
     extension_connected: bool | None = None
     runtime_tab_id: int | None = None
     runtime_tab_preexisting: bool | None = None
+    runtime_contract_schema: int = PRODUCT_RUNTIME_CONTRACT_SCHEMA
+    transport_support_tier: ProductTransportSupportTier | str | None = None
+
+    def __post_init__(self) -> None:
+        transport = self.transport.strip().lower()
+        if not transport:
+            raise ValueError("runtime health transport identity is required")
+        schema = int(self.runtime_contract_schema)
+        if schema != PRODUCT_RUNTIME_CONTRACT_SCHEMA:
+            raise ValueError(
+                "unsupported product runtime contract schema "
+                f"{schema}; expected {PRODUCT_RUNTIME_CONTRACT_SCHEMA}"
+            )
+        support_tier = (
+            product_transport_support_tier(transport)
+            if self.transport_support_tier is None
+            else normalize_product_transport_support_tier(self.transport_support_tier)
+        )
+        object.__setattr__(self, "transport", transport)
+        object.__setattr__(self, "runtime_contract_schema", schema)
+        object.__setattr__(self, "transport_support_tier", support_tier)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        support_tier = self.transport_support_tier
+        assert isinstance(support_tier, ProductTransportSupportTier)
+        payload["transport_support_tier"] = support_tier.value
+        return payload
 
 
 @dataclass(frozen=True)
@@ -75,19 +106,21 @@ class CanonicalConversationClient(Protocol):
 
 @runtime_checkable
 class CanonicalSessionClient(Protocol):
-    """Optional canonical session/auth lifecycle surface.
-
-    Product-runtime orchestration does not require explicit refresh yet. The
-    existing canonical client may implement this while browserless automatic
-    session renewal remains assembly/client-owned.
-    """
+    """Optional canonical session/auth lifecycle surface."""
 
     def refresh_auth(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 @runtime_checkable
 class ProductWriteTransport(Protocol):
-    """Implementation-independent ordinary-product write contract."""
+    """Replaceable ordinary-product write contract below ChatGPTProductRuntime.
+
+    Runtime-mediated keyword options are deliberately allowed so new transports
+    can implement product features such as conversation mode or model intent
+    without changing the application-facing ChatGPTProductRuntime API. Callers
+    should invoke those options through ChatGPTProductRuntime rather than relying
+    on concrete transport keyword names.
+    """
 
     @property
     def transport_id(self) -> str: ...
@@ -108,6 +141,7 @@ class ProductWriteTransport(Protocol):
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
+        **kwargs: Any,
     ) -> ChatResponse: ...
 
     def send_text_observed(
@@ -119,6 +153,7 @@ class ProductWriteTransport(Protocol):
         poll_interval: float = 0.5,
         on_token: TokenCallback = None,
         on_event: EventCallback = None,
+        **kwargs: Any,
     ) -> ProductRuntimeExecution: ...
 
     def governance(self) -> dict[str, Any]: ...
