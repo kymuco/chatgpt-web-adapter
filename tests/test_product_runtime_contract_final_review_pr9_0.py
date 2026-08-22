@@ -85,6 +85,17 @@ class _UnsafeFallbackTransport:
         }
 
 
+class _MissingFallbackDeclarationTransport(_UnsafeFallbackTransport):
+    def __init__(self, missing_key: str) -> None:
+        super().__init__()
+        self._missing_key = missing_key
+
+    def governance(self):
+        payload = super().governance()
+        payload.pop(self._missing_key)
+        return payload
+
+
 def _direct_contract_kwargs(*, transport: str = "future-browserless") -> dict:
     return {
         "product_semantics": ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
@@ -110,7 +121,7 @@ def test_inspector_rejects_raw_fallback_before_runtime_governance_masks_it() -> 
     # The high-level runtime view deliberately normalizes its own fallback policy.
     assert runtime.governance()["fallback_transport"] is None
 
-    with pytest.raises(RuntimeError, match="raw write-transport fallback_transport"):
+    with pytest.raises(RuntimeError, match="fallback_transport=None"):
         adapter.product_runtime_contract(runtime)
 
 
@@ -122,7 +133,31 @@ def test_inspector_rejects_raw_legacy_fallback_before_runtime_normalization() ->
 
     assert runtime.governance()["legacy_direct_write_fallback"] is False
 
-    with pytest.raises(RuntimeError, match="legacy_direct_write_fallback"):
+    with pytest.raises(RuntimeError, match="legacy_direct_write_fallback=False"):
+        adapter.product_runtime_contract(runtime)
+
+
+@pytest.mark.parametrize(
+    ("missing_key", "message"),
+    (
+        ("fallback_transport", "explicit fallback_transport=None"),
+        ("legacy_direct_write_fallback", "legacy_direct_write_fallback=False"),
+    ),
+)
+def test_inspector_requires_explicit_raw_no_fallback_declarations(
+    missing_key: str,
+    message: str,
+) -> None:
+    runtime = adapter.ChatGPTProductRuntime(
+        _Canonical(),
+        write_transport=_MissingFallbackDeclarationTransport(missing_key),
+    )
+
+    # Runtime-level defaults must not substitute for missing transport evidence.
+    assert runtime.governance()["fallback_transport"] is None
+    assert runtime.governance()["legacy_direct_write_fallback"] is False
+
+    with pytest.raises(RuntimeError, match=message):
         adapter.product_runtime_contract(runtime)
 
 
