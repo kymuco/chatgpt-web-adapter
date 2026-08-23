@@ -15,7 +15,6 @@ class PublicSurfaceTier(str, Enum):
 
 PRIMARY_PRODUCT_RUNTIME_EXPORTS: tuple[str, ...] = (
     "BROWSER_OWNED_PRODUCT_TRANSPORT",
-    "BROWSERLESS_REQUEST_PRODUCT_TRANSPORT",
     "DEFAULT_PRODUCT_TRANSPORT",
     "SUPPORTED_PRODUCT_TRANSPORTS",
     "PRODUCT_RUNTIME_CONTRACT_SCHEMA",
@@ -95,11 +94,6 @@ EXPERIMENTAL_WEB_BACKEND_EXPORTS: tuple[str, ...] = (
     "validate_payload",
     "PrepareResult",
     "prepare_text_turn",
-    "BrowserlessRequestTransport",
-    "BrowserlessRequestTransportError",
-    "BrowserlessChallengeBoundaryError",
-    "BrowserlessProtocolDriftError",
-    "BrowserlessRequestObservation",
 )
 
 RESEARCH_DIAGNOSTIC_EXPORTS: tuple[str, ...] = (
