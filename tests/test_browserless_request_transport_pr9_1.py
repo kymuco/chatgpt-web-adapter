@@ -14,6 +14,7 @@ from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.product_capabilities import CapabilityState
 from chatgpt_web_adapter.product_contract import product_runtime_contract
 from chatgpt_web_adapter.product_runtime import ChatGPTProductRuntime, assemble_product_runtime
+from chatgpt_web_adapter.sentinel_bundle import prepared_send_active
 from chatgpt_web_adapter.types import ChatConversation, ChatMessage, ChatResponse
 
 
@@ -50,6 +51,12 @@ class _DirectClient:
         self.status_value = status
         self.canonical_message_id = canonical_message_id
         self.timeout = 60.0
+        self.base_headers = {"user-agent": "test-agent"}
+        self.auth = SimpleNamespace(
+            accessToken="test-access-token",
+            cookies={},
+            turnstile_token=None,
+        )
         self.prepare_calls = 0
         self.finalize_calls = 0
         self.send_calls = 0
@@ -58,6 +65,7 @@ class _DirectClient:
         self.sent_conversations = []
         self.sent_prompts = []
         self.finalize_payloads = []
+        self.prepared_state_seen = []
 
     def _build_headers(self, extra=None):
         return {"authorization": "Bearer test", **(extra or {})}
@@ -88,6 +96,8 @@ class _DirectClient:
 
     def send(self, prompt, *, conversation=None, on_token=None, on_event=None, **kwargs):
         self.send_calls += 1
+        self.prepared_state_seen.append(prepared_send_active())
+        assert prepared_send_active() is True
         self.sent_prompts.append(prompt)
         self.sent_conversations.append(conversation)
         if self.send_error is not None:
@@ -98,6 +108,19 @@ class _DirectClient:
         assert requirements["proofofwork"] == {"required": False}
         assert requirements["turnstile"] == {"required": False}
         assert proof is None
+        prepared_headers = self._build_headers(
+            {
+                "x-openai-target-path": "/backend-api/f/conversation/prepare",
+                "x-openai-target-route": "/backend-api/f/conversation/prepare",
+            }
+        )
+        final_headers = self._build_headers(
+            {
+                "x-openai-target-path": "/backend-api/f/conversation",
+                "x-openai-target-route": "/backend-api/f/conversation",
+            }
+        )
+        assert prepared_headers["x-oai-turn-trace-id"] == final_headers["x-oai-turn-trace-id"]
         if on_token is not None:
             on_token("stream ")
             on_token("answer")
@@ -144,7 +167,7 @@ def _runtime(client: _DirectClient) -> ChatGPTProductRuntime:
     )
 
 
-def test_happy_path_is_one_direct_write_with_two_phase_token_and_canonical_finality() -> None:
+def test_happy_path_is_one_current_prepared_write_with_canonical_finality() -> None:
     client = _DirectClient(canonical_text="canonical answer")
     runtime = _runtime(client)
     tokens = []
@@ -160,6 +183,7 @@ def test_happy_path_is_one_direct_write_with_two_phase_token_and_canonical_final
     assert client.finalize_calls == 1
     assert client.send_calls == 1
     assert client.ready_requirements_calls == 1
+    assert client.prepared_state_seen == [True]
     assert client.sent_prompts == ["hello"]
     assert client.finalize_payloads == [
         {
@@ -175,6 +199,7 @@ def test_happy_path_is_one_direct_write_with_two_phase_token_and_canonical_final
     assert execution.provenance is not None
     assert execution.provenance.completion.canonical_completion_proven is True
     assert execution.observation.sentinel_protocol == "TWO_PHASE_PREPARE_FINALIZE"
+    assert execution.observation.conversation_prepare_protocol == "PREPARE_CONDUIT_FINAL_WRITE"
     assert execution.observation.reconciliation == "STREAM_REVISED_BY_CANONICAL"
     assert [event["type"] for event in events] == [
         "assistant_text_delta",
@@ -184,7 +209,7 @@ def test_happy_path_is_one_direct_write_with_two_phase_token_and_canonical_final
     assert events[-1]["text"] == "canonical answer"
 
 
-def test_two_phase_path_never_calls_legacy_requirements_or_proof_generation() -> None:
+def test_current_path_never_calls_legacy_requirements_or_proof_generation() -> None:
     client = _DirectClient(canonical_text="stream answer")
 
     response = BrowserlessRequestTransport(client).send_text("hello")
@@ -193,6 +218,7 @@ def test_two_phase_path_never_calls_legacy_requirements_or_proof_generation() ->
     assert client.prepare_calls == 1
     assert client.finalize_calls == 1
     assert client.send_calls == 1
+    assert client.prepared_state_seen == [True]
 
 
 @pytest.mark.parametrize("challenge", ["proofofwork", "turnstile", "so"])
@@ -237,6 +263,25 @@ def test_unknown_future_required_descriptor_also_fails_closed() -> None:
         BrowserlessRequestTransport(client).send_text("hello")
 
     assert captured.value.challenges == ("future_protection",)
+    assert client.finalize_calls == 0
+    assert client.send_calls == 0
+
+
+def test_unknown_future_non_boolean_required_descriptor_is_protocol_drift() -> None:
+    client = _DirectClient(
+        prepare={
+            "persona": "chatgpt-test",
+            "prepare_token": "prepare-token",
+            "proofofwork": {"required": False},
+            "so": {"required": False},
+            "turnstile": {"required": False},
+            "future_protection": {"required": "maybe"},
+        }
+    )
+
+    with pytest.raises(BrowserlessProtocolDriftError, match="future_protection.required"):
+        BrowserlessRequestTransport(client).send_text("hello")
+
     assert client.finalize_calls == 0
     assert client.send_calls == 0
 
@@ -299,7 +344,7 @@ def test_missing_finalize_token_is_protocol_drift() -> None:
     assert client.send_calls == 0
 
 
-def test_non_boolean_required_flag_is_protocol_drift() -> None:
+def test_non_boolean_known_required_flag_is_protocol_drift() -> None:
     client = _DirectClient(
         prepare={
             "persona": "chatgpt-test",
@@ -334,6 +379,23 @@ def test_continuation_uses_canonical_attach_before_direct_write() -> None:
     )
 
     assert client.attach_calls == ["conversation-from-caller"]
+    sent = client.sent_conversations[0]
+    assert isinstance(sent, ChatConversation)
+    assert sent.conversation_id == "attached-conversation"
+    assert sent.parent_message_id == "attached-parent"
+
+
+def test_complete_caller_conversation_is_still_canonically_reattached() -> None:
+    client = _DirectClient()
+    caller = ChatConversation(
+        conversation_id="stale-conversation",
+        message_id="stale-parent",
+        parent_message_id="stale-parent",
+    )
+
+    BrowserlessRequestTransport(client).send_text("continue", conversation=caller)
+
+    assert client.attach_calls == [caller]
     sent = client.sent_conversations[0]
     assert isinstance(sent, ChatConversation)
     assert sent.conversation_id == "attached-conversation"
@@ -431,7 +493,9 @@ def test_capabilities_are_feature_scoped_while_transport_stays_experimental() ->
 
     governance = runtime.governance()
     assert governance["browserless_sentinel_protocol"] == "TWO_PHASE_PREPARE_FINALIZE"
+    assert governance["browserless_conversation_write_protocol"] == "PREPARE_CONDUIT_FINAL_WRITE"
     assert governance["browserless_legacy_single_step_requirements_fallback"] is False
+    assert governance["browserless_legacy_unprepared_conversation_write_fallback"] is False
 
 
 def test_profile_temporary_and_browser_authority_requests_fail_before_network() -> None:
