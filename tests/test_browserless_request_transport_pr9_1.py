@@ -416,10 +416,10 @@ def test_capabilities_are_feature_scoped_while_transport_stays_experimental() ->
 
     assert capabilities.transport == "browserless-request"
     assert capabilities.transport_support_tier.value == "EXPERIMENTAL"
-    assert capabilities.require("text_turns").state is CapabilityState.AVAILABLE
-    assert capabilities.require("streaming").state is CapabilityState.AVAILABLE
-    assert capabilities.require("temporary_chat").state is CapabilityState.UNKNOWN
-    assert capabilities.require("model_selection").state is CapabilityState.UNKNOWN
+    assert capabilities.state("text_turns") is CapabilityState.AVAILABLE
+    assert capabilities.state("streaming") is CapabilityState.AVAILABLE
+    assert capabilities.state("temporary_chat") is CapabilityState.UNKNOWN
+    assert capabilities.state("model_selection") is CapabilityState.UNKNOWN
 
     contract = product_runtime_contract(runtime)
     assert contract.transport == "browserless-request"
