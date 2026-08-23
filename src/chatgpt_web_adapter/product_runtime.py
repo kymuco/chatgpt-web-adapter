@@ -19,6 +19,7 @@ from .product_provenance import (
     build_product_execution_provenance,
 )
 from .product_transport import (
+    BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
     BROWSER_OWNED_PRODUCT_TRANSPORT,
     DEFAULT_PRODUCT_TRANSPORT,
     SUPPORTED_PRODUCT_TRANSPORTS,
@@ -247,8 +248,21 @@ def _assemble_default_write_transport(
     browser_authority_policy: str | None = None,
     browser_authority_ttl_ms: int | None = None,
 ) -> ProductWriteTransport:
+    if transport == BROWSERLESS_REQUEST_PRODUCT_TRANSPORT:
+        if provider is not None:
+            raise ValueError(
+                "browserless-request does not accept browser-native or Sentinel providers"
+            )
+        if browser_authority_policy is not None or browser_authority_ttl_ms is not None:
+            raise ValueError(
+                "browser authority policy is unavailable for browserless-request"
+            )
+        from .browserless_request_transport import BrowserlessRequestTransport
+
+        return BrowserlessRequestTransport(client)
+
     if transport != BROWSER_OWNED_PRODUCT_TRANSPORT:
-        raise ValueError(f"no production transport assembler registered for {transport!r}")
+        raise ValueError(f"no product transport assembler registered for {transport!r}")
 
     from .browser_owned_product_transport import BrowserOwnedProductTransport
 
@@ -640,10 +654,12 @@ def assemble_product_runtime(
     auto_refresh_auth: bool = True,
     persist_refreshed_auth: bool = True,
 ) -> ChatGPTProductRuntime:
-    """Assemble the production ordinary-ChatGPT runtime.
+    """Assemble an explicit ordinary-ChatGPT product runtime.
 
     Assembly never performs interactive browser login and never enables legacy
-    Sentinel/direct-write machinery. Unknown production transports fail closed.
+    Sentinel machinery. ``browser-owned`` remains the default production path;
+    ``browserless-request`` is explicit and experimental. No transport fallback
+    is performed.
     """
 
     normalized = normalize_product_transport(transport)
