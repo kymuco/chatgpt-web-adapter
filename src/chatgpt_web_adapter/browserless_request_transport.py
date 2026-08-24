@@ -8,6 +8,7 @@ from typing import Any, Iterator, Mapping
 import uuid
 
 from .auth import CHAT_URL
+from .client import ChatGPTWebClient
 from .exceptions import RequestError, WebChatAdapterError
 from .product_capabilities import (
     APPROVALS,
@@ -65,9 +66,11 @@ _CONVERSATION_WRITE_PATH = "/backend-api/f/conversation"
 
 _PREWRITE_REQUEST_STAGES = frozenset(
     {
+        "browserless_provider_guard",
         "browserless_sentinel_prepare",
         "browserless_sentinel_finalize",
         "browserless_prepared_write_binding",
+        "canonical_attach",
         "conversation_prepare",
         "web_session_bootstrap",
     }
@@ -76,6 +79,7 @@ _REQUIRED_PREPARE_KEYS = frozenset(
     {"persona", "prepare_token", "proofofwork", "so", "turnstile"}
 )
 _REQUIRED_FINALIZE_KEYS = frozenset({"persona", "token", "expire_after", "expire_at"})
+_NON_CHALLENGE_PREPARE_KEYS = frozenset({"persona", "prepare_token"})
 
 _BROWSERLESS_CAPABILITY_STATES: dict[str, CapabilityState] = {
     TEXT_TURNS: CapabilityState.AVAILABLE,
@@ -316,7 +320,7 @@ def _validate_required_descriptors(
     stage: str,
     endpoint: str,
 ) -> tuple[str, ...]:
-    """Validate known descriptors and fail closed on future required descriptors."""
+    """Validate known and future mapping descriptors without permissive fallback."""
 
     for name in ("proofofwork", "so", "turnstile"):
         value = data.get(name)
@@ -335,17 +339,26 @@ def _validate_required_descriptors(
 
     required: set[str] = set()
     for raw_name, value in data.items():
-        if not isinstance(value, Mapping) or "required" not in value:
+        normalized_name = str(raw_name).strip().lower() or "unknown"
+        if normalized_name in _NON_CHALLENGE_PREPARE_KEYS:
             continue
+        if not isinstance(value, Mapping):
+            continue
+        if "required" not in value:
+            raise BrowserlessProtocolDriftError(
+                f"{normalized_name}.required is missing",
+                request_stage=stage,
+                endpoint=endpoint,
+            )
         required_flag = value.get("required")
         if not isinstance(required_flag, bool):
             raise BrowserlessProtocolDriftError(
-                f"{raw_name}.required is not boolean",
+                f"{normalized_name}.required is not boolean",
                 request_stage=stage,
                 endpoint=endpoint,
             )
         if required_flag:
-            required.add(str(raw_name).strip().lower() or "unknown")
+            required.add(normalized_name)
     return tuple(sorted(required))
 
 
@@ -374,13 +387,38 @@ class BrowserlessRequestTransport:
             raise TypeError("browserless direct-request client must expose base_headers")
         if getattr(self.client, "auth", None) is None:
             raise TypeError("browserless direct-request client must expose auth state")
-        if callable(getattr(self.client, "_sentinel_challenge_provider", None)) or callable(
-            getattr(self.client, "_sentinel_bundle_provider", None)
-        ):
+        if self._challenge_provider_configured():
             raise ValueError(
                 "browserless request transport forbids configured Sentinel/browser challenge providers"
             )
+        self._direct_send = self._resolve_direct_send()
         self._write_lock = threading.Lock()
+
+    def _challenge_provider_configured(self) -> bool:
+        return callable(getattr(self.client, "_sentinel_challenge_provider", None)) or callable(
+            getattr(self.client, "_sentinel_bundle_provider", None)
+        )
+
+    def _assert_execution_provider_boundary(self) -> None:
+        if self._challenge_provider_configured():
+            raise BrowserlessRequestTransportError(
+                "browserless request transport refuses execution while a Sentinel/browser "
+                "challenge provider is configured",
+                request_stage="browserless_provider_guard",
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+            )
+
+    def _resolve_direct_send(self) -> Any:
+        if isinstance(self.client, ChatGPTWebClient):
+            # Package installation wraps ChatGPTWebClient.send with Sentinel and
+            # diagnostic policy. Browserless intentionally bypasses that class-level
+            # Sentinel-provider wrapper and supplies its own already-classified,
+            # challenge-free prepared-turn context below.
+            from . import _original_send
+
+            return _original_send.__get__(self.client, type(self.client))
+        return self.client.send
 
     def health(self, conversation: ConversationInput = None) -> ProductRuntimeHealth:
         if conversation is None:
@@ -534,11 +572,14 @@ class BrowserlessRequestTransport:
 
         started = monotonic()
         with self._write_lock:
+            self._assert_execution_provider_boundary()
             resolved_conversation = self._resolve_conversation(conversation)
             previous_message_id = self._parent_message_id(resolved_conversation)
             requirements = self._acquire_unprotected_requirements()
+            self._assert_execution_provider_boundary()
             accumulator = RevisionSafeTextAccumulator()
             sequence = 0
+            write_state = {"final_write_started": False}
 
             def stream_token(token: str) -> None:
                 nonlocal sequence
@@ -561,8 +602,8 @@ class BrowserlessRequestTransport:
             if isinstance(previous_timeout, (int, float)):
                 self.client.timeout = remaining
             try:
-                with self._bind_current_prepared_write(requirements):
-                    response = self.client.send(
+                with self._bind_current_prepared_write(requirements, write_state=write_state):
+                    response = self._direct_send(
                         text,
                         conversation=resolved_conversation,
                         on_token=stream_token,
@@ -571,13 +612,19 @@ class BrowserlessRequestTransport:
             except BrowserlessRequestTransportError:
                 raise
             except RequestError as error:
-                raise self._classify_request_error(error) from error
+                raise self._classify_request_error(
+                    error,
+                    final_write_started=bool(write_state["final_write_started"]),
+                ) from error
             except Exception as error:
+                ambiguous = bool(write_state["final_write_started"])
                 raise BrowserlessRequestTransportError(
                     f"browserless direct request failed: {type(error).__name__}: {error}",
-                    request_stage="conversation_stream",
-                    write_may_have_been_submitted=True,
-                    reconciliation_required=True,
+                    request_stage=(
+                        "conversation_stream" if ambiguous else "conversation_prepare"
+                    ),
+                    write_may_have_been_submitted=ambiguous,
+                    reconciliation_required=ambiguous,
                 ) from error
             finally:
                 if isinstance(previous_timeout, (int, float)):
@@ -846,13 +893,16 @@ class BrowserlessRequestTransport:
     def _bind_current_prepared_write(
         self,
         requirements: dict[str, Any],
+        *,
+        write_state: dict[str, bool],
     ) -> Iterator[None]:
         """Use current conversation prepare/conduit without Sentinel bundle machinery.
 
         The server-issued challenge-free requirements token is already finalized.
         This execution-local binding activates the compatibility client's current
         prepared conversation path, while instance-local header/requirements
-        functions prevent its historical Sentinel proof/bundle hooks from running.
+        functions and refill suppression prevent historical Sentinel proof/bundle
+        hooks from running.
         """
 
         from .sentinel_bundle import _PREPARED_SEND_ACTIVE
@@ -876,6 +926,7 @@ class BrowserlessRequestTransport:
         marker = object()
         previous_ready = instance_dict.get("_get_ready_requirements", marker)
         previous_headers = instance_dict.get("_build_headers", marker)
+        previous_refill = instance_dict.get("start_sentinel_bundle_refill", marker)
         consumed = False
         turn_trace_id = str(uuid.uuid4())
 
@@ -885,8 +936,8 @@ class BrowserlessRequestTransport:
                 raise BrowserlessRequestTransportError(
                     "browserless prepared write requested requirements more than once",
                     request_stage="requirements_reuse",
-                    write_may_have_been_submitted=True,
-                    reconciliation_required=True,
+                    write_may_have_been_submitted=bool(write_state["final_write_started"]),
+                    reconciliation_required=bool(write_state["final_write_started"]),
                 )
             consumed = True
             return dict(requirements), None
@@ -911,10 +962,16 @@ class BrowserlessRequestTransport:
             if target_path in {_CONVERSATION_PREPARE_PATH, _CONVERSATION_WRITE_PATH}:
                 patched["x-oai-turn-trace-id"] = turn_trace_id
             headers.update(patched)
+            if target_path == _CONVERSATION_WRITE_PATH:
+                # From this point the final mutation endpoint is about to be
+                # dispatched. A subsequent transport failure is therefore
+                # conservatively ambiguous.
+                write_state["final_write_started"] = True
             return headers
 
         self.client._get_ready_requirements = get_ready_requirements
         self.client._build_headers = build_headers
+        self.client.start_sentinel_bundle_refill = lambda *args, **kwargs: False
         active_token = _PREPARED_SEND_ACTIVE.set(True)
         try:
             yield
@@ -934,6 +991,13 @@ class BrowserlessRequestTransport:
                     pass
             else:
                 self.client._build_headers = previous_headers
+            if previous_refill is marker:
+                try:
+                    delattr(self.client, "start_sentinel_bundle_refill")
+                except AttributeError:
+                    pass
+            else:
+                self.client.start_sentinel_bundle_refill = previous_refill
 
     def _resolve_conversation(
         self,
@@ -945,7 +1009,16 @@ class BrowserlessRequestTransport:
         # Continuation authority is canonical, even when the caller supplies a
         # seemingly complete ChatConversation/dict. This avoids writing from a
         # stale parent supplied by a long-lived application object.
-        attached = self.canonical_client.attach_conversation(conversation)
+        try:
+            attached = self.canonical_client.attach_conversation(conversation)
+        except Exception as error:
+            raise BrowserlessRequestTransportError(
+                f"canonical continuation attach failed before browserless write: "
+                f"{type(error).__name__}: {error}",
+                request_stage="canonical_attach",
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+            ) from error
         if isinstance(attached, AttachedConversation):
             return attached.conversation
         if isinstance(attached, ChatConversation):
@@ -959,7 +1032,12 @@ class BrowserlessRequestTransport:
             nested = attached.get("conversation")
             if isinstance(nested, dict):
                 return dict(nested)
-        raise TypeError("canonical attach did not return a usable continuation conversation")
+        raise BrowserlessRequestTransportError(
+            "canonical attach did not return a usable continuation conversation",
+            request_stage="canonical_attach",
+            write_may_have_been_submitted=False,
+            reconciliation_required=False,
+        )
 
     def _canonical_finalize(
         self,
@@ -1038,10 +1116,16 @@ class BrowserlessRequestTransport:
         return status, assistant, assistant.text
 
     @staticmethod
-    def _classify_request_error(error: RequestError) -> BrowserlessRequestTransportError:
+    def _classify_request_error(
+        error: RequestError,
+        *,
+        final_write_started: bool,
+    ) -> BrowserlessRequestTransportError:
         stage = getattr(error, "request_stage", None)
-        normalized_stage = stage if isinstance(stage, str) and stage else "conversation_stream"
-        prewrite = normalized_stage in _PREWRITE_REQUEST_STAGES
+        normalized_stage = stage if isinstance(stage, str) and stage else "transport"
+        prewrite = normalized_stage in _PREWRITE_REQUEST_STAGES or not final_write_started
+        if prewrite and normalized_stage == "transport":
+            normalized_stage = "conversation_prepare"
         return BrowserlessRequestTransportError(
             f"browserless direct request failed: {error}",
             request_stage=normalized_stage,
