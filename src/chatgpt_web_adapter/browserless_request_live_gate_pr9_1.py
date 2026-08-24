@@ -26,11 +26,15 @@ def run_live_gate(
     expected: str = DEFAULT_EXPECTED,
     timeout: float = 150.0,
 ) -> dict[str, Any]:
-    """Run one bounded browserless live attempt with no browser fallback.
+    """Run one bounded browserless live invocation with no browser fallback.
 
     A protected challenge is a successful safety-boundary observation, not proof
     that direct write is available. Ambiguous outcomes remain reconciliation
     required and are never retried.
+
+    ``product_turn_invocations`` counts calls into the transport. Conversation
+    write counters describe only the mutation plane; a challenge/protocol boundary
+    reached before that plane therefore records zero conversation write attempts.
     """
 
     runtime = assemble_product_runtime(
@@ -45,8 +49,9 @@ def run_live_gate(
         "transport": runtime.transport,
         "support_tier": capabilities.get("transport_support_tier"),
         "product_write_budget": 1,
-        "write_attempts": 0,
-        "write_completions": 0,
+        "product_turn_invocations": 0,
+        "conversation_write_attempts": 0,
+        "conversation_write_completions": 0,
         "automatic_write_retry": False,
         "fallback_transport": None,
         "challenge_bypass_attempted": False,
@@ -56,7 +61,7 @@ def run_live_gate(
         "ok": False,
     }
 
-    report["write_attempts"] = 1
+    report["product_turn_invocations"] = 1
     try:
         execution = runtime.send_text_observed(
             prompt,
@@ -73,6 +78,8 @@ def run_live_gate(
         report["error"] = error.to_dict()
         return report
     except BrowserlessRequestTransportError as error:
+        if error.write_may_have_been_submitted:
+            report["conversation_write_attempts"] = 1
         report["outcome"] = (
             "RECONCILIATION_REQUIRED"
             if error.reconciliation_required
@@ -81,7 +88,8 @@ def run_live_gate(
         report["error"] = error.to_dict()
         return report
 
-    report["write_completions"] = 1
+    report["conversation_write_attempts"] = 1
+    report["conversation_write_completions"] = 1
     actual = execution.response.text.strip()
     report["response_matches"] = actual == expected
     report["conversation_id_present"] = bool(
@@ -116,7 +124,7 @@ def main() -> int:
 
     if not args.acknowledge_live_write:
         parser.error(
-            "--acknowledge-live-write is required; this gate may perform exactly one product write"
+            "--acknowledge-live-write is required; this gate may perform at most one conversation write"
         )
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
