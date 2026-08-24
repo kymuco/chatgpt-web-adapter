@@ -1,6 +1,6 @@
 # PR9.1 — Experimental Browserless Request Transport
 
-_Last updated: 2026-08-23_
+_Last updated: 2026-08-24_
 
 ## Status
 
@@ -257,7 +257,8 @@ canonical readback/finality failure after returned write
 
 `AVAILABLE` means the transport implements and evidence-backs that capability
 contract. It does not mean every current session is allowed an unprotected write;
-per-turn Sentinel policy can still yield `CHALLENGE_BOUNDARY`.
+per-turn Sentinel policy can still yield `CHALLENGE_BOUNDARY`. Server admission is
+therefore a per-invocation condition, separate from the static capability state.
 
 ### UNKNOWN
 
@@ -329,8 +330,44 @@ and has explicit outcomes:
   is not proven;
 - `DIRECT_REQUEST_FAILED` — a non-ambiguous operational failure before write.
 
+The report separates transport invocation from mutation evidence:
+
+```text
+product_turn_invocations
+conversation_write_attempts
+conversation_write_completions
+```
+
+A prewrite challenge boundary therefore reports one product-turn invocation but
+zero conversation-write attempts. An ambiguous post-submit result reports one
+conversation-write attempt and zero completions.
+
 `CHALLENGE_BOUNDARY` is a valid safety result. It proves the boundary worked; it
 does not prove direct-write availability.
+
+## Authenticated live observation — 2026-08-24
+
+A user-run authenticated PR9.1 live gate reached current Sentinel prepare and
+returned:
+
+```text
+outcome = CHALLENGE_BOUNDARY
+required challenges = proofofwork, so, turnstile
+write_may_have_been_submitted = false
+reconciliation_required = false
+challenge_bypass_attempted = false
+```
+
+This is strong evidence for the protected-write boundary on that live session:
+current server policy required browser-bound protection evidence, and PR9.1
+stopped before Sentinel finalize and before any conversation mutation. There was
+no browser fallback, challenge solver, protected credential replay, automatic
+retry, or ambiguous write.
+
+The observation **does not** establish `DIRECT_WRITE_COMPLETED` availability for
+that account/session. A future session or product deployment may admit a
+challenge-free path; that remains experimental and must be observed rather than
+assumed.
 
 ## Support promise
 
