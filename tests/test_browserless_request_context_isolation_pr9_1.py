@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextvars import Context
 import threading
 from time import monotonic
@@ -9,6 +10,7 @@ import pytest
 
 import chatgpt_web_adapter.browserless_request_transport as browserless_module
 from chatgpt_web_adapter.browserless_request_transport import (
+    BrowserlessProtocolDriftError,
     BrowserlessRequestTransport,
     BrowserlessRequestTransportError,
 )
@@ -20,6 +22,12 @@ _PREPARE_PATH = "/backend-api/f/conversation/prepare"
 _WRITE_PATH = "/backend-api/f/conversation"
 _SENTINEL_PREPARE_PATH = "/backend-api/sentinel/chat-requirements/prepare"
 _SENTINEL_FINALIZE_PATH = "/backend-api/sentinel/chat-requirements/finalize"
+_EPHEMERAL_HEADERS = {
+    "x-conduit-token",
+    "openai-sentinel-chat-requirements-token",
+    "openai-sentinel-proof-token",
+    "openai-sentinel-turnstile-token",
+}
 
 
 class _IsolationClient:
@@ -113,9 +121,64 @@ class _IsolationClient:
         return SimpleNamespace(conversation=conversation)
 
 
+class _CredentialIsolationClient(_IsolationClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.base_headers.update(
+            {
+                "OpenAI-Sentinel-Chat-Requirements-Token": "stale-requirements",
+                "openai-sentinel-proof-token": "stale-proof",
+                "OPENAI-SENTINEL-TURNSTILE-TOKEN": "stale-turnstile",
+                "X-Conduit-Token": "stale-conduit",
+            }
+        )
+        self.request_headers: list[tuple[str, dict[str, str]]] = []
+
+    def _build_headers(self, extra=None):
+        self.delegate_header_calls += 1
+        headers = dict(self.base_headers)
+        headers.update(
+            {
+                key: value
+                for key, value in dict(extra or {}).items()
+                if value is not None
+            }
+        )
+        return headers
+
+    def _json_request(self, method, url, payload, headers):
+        self.request_headers.append((str(url), dict(headers)))
+        return super()._json_request(method, url, payload, headers)
+
+
+class _RecoveryIsolationClient(_IsolationClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.poll_timeouts: list[float] = []
+        self.ws_started = 0
+        self.ws_cancelled = 0
+
+    async def _stream_handoff_via_ws_topic_async(self, *args, **kwargs):
+        self.ws_started += 1
+        try:
+            await asyncio.sleep(0.25)
+        except asyncio.CancelledError:
+            self.ws_cancelled += 1
+            raise
+        return "late-ws-result"
+
+    def _poll_conversation_after_prepare(self, *args, timeout, **kwargs):
+        self.poll_timeouts.append(float(timeout))
+        return "poll-result"
+
+
 def _curl_max_time(command: list[str]) -> float:
     index = command.index("--max-time")
     return float(command[index + 1])
+
+
+def _lower_header_names(headers: dict[str, str]) -> set[str]:
+    return {str(key).strip().lower() for key in headers}
 
 
 def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
@@ -215,6 +278,127 @@ def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
     assert client.delegate_refill_calls == 1
 
 
+def test_browserless_strips_inherited_ephemeral_credentials_from_every_request_plane() -> None:
+    client = _CredentialIsolationClient()
+    transport = BrowserlessRequestTransport(client)
+
+    requirements = transport._acquire_unprotected_requirements()
+
+    assert requirements["token"] == "requirements-token"
+    assert len(client.request_headers) == 2
+    for _url, headers in client.request_headers:
+        assert _lower_header_names(headers).isdisjoint(_EPHEMERAL_HEADERS)
+        assert headers["user-agent"] == "test-agent"
+
+    write_state = {"final_write_started": False}
+    with transport._bind_current_prepared_write(
+        requirements,
+        write_state=write_state,
+        deadline=monotonic() + 10.0,
+    ):
+        owner_headers = client._build_headers(
+            {
+                "x-openai-target-path": _WRITE_PATH,
+                "x-openai-target-route": _WRITE_PATH,
+                "openai-sentinel-chat-requirements-token": "requirements-token",
+                "x-conduit-token": "current-conduit",
+            }
+        )
+        lower_owner = _lower_header_names(owner_headers)
+        assert "openai-sentinel-chat-requirements-token" in lower_owner
+        assert "x-conduit-token" in lower_owner
+        assert "openai-sentinel-proof-token" not in lower_owner
+        assert "openai-sentinel-turnstile-token" not in lower_owner
+        assert owner_headers["openai-sentinel-chat-requirements-token"] == "requirements-token"
+        assert owner_headers["x-conduit-token"] == "current-conduit"
+
+        with pytest.raises(BrowserlessProtocolDriftError):
+            client._build_headers(
+                {
+                    "x-openai-target-path": _WRITE_PATH,
+                    "openai-sentinel-proof-token": "forbidden-proof",
+                }
+            )
+        with pytest.raises(BrowserlessProtocolDriftError):
+            client._build_headers(
+                {
+                    "x-openai-target-path": _WRITE_PATH,
+                    "openai-sentinel-chat-requirements-token": "stale-requirements",
+                }
+            )
+        with pytest.raises(BrowserlessProtocolDriftError):
+            client._build_headers(
+                {
+                    "x-openai-target-path": _PREPARE_PATH,
+                    "x-conduit-token": "misplaced-conduit",
+                }
+            )
+
+
+def test_recovery_poll_timeout_is_owner_deadline_scoped_and_foreign_unchanged() -> None:
+    client = _RecoveryIsolationClient()
+    transport = BrowserlessRequestTransport(client)
+    requirements = {
+        "token": "browserless-token",
+        "persona": "chatgpt-test",
+        "proofofwork": {"required": False},
+        "so": {"required": False},
+        "turnstile": {"required": False},
+    }
+    write_state = {"final_write_started": True}
+
+    with transport._bind_current_prepared_write(
+        requirements,
+        write_state=write_state,
+        deadline=monotonic() + 1.0,
+    ):
+        assert client._poll_conversation_after_prepare(
+            "conversation-id",
+            timeout=90.0,
+        ) == "poll-result"
+        owner_timeout = client.poll_timeouts[-1]
+        assert 0.0 < owner_timeout <= 1.0
+
+        foreign = Context()
+        assert foreign.run(
+            client._poll_conversation_after_prepare,
+            "conversation-id",
+            timeout=90.0,
+        ) == "poll-result"
+        assert client.poll_timeouts[-1] == pytest.approx(90.0)
+
+
+def test_websocket_recovery_is_cancelled_at_browserless_total_deadline() -> None:
+    client = _RecoveryIsolationClient()
+    transport = BrowserlessRequestTransport(client)
+    requirements = {
+        "token": "browserless-token",
+        "persona": "chatgpt-test",
+        "proofofwork": {"required": False},
+        "so": {"required": False},
+        "turnstile": {"required": False},
+    }
+    write_state = {"final_write_started": True}
+
+    started = monotonic()
+    with transport._bind_current_prepared_write(
+        requirements,
+        write_state=write_state,
+        deadline=started + 0.05,
+    ):
+        with pytest.raises(BrowserlessRequestTransportError) as captured:
+            asyncio.run(client._stream_handoff_via_ws_topic_async("topic-id"))
+    elapsed = monotonic() - started
+
+    error = captured.value
+    assert error.request_stage == "conversation_stream"
+    assert error.write_may_have_been_submitted is True
+    assert error.reconciliation_required is True
+    assert client.ws_started == 1
+    assert client.ws_cancelled == 1
+    assert elapsed < 0.20
+
+
 def test_expired_deadline_blocks_final_mutation_before_write_state_changes() -> None:
     client = _IsolationClient()
     transport = BrowserlessRequestTransport(client)
@@ -286,6 +470,9 @@ def test_multiple_browserless_transports_share_one_client_write_lock() -> None:
     )
     assert first.governance()["browserless_timeout_scope"] == (
         "EXECUTION_CONTEXT_TOTAL_DEADLINE"
+    )
+    assert first.governance()["browserless_ephemeral_header_policy"] == (
+        "STRIP_INHERITED_ALLOW_CURRENT_REQUIREMENTS_CONDUIT"
     )
 
     first_acquired = threading.Event()
