@@ -6,6 +6,7 @@ import chatgpt_web_adapter.browserless_request_live_gate_pr9_1 as live_gate
 from chatgpt_web_adapter.browserless_request_transport import (
     BrowserlessChallengeBoundaryError,
     BrowserlessProtocolDriftError,
+    BrowserlessRequestTransportError,
 )
 
 
@@ -42,41 +43,87 @@ class _Runtime:
         return self.behavior()
 
 
-def test_live_gate_accepts_challenge_boundary_as_safe_observation(monkeypatch) -> None:
+def _install_runtime(monkeypatch, runtime: _Runtime) -> None:
+    monkeypatch.setattr(live_gate, "assemble_product_runtime", lambda **kwargs: runtime)
+    monkeypatch.setattr(live_gate, "product_runtime_contract", lambda runtime: _Contract())
+
+
+def test_live_gate_accepts_challenge_boundary_as_safe_prewrite_observation(monkeypatch) -> None:
     runtime = _Runtime(
         lambda: (_ for _ in ()).throw(
             BrowserlessChallengeBoundaryError(("turnstile", "proofofwork"))
         )
     )
-    monkeypatch.setattr(live_gate, "assemble_product_runtime", lambda **kwargs: runtime)
-    monkeypatch.setattr(live_gate, "product_runtime_contract", lambda runtime: _Contract())
+    _install_runtime(monkeypatch, runtime)
 
     report = live_gate.run_live_gate(auth_file="unused.json")
 
     assert report["ok"] is True
     assert report["outcome"] == "CHALLENGE_BOUNDARY"
-    assert report["write_attempts"] == 1
-    assert report["write_completions"] == 0
+    assert report["product_turn_invocations"] == 1
+    assert report["conversation_write_attempts"] == 0
+    assert report["conversation_write_completions"] == 0
     assert report["automatic_write_retry"] is False
     assert report["fallback_transport"] is None
     assert report["boundary"]["challenge_bypass_attempted"] is False
     assert runtime.calls == 1
 
 
-def test_live_gate_reports_protocol_drift_without_retry(monkeypatch) -> None:
+def test_live_gate_reports_protocol_drift_as_zero_write_attempts(monkeypatch) -> None:
     runtime = _Runtime(
         lambda: (_ for _ in ()).throw(
             BrowserlessProtocolDriftError("shape changed")
         )
     )
-    monkeypatch.setattr(live_gate, "assemble_product_runtime", lambda **kwargs: runtime)
-    monkeypatch.setattr(live_gate, "product_runtime_contract", lambda runtime: _Contract())
+    _install_runtime(monkeypatch, runtime)
 
     report = live_gate.run_live_gate(auth_file="unused.json")
 
     assert report["ok"] is False
     assert report["outcome"] == "PROTOCOL_DRIFT"
+    assert report["product_turn_invocations"] == 1
+    assert report["conversation_write_attempts"] == 0
     assert runtime.calls == 1
+
+
+def test_live_gate_prewrite_transport_failure_is_zero_write_attempts(monkeypatch) -> None:
+    runtime = _Runtime(
+        lambda: (_ for _ in ()).throw(
+            BrowserlessRequestTransportError(
+                "prepare failed",
+                request_stage="conversation_prepare",
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+            )
+        )
+    )
+    _install_runtime(monkeypatch, runtime)
+
+    report = live_gate.run_live_gate(auth_file="unused.json")
+
+    assert report["outcome"] == "DIRECT_REQUEST_FAILED"
+    assert report["conversation_write_attempts"] == 0
+    assert report["conversation_write_completions"] == 0
+
+
+def test_live_gate_ambiguous_failure_counts_one_possible_write(monkeypatch) -> None:
+    runtime = _Runtime(
+        lambda: (_ for _ in ()).throw(
+            BrowserlessRequestTransportError(
+                "stream disconnected",
+                request_stage="conversation_stream",
+                write_may_have_been_submitted=True,
+                reconciliation_required=True,
+            )
+        )
+    )
+    _install_runtime(monkeypatch, runtime)
+
+    report = live_gate.run_live_gate(auth_file="unused.json")
+
+    assert report["outcome"] == "RECONCILIATION_REQUIRED"
+    assert report["conversation_write_attempts"] == 1
+    assert report["conversation_write_completions"] == 0
 
 
 def test_live_gate_requires_canonical_completion_for_direct_success(monkeypatch) -> None:
@@ -95,14 +142,14 @@ def test_live_gate_requires_canonical_completion_for_direct_success(monkeypatch)
         ),
     )
     runtime = _Runtime(lambda: execution)
-    monkeypatch.setattr(live_gate, "assemble_product_runtime", lambda **kwargs: runtime)
-    monkeypatch.setattr(live_gate, "product_runtime_contract", lambda runtime: _Contract())
+    _install_runtime(monkeypatch, runtime)
 
     report = live_gate.run_live_gate(auth_file="unused.json")
 
     assert report["ok"] is True
     assert report["outcome"] == "DIRECT_WRITE_COMPLETED"
-    assert report["write_attempts"] == 1
-    assert report["write_completions"] == 1
+    assert report["product_turn_invocations"] == 1
+    assert report["conversation_write_attempts"] == 1
+    assert report["conversation_write_completions"] == 1
     assert report["response_matches"] is True
     assert runtime.calls == 1
