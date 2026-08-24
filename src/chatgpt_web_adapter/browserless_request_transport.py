@@ -77,6 +77,8 @@ _PREWRITE_REQUEST_STAGES = frozenset(
         "browserless_sentinel_prepare",
         "browserless_sentinel_finalize",
         "browserless_prepared_write_binding",
+        "browserless_write_queue",
+        "browserless_write_deadline",
         "canonical_attach",
         "conversation_prepare",
         "web_session_bootstrap",
@@ -440,6 +442,24 @@ class BrowserlessRequestTransport:
                 reconciliation_required=False,
             )
 
+    @staticmethod
+    def _remaining_before_write(
+        deadline: float,
+        *,
+        request_stage: str,
+        endpoint: str | None = None,
+    ) -> float:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise BrowserlessRequestTransportError(
+                "browserless request deadline expired before conversation mutation",
+                request_stage=request_stage,
+                endpoint=endpoint,
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+            )
+        return remaining
+
     def _resolve_direct_send(self) -> Any:
         if isinstance(self.client, ChatGPTWebClient):
             # Package installation wraps ChatGPTWebClient.send with Sentinel and
@@ -563,6 +583,7 @@ class BrowserlessRequestTransport:
             "browserless_challenge_boundary": "FAIL_CLOSED_BEFORE_WRITE",
             "browserless_shared_client_binding_scope": "EXECUTION_CONTEXT",
             "browserless_shared_client_write_serialization": "PER_CANONICAL_CLIENT",
+            "browserless_timeout_scope": "EXECUTION_CONTEXT_TOTAL_DEADLINE",
             "challenge_bypass_supported": False,
             "turnstile_solving_supported": False,
             "proof_token_generation_supported": False,
@@ -604,7 +625,12 @@ class BrowserlessRequestTransport:
             raise ValueError("poll_interval must be greater than 0")
 
         started = monotonic()
+        deadline = started + timeout
         with self._write_lock:
+            self._remaining_before_write(
+                deadline,
+                request_stage="browserless_write_queue",
+            )
             self._assert_execution_provider_boundary()
             resolved_conversation = self._resolve_conversation(conversation)
             previous_message_id = self._parent_message_id(resolved_conversation)
@@ -630,12 +656,16 @@ class BrowserlessRequestTransport:
                 if on_token is not None:
                     on_token(token)
 
-            remaining = max(0.001, timeout - (monotonic() - started))
-            previous_timeout = getattr(self.client, "timeout", None)
-            if isinstance(previous_timeout, (int, float)):
-                self.client.timeout = remaining
+            self._remaining_before_write(
+                deadline,
+                request_stage="browserless_prepared_write_binding",
+            )
             try:
-                with self._bind_current_prepared_write(requirements, write_state=write_state):
+                with self._bind_current_prepared_write(
+                    requirements,
+                    write_state=write_state,
+                    deadline=deadline,
+                ):
                     response = self._direct_send(
                         text,
                         conversation=resolved_conversation,
@@ -659,9 +689,6 @@ class BrowserlessRequestTransport:
                     write_may_have_been_submitted=ambiguous,
                     reconciliation_required=ambiguous,
                 ) from error
-            finally:
-                if isinstance(previous_timeout, (int, float)):
-                    self.client.timeout = previous_timeout
 
             if not isinstance(response, ChatResponse):
                 raise BrowserlessRequestTransportError(
@@ -671,7 +698,7 @@ class BrowserlessRequestTransport:
                     reconciliation_required=True,
                 )
 
-            remaining = max(0.0, timeout - (monotonic() - started))
+            remaining = max(0.0, deadline - monotonic())
             canonical_status, canonical_message, canonical_text = self._canonical_finalize(
                 response,
                 previous_message_id=previous_message_id,
@@ -946,6 +973,7 @@ class BrowserlessRequestTransport:
         requirements: dict[str, Any],
         *,
         write_state: dict[str, bool],
+        deadline: float,
     ) -> Iterator[None]:
         """Use current conversation prepare/conduit without Sentinel bundle machinery.
 
@@ -955,6 +983,8 @@ class BrowserlessRequestTransport:
         execution context owns this browserless binding. Browserless mutation
         transactions sharing one canonical client are serialized by the shared
         client lock, while ordinary concurrent callers stay outside the binding.
+        The browserless total deadline is applied only in the owner execution
+        context; the shared client's ordinary timeout field is never mutated.
         """
 
         from .sentinel_bundle import _PREPARED_SEND_ACTIVE
@@ -977,6 +1007,7 @@ class BrowserlessRequestTransport:
         delegate_ready = getattr(self.client, "_get_ready_requirements", None)
         delegate_headers = getattr(self.client, "_build_headers", None)
         delegate_refill = getattr(self.client, "start_sentinel_bundle_refill", None)
+        delegate_curl = getattr(self.client, "_build_curl_command", None)
         if not callable(delegate_ready) or not callable(delegate_headers):
             raise BrowserlessProtocolDriftError(
                 "direct-request client is missing prepared-write delegate methods",
@@ -988,6 +1019,7 @@ class BrowserlessRequestTransport:
         previous_ready = instance_dict.get("_get_ready_requirements", marker)
         previous_headers = instance_dict.get("_build_headers", marker)
         previous_refill = instance_dict.get("start_sentinel_bundle_refill", marker)
+        previous_curl = instance_dict.get("_build_curl_command", marker)
         owner = object()
         consumed = False
         turn_trace_id = str(uuid.uuid4())
@@ -1032,6 +1064,11 @@ class BrowserlessRequestTransport:
                 patched["x-oai-turn-trace-id"] = turn_trace_id
             headers.update(patched)
             if target_path == _CONVERSATION_WRITE_PATH:
+                self._remaining_before_write(
+                    deadline,
+                    request_stage="browserless_write_deadline",
+                    endpoint=_CONVERSATION_WRITE_PATH,
+                )
                 # From this point the final mutation endpoint is about to be
                 # dispatched. A subsequent generic transport failure is therefore
                 # conservatively ambiguous.
@@ -1045,9 +1082,45 @@ class BrowserlessRequestTransport:
                 return delegate_refill(*args, **kwargs)
             return False
 
+        def build_curl_command(*args: Any, **kwargs: Any) -> Any:
+            if not callable(delegate_curl):
+                raise BrowserlessProtocolDriftError(
+                    "direct-request client is missing curl-command delegate method",
+                    request_stage="browserless_prepared_write_binding",
+                )
+            command = delegate_curl(*args, **kwargs)
+            if not owns_binding():
+                return command
+            remaining = self._remaining_before_write(
+                deadline,
+                request_stage="browserless_write_deadline",
+            )
+            if not isinstance(command, list):
+                raise BrowserlessProtocolDriftError(
+                    "direct-request curl command is not a list",
+                    request_stage="browserless_prepared_write_binding",
+                )
+            patched_command = list(command)
+            try:
+                max_time_index = patched_command.index("--max-time")
+            except ValueError as error:
+                raise BrowserlessProtocolDriftError(
+                    "direct-request curl command is missing --max-time",
+                    request_stage="browserless_prepared_write_binding",
+                ) from error
+            if max_time_index + 1 >= len(patched_command):
+                raise BrowserlessProtocolDriftError(
+                    "direct-request curl command has no --max-time value",
+                    request_stage="browserless_prepared_write_binding",
+                )
+            patched_command[max_time_index + 1] = str(max(0.001, remaining))
+            return patched_command
+
         self.client._get_ready_requirements = get_ready_requirements
         self.client._build_headers = build_headers
         self.client.start_sentinel_bundle_refill = start_refill
+        if callable(delegate_curl):
+            self.client._build_curl_command = build_curl_command
         owner_token = _BROWSERLESS_BINDING_OWNER.set(owner)
         active_token = _PREPARED_SEND_ACTIVE.set(True)
         try:
@@ -1076,6 +1149,14 @@ class BrowserlessRequestTransport:
                     pass
             else:
                 self.client.start_sentinel_bundle_refill = previous_refill
+            if callable(delegate_curl):
+                if previous_curl is marker:
+                    try:
+                        delattr(self.client, "_build_curl_command")
+                    except AttributeError:
+                        pass
+                else:
+                    self.client._build_curl_command = previous_curl
 
     def _resolve_conversation(
         self,
