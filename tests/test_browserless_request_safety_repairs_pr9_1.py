@@ -69,6 +69,11 @@ class _SafetyClient:
             return 200, self.finalize
         raise AssertionError(f"unexpected URL: {url}")
 
+    def _get_ready_requirements(self):
+        raise AssertionError(
+            "browserless owner must use its execution-local finalized requirements"
+        )
+
     def start_sentinel_bundle_refill(self, *args, **kwargs):
         self.refill_calls += 1
         return True
