@@ -75,6 +75,12 @@ _PREWRITE_REQUEST_STAGES = frozenset(
         "web_session_bootstrap",
     }
 )
+_EXPLICIT_POSTWRITE_REQUEST_STAGES = frozenset(
+    {
+        "conversation_stream",
+        "conversation_write",
+    }
+)
 _REQUIRED_PREPARE_KEYS = frozenset(
     {"persona", "prepare_token", "proofofwork", "so", "turnstile"}
 )
@@ -964,7 +970,7 @@ class BrowserlessRequestTransport:
             headers.update(patched)
             if target_path == _CONVERSATION_WRITE_PATH:
                 # From this point the final mutation endpoint is about to be
-                # dispatched. A subsequent transport failure is therefore
+                # dispatched. A subsequent generic transport failure is therefore
                 # conservatively ambiguous.
                 write_state["final_write_started"] = True
             return headers
@@ -1123,7 +1129,15 @@ class BrowserlessRequestTransport:
     ) -> BrowserlessRequestTransportError:
         stage = getattr(error, "request_stage", None)
         normalized_stage = stage if isinstance(stage, str) and stage else "transport"
-        prewrite = normalized_stage in _PREWRITE_REQUEST_STAGES or not final_write_started
+        if normalized_stage in _PREWRITE_REQUEST_STAGES:
+            prewrite = True
+        elif normalized_stage in _EXPLICIT_POSTWRITE_REQUEST_STAGES:
+            prewrite = False
+        else:
+            # Generic/unknown transport failures need execution evidence. Before
+            # final-write headers exist they are proven prewrite; afterwards the
+            # mutation outcome is conservatively ambiguous.
+            prewrite = not final_write_started
         if prewrite and normalized_stage == "transport":
             normalized_stage = "conversation_prepare"
         return BrowserlessRequestTransportError(
