@@ -28,6 +28,9 @@ from .browser_native_provider import (
     BrowserNativeTurnResult,
 )
 from .browser_sentinel import ZendriverSentinelBundleProvider
+from .browserless_request_scope import (
+    gate_browserless_request_execute as _gate_browserless_request_execute,
+)
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
@@ -201,6 +204,18 @@ ChatGPTWebClient.send_payload = _send_payload
 ChatGPTWebClient.send_to_conversation = _send_to_conversation
 ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pending_actions
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
+
+# Browserless owns one request scope spanning canonical attach, Sentinel preflight,
+# the prepared mutation, and canonical reconciliation. The wrapper is installed at
+# package import time like the other compatibility gates above, without changing
+# the public transport method surface.
+from .browserless_request_transport import BrowserlessRequestTransport as _BrowserlessRequestTransport
+
+_original_browserless_request_execute = _BrowserlessRequestTransport._execute
+_BrowserlessRequestTransport._execute = _gate_browserless_request_execute(
+    _original_browserless_request_execute
+)
+
 WebChatClient = ChatGPTWebClient
 
 # The historical core prefix remains import-compatible. The forward-looking
