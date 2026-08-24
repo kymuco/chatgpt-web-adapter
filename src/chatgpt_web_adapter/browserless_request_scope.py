@@ -203,6 +203,34 @@ def _bind_browserless_request_scope(
             )
 
 
+def gate_browserless_request_health(
+    original_health: Callable[..., Any],
+) -> Callable[..., Any]:
+    """Apply browserless no-replay header hygiene to canonical health reads."""
+
+    @wraps(original_health)
+    def health(self: Any, conversation: Any = None) -> Any:
+        if conversation is None:
+            return original_health(self, conversation)
+
+        lock = getattr(self, "_write_lock", None)
+        acquire = getattr(lock, "acquire", None)
+        release = getattr(lock, "release", None)
+        if not callable(acquire) or not callable(release):
+            # Real browserless transports always receive the guarded per-client
+            # RLock. Preserve compatibility for synthetic test doubles.
+            return original_health(self, conversation)
+
+        acquire()
+        try:
+            with _bind_browserless_header_scope(self.client):
+                return original_health(self, conversation)
+        finally:
+            release()
+
+    return health
+
+
 def gate_browserless_request_execute(
     original_execute: Callable[..., Any],
 ) -> Callable[..., Any]:
