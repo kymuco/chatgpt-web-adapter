@@ -68,6 +68,8 @@ _BROWSERLESS_BINDING_OWNER: ContextVar[object | None] = ContextVar(
     "browserless_prepared_binding_owner",
     default=None,
 )
+_SHARED_WRITE_LOCK_GUARD = threading.Lock()
+_SHARED_WRITE_LOCK_ATTR = "_cwa_browserless_request_write_lock"
 
 _PREWRITE_REQUEST_STAGES = frozenset(
     {
@@ -171,6 +173,24 @@ def _build_browserless_capabilities() -> ProductCapabilities:
 
 
 _BROWSERLESS_CAPABILITIES = _build_browserless_capabilities()
+
+
+def _shared_browserless_write_lock(client: Any) -> Any:
+    """Return one re-entrant browserless mutation lock per canonical client."""
+
+    instance_dict = getattr(client, "__dict__", None)
+    if not isinstance(instance_dict, dict):
+        return threading.RLock()
+    with _SHARED_WRITE_LOCK_GUARD:
+        lock = instance_dict.get(_SHARED_WRITE_LOCK_ATTR)
+        if lock is None:
+            lock = threading.RLock()
+            instance_dict[_SHARED_WRITE_LOCK_ATTR] = lock
+        elif not callable(getattr(lock, "acquire", None)) or not callable(
+            getattr(lock, "release", None)
+        ):
+            raise TypeError("browserless shared-client write lock state is invalid")
+        return lock
 
 
 class BrowserlessRequestTransportError(WebChatAdapterError):
@@ -403,7 +423,7 @@ class BrowserlessRequestTransport:
                 "browserless request transport forbids configured Sentinel/browser challenge providers"
             )
         self._direct_send = self._resolve_direct_send()
-        self._write_lock = threading.Lock()
+        self._write_lock = _shared_browserless_write_lock(self.client)
 
     def _challenge_provider_configured(self) -> bool:
         return callable(getattr(self.client, "_sentinel_challenge_provider", None)) or callable(
@@ -542,6 +562,7 @@ class BrowserlessRequestTransport:
             "browserless_requirements_preflight": "UNPROTECTED_TWO_PHASE_ONLY",
             "browserless_challenge_boundary": "FAIL_CLOSED_BEFORE_WRITE",
             "browserless_shared_client_binding_scope": "EXECUTION_CONTEXT",
+            "browserless_shared_client_write_serialization": "PER_CANONICAL_CLIENT",
             "challenge_bypass_supported": False,
             "turnstile_solving_supported": False,
             "proof_token_generation_supported": False,
@@ -931,8 +952,9 @@ class BrowserlessRequestTransport:
         The server-issued challenge-free requirements token is already finalized.
         Instance hooks remain visible on the shared compatibility client, so every
         override delegates to the original bound method unless the current
-        execution context owns this browserless binding. This keeps concurrent
-        callers on the same client outside the challenge-free transaction.
+        execution context owns this browserless binding. Browserless mutation
+        transactions sharing one canonical client are serialized by the shared
+        client lock, while ordinary concurrent callers stay outside the binding.
         """
 
         from .sentinel_bundle import _PREPARED_SEND_ACTIVE
