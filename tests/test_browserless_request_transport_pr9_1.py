@@ -88,6 +88,11 @@ class _DirectClient:
             return self.finalize_status, self.finalize
         raise AssertionError(f"unexpected direct request URL: {url}")
 
+    def _get_ready_requirements(self):
+        raise AssertionError(
+            "browserless owner must use its execution-local finalized requirements"
+        )
+
     def _get_chat_requirements(self):
         raise AssertionError("browserless transport must not call legacy single-step requirements")
 
