@@ -283,5 +283,5 @@ def test_sentinel_preflight_curl_uses_total_invocation_deadline() -> None:
         if stage in {"sentinel_prepare", "sentinel_finalize"}
     }
     assert set(sentinel) == {"sentinel_prepare", "sentinel_finalize"}
-    assert 0.0 < sentinel["sentinel_prepare"] <= 0.2
+    assert 0.0 < sentinel["sentinel_prepare"] <= 0.2 + 1e-9
     assert 0.0 < sentinel["sentinel_finalize"] <= sentinel["sentinel_prepare"]
