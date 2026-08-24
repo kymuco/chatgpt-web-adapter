@@ -141,6 +141,16 @@ def gate_browserless_canonical_finalize(
         submitted_message_id = _normalized_message_id(
             getattr(conversation, "message_id", None)
         )
+        if submitted_message_id is None:
+            from .browserless_request_transport import BrowserlessRequestTransportError
+
+            raise BrowserlessRequestTransportError(
+                "submitted browserless assistant identity is missing; canonical "
+                "finality cannot be correlated to this turn",
+                request_stage="canonical_reconciliation",
+                write_may_have_been_submitted=True,
+                reconciliation_required=True,
+            )
 
         result = original(
             self,
@@ -157,7 +167,7 @@ def gate_browserless_canonical_finalize(
             getattr(canonical_assistant, "message_id", None)
         )
 
-        if submitted_message_id is not None and status_message_id != submitted_message_id:
+        if status_message_id != submitted_message_id:
             from .browserless_request_transport import BrowserlessRequestTransportError
 
             raise BrowserlessRequestTransportError(
@@ -168,10 +178,7 @@ def gate_browserless_canonical_finalize(
                 reconciliation_required=True,
             )
 
-        if (
-            submitted_message_id is not None
-            and canonical_message_id != submitted_message_id
-        ):
+        if canonical_message_id != submitted_message_id:
             from .browserless_request_transport import BrowserlessRequestTransportError
 
             raise BrowserlessRequestTransportError(
