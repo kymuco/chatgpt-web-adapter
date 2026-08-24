@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from contextvars import Context
 import threading
+from time import monotonic
 from types import SimpleNamespace
 
 import pytest
 
+import chatgpt_web_adapter.browserless_request_transport as browserless_module
 from chatgpt_web_adapter.browserless_request_transport import (
     BrowserlessRequestTransport,
     BrowserlessRequestTransportError,
@@ -33,6 +35,7 @@ class _IsolationClient:
         self.delegate_ready_calls = 0
         self.delegate_header_calls = 0
         self.delegate_refill_calls = 0
+        self.json_request_calls = 0
         self.send_calls = 0
 
     def _get_ready_requirements(self):
@@ -48,7 +51,28 @@ class _IsolationClient:
         self.delegate_header_calls += 1
         return {"delegated": "yes", **(extra or {})}
 
+    def _build_curl_command(
+        self,
+        method,
+        url,
+        headers,
+        header_path,
+        body_path=None,
+        *,
+        no_buffer=False,
+        follow_redirects=False,
+    ):
+        return [
+            "curl",
+            "--max-time",
+            str(self.timeout),
+            "-X",
+            str(method).upper(),
+            str(url),
+        ]
+
     def _json_request(self, method, url, payload, headers):
+        self.json_request_calls += 1
         assert method == "POST"
         if url.endswith("/chat-requirements/prepare"):
             if self.failure_at == "prepare_request":
@@ -89,6 +113,11 @@ class _IsolationClient:
         return SimpleNamespace(conversation=conversation)
 
 
+def _curl_max_time(command: list[str]) -> float:
+    index = command.index("--max-time")
+    return float(command[index + 1])
+
+
 def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
     client = _IsolationClient()
     transport = BrowserlessRequestTransport(client)
@@ -104,8 +133,14 @@ def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
     original_ready = client._get_ready_requirements
     original_headers = client._build_headers
     original_refill = client.start_sentinel_bundle_refill
+    original_curl = client._build_curl_command
+    deadline = monotonic() + 10.0
 
-    with transport._bind_current_prepared_write(requirements, write_state=write_state):
+    with transport._bind_current_prepared_write(
+        requirements,
+        write_state=write_state,
+        deadline=deadline,
+    ):
         assert prepared_send_active() is True
 
         foreign = Context()
@@ -126,6 +161,35 @@ def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
         assert write_state["final_write_started"] is False
         assert foreign.run(client.start_sentinel_bundle_refill) == "foreign-refill"
 
+        foreign_curl = foreign.run(
+            client._build_curl_command,
+            "POST",
+            "https://chatgpt.com/backend-api/f/conversation",
+            {},
+            "headers.txt",
+        )
+        assert _curl_max_time(foreign_curl) == pytest.approx(60.0)
+
+        foreign.run(setattr, client, "timeout", 77.0)
+        foreign_curl_after_update = foreign.run(
+            client._build_curl_command,
+            "POST",
+            "https://chatgpt.com/backend-api/f/conversation",
+            {},
+            "headers.txt",
+        )
+        assert _curl_max_time(foreign_curl_after_update) == pytest.approx(77.0)
+
+        owner_curl = client._build_curl_command(
+            "POST",
+            "https://chatgpt.com/backend-api/f/conversation",
+            {},
+            "headers.txt",
+        )
+        owner_max_time = _curl_max_time(owner_curl)
+        assert 0.0 < owner_max_time <= 10.0
+        assert owner_max_time != pytest.approx(77.0)
+
         owner_requirements, owner_proof = client._get_ready_requirements()
         assert owner_requirements["token"] == "browserless-token"
         assert owner_proof is None
@@ -144,9 +208,69 @@ def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
     assert client._get_ready_requirements == original_ready
     assert client._build_headers == original_headers
     assert client.start_sentinel_bundle_refill == original_refill
+    assert client._build_curl_command == original_curl
+    assert client.timeout == pytest.approx(77.0)
     assert client.delegate_ready_calls == 1
     assert client.delegate_header_calls == 1
     assert client.delegate_refill_calls == 1
+
+
+def test_expired_deadline_blocks_final_mutation_before_write_state_changes() -> None:
+    client = _IsolationClient()
+    transport = BrowserlessRequestTransport(client)
+    requirements = {
+        "token": "browserless-token",
+        "persona": "chatgpt-test",
+        "proofofwork": {"required": False},
+        "so": {"required": False},
+        "turnstile": {"required": False},
+    }
+    write_state = {"final_write_started": False}
+
+    with transport._bind_current_prepared_write(
+        requirements,
+        write_state=write_state,
+        deadline=monotonic() - 1.0,
+    ):
+        with pytest.raises(BrowserlessRequestTransportError) as captured:
+            client._build_headers(
+                {
+                    "x-openai-target-path": _WRITE_PATH,
+                    "x-openai-target-route": _WRITE_PATH,
+                }
+            )
+
+    error = captured.value
+    assert error.request_stage == "browserless_write_deadline"
+    assert error.write_may_have_been_submitted is False
+    assert error.reconciliation_required is False
+    assert write_state["final_write_started"] is False
+
+
+def test_expired_queued_call_stops_before_sentinel_or_send(monkeypatch) -> None:
+    client = _IsolationClient()
+    transport = BrowserlessRequestTransport(client)
+    clock = iter((0.0, 2.0))
+
+    class _AdvancingLock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    transport._write_lock = _AdvancingLock()
+    monkeypatch.setattr(browserless_module, "monotonic", lambda: next(clock))
+
+    with pytest.raises(BrowserlessRequestTransportError) as captured:
+        transport.send_text("hello", timeout=1.0)
+
+    error = captured.value
+    assert error.request_stage == "browserless_write_queue"
+    assert error.write_may_have_been_submitted is False
+    assert error.reconciliation_required is False
+    assert client.json_request_calls == 0
+    assert client.send_calls == 0
 
 
 def test_multiple_browserless_transports_share_one_client_write_lock() -> None:
@@ -159,6 +283,9 @@ def test_multiple_browserless_transports_share_one_client_write_lock() -> None:
     assert first._write_lock is not other_client_transport._write_lock
     assert first.governance()["browserless_shared_client_write_serialization"] == (
         "PER_CANONICAL_CLIENT"
+    )
+    assert first.governance()["browserless_timeout_scope"] == (
+        "EXECUTION_CONTEXT_TOTAL_DEADLINE"
     )
 
     first_acquired = threading.Event()
