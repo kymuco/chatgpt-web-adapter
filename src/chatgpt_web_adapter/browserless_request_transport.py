@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 from time import monotonic, sleep
 import threading
@@ -63,6 +64,10 @@ _CANONICAL_READ_PLANE = "CANONICAL"
 _CANONICAL_SESSION_PLANE = "CANONICAL_SESSION"
 _CONVERSATION_PREPARE_PATH = "/backend-api/f/conversation/prepare"
 _CONVERSATION_WRITE_PATH = "/backend-api/f/conversation"
+_BROWSERLESS_BINDING_OWNER: ContextVar[object | None] = ContextVar(
+    "browserless_prepared_binding_owner",
+    default=None,
+)
 
 _PREWRITE_REQUEST_STAGES = frozenset(
     {
@@ -536,6 +541,7 @@ class BrowserlessRequestTransport:
             "browserless_legacy_unprepared_conversation_write_fallback": False,
             "browserless_requirements_preflight": "UNPROTECTED_TWO_PHASE_ONLY",
             "browserless_challenge_boundary": "FAIL_CLOSED_BEFORE_WRITE",
+            "browserless_shared_client_binding_scope": "EXECUTION_CONTEXT",
             "challenge_bypass_supported": False,
             "turnstile_solving_supported": False,
             "proof_token_generation_supported": False,
@@ -735,6 +741,15 @@ class BrowserlessRequestTransport:
                 write_may_have_been_submitted=False,
                 reconciliation_required=False,
             ) from error
+        except Exception as error:
+            raise BrowserlessRequestTransportError(
+                f"browserless Sentinel prepare failed before write: "
+                f"{type(error).__name__}: {error}",
+                request_stage="browserless_sentinel_prepare",
+                endpoint=SENTINEL_PREPARE_PATH,
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+            ) from error
 
         if status == 403:
             raise BrowserlessChallengeBoundaryError(
@@ -802,22 +817,22 @@ class BrowserlessRequestTransport:
         persona: str,
     ) -> dict[str, Any]:
         finalize_url = f"{CHAT_URL.rstrip('/')}{SENTINEL_FINALIZE_PATH}"
-        headers = self.client._build_headers(
-            {
-                "accept": "*/*",
-                "content-type": "application/json",
-                "origin": CHAT_URL.rstrip("/"),
-                "referer": CHAT_URL,
-                "x-openai-target-path": SENTINEL_FINALIZE_PATH,
-                "x-openai-target-route": SENTINEL_FINALIZE_PATH,
-            }
-        )
         payload = {
             "prepare_token": prepare_token,
             "proofofwork": None,
             "turnstile": None,
         }
         try:
+            headers = self.client._build_headers(
+                {
+                    "accept": "*/*",
+                    "content-type": "application/json",
+                    "origin": CHAT_URL.rstrip("/"),
+                    "referer": CHAT_URL,
+                    "x-openai-target-path": SENTINEL_FINALIZE_PATH,
+                    "x-openai-target-route": SENTINEL_FINALIZE_PATH,
+                }
+            )
             with suppress_web_session_debug_trace():
                 status, data = self.client._json_request(
                     "POST",
@@ -837,6 +852,15 @@ class BrowserlessRequestTransport:
                 f"browserless Sentinel finalize failed: {error}",
                 request_stage="browserless_sentinel_finalize",
                 status_code=status_code,
+                endpoint=SENTINEL_FINALIZE_PATH,
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+            ) from error
+        except Exception as error:
+            raise BrowserlessRequestTransportError(
+                f"browserless Sentinel finalize failed before write: "
+                f"{type(error).__name__}: {error}",
+                request_stage="browserless_sentinel_finalize",
                 endpoint=SENTINEL_FINALIZE_PATH,
                 write_may_have_been_submitted=False,
                 reconciliation_required=False,
@@ -905,10 +929,10 @@ class BrowserlessRequestTransport:
         """Use current conversation prepare/conduit without Sentinel bundle machinery.
 
         The server-issued challenge-free requirements token is already finalized.
-        This execution-local binding activates the compatibility client's current
-        prepared conversation path, while instance-local header/requirements
-        functions and refill suppression prevent historical Sentinel proof/bundle
-        hooks from running.
+        Instance hooks remain visible on the shared compatibility client, so every
+        override delegates to the original bound method unless the current
+        execution context owns this browserless binding. This keeps concurrent
+        callers on the same client outside the challenge-free transaction.
         """
 
         from .sentinel_bundle import _PREPARED_SEND_ACTIVE
@@ -928,16 +952,31 @@ class BrowserlessRequestTransport:
                 request_stage="browserless_prepared_write_binding",
             )
 
+        delegate_ready = getattr(self.client, "_get_ready_requirements", None)
+        delegate_headers = getattr(self.client, "_build_headers", None)
+        delegate_refill = getattr(self.client, "start_sentinel_bundle_refill", None)
+        if not callable(delegate_ready) or not callable(delegate_headers):
+            raise BrowserlessProtocolDriftError(
+                "direct-request client is missing prepared-write delegate methods",
+                request_stage="browserless_prepared_write_binding",
+            )
+
         _sync_device_header(self.client)
         marker = object()
         previous_ready = instance_dict.get("_get_ready_requirements", marker)
         previous_headers = instance_dict.get("_build_headers", marker)
         previous_refill = instance_dict.get("start_sentinel_bundle_refill", marker)
+        owner = object()
         consumed = False
         turn_trace_id = str(uuid.uuid4())
 
-        def get_ready_requirements() -> tuple[dict[str, Any], None]:
+        def owns_binding() -> bool:
+            return _BROWSERLESS_BINDING_OWNER.get() is owner
+
+        def get_ready_requirements() -> tuple[dict[str, Any], str | None]:
             nonlocal consumed
+            if not owns_binding():
+                return delegate_ready()
             if consumed:
                 raise BrowserlessRequestTransportError(
                     "browserless prepared write requested requirements more than once",
@@ -949,6 +988,8 @@ class BrowserlessRequestTransport:
             return dict(requirements), None
 
         def build_headers(extra: dict[str, str | None] | None = None) -> dict[str, str]:
+            if not owns_binding():
+                return delegate_headers(extra)
             headers = dict(getattr(self.client, "base_headers", {}) or {})
             auth = getattr(self.client, "auth", None)
             access_token = getattr(auth, "accessToken", None)
@@ -975,14 +1016,23 @@ class BrowserlessRequestTransport:
                 write_state["final_write_started"] = True
             return headers
 
+        def start_refill(*args: Any, **kwargs: Any) -> Any:
+            if owns_binding():
+                return False
+            if callable(delegate_refill):
+                return delegate_refill(*args, **kwargs)
+            return False
+
         self.client._get_ready_requirements = get_ready_requirements
         self.client._build_headers = build_headers
-        self.client.start_sentinel_bundle_refill = lambda *args, **kwargs: False
+        self.client.start_sentinel_bundle_refill = start_refill
+        owner_token = _BROWSERLESS_BINDING_OWNER.set(owner)
         active_token = _PREPARED_SEND_ACTIVE.set(True)
         try:
             yield
         finally:
             _PREPARED_SEND_ACTIVE.reset(active_token)
+            _BROWSERLESS_BINDING_OWNER.reset(owner_token)
             if previous_ready is marker:
                 try:
                     delattr(self.client, "_get_ready_requirements")
