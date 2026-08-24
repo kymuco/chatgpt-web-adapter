@@ -13,6 +13,10 @@ _BROWSERLESS_REQUEST_SCOPE_OWNER: ContextVar[object | None] = ContextVar(
     "browserless_request_scope_owner",
     default=None,
 )
+_BROWSERLESS_HEADER_SCOPE_OWNER: ContextVar[object | None] = ContextVar(
+    "browserless_header_scope_owner",
+    default=None,
+)
 
 
 def _browserless_timeout_error(*, request_stage: str) -> RequestError:
@@ -76,6 +80,66 @@ def _restore_instance_callable(
 
 
 @contextmanager
+def _bind_browserless_header_scope(client: Any) -> Iterator[None]:
+    """Strip inherited one-shot write credentials for one browserless context.
+
+    The instance dispatcher is visible while the scope is active, but only the
+    owner ContextVar receives browserless header hygiene. Ordinary concurrent
+    callers on the shared canonical client delegate to the exact header builder
+    that was present before this scope.
+    """
+
+    instance_dict = getattr(client, "__dict__", None)
+    if not isinstance(instance_dict, dict):
+        from .browserless_request_transport import BrowserlessProtocolDriftError
+
+        raise BrowserlessProtocolDriftError(
+            "direct-request client does not expose instance state for header scope",
+            request_stage="browserless_request_scope",
+        )
+
+    delegate_headers = getattr(client, "_build_headers", None)
+    if not callable(delegate_headers):
+        from .browserless_request_transport import BrowserlessProtocolDriftError
+
+        raise BrowserlessProtocolDriftError(
+            "direct-request client is missing header builder for request scope",
+            request_stage="browserless_request_scope",
+        )
+
+    marker = object()
+    previous_headers = instance_dict.get("_build_headers", marker)
+    owner = object()
+
+    def owns_scope() -> bool:
+        return _BROWSERLESS_HEADER_SCOPE_OWNER.get() is owner
+
+    def build_headers(
+        extra: Mapping[str, Any] | None = None,
+    ) -> dict[str, str]:
+        headers = delegate_headers(extra)
+        if not owns_scope():
+            return headers
+        from .browserless_request_transport import _strip_ephemeral_write_headers
+
+        return _strip_ephemeral_write_headers(headers)
+
+    client._build_headers = build_headers
+    owner_token = _BROWSERLESS_HEADER_SCOPE_OWNER.set(owner)
+    try:
+        yield
+    finally:
+        _BROWSERLESS_HEADER_SCOPE_OWNER.reset(owner_token)
+        _restore_instance_callable(
+            client,
+            name="_build_headers",
+            previous=previous_headers,
+            marker=marker,
+            installed=build_headers,
+        )
+
+
+@contextmanager
 def _bind_browserless_request_scope(
     client: Any,
     *,
@@ -84,7 +148,7 @@ def _bind_browserless_request_scope(
     """Bind browserless header hygiene and total deadline to one execution context.
 
     The instance dispatchers remain visible while the scope is active, but only the
-    owner ContextVar receives browserless behavior. Ordinary concurrent callers on
+    owner ContextVars receive browserless behavior. Ordinary concurrent callers on
     the shared canonical client delegate to the exact methods that were present
     before this scope.
     """
@@ -98,33 +162,13 @@ def _bind_browserless_request_scope(
             request_stage="browserless_request_scope",
         )
 
-    delegate_headers = getattr(client, "_build_headers", None)
     delegate_curl = getattr(client, "_build_curl_command", None)
-    if not callable(delegate_headers):
-        from .browserless_request_transport import BrowserlessProtocolDriftError
-
-        raise BrowserlessProtocolDriftError(
-            "direct-request client is missing header builder for request scope",
-            request_stage="browserless_request_scope",
-        )
-
     marker = object()
-    previous_headers = instance_dict.get("_build_headers", marker)
     previous_curl = instance_dict.get("_build_curl_command", marker)
     owner = object()
 
     def owns_scope() -> bool:
         return _BROWSERLESS_REQUEST_SCOPE_OWNER.get() is owner
-
-    def build_headers(
-        extra: Mapping[str, Any] | None = None,
-    ) -> dict[str, str]:
-        headers = delegate_headers(extra)
-        if not owns_scope():
-            return headers
-        from .browserless_request_transport import _strip_ephemeral_write_headers
-
-        return _strip_ephemeral_write_headers(headers)
 
     def build_curl_command(*args: Any, **kwargs: Any) -> Any:
         if not callable(delegate_curl):
@@ -141,21 +185,14 @@ def _bind_browserless_request_scope(
         )
         return _bound_curl_command(command, remaining=remaining)
 
-    client._build_headers = build_headers
     if callable(delegate_curl):
         client._build_curl_command = build_curl_command
     owner_token = _BROWSERLESS_REQUEST_SCOPE_OWNER.set(owner)
     try:
-        yield
+        with _bind_browserless_header_scope(client):
+            yield
     finally:
         _BROWSERLESS_REQUEST_SCOPE_OWNER.reset(owner_token)
-        _restore_instance_callable(
-            client,
-            name="_build_headers",
-            previous=previous_headers,
-            marker=marker,
-            installed=build_headers,
-        )
         if callable(delegate_curl):
             _restore_instance_callable(
                 client,
