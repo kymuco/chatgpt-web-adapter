@@ -30,6 +30,7 @@ from .browser_native_provider import (
 from .browser_sentinel import ZendriverSentinelBundleProvider
 from .browserless_request_scope import (
     gate_browserless_request_execute as _gate_browserless_request_execute,
+    gate_browserless_request_health as _gate_browserless_request_health,
 )
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
@@ -206,11 +207,16 @@ ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pen
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
 
 # Browserless owns one request scope spanning canonical attach, Sentinel preflight,
-# the prepared mutation, and canonical reconciliation. The wrapper is installed at
-# package import time like the other compatibility gates above, without changing
-# the public transport method surface.
+# the prepared mutation, and canonical reconciliation. Conversation-scoped health
+# reads share the same no-replay header policy without acquiring mutation authority
+# or inventing a write deadline. These wrappers are installed at package import
+# time like the other compatibility gates above, without changing public methods.
 from .browserless_request_transport import BrowserlessRequestTransport as _BrowserlessRequestTransport
 
+_original_browserless_request_health = _BrowserlessRequestTransport.health
+_BrowserlessRequestTransport.health = _gate_browserless_request_health(
+    _original_browserless_request_health
+)
 _original_browserless_request_execute = _BrowserlessRequestTransport._execute
 _BrowserlessRequestTransport._execute = _gate_browserless_request_execute(
     _original_browserless_request_execute
