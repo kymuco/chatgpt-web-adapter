@@ -116,10 +116,17 @@ def install_browserless_poll_deadline_guard(
     client_class._poll_conversation_after_prepare = poll
 
 
+def _normalized_message_id(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
 def gate_browserless_canonical_finalize(
     original: Callable[..., Any],
 ) -> Callable[..., Any]:
-    """Require canonical readback to identify the submitted browserless assistant."""
+    """Require completion and readback to identify the submitted assistant."""
 
     @wraps(original)
     def canonical_finalize(
@@ -131,11 +138,9 @@ def gate_browserless_canonical_finalize(
         poll_interval: float,
     ) -> Any:
         conversation = getattr(response, "conversation", None)
-        submitted_message_id = getattr(conversation, "message_id", None)
-        if isinstance(submitted_message_id, str):
-            submitted_message_id = submitted_message_id.strip() or None
-        else:
-            submitted_message_id = None
+        submitted_message_id = _normalized_message_id(
+            getattr(conversation, "message_id", None)
+        )
 
         result = original(
             self,
@@ -144,12 +149,24 @@ def gate_browserless_canonical_finalize(
             timeout=timeout,
             poll_interval=poll_interval,
         )
-        _status, canonical_assistant, _text = result
-        canonical_message_id = getattr(canonical_assistant, "message_id", None)
-        if isinstance(canonical_message_id, str):
-            canonical_message_id = canonical_message_id.strip() or None
-        else:
-            canonical_message_id = None
+        status, canonical_assistant, _text = result
+        status_message_id = _normalized_message_id(
+            getattr(status, "message_id", None)
+        )
+        canonical_message_id = _normalized_message_id(
+            getattr(canonical_assistant, "message_id", None)
+        )
+
+        if submitted_message_id is not None and status_message_id != submitted_message_id:
+            from .browserless_request_transport import BrowserlessRequestTransportError
+
+            raise BrowserlessRequestTransportError(
+                "canonical completion status identity does not match the submitted "
+                "browserless turn",
+                request_stage="canonical_reconciliation",
+                write_may_have_been_submitted=True,
+                reconciliation_required=True,
+            )
 
         if (
             submitted_message_id is not None

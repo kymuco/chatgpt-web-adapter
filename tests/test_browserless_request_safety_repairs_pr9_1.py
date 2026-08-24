@@ -120,7 +120,11 @@ class _SafetyClient:
         )
 
     def get_status(self, conversation):
-        return SimpleNamespace(status="completed", finish_reason="stop")
+        return SimpleNamespace(
+            status="completed",
+            finish_reason="stop",
+            message_id="canonical-message",
+        )
 
     def get_messages(self, conversation, **kwargs):
         return [

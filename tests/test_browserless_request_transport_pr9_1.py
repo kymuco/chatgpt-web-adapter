@@ -139,7 +139,11 @@ class _DirectClient:
         )
 
     def get_status(self, conversation):
-        return SimpleNamespace(status=self.status_value, finish_reason="stop")
+        return SimpleNamespace(
+            status=self.status_value,
+            finish_reason="stop",
+            message_id=self.canonical_message_id,
+        )
 
     def get_messages(self, conversation, **kwargs):
         return [

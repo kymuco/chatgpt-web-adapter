@@ -186,7 +186,11 @@ class _ScopedFlowClient:
             {"x-openai-target-path": "/backend-api/conversation/status"}
         )
         self._record("canonical_status", headers)
-        return SimpleNamespace(status="completed", finish_reason="stop")
+        return SimpleNamespace(
+            status="completed",
+            finish_reason="stop",
+            message_id="canonical-message",
+        )
 
     def get_messages(self, conversation, **kwargs):
         headers = self._build_headers(
