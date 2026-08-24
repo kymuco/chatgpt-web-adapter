@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
@@ -70,6 +71,20 @@ _BROWSERLESS_BINDING_OWNER: ContextVar[object | None] = ContextVar(
 )
 _SHARED_WRITE_LOCK_GUARD = threading.Lock()
 _SHARED_WRITE_LOCK_ATTR = "_cwa_browserless_request_write_lock"
+_EPHEMERAL_WRITE_HEADERS = frozenset(
+    {
+        "x-conduit-token",
+        "openai-sentinel-chat-requirements-token",
+        "openai-sentinel-proof-token",
+        "openai-sentinel-turnstile-token",
+    }
+)
+_FORBIDDEN_BROWSERLESS_PROTECTION_HEADERS = frozenset(
+    {
+        "openai-sentinel-proof-token",
+        "openai-sentinel-turnstile-token",
+    }
+)
 
 _PREWRITE_REQUEST_STAGES = frozenset(
     {
@@ -193,6 +208,17 @@ def _shared_browserless_write_lock(client: Any) -> Any:
         ):
             raise TypeError("browserless shared-client write lock state is invalid")
         return lock
+
+
+def _strip_ephemeral_write_headers(headers: Mapping[str, Any]) -> dict[str, str]:
+    """Remove stale one-shot Sentinel/conduit credentials from inherited headers."""
+
+    return {
+        str(key): str(value)
+        for key, value in headers.items()
+        if str(key).strip().lower() not in _EPHEMERAL_WRITE_HEADERS
+        and value is not None
+    }
 
 
 class BrowserlessRequestTransportError(WebChatAdapterError):
@@ -460,6 +486,22 @@ class BrowserlessRequestTransport:
             )
         return remaining
 
+    @staticmethod
+    def _remaining_stream_deadline(
+        deadline: float,
+        *,
+        write_started: bool,
+    ) -> float:
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise BrowserlessRequestTransportError(
+                "browserless total deadline expired during direct stream/recovery",
+                request_stage=("conversation_stream" if write_started else "conversation_prepare"),
+                write_may_have_been_submitted=write_started,
+                reconciliation_required=write_started,
+            )
+        return remaining
+
     def _resolve_direct_send(self) -> Any:
         if isinstance(self.client, ChatGPTWebClient):
             # Package installation wraps ChatGPTWebClient.send with Sentinel and
@@ -584,6 +626,7 @@ class BrowserlessRequestTransport:
             "browserless_shared_client_binding_scope": "EXECUTION_CONTEXT",
             "browserless_shared_client_write_serialization": "PER_CANONICAL_CLIENT",
             "browserless_timeout_scope": "EXECUTION_CONTEXT_TOTAL_DEADLINE",
+            "browserless_ephemeral_header_policy": "STRIP_INHERITED_ALLOW_CURRENT_REQUIREMENTS_CONDUIT",
             "challenge_bypass_supported": False,
             "turnstile_solving_supported": False,
             "proof_token_generation_supported": False,
@@ -767,12 +810,15 @@ class BrowserlessRequestTransport:
     def _acquire_unprotected_requirements(self) -> dict[str, Any]:
         prepare_url = f"{CHAT_URL.rstrip('/')}{SENTINEL_PREPARE_PATH}"
         try:
+            prepare_headers = _strip_ephemeral_write_headers(
+                build_sentinel_prepare_headers(self.client)
+            )
             with suppress_web_session_debug_trace():
                 status, data = self.client._json_request(
                     "POST",
                     prepare_url,
                     {"p": None},
-                    build_sentinel_prepare_headers(self.client),
+                    prepare_headers,
                 )
         except RequestError as error:
             status_code = getattr(error, "status_code", None)
@@ -871,15 +917,17 @@ class BrowserlessRequestTransport:
             "turnstile": None,
         }
         try:
-            headers = self.client._build_headers(
-                {
-                    "accept": "*/*",
-                    "content-type": "application/json",
-                    "origin": CHAT_URL.rstrip("/"),
-                    "referer": CHAT_URL,
-                    "x-openai-target-path": SENTINEL_FINALIZE_PATH,
-                    "x-openai-target-route": SENTINEL_FINALIZE_PATH,
-                }
+            headers = _strip_ephemeral_write_headers(
+                self.client._build_headers(
+                    {
+                        "accept": "*/*",
+                        "content-type": "application/json",
+                        "origin": CHAT_URL.rstrip("/"),
+                        "referer": CHAT_URL,
+                        "x-openai-target-path": SENTINEL_FINALIZE_PATH,
+                        "x-openai-target-route": SENTINEL_FINALIZE_PATH,
+                    }
+                )
             )
             with suppress_web_session_debug_trace():
                 status, data = self.client._json_request(
@@ -1008,6 +1056,8 @@ class BrowserlessRequestTransport:
         delegate_headers = getattr(self.client, "_build_headers", None)
         delegate_refill = getattr(self.client, "start_sentinel_bundle_refill", None)
         delegate_curl = getattr(self.client, "_build_curl_command", None)
+        delegate_ws_async = getattr(self.client, "_stream_handoff_via_ws_topic_async", None)
+        delegate_poll = getattr(self.client, "_poll_conversation_after_prepare", None)
         if not callable(delegate_ready) or not callable(delegate_headers):
             raise BrowserlessProtocolDriftError(
                 "direct-request client is missing prepared-write delegate methods",
@@ -1020,9 +1070,17 @@ class BrowserlessRequestTransport:
         previous_headers = instance_dict.get("_build_headers", marker)
         previous_refill = instance_dict.get("start_sentinel_bundle_refill", marker)
         previous_curl = instance_dict.get("_build_curl_command", marker)
+        previous_ws_async = instance_dict.get("_stream_handoff_via_ws_topic_async", marker)
+        previous_poll = instance_dict.get("_poll_conversation_after_prepare", marker)
         owner = object()
         consumed = False
         turn_trace_id = str(uuid.uuid4())
+        requirements_token = _required_nonempty_text(
+            requirements.get("token"),
+            field="token",
+            stage="browserless_prepared_write_binding",
+            endpoint=_CONVERSATION_PREPARE_PATH,
+        )
 
         def owns_binding() -> bool:
             return _BROWSERLESS_BINDING_OWNER.get() is owner
@@ -1044,7 +1102,9 @@ class BrowserlessRequestTransport:
         def build_headers(extra: dict[str, str | None] | None = None) -> dict[str, str]:
             if not owns_binding():
                 return delegate_headers(extra)
-            headers = dict(getattr(self.client, "base_headers", {}) or {})
+            headers = _strip_ephemeral_write_headers(
+                dict(getattr(self.client, "base_headers", {}) or {})
+            )
             auth = getattr(self.client, "auth", None)
             access_token = getattr(auth, "accessToken", None)
             if isinstance(access_token, str) and access_token:
@@ -1060,6 +1120,28 @@ class BrowserlessRequestTransport:
                 if value is not None
             }
             target_path = patched.get("x-openai-target-path")
+            for raw_key, raw_value in tuple(patched.items()):
+                normalized_key = str(raw_key).strip().lower()
+                if normalized_key in _FORBIDDEN_BROWSERLESS_PROTECTION_HEADERS:
+                    raise BrowserlessProtocolDriftError(
+                        f"browserless prepared path attempted protected header {normalized_key}",
+                        request_stage="browserless_prepared_write_binding",
+                        endpoint=(target_path if isinstance(target_path, str) else None),
+                    )
+                if normalized_key == "openai-sentinel-chat-requirements-token":
+                    if not isinstance(raw_value, str) or raw_value != requirements_token:
+                        raise BrowserlessProtocolDriftError(
+                            "browserless prepared path attempted a non-current requirements token",
+                            request_stage="browserless_prepared_write_binding",
+                            endpoint=(target_path if isinstance(target_path, str) else None),
+                        )
+                if normalized_key == "x-conduit-token":
+                    if target_path != _CONVERSATION_WRITE_PATH or not isinstance(raw_value, str) or not raw_value:
+                        raise BrowserlessProtocolDriftError(
+                            "browserless prepared path attempted an invalid conduit token placement",
+                            request_stage="browserless_prepared_write_binding",
+                            endpoint=(target_path if isinstance(target_path, str) else None),
+                        )
             if target_path in {_CONVERSATION_PREPARE_PATH, _CONVERSATION_WRITE_PATH}:
                 patched["x-oai-turn-trace-id"] = turn_trace_id
             headers.update(patched)
@@ -1091,9 +1173,9 @@ class BrowserlessRequestTransport:
             command = delegate_curl(*args, **kwargs)
             if not owns_binding():
                 return command
-            remaining = self._remaining_before_write(
+            remaining = self._remaining_stream_deadline(
                 deadline,
-                request_stage="browserless_write_deadline",
+                write_started=bool(write_state["final_write_started"]),
             )
             if not isinstance(command, list):
                 raise BrowserlessProtocolDriftError(
@@ -1116,11 +1198,64 @@ class BrowserlessRequestTransport:
             patched_command[max_time_index + 1] = str(max(0.001, remaining))
             return patched_command
 
+        async def stream_handoff_via_ws_topic_async(*args: Any, **kwargs: Any) -> Any:
+            if not callable(delegate_ws_async):
+                raise BrowserlessProtocolDriftError(
+                    "direct-request client is missing WebSocket handoff delegate method",
+                    request_stage="browserless_prepared_write_binding",
+                )
+            if not owns_binding():
+                return await delegate_ws_async(*args, **kwargs)
+            remaining = self._remaining_stream_deadline(
+                deadline,
+                write_started=bool(write_state["final_write_started"]),
+            )
+            try:
+                return await asyncio.wait_for(
+                    delegate_ws_async(*args, **kwargs),
+                    timeout=remaining,
+                )
+            except asyncio.TimeoutError as error:
+                ambiguous = bool(write_state["final_write_started"])
+                raise BrowserlessRequestTransportError(
+                    "browserless total deadline expired during WebSocket stream recovery",
+                    request_stage=("conversation_stream" if ambiguous else "conversation_prepare"),
+                    write_may_have_been_submitted=ambiguous,
+                    reconciliation_required=ambiguous,
+                ) from error
+
+        def poll_conversation_after_prepare(*args: Any, **kwargs: Any) -> Any:
+            if not callable(delegate_poll):
+                raise BrowserlessProtocolDriftError(
+                    "direct-request client is missing conversation recovery delegate method",
+                    request_stage="browserless_prepared_write_binding",
+                )
+            if not owns_binding():
+                return delegate_poll(*args, **kwargs)
+            remaining = self._remaining_stream_deadline(
+                deadline,
+                write_started=bool(write_state["final_write_started"]),
+            )
+            patched_kwargs = dict(kwargs)
+            requested_timeout = patched_kwargs.get("timeout")
+            if isinstance(requested_timeout, (int, float)):
+                patched_kwargs["timeout"] = max(
+                    0.001,
+                    min(float(requested_timeout), remaining),
+                )
+            else:
+                patched_kwargs["timeout"] = max(0.001, remaining)
+            return delegate_poll(*args, **patched_kwargs)
+
         self.client._get_ready_requirements = get_ready_requirements
         self.client._build_headers = build_headers
         self.client.start_sentinel_bundle_refill = start_refill
         if callable(delegate_curl):
             self.client._build_curl_command = build_curl_command
+        if callable(delegate_ws_async):
+            self.client._stream_handoff_via_ws_topic_async = stream_handoff_via_ws_topic_async
+        if callable(delegate_poll):
+            self.client._poll_conversation_after_prepare = poll_conversation_after_prepare
         owner_token = _BROWSERLESS_BINDING_OWNER.set(owner)
         active_token = _PREPARED_SEND_ACTIVE.set(True)
         try:
@@ -1157,6 +1292,22 @@ class BrowserlessRequestTransport:
                         pass
                 else:
                     self.client._build_curl_command = previous_curl
+            if callable(delegate_ws_async):
+                if previous_ws_async is marker:
+                    try:
+                        delattr(self.client, "_stream_handoff_via_ws_topic_async")
+                    except AttributeError:
+                        pass
+                else:
+                    self.client._stream_handoff_via_ws_topic_async = previous_ws_async
+            if callable(delegate_poll):
+                if previous_poll is marker:
+                    try:
+                        delattr(self.client, "_poll_conversation_after_prepare")
+                    except AttributeError:
+                        pass
+                else:
+                    self.client._poll_conversation_after_prepare = previous_poll
 
     def _resolve_conversation(
         self,
