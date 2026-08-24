@@ -36,6 +36,9 @@ from .browserless_request_scope import (
     gate_browserless_request_execute as _gate_browserless_request_execute,
     gate_browserless_request_health as _gate_browserless_request_health,
 )
+from .browserless_shared_write_fence import (
+    gate_browserless_transport_init as _gate_browserless_transport_init,
+)
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
@@ -215,10 +218,17 @@ ChatGPTWebClient.wait_until_completed = _wait_until_completed
 # the prepared mutation, and canonical reconciliation. Conversation-scoped health
 # reads share the same no-replay header policy without acquiring mutation authority
 # or inventing a write deadline. Finality additionally correlates canonical
-# readback with the submitted assistant identity. These wrappers are installed at
-# package import time like the other compatibility gates above.
+# readback with the submitted assistant identity. Construction also fences the
+# shared client's ordinary mutation entrypoints with the same per-client RLock,
+# preventing a same-client continuation write from advancing the attached parent
+# during browserless Sentinel preflight. These wrappers are installed at package
+# import time like the other compatibility gates above.
 from .browserless_request_transport import BrowserlessRequestTransport as _BrowserlessRequestTransport
 
+_original_browserless_request_init = _BrowserlessRequestTransport.__init__
+_BrowserlessRequestTransport.__init__ = _gate_browserless_transport_init(
+    _original_browserless_request_init
+)
 _original_browserless_canonical_finalize = _BrowserlessRequestTransport._canonical_finalize
 _BrowserlessRequestTransport._canonical_finalize = _gate_browserless_canonical_finalize(
     _original_browserless_canonical_finalize
