@@ -205,6 +205,36 @@ class _ScopedFlowClient:
         ]
 
 
+def test_browserless_health_strips_ephemeral_credentials_without_write_deadline() -> None:
+    client = _ScopedFlowClient()
+    transport = BrowserlessRequestTransport(client)
+
+    health = transport.health(
+        ChatConversation(
+            conversation_id="conversation-1",
+            message_id="message-1",
+            parent_message_id="message-1",
+        )
+    )
+
+    assert health.ready is True
+    assert health.canonical_status == "completed"
+    assert health.canonical_read_checked is True
+    assert len(client.records) == 1
+    stage, headers, max_time = client.records[0]
+    assert stage == "canonical_status"
+    assert _lower_names(headers).isdisjoint(_EPHEMERAL)
+    # Health has no caller-supplied write deadline; it preserves ordinary read
+    # timeout semantics while applying only browserless no-replay header hygiene.
+    assert max_time == pytest.approx(90.0)
+
+    ordinary_headers = client._build_headers(
+        {"x-openai-target-path": "/backend-api/conversations"}
+    )
+    assert _EPHEMERAL.issubset(_lower_names(ordinary_headers))
+    assert client.timeout == pytest.approx(90.0)
+
+
 def test_request_scope_covers_attach_sentinel_write_and_canonical_reads() -> None:
     client = _ScopedFlowClient(send_delay=0.02)
     transport = BrowserlessRequestTransport(client)
