@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextvars import Context
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -146,6 +147,48 @@ def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
     assert client.delegate_ready_calls == 1
     assert client.delegate_header_calls == 1
     assert client.delegate_refill_calls == 1
+
+
+def test_multiple_browserless_transports_share_one_client_write_lock() -> None:
+    client = _IsolationClient()
+    first = BrowserlessRequestTransport(client)
+    second = BrowserlessRequestTransport(client)
+    other_client_transport = BrowserlessRequestTransport(_IsolationClient())
+
+    assert first._write_lock is second._write_lock
+    assert first._write_lock is not other_client_transport._write_lock
+    assert first.governance()["browserless_shared_client_write_serialization"] == (
+        "PER_CANONICAL_CLIENT"
+    )
+
+    first_acquired = threading.Event()
+    release_first = threading.Event()
+    second_acquired = threading.Event()
+
+    def hold_first() -> None:
+        with first._write_lock:
+            first_acquired.set()
+            assert release_first.wait(2.0)
+
+    def acquire_second() -> None:
+        assert first_acquired.wait(2.0)
+        with second._write_lock:
+            second_acquired.set()
+
+    first_thread = threading.Thread(target=hold_first)
+    second_thread = threading.Thread(target=acquire_second)
+    first_thread.start()
+    assert first_acquired.wait(2.0)
+    second_thread.start()
+
+    assert second_acquired.wait(0.1) is False
+    release_first.set()
+    first_thread.join(2.0)
+    second_thread.join(2.0)
+
+    assert first_thread.is_alive() is False
+    assert second_thread.is_alive() is False
+    assert second_acquired.is_set() is True
 
 
 @pytest.mark.parametrize(
