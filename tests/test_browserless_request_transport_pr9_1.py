@@ -133,8 +133,8 @@ class _DirectClient:
             text="stream answer",
             conversation=ChatConversation(
                 conversation_id="conversation-1",
-                message_id="stream-message",
-                parent_message_id="stream-message",
+                message_id=self.canonical_message_id,
+                parent_message_id=self.canonical_message_id,
             ),
         )
 
