@@ -147,3 +147,64 @@ def test_second_transport_preserves_wraps_decorator_that_copied_fence_metadata()
     assert client.send_calls == ["wraps-decorator"]
     assert getattr(second._direct_send, "__wrapped__", None) is decorated_send
     assert first._write_lock is second._write_lock
+
+
+def test_callable_object_decorator_preserves_ordinary_and_second_transport_direct_send() -> None:
+    client = _CompatibleSharedClient()
+    first = BrowserlessRequestTransport(client)
+    first_fenced_send = client.send
+    decorator_calls: list[str] = []
+
+    class Decorator:
+        def __init__(self, delegate):
+            self.delegate = delegate
+
+        def __call__(self, prompt, *, conversation=None, **kwargs):
+            decorator_calls.append(prompt)
+            return self.delegate(prompt, conversation=conversation, **kwargs)
+
+    decorated_send = Decorator(first_fenced_send)
+    client.send = decorated_send
+
+    # The assignment fence must preserve a class-based decorator even before a
+    # second transport exists. Previously the decorator re-entered its captured
+    # old fence under send authority and failed here.
+    ordinary = client.send("callable-ordinary", conversation=None)
+    assert ordinary == "sent:callable-ordinary"
+
+    second = BrowserlessRequestTransport(client)
+    direct = _execute_direct_probe(second, "callable-direct")
+
+    assert direct == "sent:callable-direct"
+    assert decorator_calls == ["callable-ordinary", "callable-direct"]
+    assert client.send_calls == ["callable-ordinary", "callable-direct"]
+    assert first._write_lock is second._write_lock
+
+
+def test_slotted_callable_object_decorator_is_a_direct_predecessor_edge() -> None:
+    client = _CompatibleSharedClient()
+    first = BrowserlessRequestTransport(client)
+    first_fenced_send = client.send
+    decorator_calls: list[str] = []
+
+    class SlottedDecorator:
+        __slots__ = ("delegate",)
+
+        def __init__(self, delegate):
+            self.delegate = delegate
+
+        def __call__(self, prompt, *, conversation=None, **kwargs):
+            decorator_calls.append(prompt)
+            return self.delegate(prompt, conversation=conversation, **kwargs)
+
+    decorated_send = SlottedDecorator(first_fenced_send)
+    assert not hasattr(decorated_send, "__dict__")
+    client.send = decorated_send
+    second = BrowserlessRequestTransport(client)
+
+    result = _execute_direct_probe(second, "slotted-callable")
+
+    assert result == "sent:slotted-callable"
+    assert decorator_calls == ["slotted-callable"]
+    assert client.send_calls == ["slotted-callable"]
+    assert first._write_lock is second._write_lock
