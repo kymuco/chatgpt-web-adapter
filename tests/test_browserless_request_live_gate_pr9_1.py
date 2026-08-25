@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+import sys
 from types import SimpleNamespace
+
+import pytest
 
 import chatgpt_web_adapter.browserless_request_live_gate_pr9_1 as live_gate
 from chatgpt_web_adapter.browserless_request_transport import (
@@ -46,6 +50,76 @@ class _Runtime:
 def _install_runtime(monkeypatch, runtime: _Runtime) -> None:
     monkeypatch.setattr(live_gate, "assemble_product_runtime", lambda **kwargs: runtime)
     monkeypatch.setattr(live_gate, "product_runtime_contract", lambda runtime: _Contract())
+
+
+@pytest.mark.parametrize(
+    "assembly_error",
+    [
+        ValueError("malformed auth file"),
+        FileNotFoundError("curl unavailable"),
+    ],
+)
+def test_live_gate_reports_runtime_assembly_failure_as_zero_write_direct_failure(
+    monkeypatch,
+    assembly_error,
+) -> None:
+    def fail_assembly(**kwargs):
+        raise assembly_error
+
+    monkeypatch.setattr(live_gate, "assemble_product_runtime", fail_assembly)
+
+    report = live_gate.run_live_gate(auth_file="broken-auth.json")
+
+    assert report["ok"] is False
+    assert report["outcome"] == "DIRECT_REQUEST_FAILED"
+    assert report["transport"] == "browserless-request"
+    assert report["support_tier"] is None
+    assert report["product_turn_invocations"] == 0
+    assert report["conversation_write_attempts"] == 0
+    assert report["conversation_write_completions"] == 0
+    assert report["automatic_write_retry"] is False
+    assert report["fallback_transport"] is None
+    assert report["capabilities"] is None
+    assert report["contract"] is None
+    assert report["error"]["error"] == type(assembly_error).__name__
+    assert report["error"]["message"] == str(assembly_error)
+    assert report["error"]["request_stage"] == "runtime_assembly"
+    assert report["error"]["write_may_have_been_submitted"] is False
+    assert report["error"]["reconciliation_required"] is False
+
+
+def test_live_gate_cli_prints_json_for_runtime_assembly_failure(
+    monkeypatch,
+    capsys,
+) -> None:
+    def fail_assembly(**kwargs):
+        raise FileNotFoundError("curl unavailable")
+
+    monkeypatch.setattr(live_gate, "assemble_product_runtime", fail_assembly)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "cwa-pr9-1-browserless-live-gate",
+            "--acknowledge-live-write",
+            "--auth-file",
+            "broken-auth.json",
+        ],
+    )
+
+    exit_code = live_gate.main()
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert captured.err == ""
+    assert report["outcome"] == "DIRECT_REQUEST_FAILED"
+    assert report["product_turn_invocations"] == 0
+    assert report["conversation_write_attempts"] == 0
+    assert report["conversation_write_completions"] == 0
+    assert report["error"]["request_stage"] == "runtime_assembly"
+    assert report["error"]["error"] == "FileNotFoundError"
+    assert report["error"]["write_may_have_been_submitted"] is False
 
 
 def test_live_gate_accepts_challenge_boundary_as_safe_prewrite_observation(monkeypatch) -> None:
