@@ -201,6 +201,20 @@ def _provider_supports_revision_safe_streaming(provider: Any) -> bool:
     )
 
 
+def _callable_accepts_attachment_paths(value: Any) -> bool:
+    if not callable(value):
+        return False
+    try:
+        parameters = inspect.signature(value).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.name == "attachment_paths"
+        or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
+
 def send_browser_native(
     self: Any,
     prompt: str,
@@ -237,6 +251,11 @@ def send_browser_native(
         if scoped_paths is not None:
             attachment_paths = scoped_paths
     normalized_attachment_paths = tuple(attachment_paths or ())
+    if normalized_attachment_paths and not _callable_accepts_attachment_paths(provider.send_text):
+        raise RequestError(
+            "BROWSER_NATIVE_RICH_INPUT_PROVIDER_UNSUPPORTED",
+            request_stage="browser_native_turn_preflight",
+        )
 
     started = time.monotonic()
     baseline_assistant_ids: set[str] = set()
@@ -281,40 +300,59 @@ def send_browser_native(
     streaming_requested = (
         on_event is not None and _provider_supports_revision_safe_streaming(provider)
     )
-    common_kwargs = {"attachment_paths": normalized_attachment_paths}
+    attachment_kwargs = (
+        {"attachment_paths": normalized_attachment_paths}
+        if normalized_attachment_paths
+        else {}
+    )
     if recovery_authorized:
         canonical_completed_at_ms = int(time.time() * 1000)
         if streaming_requested and callable(recovery_stream_send):
+            if normalized_attachment_paths and not _callable_accepts_attachment_paths(recovery_stream_send):
+                raise RequestError(
+                    "BROWSER_NATIVE_RICH_INPUT_RECOVERY_PROVIDER_UNSUPPORTED",
+                    request_stage="browser_native_turn_preflight",
+                )
             turn = recovery_stream_send(
                 prompt,
                 conversation=conversation,
                 timeout=timeout,
                 canonical_completed_at_ms=canonical_completed_at_ms,
                 on_text_event=handle_text_event,
-                **common_kwargs,
+                **attachment_kwargs,
             )
         else:
+            if normalized_attachment_paths and not _callable_accepts_attachment_paths(recovery_send):
+                raise RequestError(
+                    "BROWSER_NATIVE_RICH_INPUT_RECOVERY_PROVIDER_UNSUPPORTED",
+                    request_stage="browser_native_turn_preflight",
+                )
             turn = recovery_send(
                 prompt,
                 conversation=conversation,
                 timeout=timeout,
                 canonical_completed_at_ms=canonical_completed_at_ms,
-                **common_kwargs,
+                **attachment_kwargs,
             )
     elif streaming_requested and callable(stream_send):
+        if normalized_attachment_paths and not _callable_accepts_attachment_paths(stream_send):
+            raise RequestError(
+                "BROWSER_NATIVE_RICH_INPUT_STREAM_PROVIDER_UNSUPPORTED",
+                request_stage="browser_native_turn_preflight",
+            )
         turn = stream_send(
             prompt,
             conversation=conversation,
             timeout=timeout,
             on_text_event=handle_text_event,
-            **common_kwargs,
+            **attachment_kwargs,
         )
     else:
         turn = provider.send_text(
             prompt,
             conversation=conversation,
             timeout=timeout,
-            **common_kwargs,
+            **attachment_kwargs,
         )
 
     self._emit_event(
