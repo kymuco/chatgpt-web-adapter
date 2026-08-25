@@ -344,3 +344,8 @@ executeNativeTurn = async function _executeNativeTurnWithTemporaryRouteReopenPro
   }
   return _pr87ProbeTemporaryRouteReopen(message);
 };
+
+// PR9.2 adds rich-input staging only after the full PR8 worker chain above has
+// been assembled. The manifest entrypoint and historical worker ordering remain
+// unchanged; text-only turns still delegate through the exact prior path.
+importScripts("service_worker_rich_input_pr9_2.js");
