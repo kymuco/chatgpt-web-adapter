@@ -188,12 +188,12 @@ def test_browser_native_provider_rejects_missing_attachment_before_rpc(tmp_path)
     provider = _CapturingProvider()
     missing = tmp_path / "missing.txt"
 
-    with pytest.raises(ValueError, match="attachment_paths\[0\] is unavailable"):
+    with pytest.raises(ValueError, match=r"attachment_paths\[0\] is unavailable"):
         provider.send_text("inspect", attachment_paths=[missing])
     assert provider.payload is None
 
 
-def test_packaged_extension_uses_pr9_2_rich_input_overlay():
+def test_packaged_extension_layers_pr9_2_above_preserved_entrypoint():
     extension = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -201,11 +201,15 @@ def test_packaged_extension_uses_pr9_2_rich_input_overlay():
         / "browser_native_extension"
     )
     manifest = json.loads((extension / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.1.14"
-    assert manifest["background"]["service_worker"] == "service_worker_rich_input_pr9_2.js"
+    assert manifest["version"] == "0.1.13"
+    assert manifest["background"]["service_worker"] == "service_worker_temporary_chat_route_reopen_probe.js"
+
+    entrypoint = (extension / manifest["background"]["service_worker"]).read_text(
+        encoding="utf-8"
+    )
+    assert 'importScripts("service_worker_rich_input_pr9_2.js")' in entrypoint
 
     overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_temporary_chat_route_reopen_probe.js")' in overlay
     assert "DOM.setFileInputFiles" in overlay
     assert "attachmentPaths" in overlay
     assert "attachmentCount" in overlay
