@@ -134,23 +134,43 @@ class _LegacyBrowserNativeClient:
         )
 
 
-def test_browser_owned_media_scope_materializes_bytes_without_bridge_payload(tmp_path):
+def test_browser_owned_media_scope_preserves_filename_contract_and_cleanup(tmp_path):
     existing = tmp_path / "notes.txt"
     existing.write_text("hello", encoding="utf-8")
+    png = b"\x89PNG\r\n\x1a\nfixture"
 
     assert current_browser_owned_attachment_paths() is None
     with browser_owned_media_scope(
-        [existing, (b"\x89PNG\r\n", "image/png")]
+        [existing, (png, "smoke.png"), (existing, "renamed.txt")]
     ) as materialization:
-        assert materialization.count == 2
+        assert materialization.count == 3
         assert materialization.materialized_byte_inputs == 1
         assert current_browser_owned_attachment_paths() == materialization.paths
         assert Path(materialization.paths[0]) == existing.resolve()
+
         generated = Path(materialization.paths[1])
-        assert generated.suffix == ".png"
-        assert generated.read_bytes() == b"\x89PNG\r\n"
+        renamed = Path(materialization.paths[2])
+        assert generated.name == "smoke.png"
+        assert generated.read_bytes() == png
+        assert renamed.name == "renamed.txt"
+        assert renamed.read_text(encoding="utf-8") == "hello"
+        assert renamed != existing.resolve()
+
     assert current_browser_owned_attachment_paths() is None
     assert not generated.exists()
+    assert not renamed.exists()
+
+
+def test_browser_owned_media_scope_infers_unnamed_png_suffix():
+    png = b"\x89PNG\r\n\x1a\nfixture"
+    with browser_owned_media_scope([png]) as materialization:
+        assert Path(materialization.paths[0]).suffix == ".png"
+
+
+def test_browser_owned_media_scope_rejects_filename_paths():
+    with pytest.raises(ValueError, match="basename"):
+        with browser_owned_media_scope([(b"x", "folder/name.txt")]):
+            pass
 
 
 def test_browser_owned_media_scope_rejects_nested_authority(tmp_path):
@@ -210,6 +230,35 @@ def test_product_runtime_temporary_media_fails_before_transport_dispatch(tmp_pat
     with pytest.raises(ProductRichInputUnavailableError):
         runtime.send_text("describe", media=[media], conversation_mode="temporary")
     assert transport.send_calls == 0
+
+
+def test_empty_media_is_text_only_on_browserless_transport():
+    transport = _ScopeAwareWriteTransport(BROWSERLESS_REQUEST_PRODUCT_TRANSPORT)
+    runtime = ChatGPTProductRuntime(
+        _CanonicalClient(),
+        transport=BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
+        write_transport=transport,
+    )
+
+    assert runtime.send_text("hello", media=[]) == "sent"
+    assert transport.send_calls == 1
+    assert transport.paths_seen is None
+
+
+def test_empty_media_is_text_only_in_temporary_mode():
+    transport = _ScopeAwareWriteTransport(
+        BROWSER_OWNED_PRODUCT_TRANSPORT,
+        temporary_supported=True,
+    )
+    runtime = ChatGPTProductRuntime(
+        _CanonicalClient(),
+        transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
+        write_transport=transport,
+    )
+
+    assert runtime.send_text("hello", media=[], conversation_mode="temporary") == "sent"
+    assert transport.send_calls == 1
+    assert transport.paths_seen is None
 
 
 def test_text_only_runtime_does_not_create_media_scope():
@@ -278,3 +327,25 @@ def test_packaged_extension_layers_pr9_2_above_preserved_entrypoint():
     assert "attachmentCount" in overlay
     assert "base64" not in overlay.lower()
     assert "_pr92RichInputPriorExecuteNativeTurn(message)" in overlay
+
+
+def test_pr9_2_stages_only_after_stale_ui_recovery_and_fences_failure_cleanup():
+    extension = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "chatgpt_web_adapter"
+        / "browser_native_extension"
+    )
+    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(encoding="utf-8")
+
+    recovery = "const recovery = await _pr92PriorMaybeRecoverStaleRuntimeUi(message);"
+    staging = "const count = await _pr92StageOfficialPageAttachments("
+    assert recovery in overlay
+    assert staging in overlay
+    assert overlay.index(recovery) < overlay.index(staging)
+    assert "_pr92ClearOfficialPageAttachments" in overlay
+    assert "_pr92DirtyAttachmentTabId" in overlay
+    assert "PR9_2_STALE_ATTACHMENT_CLEANUP_REQUIRED" in overlay
+    assert "PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN" in overlay
+    assert "recoveryBeforeAttachmentStaging: true" in overlay
+    assert "staleAttachmentFailureFence: true" in overlay
