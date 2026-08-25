@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextvars import ContextVar
 from functools import wraps
 import threading
 from typing import Any, Callable
@@ -14,10 +13,6 @@ _INSTANCE_LOCK_ATTR = "_cwa_browserless_shared_write_fence_lock_state"
 _CLASS_SETATTR_MARKER = "_cwa_browserless_shared_write_fence_setattr_guard"
 _CLASS_DELATTR_MARKER = "_cwa_browserless_shared_write_fence_delattr_guard"
 _CLASS_GUARD_LOCK = threading.Lock()
-_MUTATION_FENCE_DEPTH: ContextVar[int] = ContextVar(
-    "browserless_shared_write_fence_depth",
-    default=0,
-)
 
 _ATOMIC_MUTATION_SURFACES = (
     "send",
@@ -118,7 +113,7 @@ def _validate_raw_payload_parent(client: Any, payload: Any) -> None:
         )
 
 
-def _refresh_outermost_mutation_call(
+def _refresh_mutation_call(
     client: Any,
     name: str,
     args: tuple[Any, ...],
@@ -127,8 +122,10 @@ def _refresh_outermost_mutation_call(
     if name in _CONVERSATION_REFRESH_POSITION:
         return _refresh_conversation_argument(client, name, args, kwargs)
 
-    # send_to_conversation() performs canonical attach itself after acquiring this
-    # fence. Its nested send/prepared-send call therefore runs from a fresh parent.
+    # send_to_conversation() performs canonical attach inside its own fenced call.
+    # Any nested send/prepared-send is fenced independently and reattaches again.
+    # The duplicate read is intentional: there is no broad reentrancy suppression
+    # that a callback or cross-client mutation could inherit.
     if name == "send_to_conversation":
         return args, kwargs
 
@@ -153,21 +150,13 @@ def _fence_callable(client: Any, name: str, current: Callable[..., Any], lock: A
     @wraps(current)
     def fenced(*args: Any, **kwargs: Any) -> Any:
         with lock:
-            depth = _MUTATION_FENCE_DEPTH.get()
-            depth_token = _MUTATION_FENCE_DEPTH.set(depth + 1)
-            try:
-                call_args = args
-                call_kwargs = kwargs
-                if depth == 0:
-                    call_args, call_kwargs = _refresh_outermost_mutation_call(
-                        client,
-                        name,
-                        args,
-                        kwargs,
-                    )
-                return current(*call_args, **call_kwargs)
-            finally:
-                _MUTATION_FENCE_DEPTH.reset(depth_token)
+            call_args, call_kwargs = _refresh_mutation_call(
+                client,
+                name,
+                args,
+                kwargs,
+            )
+            return current(*call_args, **call_kwargs)
 
     setattr(fenced, _FENCE_MARKER, lock)
     setattr(fenced, _FENCE_ORIGINAL, current)
@@ -254,8 +243,10 @@ def _install_atomic_mutation_fences(client: Any, lock: Any) -> None:
 
     Browserless owns the same re-entrant lock across canonical attach, Sentinel
     preflight, prepared mutation, and canonical reconciliation. Ordinary writes
-    acquire that lock too. A queued continuation is canonically reattached after
-    lock acquisition so delaying it cannot preserve a stale parent snapshot.
+    acquire that lock too. Every continuation mutation, including nested and
+    callback-triggered mutations, independently refreshes after lock acquisition;
+    no process-wide or task-wide reentrancy depth can suppress that authority
+    check. Raw payloads independently validate their explicit parent.
 
     The compatible-client assignment/deletion guards keep later instance-level
     mutation-method replacement inside the same lock domain instead of letting a
