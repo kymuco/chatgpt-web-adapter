@@ -1,13 +1,13 @@
-importScripts("service_worker_temporary_chat_route_reopen_probe.js");
-
 // PR9.2 rich-input overlay.
 //
-// Attachment bytes never cross Native Messaging. The Python side sends only
-// validated local file paths. This overlay gives those paths to the official
-// ChatGPT page file input through CDP DOM.setFileInputFiles, then delegates the
-// actual product turn to the entire previously-proven browser-owned worker chain.
-// The page therefore remains responsible for upload semantics, Sentinel/proof
-// handling, request construction, and the protected conversation write.
+// This file is imported by the existing final PR8.7 worker after that worker has
+// assembled the full prior service-worker chain. Attachment bytes never cross
+// Native Messaging. The Python side sends only validated local file paths. This
+// overlay gives those paths to the official ChatGPT page file input through CDP
+// DOM.setFileInputFiles, then delegates the actual product turn to the entire
+// previously-proven browser-owned worker chain. The page therefore remains
+// responsible for upload semantics, Sentinel/proof handling, request construction,
+// and the protected conversation write.
 
 const _pr92RichInputPriorExecuteNativeTurn = executeNativeTurn;
 const PR92_MAX_ATTACHMENT_COUNT = 32;
