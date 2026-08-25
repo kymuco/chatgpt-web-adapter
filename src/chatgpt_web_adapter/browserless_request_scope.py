@@ -203,6 +203,29 @@ def _bind_browserless_request_scope(
             )
 
 
+def _reject_health_under_mutation_authority(client: Any) -> None:
+    """Fail before lock acquisition when health is nested inside a mutation.
+
+    Conversation-scoped browserless health serializes its temporary header scope on
+    the same per-client write lock. Without this pre-lock check, two mutation
+    callbacks can hold client A/B respectively and then call health on the opposite
+    transport, recreating an AB/BA cycle through the read path.
+    """
+
+    from .browserless_shared_write_fence import _authority_conflict, _nested_mutation_error
+
+    conflict = _authority_conflict(client, "browserless_health")
+    if conflict is None:
+        return
+    active_client, active_name = conflict
+    raise _nested_mutation_error(
+        active_client=active_client,
+        active_name=active_name,
+        client=client,
+        name="browserless_health",
+    )
+
+
 def gate_browserless_request_health(
     original_health: Callable[..., Any],
 ) -> Callable[..., Any]:
@@ -212,6 +235,8 @@ def gate_browserless_request_health(
     def health(self: Any, conversation: Any = None) -> Any:
         if conversation is None:
             return original_health(self, conversation)
+
+        _reject_health_under_mutation_authority(self.client)
 
         lock = getattr(self, "_write_lock", None)
         acquire = getattr(lock, "acquire", None)
