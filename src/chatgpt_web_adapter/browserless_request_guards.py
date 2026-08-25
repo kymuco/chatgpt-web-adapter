@@ -123,6 +123,57 @@ def _normalized_message_id(value: Any) -> str | None:
     return value or None
 
 
+class _StaleCompletedStatusView:
+    """Expose a foreign completed snapshot as pending without mutating it."""
+
+    def __init__(self, delegate: Any) -> None:
+        self._delegate = delegate
+
+    @property
+    def status(self) -> str:
+        return "in_progress"
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._delegate, name)
+
+
+class _SubmittedTurnCanonicalClientView:
+    """Make completion polling wait for the submitted assistant identity."""
+
+    def __init__(self, delegate: Any, submitted_message_id: str) -> None:
+        self._delegate = delegate
+        self._submitted_message_id = submitted_message_id
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._delegate, name)
+
+    def get_status(self, conversation: Any) -> Any:
+        status = self._delegate.get_status(conversation)
+        if getattr(status, "status", None) != "completed":
+            return status
+        status_message_id = _normalized_message_id(
+            getattr(status, "message_id", None)
+        )
+        if status_message_id == self._submitted_message_id:
+            return status
+        # Canonical reads can briefly remain on the previously completed turn
+        # after the write has committed. Keep the underlying poll alive while
+        # budget remains rather than converting that eventual-consistency window
+        # into a false reconciliation failure.
+        return _StaleCompletedStatusView(status)
+
+
+class _CanonicalFinalizeTransportView:
+    """Override only canonical status observation for one finalize invocation."""
+
+    def __init__(self, delegate: Any, canonical_client: Any) -> None:
+        self._delegate = delegate
+        self.canonical_client = canonical_client
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._delegate, name)
+
+
 def gate_browserless_canonical_finalize(
     original: Callable[..., Any],
 ) -> Callable[..., Any]:
@@ -152,8 +203,14 @@ def gate_browserless_canonical_finalize(
                 reconciliation_required=True,
             )
 
+        canonical_client = getattr(self, "canonical_client")
+        polling_client = _SubmittedTurnCanonicalClientView(
+            canonical_client,
+            submitted_message_id,
+        )
+        polling_self = _CanonicalFinalizeTransportView(self, polling_client)
         result = original(
-            self,
+            polling_self,
             response,
             previous_message_id=previous_message_id,
             timeout=timeout,
