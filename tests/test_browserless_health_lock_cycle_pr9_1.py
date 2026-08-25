@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from threading import Barrier, Thread
 from types import SimpleNamespace
+from typing import Any, Callable
 
 from chatgpt_web_adapter.browserless_request_transport import BrowserlessRequestTransport
 from chatgpt_web_adapter.exceptions import RequestError
@@ -19,6 +20,7 @@ class _HealthCycleClient:
         )
         self.status_reads = 0
         self.message_reads = 0
+        self.status_hook: Callable[[], Any] | None = None
 
     def _build_headers(self, extra=None):
         return {"authorization": "Bearer test", **dict(extra or {})}
@@ -47,6 +49,8 @@ class _HealthCycleClient:
 
     def get_status(self, conversation):
         self.status_reads += 1
+        if self.status_hook is not None:
+            self.status_hook()
         return SimpleNamespace(
             status="completed",
             finish_reason="stop",
@@ -109,5 +113,53 @@ def test_opposite_order_cross_client_health_callbacks_fail_without_deadlock() ->
     )
     assert client_a.status_reads == 0
     assert client_b.status_reads == 0
+    assert client_a.message_reads == 0
+    assert client_b.message_reads == 0
+
+
+def test_opposite_order_cross_client_health_reads_fail_without_deadlock() -> None:
+    client_a = _HealthCycleClient()
+    client_b = _HealthCycleClient()
+    transport_a = BrowserlessRequestTransport(client_a)
+    transport_b = BrowserlessRequestTransport(client_b)
+    both_health_reads_entered = Barrier(2)
+    results: list[Any] = []
+    errors: list[BaseException] = []
+
+    def status_a() -> None:
+        both_health_reads_entered.wait(timeout=1.0)
+        transport_b.health(_conversation())
+
+    def status_b() -> None:
+        both_health_reads_entered.wait(timeout=1.0)
+        transport_a.health(_conversation())
+
+    client_a.status_hook = status_a
+    client_b.status_hook = status_b
+
+    def run(transport: BrowserlessRequestTransport) -> None:
+        try:
+            results.append(transport.health(_conversation()))
+        except BaseException as error:
+            errors.append(error)
+
+    thread_a = Thread(target=run, args=(transport_a,))
+    thread_b = Thread(target=run, args=(transport_b,))
+    thread_a.start()
+    thread_b.start()
+    thread_a.join(2.0)
+    thread_b.join(2.0)
+
+    assert thread_a.is_alive() is False
+    assert thread_b.is_alive() is False
+    assert errors == []
+    assert len(results) == 2
+    assert all(result.ready is False for result in results)
+    assert all(
+        result.reason == "CANONICAL_STATUS_UNAVAILABLE:RequestError"
+        for result in results
+    )
+    assert client_a.status_reads == 1
+    assert client_b.status_reads == 1
     assert client_a.message_reads == 0
     assert client_b.message_reads == 0
