@@ -203,27 +203,21 @@ def _bind_browserless_request_scope(
             )
 
 
-def _reject_health_under_mutation_authority(client: Any) -> None:
-    """Fail before lock acquisition when health is nested inside a mutation.
+@contextmanager
+def _browserless_health_lock_authority(client: Any) -> Iterator[None]:
+    """Make conversation-scoped health part of the shared lock-order domain.
 
-    Conversation-scoped browserless health serializes its temporary header scope on
-    the same per-client write lock. Without this pre-lock check, two mutation
-    callbacks can hold client A/B respectively and then call health on the opposite
-    transport, recreating an AB/BA cycle through the read path.
+    Health itself is read-only, but it serializes a temporary header dispatcher on
+    the same per-client RLock as browserless mutations. Entering lock authority
+    before acquisition prevents mutation->health, health->mutation, and
+    health->health cross-client lock cycles while leaving top-level health
+    semantics unchanged.
     """
 
-    from .browserless_shared_write_fence import _authority_conflict, _nested_mutation_error
+    from .browserless_shared_write_fence import _mutation_authority
 
-    conflict = _authority_conflict(client, "browserless_health")
-    if conflict is None:
-        return
-    active_client, active_name = conflict
-    raise _nested_mutation_error(
-        active_client=active_client,
-        active_name=active_name,
-        client=client,
-        name="browserless_health",
-    )
+    with _mutation_authority(client, "browserless_health"):
+        yield
 
 
 def gate_browserless_request_health(
@@ -236,22 +230,21 @@ def gate_browserless_request_health(
         if conversation is None:
             return original_health(self, conversation)
 
-        _reject_health_under_mutation_authority(self.client)
-
-        lock = getattr(self, "_write_lock", None)
-        acquire = getattr(lock, "acquire", None)
-        release = getattr(lock, "release", None)
-        if not callable(acquire) or not callable(release):
-            # Real browserless transports always receive the guarded per-client
-            # RLock. Preserve compatibility for synthetic test doubles.
-            return original_health(self, conversation)
-
-        acquire()
-        try:
-            with _bind_browserless_header_scope(self.client):
+        with _browserless_health_lock_authority(self.client):
+            lock = getattr(self, "_write_lock", None)
+            acquire = getattr(lock, "acquire", None)
+            release = getattr(lock, "release", None)
+            if not callable(acquire) or not callable(release):
+                # Real browserless transports always receive the guarded per-client
+                # RLock. Preserve compatibility for synthetic test doubles.
                 return original_health(self, conversation)
-        finally:
-            release()
+
+            acquire()
+            try:
+                with _bind_browserless_header_scope(self.client):
+                    return original_health(self, conversation)
+            finally:
+                release()
 
     return health
 
