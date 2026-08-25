@@ -130,48 +130,59 @@ def _is_actual_fence_wrapper(value: Any, lock: Any | None = None) -> bool:
     return _valid_lock(installed_lock)
 
 
-def _direct_captured_fence_predecessors(value: Any, lock: Any) -> tuple[Any, ...]:
-    """Find exact predecessor fences directly captured by a replacement decorator.
+def _callable_directly_captures(value: Any, target: Any) -> bool:
+    """Return whether a replacement directly retains one exact predecessor callable.
 
-    We intentionally inspect only conventional direct composition links: __wrapped__,
-    closure cells, positional defaults, and keyword defaults. This supports normal
-    decorators without treating arbitrary callback object graphs as trusted nested
-    mutation authority.
+    Only shallow composition links count. This covers normal functions and callable
+    decorator instances without recursively trusting arbitrary object graphs.
     """
 
-    found: list[Any] = []
-    seen: set[int] = set()
-
-    def remember(candidate: Any) -> None:
-        if not _is_actual_fence_wrapper(candidate, lock):
-            return
-        identity = id(candidate)
-        if identity in seen:
-            return
-        seen.add(identity)
-        found.append(candidate)
-
-    remember(getattr(value, "__wrapped__", None))
+    if not callable(value) or not callable(target):
+        return False
+    if value is target:
+        return True
+    if getattr(value, "__wrapped__", None) is target:
+        return True
 
     closure = getattr(value, "__closure__", None)
     if isinstance(closure, tuple):
         for cell in closure:
             try:
-                remember(cell.cell_contents)
+                if cell.cell_contents is target:
+                    return True
             except ValueError:
                 continue
 
     defaults = getattr(value, "__defaults__", None)
-    if isinstance(defaults, tuple):
-        for candidate in defaults:
-            remember(candidate)
+    if isinstance(defaults, tuple) and any(candidate is target for candidate in defaults):
+        return True
 
     kwdefaults = getattr(value, "__kwdefaults__", None)
-    if isinstance(kwdefaults, dict):
-        for candidate in kwdefaults.values():
-            remember(candidate)
+    if isinstance(kwdefaults, dict) and any(
+        candidate is target for candidate in kwdefaults.values()
+    ):
+        return True
 
-    return tuple(found)
+    instance_dict = getattr(value, "__dict__", None)
+    if isinstance(instance_dict, dict) and any(
+        candidate is target for candidate in instance_dict.values()
+    ):
+        return True
+
+    slots = getattr(type(value), "__slots__", ())
+    if isinstance(slots, str):
+        slots = (slots,)
+    if isinstance(slots, tuple):
+        for slot in slots:
+            if slot in {"__dict__", "__weakref__"}:
+                continue
+            try:
+                if getattr(value, slot) is target:
+                    return True
+            except (AttributeError, TypeError):
+                continue
+
+    return False
 
 
 def _predecessor_stack() -> list[set[int]]:
@@ -338,7 +349,14 @@ def _refresh_mutation_call(
     return args, kwargs
 
 
-def _fence_callable(client: Any, name: str, current: Callable[..., Any], lock: Any) -> Any:
+def _fence_callable(
+    client: Any,
+    name: str,
+    current: Callable[..., Any],
+    lock: Any,
+    *,
+    predecessor: Any = None,
+) -> Any:
     if _is_actual_fence_wrapper(current, lock):
         return current
     if _is_actual_fence_wrapper(current):
@@ -346,7 +364,12 @@ def _fence_callable(client: Any, name: str, current: Callable[..., Any], lock: A
             f"browserless shared-client mutation fence for {name} uses a different lock"
         )
 
-    predecessors = _direct_captured_fence_predecessors(current, lock)
+    predecessors: tuple[Any, ...] = ()
+    if (
+        _is_actual_fence_wrapper(predecessor, lock)
+        and _callable_directly_captures(current, predecessor)
+    ):
+        predecessors = (predecessor,)
 
     @wraps(current)
     def fenced(*args: Any, **kwargs: Any) -> Any:
@@ -381,10 +404,9 @@ def _fence_callable(client: Any, name: str, current: Callable[..., Any], lock: A
 def unfenced_mutation_callable(value: Any) -> Any:
     """Return a direct callable underneath this module's instance fence wrapper.
 
-    If the wrapped callable is a decorator that directly captured an older package
-    fence, preserve that decorator and grant its exact predecessor edge one
-    single-use bypass while the decorator runs. This avoids both dropping
-    functools.wraps()-copied behavior and re-entering stale fence authority.
+    If the wrapped callable is a decorator that directly captured the exact prior
+    package fence for this same mutation surface, preserve that decorator and grant
+    the recorded predecessor edge one single-use bypass while the decorator runs.
     """
 
     if not _is_actual_fence_wrapper(value):
@@ -434,7 +456,19 @@ def _install_assignment_guards(client: Any) -> None:
                         raise TypeError(
                             f"cannot replace fenced mutation entrypoint {name} with a non-callable value"
                         )
-                    value = _fence_callable(instance, name, value, lock)
+                    instance_dict = getattr(instance, "__dict__", None)
+                    predecessor = (
+                        instance_dict.get(name)
+                        if isinstance(instance_dict, dict)
+                        else None
+                    )
+                    value = _fence_callable(
+                        instance,
+                        name,
+                        value,
+                        lock,
+                        predecessor=predecessor,
+                    )
                 return original_setattr(instance, name, value)
 
             setattr(guarded_setattr, _CLASS_SETATTR_MARKER, True)
