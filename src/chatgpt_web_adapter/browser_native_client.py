@@ -8,6 +8,7 @@ from typing import Any, Callable, Sequence
 from .browser_native_provider import BrowserNativeTurnProvider
 from .exceptions import ConversationTimeoutError, RequestError
 from .messages import _chat_message_from_node, _current_branch_nodes
+from .product_media import current_browser_owned_attachment_paths
 from .revision_safe_streaming_pr8_9 import RevisionSafeTextAccumulator
 from .status import _status_from_payload
 from .types import (
@@ -231,6 +232,12 @@ def send_browser_native(
     if poll_interval <= 0:
         raise ValueError("poll_interval must be positive")
 
+    if attachment_paths is None:
+        scoped_paths = current_browser_owned_attachment_paths()
+        if scoped_paths is not None:
+            attachment_paths = scoped_paths
+    normalized_attachment_paths = tuple(attachment_paths or ())
+
     started = time.monotonic()
     baseline_assistant_ids: set[str] = set()
     is_continuation = conversation is not None
@@ -261,7 +268,7 @@ def send_browser_native(
         canonical_status_before_turn=canonical_status_before_turn,
         canonical_status_recovery_confirm=canonical_status_recovery_confirm,
         stale_ui_recovery_authorized=recovery_authorized,
-        attachment_count=len(tuple(attachment_paths or ())),
+        attachment_count=len(normalized_attachment_paths),
     )
 
     stream_state = RevisionSafeTextAccumulator()
@@ -274,7 +281,7 @@ def send_browser_native(
     streaming_requested = (
         on_event is not None and _provider_supports_revision_safe_streaming(provider)
     )
-    common_kwargs = {"attachment_paths": attachment_paths}
+    common_kwargs = {"attachment_paths": normalized_attachment_paths}
     if recovery_authorized:
         canonical_completed_at_ms = int(time.time() * 1000)
         if streaming_requested and callable(recovery_stream_send):
