@@ -2,16 +2,23 @@
 //
 // This file is imported by the existing final PR8.7 worker after that worker has
 // assembled the full prior service-worker chain. Attachment bytes never cross
-// Native Messaging. The Python side sends only validated local file paths. This
-// overlay gives those paths to the official ChatGPT page file input through CDP
-// DOM.setFileInputFiles, then delegates the actual product turn to the entire
-// previously-proven browser-owned worker chain. The page therefore remains
-// responsible for upload semantics, Sentinel/proof handling, request construction,
-// and the protected conversation write.
+// Native Messaging. The Python side sends only validated local file paths. The
+// overlay stages those paths only after PR8.11 stale-UI recovery has completed,
+// then delegates the actual product turn to the previously-proven browser-owned
+// chain. The official page therefore remains responsible for upload semantics,
+// Sentinel/proof handling, request construction, and the protected write.
 
 const _pr92RichInputPriorExecuteNativeTurn = executeNativeTurn;
+const _pr92PriorMaybeRecoverStaleRuntimeUi = (
+  typeof _pr811MaybeRecoverStaleRuntimeUi === "function"
+    ? _pr811MaybeRecoverStaleRuntimeUi
+    : null
+);
 const PR92_RICH_INPUT_SCHEMA = 1;
 const PR92_MAX_ATTACHMENT_COUNT = 32;
+
+let _pr92ActiveRichInputContext = null;
+let _pr92DirtyAttachmentTabId = null;
 
 function _pr92NormalizeAttachmentPaths(value) {
   if (value == null) return [];
@@ -25,6 +32,12 @@ function _pr92NormalizeAttachmentPaths(value) {
     }
     return item;
   });
+}
+
+function _pr92TurnTimeoutMs(message) {
+  return Number.isFinite(message?.timeoutMs)
+    ? Math.max(10_000, Math.min(Number(message.timeoutMs), 300_000))
+    : DEFAULT_TIMEOUT_MS;
 }
 
 function _pr92FindFileInputExpression() {
@@ -119,9 +132,9 @@ async function _pr92StageOfficialPageAttachments(tabId, attachmentPaths, timeout
       files: attachmentPaths,
       objectId
     });
-
-    // Do not infer upload completion here. The existing official-turn path waits
-    // for the page's enabled submit control before it can dispatch a write.
+    // From this point until proven downstream success, a later turn must not be
+    // allowed to reuse the persistent composer without cleanup.
+    _pr92DirtyAttachmentTabId = tabId;
     await sleep(100);
     return attachmentPaths.length;
   } catch (error) {
@@ -141,6 +154,92 @@ async function _pr92StageOfficialPageAttachments(tabId, attachmentPaths, timeout
   }
 }
 
+async function _pr92ClearOfficialPageAttachments(tabId, timeoutMs) {
+  if (!Number.isInteger(tabId)) return false;
+  try {
+    await chrome.tabs.get(tabId);
+  } catch {
+    // A removed tab cannot retain a stale composer attachment.
+    return true;
+  }
+
+  try {
+    await waitForTabComplete(tabId, Math.max(1000, Math.min(timeoutMs, 10_000)));
+  } catch {
+    return false;
+  }
+
+  const debuggee = { tabId };
+  let attached = false;
+  let objectId = null;
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await chrome.debugger.sendCommand(debuggee, "Runtime.enable");
+    await chrome.debugger.sendCommand(debuggee, "DOM.enable");
+    objectId = await _pr92FindFileInputObjectId(debuggee);
+    if (!objectId) return false;
+    await chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles", {
+      files: [],
+      objectId
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (objectId) {
+      try {
+        await chrome.debugger.sendCommand(debuggee, "Runtime.releaseObject", { objectId });
+      } catch {}
+    }
+    if (attached) {
+      try { await chrome.debugger.detach(debuggee); } catch {}
+    }
+  }
+}
+
+async function _pr92RequireCleanAttachmentState(timeoutMs) {
+  if (!Number.isInteger(_pr92DirtyAttachmentTabId)) return;
+  const dirtyTabId = _pr92DirtyAttachmentTabId;
+  const cleared = await _pr92ClearOfficialPageAttachments(dirtyTabId, timeoutMs);
+  if (cleared) {
+    _pr92DirtyAttachmentTabId = null;
+    return;
+  }
+  throw new Error("PR9_2_STALE_ATTACHMENT_CLEANUP_REQUIRED");
+}
+
+// Recovery is the last operation that is allowed to reload the runtime tab before
+// the core page turn. Hook immediately after it rather than staging in the outer
+// executeNativeTurn wrapper. This preserves PR8.11 recovery/timing semantics and
+// prevents a recovery reload from silently discarding the selected files.
+if (_pr92PriorMaybeRecoverStaleRuntimeUi) {
+  _pr811MaybeRecoverStaleRuntimeUi = async function _pr92RecoverThenStage(message) {
+    const recovery = await _pr92PriorMaybeRecoverStaleRuntimeUi(message);
+    const context = _pr92ActiveRichInputContext;
+    if (context === null) return recovery;
+    if (context.staged === true) {
+      throw new Error("PR9_2_ATTACHMENT_STAGE_REENTRANCY");
+    }
+
+    const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
+      ? message.conversationId.trim()
+      : null;
+    const tab = await ensureRuntimeTab(conversationId);
+    if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
+
+    const count = await _pr92StageOfficialPageAttachments(
+      tab.id,
+      context.attachmentPaths,
+      context.timeoutMs
+    );
+    context.staged = true;
+    context.stagedTabId = tab.id;
+    context.attachmentCount = count;
+    return recovery;
+  };
+}
+
 executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) {
   if (message?.characterizeRichInputSupport === true) {
     if (message?.text != null || message?.attachmentPaths != null) {
@@ -154,11 +253,16 @@ executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) 
       nativeMessagingCarriesAttachmentBytes: false,
       officialPageOwnsUpload: true,
       officialPageOwnsProtectedWrite: true,
+      recoveryBeforeAttachmentStaging: true,
+      staleAttachmentFailureFence: true,
       automaticWriteRetry: false,
       fallbackTransport: null,
       writePerformed: false
     };
   }
+
+  const timeoutMs = _pr92TurnTimeoutMs(message);
+  await _pr92RequireCleanAttachmentState(timeoutMs);
 
   const attachmentPaths = _pr92NormalizeAttachmentPaths(message?.attachmentPaths);
   if (attachmentPaths.length === 0) {
@@ -176,25 +280,45 @@ executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) 
   ) {
     throw new Error("PR9_2_ATTACHMENT_PROBE_FLAG_CONFLICT");
   }
+  if (!_pr92PriorMaybeRecoverStaleRuntimeUi) {
+    throw new Error("PR9_2_RECOVERY_HOOK_UNAVAILABLE");
+  }
+  if (_pr92ActiveRichInputContext !== null) {
+    throw new Error("PR9_2_RICH_INPUT_CONTEXT_BUSY");
+  }
 
-  const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
-    ? message.conversationId.trim()
-    : null;
-  const timeoutMs = Number.isFinite(message?.timeoutMs)
-    ? Math.max(10_000, Math.min(Number(message.timeoutMs), 300_000))
-    : DEFAULT_TIMEOUT_MS;
-
-  const tab = await ensureRuntimeTab(conversationId);
-  if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
-
-  const attachmentCount = await _pr92StageOfficialPageAttachments(
-    tab.id,
+  const context = {
     attachmentPaths,
-    timeoutMs
-  );
-  const result = await _pr92RichInputPriorExecuteNativeTurn(message);
-  return {
-    ...result,
-    attachmentCount
+    timeoutMs,
+    staged: false,
+    stagedTabId: null,
+    attachmentCount: 0
   };
+  _pr92ActiveRichInputContext = context;
+  try {
+    const result = await _pr92RichInputPriorExecuteNativeTurn(message);
+    if (context.staged !== true || context.attachmentCount !== attachmentPaths.length) {
+      throw new Error("PR9_2_ATTACHMENT_STAGE_NOT_PROVEN");
+    }
+    // Successful downstream return proves the official page completed its product
+    // turn. The selected attachment is no longer considered reusable composer state.
+    _pr92DirtyAttachmentTabId = null;
+    return {
+      ...result,
+      attachmentCount: context.attachmentCount
+    };
+  } catch (error) {
+    const dirtyTabId = _pr92DirtyAttachmentTabId;
+    if (Number.isInteger(dirtyTabId)) {
+      const cleared = await _pr92ClearOfficialPageAttachments(dirtyTabId, timeoutMs);
+      if (cleared) _pr92DirtyAttachmentTabId = null;
+    }
+    if (Number.isInteger(_pr92DirtyAttachmentTabId)) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:${detail}`);
+    }
+    throw error;
+  } finally {
+    _pr92ActiveRichInputContext = null;
+  }
 };
