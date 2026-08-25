@@ -7,7 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from .browser_native_protocol import (
     PROTOCOL_VERSION,
@@ -46,6 +46,7 @@ class BrowserNativeTurnResult:
     tab_activated_during_turn: bool | None = None
     foreground_activation_observed: bool | None = None
     browser_authority_lease_id: str | None = None
+    attachment_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -57,10 +58,12 @@ class BrowserNativeRuntimeTabReleaseResult:
 
 
 class BrowserNativeTurnProvider:
-    """Send ordinary text turns through the official ChatGPT page runtime.
+    """Send ordinary product turns through the official ChatGPT page runtime.
 
     PR8.9 adds optional revision-safe text event frames over the same loopback
-    request. Raw conversation SSE still never leaves the extension.
+    request. PR9.2 allows the loopback request to carry only validated local file
+    paths; file bytes remain outside Native Messaging and are handed to the
+    official page through the debugger file-input primitive.
     """
 
     def __init__(
@@ -212,6 +215,27 @@ class BrowserNativeTurnProvider:
         value = response.get(key)
         return value if isinstance(value, bool) else None
 
+    @staticmethod
+    def _normalize_attachment_paths(
+        attachment_paths: Sequence[str | Path] | None,
+    ) -> list[str]:
+        if attachment_paths is None:
+            return []
+        if isinstance(attachment_paths, (str, bytes, bytearray, Path)):
+            raise TypeError("attachment_paths must be a sequence of local paths")
+        normalized: list[str] = []
+        for index, raw_path in enumerate(attachment_paths):
+            if not isinstance(raw_path, (str, Path)):
+                raise TypeError(f"attachment_paths[{index}] must be str or Path")
+            try:
+                path = Path(raw_path).expanduser().resolve(strict=True)
+            except (OSError, RuntimeError) as error:
+                raise ValueError(f"attachment_paths[{index}] is unavailable") from error
+            if not path.is_file():
+                raise ValueError(f"attachment_paths[{index}] must reference a regular file")
+            normalized.append(str(path))
+        return normalized
+
     def set_browser_authority_lease(self, lease_id: str) -> None:
         if not isinstance(lease_id, str) or not lease_id.strip():
             raise ValueError("browser authority lease_id is required")
@@ -232,12 +256,14 @@ class BrowserNativeTurnProvider:
         conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None,
         timeout: float | None,
         canonical_completed_at_ms: int | None,
+        attachment_paths: Sequence[str | Path] | None = None,
         on_text_event: Callable[[dict[str, Any]], None] | None = None,
     ) -> BrowserNativeTurnResult:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text is required")
         if len(text) > 200_000:
             raise ValueError("text is too large for browser-native turn")
+        normalized_attachment_paths = self._normalize_attachment_paths(attachment_paths)
         conversation_id = None
         if conversation is not None:
             conversation_id = ConversationRef.from_any(conversation).conversation_id
@@ -259,6 +285,7 @@ class BrowserNativeTurnProvider:
                 "request_id": request_id,
                 "conversationId": conversation_id,
                 "text": text,
+                "attachmentPaths": normalized_attachment_paths,
                 "timeoutMs": int(total_timeout * 1000),
                 "canonicalCompleted": canonical_completed_at_ms is not None,
                 "canonicalCompletedAtMs": canonical_completed_at_ms,
@@ -295,6 +322,14 @@ class BrowserNativeTurnProvider:
                 "BROWSER_NATIVE_AUTHORITY_LEASE_MISMATCH",
                 request_stage="browser_native_turn",
             )
+        attachment_count = response.get("attachmentCount")
+        if not isinstance(attachment_count, int) or isinstance(attachment_count, bool) or attachment_count < 0:
+            attachment_count = 0
+        if normalized_attachment_paths and attachment_count != len(normalized_attachment_paths):
+            raise RequestError(
+                "BROWSER_NATIVE_ATTACHMENT_COUNT_MISMATCH",
+                request_stage="browser_native_turn",
+            )
         return BrowserNativeTurnResult(
             conversation_id=result_conversation_id.strip(),
             turn_exchange_id=response.get("turnExchangeId")
@@ -320,6 +355,7 @@ class BrowserNativeTurnProvider:
             browser_authority_lease_id=response_lease_id
             if isinstance(response_lease_id, str)
             else None,
+            attachment_count=attachment_count,
         )
 
     def send_text(
@@ -328,12 +364,14 @@ class BrowserNativeTurnProvider:
         *,
         conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
         timeout: float | None = None,
+        attachment_paths: Sequence[str | Path] | None = None,
     ) -> BrowserNativeTurnResult:
         return self._send_text_request(
             text,
             conversation=conversation,
             timeout=timeout,
             canonical_completed_at_ms=None,
+            attachment_paths=attachment_paths,
         )
 
     def send_text_streaming(
@@ -342,6 +380,7 @@ class BrowserNativeTurnProvider:
         *,
         conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
         timeout: float | None = None,
+        attachment_paths: Sequence[str | Path] | None = None,
         on_text_event: Callable[[dict[str, Any]], None],
     ) -> BrowserNativeTurnResult:
         if not callable(on_text_event):
@@ -351,6 +390,7 @@ class BrowserNativeTurnProvider:
             conversation=conversation,
             timeout=timeout,
             canonical_completed_at_ms=None,
+            attachment_paths=attachment_paths,
             on_text_event=on_text_event,
         )
 
@@ -361,12 +401,14 @@ class BrowserNativeTurnProvider:
         conversation: ConversationRef | ChatConversation | dict[str, Any] | str,
         timeout: float | None = None,
         canonical_completed_at_ms: int,
+        attachment_paths: Sequence[str | Path] | None = None,
     ) -> BrowserNativeTurnResult:
         return self._send_text_request(
             text,
             conversation=conversation,
             timeout=timeout,
             canonical_completed_at_ms=canonical_completed_at_ms,
+            attachment_paths=attachment_paths,
         )
 
     def send_text_with_stale_ui_recovery_streaming(
@@ -376,6 +418,7 @@ class BrowserNativeTurnProvider:
         conversation: ConversationRef | ChatConversation | dict[str, Any] | str,
         timeout: float | None = None,
         canonical_completed_at_ms: int,
+        attachment_paths: Sequence[str | Path] | None = None,
         on_text_event: Callable[[dict[str, Any]], None],
     ) -> BrowserNativeTurnResult:
         if not callable(on_text_event):
@@ -385,6 +428,7 @@ class BrowserNativeTurnProvider:
             conversation=conversation,
             timeout=timeout,
             canonical_completed_at_ms=canonical_completed_at_ms,
+            attachment_paths=attachment_paths,
             on_text_event=on_text_event,
         )
 
