@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 import mimetypes
 from pathlib import Path
@@ -8,6 +9,12 @@ import tempfile
 from typing import Iterator, Sequence
 
 from .types import MediaItem, MediaSource
+
+
+_BROWSER_OWNED_MEDIA_PATHS: ContextVar[tuple[str, ...] | None] = ContextVar(
+    "cwa_browser_owned_media_paths",
+    default=None,
+)
 
 
 @dataclass(frozen=True)
@@ -105,3 +112,31 @@ def materialize_browser_owned_media(
             count=len(paths),
             materialized_byte_inputs=materialized,
         )
+
+
+@contextmanager
+def browser_owned_media_scope(
+    media: Sequence[MediaItem] | None,
+) -> Iterator[BrowserOwnedMediaMaterialization]:
+    """Bind one rich-input materialization to the current execution context.
+
+    BrowserOwnedProductWriteRuntime itself remains unchanged. Deep inside that
+    proven runtime, ``send_browser_native`` reads this execution-local scope and
+    forwards only the local paths to the official-page provider. Parallel turns
+    in other threads/tasks cannot observe the binding.
+    """
+
+    if _BROWSER_OWNED_MEDIA_PATHS.get() is not None:
+        raise RuntimeError("nested browser-owned media scopes are not supported")
+    with materialize_browser_owned_media(media) as materialization:
+        token = _BROWSER_OWNED_MEDIA_PATHS.set(materialization.paths)
+        try:
+            yield materialization
+        finally:
+            _BROWSER_OWNED_MEDIA_PATHS.reset(token)
+
+
+def current_browser_owned_attachment_paths() -> tuple[str, ...] | None:
+    """Return the current execution-local attachment paths, if a scope is active."""
+
+    return _BROWSER_OWNED_MEDIA_PATHS.get()
