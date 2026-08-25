@@ -11,7 +11,10 @@ def test_product_runtime_has_no_legacy_direct_write_fallback() -> None:
     runtime_source = (SRC / "product_runtime.py").read_text(encoding="utf-8")
     transport_source = (SRC / "product_transport.py").read_text(encoding="utf-8")
 
-    assert 'SUPPORTED_PRODUCT_TRANSPORTS: tuple[str, ...] = (BROWSER_OWNED_PRODUCT_TRANSPORT,)' in transport_source
+    assert 'DEFAULT_PRODUCT_TRANSPORT = BROWSER_OWNED_PRODUCT_TRANSPORT' in transport_source
+    assert 'BROWSERLESS_REQUEST_PRODUCT_TRANSPORT = "browserless-request"' in transport_source
+    assert "BROWSER_OWNED_PRODUCT_TRANSPORT," in transport_source
+    assert "BROWSERLESS_REQUEST_PRODUCT_TRANSPORT," in transport_source
     assert '"fallback_transport": None' in runtime_source
     assert '"legacy_direct_write_fallback": False' in runtime_source
     assert "self.client.send(" not in runtime_source

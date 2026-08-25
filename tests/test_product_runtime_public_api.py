@@ -39,10 +39,16 @@ def test_product_runtime_is_public_production_surface() -> None:
 
 def test_product_runtime_transport_default_is_browser_owned() -> None:
     assert adapter.DEFAULT_PRODUCT_TRANSPORT == "browser-owned"
-    assert adapter.SUPPORTED_PRODUCT_TRANSPORTS == ("browser-owned",)
+    assert adapter.SUPPORTED_PRODUCT_TRANSPORTS == (
+        "browser-owned",
+        "browserless-request",
+    )
     assert adapter.PRODUCT_RUNTIME_CONTRACT_SCHEMA == 1
     assert adapter.product_transport_support_tier("browser-owned") is (
         adapter.ProductTransportSupportTier.PRODUCTION
+    )
+    assert adapter.product_transport_support_tier("browserless-request") is (
+        adapter.ProductTransportSupportTier.EXPERIMENTAL
     )
     assert adapter.ORDINARY_CHATGPT_PRODUCT_SEMANTICS == "ordinary-chatgpt"
 

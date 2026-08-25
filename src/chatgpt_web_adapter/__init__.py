@@ -28,6 +28,17 @@ from .browser_native_provider import (
     BrowserNativeTurnResult,
 )
 from .browser_sentinel import ZendriverSentinelBundleProvider
+from .browserless_request_guards import (
+    gate_browserless_canonical_finalize as _gate_browserless_canonical_finalize,
+    install_browserless_poll_deadline_guard as _install_browserless_poll_deadline_guard,
+)
+from .browserless_request_scope import (
+    gate_browserless_request_execute as _gate_browserless_request_execute,
+    gate_browserless_request_health as _gate_browserless_request_health,
+)
+from .browserless_shared_write_fence import (
+    gate_browserless_transport_init as _gate_browserless_transport_init,
+)
 from .client import ChatGPTWebClient
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
@@ -152,6 +163,7 @@ _client_module.DEFAULT_THINKING_MODEL = DEFAULT_THINKING_MODEL
 _client_module.MODEL_ALIASES = MODEL_ALIASES
 ChatGPTWebClient._normalize_reasoning_effort = staticmethod(_normalize_reasoning_effort)
 ChatGPTWebClient._resolve_model = staticmethod(_resolve_model)
+_install_browserless_poll_deadline_guard(_client_module, ChatGPTWebClient)
 
 _original_send = ChatGPTWebClient.send
 _original_approve_pending_action = ChatGPTWebClient.approve_pending_action
@@ -201,6 +213,35 @@ ChatGPTWebClient.send_payload = _send_payload
 ChatGPTWebClient.send_to_conversation = _send_to_conversation
 ChatGPTWebClient.wait_and_approve_pending_actions = _policy_wait_and_approve_pending_actions
 ChatGPTWebClient.wait_until_completed = _wait_until_completed
+
+# Browserless owns one request scope spanning canonical attach, Sentinel preflight,
+# the prepared mutation, and canonical reconciliation. Conversation-scoped health
+# reads share the same no-replay header policy without acquiring mutation authority
+# or inventing a write deadline. Finality additionally correlates canonical
+# readback with the submitted assistant identity. Construction also fences the
+# shared client's ordinary mutation entrypoints with the same per-client RLock,
+# preventing a same-client continuation write from advancing the attached parent
+# during browserless Sentinel preflight. These wrappers are installed at package
+# import time like the other compatibility gates above.
+from .browserless_request_transport import BrowserlessRequestTransport as _BrowserlessRequestTransport
+
+_original_browserless_request_init = _BrowserlessRequestTransport.__init__
+_BrowserlessRequestTransport.__init__ = _gate_browserless_transport_init(
+    _original_browserless_request_init
+)
+_original_browserless_canonical_finalize = _BrowserlessRequestTransport._canonical_finalize
+_BrowserlessRequestTransport._canonical_finalize = _gate_browserless_canonical_finalize(
+    _original_browserless_canonical_finalize
+)
+_original_browserless_request_health = _BrowserlessRequestTransport.health
+_BrowserlessRequestTransport.health = _gate_browserless_request_health(
+    _original_browserless_request_health
+)
+_original_browserless_request_execute = _BrowserlessRequestTransport._execute
+_BrowserlessRequestTransport._execute = _gate_browserless_request_execute(
+    _original_browserless_request_execute
+)
+
 WebChatClient = ChatGPTWebClient
 
 # The historical core prefix remains import-compatible. The forward-looking

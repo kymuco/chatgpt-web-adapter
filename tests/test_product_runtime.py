@@ -49,8 +49,9 @@ class _Client:
 
 def test_transport_selection_is_closed_and_browser_owned_by_default() -> None:
     assert DEFAULT_PRODUCT_TRANSPORT == BROWSER_OWNED_PRODUCT_TRANSPORT
-    assert SUPPORTED_PRODUCT_TRANSPORTS == ("browser-owned",)
+    assert SUPPORTED_PRODUCT_TRANSPORTS == ("browser-owned", "browserless-request")
     assert normalize_product_transport(" browser-owned ") == "browser-owned"
+    assert normalize_product_transport(" browserless-request ") == "browserless-request"
     with pytest.raises(ValueError, match="unsupported product transport"):
         normalize_product_transport("legacy-direct")
 

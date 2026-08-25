@@ -8,8 +8,12 @@ from .product_provenance import ProductExecutionProvenance
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
 
 BROWSER_OWNED_PRODUCT_TRANSPORT = "browser-owned"
+BROWSERLESS_REQUEST_PRODUCT_TRANSPORT = "browserless-request"
 DEFAULT_PRODUCT_TRANSPORT = BROWSER_OWNED_PRODUCT_TRANSPORT
-SUPPORTED_PRODUCT_TRANSPORTS: tuple[str, ...] = (BROWSER_OWNED_PRODUCT_TRANSPORT,)
+SUPPORTED_PRODUCT_TRANSPORTS: tuple[str, ...] = (
+    BROWSER_OWNED_PRODUCT_TRANSPORT,
+    BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
+)
 
 ConversationInput = ConversationRef | ChatConversation | dict[str, Any] | str | None
 TokenCallback = Callable[[str], None] | None
