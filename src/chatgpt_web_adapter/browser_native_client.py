@@ -355,6 +355,10 @@ def send_browser_native(
             **attachment_kwargs,
         )
 
+    attachment_count = getattr(turn, "attachment_count", 0)
+    if not isinstance(attachment_count, int) or isinstance(attachment_count, bool) or attachment_count < 0:
+        attachment_count = 0
+
     self._emit_event(
         on_event,
         "browser_native_write_completed",
@@ -371,7 +375,7 @@ def send_browser_native(
         tab_active_after_write=turn.tab_active_after,
         tab_activated_during_turn=turn.tab_activated_during_turn,
         foreground_activation_observed=turn.foreground_activation_observed,
-        attachment_count=turn.attachment_count,
+        attachment_count=attachment_count,
         revision_safe_stream_observation_count=stream_state.observation_count,
     )
 
@@ -442,7 +446,7 @@ def send_browser_native(
         message_id=final_message.message_id,
         model=final_message.model,
         total=total,
-        attachment_count=turn.attachment_count,
+        attachment_count=attachment_count,
         canonical_payload_read_count=canonical_payload_read_count,
         canonical_payload_reused_for_attach=canonical_payload is not None,
         stream_canonical_reconciliation=finalization["reconciliation"],
