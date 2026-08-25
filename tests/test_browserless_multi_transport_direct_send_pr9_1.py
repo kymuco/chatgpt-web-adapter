@@ -208,3 +208,39 @@ def test_slotted_callable_object_decorator_is_a_direct_predecessor_edge() -> Non
     assert decorator_calls == ["slotted-callable"]
     assert client.send_calls == ["slotted-callable"]
     assert first._write_lock is second._write_lock
+
+
+def test_inherited_list_slots_preserve_exact_predecessor_for_ordinary_and_direct_send() -> None:
+    client = _CompatibleSharedClient()
+    first = BrowserlessRequestTransport(client)
+    first_fenced_send = client.send
+    decorator_calls: list[str] = []
+
+    class DelegateSlotBase:
+        __slots__ = ["delegate"]
+
+        def __init__(self, delegate):
+            self.delegate = delegate
+
+    class InheritedSlottedDecorator(DelegateSlotBase):
+        __slots__ = ()
+
+        def __call__(self, prompt, *, conversation=None, **kwargs):
+            decorator_calls.append(prompt)
+            return self.delegate(prompt, conversation=conversation, **kwargs)
+
+    decorated_send = InheritedSlottedDecorator(first_fenced_send)
+    assert not hasattr(decorated_send, "__dict__")
+    assert isinstance(DelegateSlotBase.__slots__, list)
+    client.send = decorated_send
+
+    ordinary = client.send("inherited-slot-ordinary", conversation=None)
+    assert ordinary == "sent:inherited-slot-ordinary"
+
+    second = BrowserlessRequestTransport(client)
+    direct = _execute_direct_probe(second, "inherited-slot-direct")
+
+    assert direct == "sent:inherited-slot-direct"
+    assert decorator_calls == ["inherited-slot-ordinary", "inherited-slot-direct"]
+    assert client.send_calls == ["inherited-slot-ordinary", "inherited-slot-direct"]
+    assert first._write_lock is second._write_lock
