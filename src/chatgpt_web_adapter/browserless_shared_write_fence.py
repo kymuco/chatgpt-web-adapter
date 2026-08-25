@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from functools import wraps
 import threading
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from .exceptions import RequestError
+from .types import ChatConversation
 
 
 _FENCE_MARKER = "_cwa_browserless_shared_write_fence_lock"
@@ -12,7 +14,9 @@ _FENCE_ORIGINAL = "_cwa_browserless_shared_write_fence_original"
 _INSTANCE_LOCK_ATTR = "_cwa_browserless_shared_write_fence_lock_state"
 _CLASS_SETATTR_MARKER = "_cwa_browserless_shared_write_fence_setattr_guard"
 _CLASS_DELATTR_MARKER = "_cwa_browserless_shared_write_fence_delattr_guard"
+_BROWSERLESS_EXECUTE_MARKER = "_cwa_browserless_shared_write_fence_execute_guard"
 _CLASS_GUARD_LOCK = threading.Lock()
+_MUTATION_AUTHORITY_STATE = threading.local()
 
 _ATOMIC_MUTATION_SURFACES = (
     "send",
@@ -28,6 +32,12 @@ _CONVERSATION_REFRESH_POSITION = {
     "approve_pending_action": 0,
     "send_browser_native": 1,
 }
+_ALLOWED_SAME_CLIENT_DELEGATIONS = frozenset(
+    {
+        ("send_to_conversation", "send"),
+        ("send_to_conversation", "_send_existing_text_prepared"),
+    }
+)
 
 
 def _valid_lock(lock: Any) -> bool:
@@ -43,6 +53,89 @@ def _instance_fence_lock(client: Any) -> Any:
     return instance_dict.get(_INSTANCE_LOCK_ATTR)
 
 
+def _authority_stack() -> list[tuple[Any, str]]:
+    stack = getattr(_MUTATION_AUTHORITY_STATE, "stack", None)
+    if stack is None:
+        stack = []
+        _MUTATION_AUTHORITY_STATE.stack = stack
+    return stack
+
+
+def _authority_conflict(client: Any, name: str) -> tuple[Any, str] | None:
+    stack = _authority_stack()
+    if not stack:
+        return None
+    active_client, active_name = stack[-1]
+    if (
+        active_client is client
+        and (active_name, name) in _ALLOWED_SAME_CLIENT_DELEGATIONS
+    ):
+        return None
+    return active_client, active_name
+
+
+def _nested_mutation_error(
+    *,
+    active_client: Any,
+    active_name: str,
+    client: Any,
+    name: str,
+) -> RequestError:
+    relation = "same-client" if active_client is client else "cross-client"
+    return RequestError(
+        "shared-client mutation fence rejected "
+        f"{relation} nested mutation {name} while {active_name} owns mutation authority; "
+        "defer the nested mutation until the outer mutation returns",
+        request_stage="shared_client_write_fence",
+    )
+
+
+@contextmanager
+def _mutation_authority(client: Any, name: str) -> Iterator[None]:
+    conflict = _authority_conflict(client, name)
+    if conflict is not None:
+        active_client, active_name = conflict
+        raise _nested_mutation_error(
+            active_client=active_client,
+            active_name=active_name,
+            client=client,
+            name=name,
+        )
+
+    stack = _authority_stack()
+    stack.append((client, name))
+    try:
+        yield
+    finally:
+        stack.pop()
+        if not stack:
+            try:
+                delattr(_MUTATION_AUTHORITY_STATE, "stack")
+            except AttributeError:
+                pass
+
+
+def _normalize_attached_conversation(
+    attached: Any,
+) -> ChatConversation | dict[str, Any] | None:
+    if isinstance(attached, ChatConversation):
+        return attached
+
+    nested = getattr(attached, "conversation", None)
+    if isinstance(nested, ChatConversation):
+        return nested
+    if isinstance(nested, dict):
+        return dict(nested)
+
+    if isinstance(attached, dict):
+        nested = attached.get("conversation")
+        if isinstance(nested, ChatConversation):
+            return nested
+        if isinstance(nested, dict):
+            return dict(nested)
+    return None
+
+
 def _refresh_conversation(client: Any, conversation: Any) -> Any:
     if conversation is None:
         return None
@@ -53,7 +146,7 @@ def _refresh_conversation(client: Any, conversation: Any) -> Any:
             request_stage="shared_client_write_fence",
         )
     attached = attach(conversation)
-    refreshed = getattr(attached, "conversation", None)
+    refreshed = _normalize_attached_conversation(attached)
     if refreshed is None:
         raise RequestError(
             "shared-client mutation fence canonical attach returned no conversation",
@@ -84,6 +177,18 @@ def _refresh_conversation_argument(
     return tuple(patched_args), kwargs
 
 
+def _conversation_parent_id(conversation: Any) -> str | None:
+    if isinstance(conversation, dict):
+        value = conversation.get("parent_message_id") or conversation.get("message_id")
+    else:
+        value = getattr(conversation, "parent_message_id", None) or getattr(
+            conversation,
+            "message_id",
+            None,
+        )
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
 def _validate_raw_payload_parent(client: Any, payload: Any) -> None:
     if not isinstance(payload, dict):
         return
@@ -95,17 +200,13 @@ def _validate_raw_payload_parent(client: Any, payload: Any) -> None:
         return
 
     refreshed = _refresh_conversation(client, conversation_id.strip())
-    current_parent = getattr(refreshed, "parent_message_id", None) or getattr(
-        refreshed,
-        "message_id",
-        None,
-    )
-    if not isinstance(current_parent, str) or not current_parent.strip():
+    current_parent = _conversation_parent_id(refreshed)
+    if current_parent is None:
         raise RequestError(
             "shared-client mutation fence could not resolve the current raw-payload parent",
             request_stage="shared_client_write_fence",
         )
-    if current_parent.strip() != parent_message_id.strip():
+    if current_parent != parent_message_id.strip():
         raise RequestError(
             "shared-client mutation fence rejected a stale raw-payload parent; "
             "refresh the payload explicitly before retrying",
@@ -123,9 +224,8 @@ def _refresh_mutation_call(
         return _refresh_conversation_argument(client, name, args, kwargs)
 
     # send_to_conversation() performs canonical attach inside its own fenced call.
-    # Any nested send/prepared-send is fenced independently and reattaches again.
-    # The duplicate read is intentional: there is no broad reentrancy suppression
-    # that a callback or cross-client mutation could inherit.
+    # Its known internal send/prepared-send delegation is the only nested mutation
+    # authority permitted by this module.
     if name == "send_to_conversation":
         return args, kwargs
 
@@ -149,14 +249,18 @@ def _fence_callable(client: Any, name: str, current: Callable[..., Any], lock: A
 
     @wraps(current)
     def fenced(*args: Any, **kwargs: Any) -> Any:
-        with lock:
-            call_args, call_kwargs = _refresh_mutation_call(
-                client,
-                name,
-                args,
-                kwargs,
-            )
-            return current(*call_args, **call_kwargs)
+        # Enter mutation authority before attempting lock acquisition. This makes
+        # callback reentrancy fail closed and prevents opposite-order cross-client
+        # lock acquisition from forming an AB/BA deadlock.
+        with _mutation_authority(client, name):
+            with lock:
+                call_args, call_kwargs = _refresh_mutation_call(
+                    client,
+                    name,
+                    args,
+                    kwargs,
+                )
+                return current(*call_args, **call_kwargs)
 
     setattr(fenced, _FENCE_MARKER, lock)
     setattr(fenced, _FENCE_ORIGINAL, current)
@@ -239,14 +343,14 @@ def _install_assignment_guards(client: Any) -> None:
 
 
 def _install_atomic_mutation_fences(client: Any, lock: Any) -> None:
-    """Serialize and refresh known mutation entrypoints on one canonical client.
+    """Serialize, refresh, and guard mutation authority on one canonical client.
 
     Browserless owns the same re-entrant lock across canonical attach, Sentinel
     preflight, prepared mutation, and canonical reconciliation. Ordinary writes
-    acquire that lock too. Every continuation mutation, including nested and
-    callback-triggered mutations, independently refreshes after lock acquisition;
-    no process-wide or task-wide reentrancy depth can suppress that authority
-    check. Raw payloads independently validate their explicit parent.
+    acquire that lock too. Every top-level continuation mutation refreshes after
+    lock acquisition. Arbitrary callback/replacement nesting fails closed before a
+    second lock or write can be entered; only the known send_to_conversation()
+    delegation to send()/prepared-send remains re-entrant.
 
     The compatible-client assignment/deletion guards keep later instance-level
     mutation-method replacement inside the same lock domain instead of letting a
@@ -313,6 +417,37 @@ def assert_atomic_mutation_fence(client: Any, lock: Any) -> None:
             )
 
 
+def _guard_browserless_execute(self: Any, current: Callable[..., Any], client: Any) -> Any:
+    if getattr(current, _BROWSERLESS_EXECUTE_MARKER, False):
+        return current
+
+    @wraps(current)
+    def execute(*args: Any, **kwargs: Any) -> Any:
+        conflict = _authority_conflict(client, "browserless_request")
+        if conflict is not None:
+            active_client, active_name = conflict
+            error = _nested_mutation_error(
+                active_client=active_client,
+                active_name=active_name,
+                client=client,
+                name="browserless_request",
+            )
+            from .browserless_request_transport import BrowserlessRequestTransportError
+
+            raise BrowserlessRequestTransportError(
+                str(error),
+                request_stage="browserless_mutation_fence",
+                write_may_have_been_submitted=False,
+                reconciliation_required=False,
+            ) from error
+
+        with _mutation_authority(client, "browserless_request"):
+            return current(*args, **kwargs)
+
+    setattr(execute, _BROWSERLESS_EXECUTE_MARKER, True)
+    return execute
+
+
 def gate_browserless_transport_init(
     original_init: Callable[..., Any],
 ) -> Callable[..., Any]:
@@ -325,5 +460,10 @@ def gate_browserless_transport_init(
         client = getattr(self, "client", canonical_client)
         _install_atomic_mutation_fences(client, lock)
         assert_atomic_mutation_fence(client, lock)
+
+        current_execute = getattr(self, "_execute", None)
+        if not callable(current_execute):
+            raise TypeError("browserless request transport requires callable _execute()")
+        self._execute = _guard_browserless_execute(self, current_execute, client)
 
     return init
