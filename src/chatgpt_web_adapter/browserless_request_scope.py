@@ -79,6 +79,30 @@ def _restore_instance_callable(
         setattr(client, name, previous)
 
 
+def _normalize_browserless_direct_send(transport: Any) -> None:
+    """Remove only this package's shared-client fence from captured direct send.
+
+    A later BrowserlessRequestTransport constructed around the same compatible
+    client observes client.send after the first transport installed its mutation
+    fence. Browserless execution already owns that fence's mutation authority, so
+    invoking the captured wrapper would be rejected as a nested send. Normalize
+    the captured callable back to the underlying compatible-client send before
+    execution while preserving arbitrary non-fence decorators.
+    """
+
+    from .browserless_shared_write_fence import unfenced_mutation_callable
+
+    direct_send = unfenced_mutation_callable(getattr(transport, "_direct_send", None))
+    if not callable(direct_send):
+        from .browserless_request_transport import BrowserlessProtocolDriftError
+
+        raise BrowserlessProtocolDriftError(
+            "captured direct-request send is no longer callable",
+            request_stage="browserless_mutation_fence",
+        )
+    transport._direct_send = direct_send
+
+
 @contextmanager
 def _bind_browserless_header_scope(client: Any) -> Iterator[None]:
     """Strip inherited one-shot write credentials for one browserless context.
@@ -281,6 +305,11 @@ def gate_browserless_request_execute(
                 on_token=on_token,
                 on_event=on_event,
             )
+
+        # A second transport sharing one compatible client may have captured the
+        # first transport's installed client.send fence. Strip only that package
+        # wrapper before browserless_request authority becomes a nested send.
+        _normalize_browserless_direct_send(self)
 
         deadline = monotonic() + float(timeout)
         lock = getattr(self, "_write_lock", None)
