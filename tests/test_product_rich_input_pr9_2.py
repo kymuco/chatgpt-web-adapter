@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from chatgpt_web_adapter.browser_native_client import send_browser_native
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeTurnProvider
 from chatgpt_web_adapter.product_media import (
     browser_owned_media_scope,
@@ -18,6 +20,7 @@ from chatgpt_web_adapter.product_transport import (
     BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
     BROWSER_OWNED_PRODUCT_TRANSPORT,
 )
+from chatgpt_web_adapter.types import ChatConversation
 
 
 class _CanonicalClient:
@@ -75,6 +78,60 @@ class _CapturingProvider(BrowserNativeTurnProvider):
             "responseStatus": 200,
             "attachmentCount": len(payload.get("attachmentPaths") or []),
         }
+
+
+class _LegacyTurnProvider:
+    def send_text(self, text, *, conversation=None, timeout=None):
+        return SimpleNamespace(
+            conversation_id="conversation-legacy",
+            turn_exchange_id="exchange-legacy",
+            response_status=200,
+            elapsed_ms=1,
+            runtime_reloaded=False,
+            runtime_reload_ms=None,
+            tab_id=7,
+            runtime_tab_preexisting=True,
+            runtime_tab_created_for_turn=False,
+            tab_was_active=False,
+            tab_active_after=False,
+            tab_activated_during_turn=False,
+            foreground_activation_observed=False,
+        )
+
+
+class _LegacyBrowserNativeClient:
+    def __init__(self) -> None:
+        self._browser_native_turn_provider = _LegacyTurnProvider()
+
+    def _emit_event(self, callback, event_type, **payload):
+        if callback is not None:
+            callback({"type": event_type, **payload})
+
+    def get_status(self, conversation):
+        return SimpleNamespace(status="completed", message_id="assistant-legacy")
+
+    def get_messages(self, conversation, **kwargs):
+        return [
+            SimpleNamespace(
+                message_id="assistant-legacy",
+                role="assistant",
+                text="legacy-ok",
+                finish_reason="stop",
+                model="legacy-model",
+            )
+        ]
+
+    def attach_conversation(self, conversation):
+        return SimpleNamespace(
+            title="Legacy",
+            conversation=ChatConversation(
+                conversation_id="conversation-legacy",
+                message_id="assistant-legacy",
+                parent_message_id="assistant-legacy",
+                finish_reason="stop",
+                is_thinking=False,
+            ),
+        )
 
 
 def test_browser_owned_media_scope_materializes_bytes_without_bridge_payload(tmp_path):
@@ -191,6 +248,12 @@ def test_browser_native_provider_rejects_missing_attachment_before_rpc(tmp_path)
     with pytest.raises(ValueError, match=r"attachment_paths\[0\] is unavailable"):
         provider.send_text("inspect", attachment_paths=[missing])
     assert provider.payload is None
+
+
+def test_text_only_legacy_provider_result_need_not_expose_attachment_count():
+    response = send_browser_native(_LegacyBrowserNativeClient(), "hello")
+    assert response.text == "legacy-ok"
+    assert response.conversation.conversation_id == "conversation-legacy"
 
 
 def test_packaged_extension_layers_pr9_2_above_preserved_entrypoint():
