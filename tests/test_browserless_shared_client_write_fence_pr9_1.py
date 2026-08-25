@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from chatgpt_web_adapter.browserless_request_transport import BrowserlessRequestTransport
+from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.sentinel_bundle import prepared_send_active
 from chatgpt_web_adapter.types import ChatConversation, ChatMessage, ChatResponse
 
@@ -25,6 +26,8 @@ class _RaceFenceClient:
         self.canonical_readback_finished = Event()
         self.browserless_send_calls = 0
         self.ordinary_send_calls = 0
+        self.raw_payload_calls = 0
+        self.raw_payload_parent: str | None = None
         self.ordinary_entered_after_canonical_readback = False
         self.ordinary_parent_message_id: str | None = None
 
@@ -105,6 +108,13 @@ class _RaceFenceClient:
                 parent_message_id="browserless-assistant",
             ),
         )
+
+    def send_payload(self, payload, **kwargs):
+        self.raw_payload_calls += 1
+        self.raw_payload_parent = (
+            payload.get("parent_message_id") if isinstance(payload, dict) else None
+        )
+        return {"ok": True}
 
     def attach_conversation(self, conversation):
         parent = (
@@ -268,6 +278,83 @@ def test_replacing_instance_send_keeps_the_same_fence_and_post_queue_refresh() -
     assert browserless_errors == []
     assert ordinary_errors == []
     assert replacement_parent == ["browserless-assistant"]
+
+
+def test_nested_same_client_raw_payload_still_validates_stale_parent() -> None:
+    client = _RaceFenceClient()
+    BrowserlessRequestTransport(client)
+
+    def replacement_send(prompt, *, conversation=None, **kwargs):
+        client.send_payload(
+            {
+                "conversation_id": "conversation-1",
+                "parent_message_id": "stale-inner-parent",
+                "action": "next",
+            }
+        )
+        raise AssertionError("nested stale payload should have failed before mutation")
+
+    client.send = replacement_send
+
+    with pytest.raises(
+        RequestError,
+        match="shared-client mutation fence rejected a stale raw-payload parent",
+    ):
+        client.send(
+            "outer prompt",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="attached-parent",
+                parent_message_id="attached-parent",
+            ),
+        )
+
+    # Validation runs before the nested raw mutation body.
+    assert client.raw_payload_calls == 0
+
+
+def test_nested_cross_client_send_refreshes_its_own_parent() -> None:
+    outer_client = _RaceFenceClient()
+    inner_client = _RaceFenceClient()
+    BrowserlessRequestTransport(outer_client)
+    BrowserlessRequestTransport(inner_client)
+    inner_parent_seen: list[str | None] = []
+
+    def inner_send(prompt, *, conversation=None, **kwargs):
+        inner_parent_seen.append(inner_client._parent_id(conversation))
+        return ChatResponse(
+            text="inner answer",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="inner-assistant",
+                parent_message_id="inner-assistant",
+            ),
+        )
+
+    def outer_send(prompt, *, conversation=None, **kwargs):
+        return inner_client.send(
+            "inner prompt",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="stale-inner-parent",
+                parent_message_id="stale-inner-parent",
+            ),
+        )
+
+    inner_client.send = inner_send
+    outer_client.send = outer_send
+
+    response = outer_client.send(
+        "outer prompt",
+        conversation=ChatConversation(
+            conversation_id="conversation-1",
+            message_id="stale-outer-parent",
+            parent_message_id="stale-outer-parent",
+        ),
+    )
+
+    assert response.text == "inner answer"
+    assert inner_parent_seen == ["attached-parent"]
 
 
 def test_fenced_mutation_entrypoint_cannot_be_deleted_normally() -> None:
