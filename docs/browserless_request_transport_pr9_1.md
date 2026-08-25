@@ -1,6 +1,6 @@
 # PR9.1 — Experimental Browserless Request Transport
 
-_Last updated: 2026-08-24_
+_Last updated: 2026-08-25_
 
 ## Status
 
@@ -24,51 +24,71 @@ PRODUCTION                      EXPERIMENTAL
 browser/page-owned write        direct authenticated HTTP request
 ```
 
-Transport support tier and capability state remain independent. A browserless
-capability can be `AVAILABLE` while the transport itself remains `EXPERIMENTAL`.
+Transport support tier and capability state are intentionally independent. A
+browserless capability can be `AVAILABLE` while the transport itself remains
+`EXPERIMENTAL`, and per-turn Sentinel policy can still deny direct-write admission.
+
+## Frozen PR9.1 boundary
+
+PR9.1 implements one explicit direct-request transport under the PR9.0 product
+runtime contract. The stable boundary is behavioral rather than tied to private
+endpoint details:
+
+```text
+explicit browserless transport selection
+    -> browser-owned remains default / PRODUCTION
+    -> browserless-request remains EXPERIMENTAL
+    -> current two-phase Sentinel only
+    -> continuation parent resolved canonically before Sentinel preflight
+    -> current conversation/prepare + conduit final-write path only
+    -> no legacy requirements fallback
+    -> no unprepared write fallback
+    -> no browser fallback
+    -> no challenge solving / proof generation
+    -> no protected credential replay
+    -> no automatic ambiguous-write retry
+    -> one total invocation deadline
+    -> provisional stream != canonical finality
+    -> submitted assistant identity == completed-status identity == readback identity
+```
 
 ## Why this exists
 
-CWA already contains substantial authenticated ChatGPT-web request, SSE and
-canonical-read machinery. PR8 correctly stopped treating the historical
-compatibility client as the production writer and moved ordinary product writes
-behind browser-owned authority.
+CWA already contains authenticated ChatGPT-web request, SSE and canonical-read
+machinery. PR8 correctly stopped treating the historical compatibility client as
+the production writer and moved ordinary product writes behind browser-owned
+authority.
 
 PR9.1 does not reverse that decision. It introduces direct requests as a distinct,
-explicit transport under the PR9.0 contract so that:
+explicit transport so that:
 
-- applications do not depend on browser implementation details;
+- applications remain behind the product-runtime boundary;
 - browserless behavior can evolve without weakening browser-owned production;
-- protocol drift has its own failure class;
-- a working private-protocol path does not silently acquire production support;
-- protected browser challenges remain a hard boundary rather than a reason to add
-  challenge-bypass machinery.
+- private-protocol drift becomes an explicit failure class;
+- a working direct path does not silently acquire production support;
+- browser protection remains a hard boundary rather than a reason to add challenge
+  bypass machinery.
 
-## External implementation review
+## External protocol review
 
-Before and during PR9.1 we compared current public ChatGPT-web implementations and
-protocol notes, including `openweb`, `ChatGPT-Web2API`, `Rosetta`, `OmniRoute`,
-`ChatGPTReversed`, historical `revChatGPT`-style wrappers, and direct wrappers that
-reproduce browser fingerprint / proof-of-work / Turnstile behavior.
-
-The useful common pattern is:
+During PR9.1, current public ChatGPT-web implementations and protocol notes were
+used as protocol/failure references. The recurring pattern was:
 
 1. authenticated canonical reads are comparatively straightforward;
 2. product writes are guarded by dynamically deployed Sentinel policy;
 3. modern browser-backed implementations let the official page obtain current
    browser-bound challenge evidence;
-4. fully direct wrappers often reproduce fingerprint, PoW, Turnstile, Arkose or
-   similar protection behavior;
-5. the private write protocol drifts, including conversation prepare/conduit and
-   Sentinel sequencing changes.
+4. fully direct wrappers frequently reproduce fingerprint, PoW, Turnstile, Arkose
+   or similar protection behavior;
+5. the private write protocol drifts, including Sentinel and
+   conversation-prepare/conduit sequencing.
 
-CWA uses these projects as protocol/failure references. It does **not** copy their
-protection-bypass behavior.
+CWA uses that ecosystem only to understand protocol shape and failure modes. PR9.1
+does **not** copy protection-bypass behavior.
 
-## Current Sentinel protocol decision
+## Current Sentinel protocol
 
-CWA already contains live evidence that the current protected write contract is a
-two-phase Sentinel sequence:
+PR9.1 uses the currently observed two-phase Sentinel sequence only:
 
 ```text
 /backend-api/sentinel/chat-requirements/prepare
@@ -83,157 +103,232 @@ challenge descriptors + prepare_token
 one-shot requirements token
 ```
 
-Historical CWA compatibility code still contains a legacy single-step
-`chat-requirements` path. PR9.1 does **not** use it and does not silently fall back
-to it.
+The historical single-step `chat-requirements` compatibility path is not a PR9.1
+fallback.
 
-Canonical PR9.1 governance therefore states:
+Canonical governance metadata therefore includes:
 
 ```text
 browserless_sentinel_protocol = TWO_PHASE_PREPARE_FINALIZE
+browserless_conversation_write_protocol = PREPARE_CONDUIT_FINAL_WRITE
 browserless_legacy_single_step_requirements_fallback = false
+browserless_legacy_unprepared_conversation_write_fallback = false
+browserless_challenge_boundary = FAIL_CLOSED_BEFORE_WRITE
+browserless_shared_client_binding_scope = EXECUTION_CONTEXT
+browserless_shared_client_write_serialization = PER_CANONICAL_CLIENT
+browserless_timeout_scope = EXECUTION_CONTEXT_TOTAL_DEADLINE
+browserless_ephemeral_header_policy = STRIP_INHERITED_ALLOW_CURRENT_REQUIREMENTS_CONDUIT
 ```
-
-This matters because a direct transport should fail when the current protocol is
-not representable, rather than appearing healthy only because an older endpoint
-happens to return something.
 
 ## Non-negotiable protection boundary
 
 `browserless-request` never:
 
 - opens Chrome as a fallback;
-- starts the browser-native bridge;
-- requests a Sentinel browser bundle;
+- starts the browser-native bridge as a fallback;
+- invokes configured Sentinel browser challenge/bundle providers for its write;
 - solves or synthesizes Turnstile evidence;
 - generates proof-of-work for a protected write;
 - emulates a browser fingerprint to satisfy protection;
-- replays one-shot protected credentials;
+- replays inherited one-shot requirements/proof/Turnstile/conduit credentials;
 - retries an ambiguous conversation write automatically;
 - silently switches to `browser-owned`;
-- silently switches to the historical single-step requirements path.
+- silently switches to the historical single-step requirements path;
+- silently switches to the historical unprepared conversation write path.
 
-The transport performs current Sentinel `prepare` first. Every observed challenge
-block must expose a boolean `required` flag. Any current or future top-level
-challenge descriptor with `required=true` stops the operation **before Sentinel
-finalize and before conversation mutation**.
+Challenge/bundle providers are checked at execution time as well as construction
+boundaries. A provider added later cannot turn an already-assembled browserless
+transport into a proof/browser path.
+
+Every observed Sentinel challenge descriptor must expose a boolean `required`
+field. A required current or future challenge stops the operation before Sentinel
+finalize and before conversation mutation. Missing/non-boolean `required` metadata
+is protocol drift rather than permissive interpretation.
 
 That stop is `BROWSERLESS_CHALLENGE_BOUNDARY`, not an invitation to solve the
 challenge.
 
 ## Challenge-free finalize
 
-Only when the current prepare response explicitly reports no required challenge
-does PR9.1 attempt Sentinel `finalize`.
+Only when every observed challenge is explicitly `required=false` does PR9.1
+attempt Sentinel `finalize`.
 
-The finalize request contains:
-
-```text
-prepare_token = server-issued prepare token
-proofofwork   = null
-turnstile     = null
-```
-
-Those `null` fields are deliberate: they represent absence of required evidence,
-not fabricated credentials.
-
-If the server rejects challenge-free finalize, PR9.1 does not invent proof data or
-fall back to another protocol. A 403 is classified as a protection boundary;
-other incompatible current shapes are classified as protocol drift.
+The finalize request contains the server-issued `prepare_token` and no fabricated
+protected evidence. If challenge-free finalize is rejected or its shape no longer
+matches the bounded protocol, PR9.1 returns challenge boundary or protocol drift;
+it does not invent proof data or fall back.
 
 A successful finalize yields the one-shot server-issued requirements token used by
-exactly one direct conversation write attempt.
+exactly one prepared conversation mutation attempt.
 
-## Direct-request path
+## Final direct-request transaction
+
+For continuation, canonical parent resolution occurs before Sentinel preflight and
+inside the same browserless mutation transaction. The final architecture is:
 
 ```text
 saved legitimate ChatGPT session
         |
         v
+acquire per-canonical-client mutation authority / lock
+        |
+        v
+canonical attach + current parent resolution (continuation only)
+        |
+        v
 current Sentinel prepare
         |
-        +-- any required challenge
+        +-- required challenge
         |       -> CHALLENGE_BOUNDARY
         |       -> no finalize
-        |       -> no conversation write
+        |       -> no conversation mutation
+        |
+        +-- malformed/unknown descriptor
+        |       -> PROTOCOL_DRIFT
+        |       -> no conversation mutation
         |
         v
 challenge-free Sentinel finalize
         |
         +-- incompatible/rejected shape
         |       -> CHALLENGE_BOUNDARY or PROTOCOL_DRIFT
-        |       -> no conversation write
+        |       -> no conversation mutation
         |
         v
 server-issued one-shot requirements token
         |
         v
-canonical attach (continuation only)
+conversation/prepare
         |
         v
-exactly one direct conversation write attempt
+server-issued conduit token
+        |
+        v
+exactly one conduit-bound final conversation write
         |
         v
 provisional SSE text
         |
         v
-canonical completed status
+canonical completion polling for submitted assistant identity
         |
         v
-canonical current-branch assistant readback
+canonical assistant readback for same submitted identity
         |
         v
 final response + reconciliation event
 ```
 
-The finalized token is bound execution-locally to the compatibility request/SSE
-machinery. During that turn the historical requirements/proof path cannot run
-underneath PR9.1.
+The shared-client lock covers continuation attach, Sentinel prepare/finalize,
+prepared mutation and canonical reconciliation. Ordinary mutation entrypoints on
+the same canonical client participate in that same lock/freshness domain, so a
+queued continuation cannot submit a stale parent after browserless advances the
+conversation.
 
-## Continuation identity rule
+Nested/re-entrant mutation authority is fail-closed except for narrowly recognized
+same-client internal delegation. Opposite-order nested cross-client mutation is
+rejected before a second lock acquisition, preventing AB/BA deadlock.
 
-For continuation, PR9.1 resolves the current parent through canonical attach before
-network mutation.
+## Shared-client isolation
 
-After a returned direct write, canonical readback must advance beyond that
-pre-write parent identity. Seeing `completed` while the latest assistant identity
-is still the old parent is **not** accepted as success; it becomes
-reconciliation-required.
+Browserless request state is execution-local rather than a global mutation of the
+shared canonical client's ordinary behavior.
 
-This prevents stale canonical state from being mistaken for confirmation of the
-new write.
+The owner execution gets its browserless requirements/header/deadline behavior;
+foreign callers using the same client continue to see ordinary caller-owned
+headers and timeout semantics. Multiple `BrowserlessRequestTransport` instances
+sharing one canonical client reuse the same per-client serialization domain.
 
-## Finality
+Post-construction compatible-client mutation replacement remains fenced. The fence
+preserves supported function and callable-object decorators, including
+`functools.wraps`, slotted callable objects, inherited slots and list-form
+`__slots__`, without treating copied metadata as package fence authority.
+
+## Protected credential policy
+
+Every browserless request strips inherited ephemeral write credentials
+case-insensitively:
+
+- requirements token;
+- Sentinel proof token;
+- Turnstile token;
+- conduit token.
+
+This applies to continuation attach, Sentinel prepare/finalize, conversation
+prepare/final write, canonical reconciliation reads, and browserless conversation
+health reads.
+
+Only current server-issued values may be reintroduced at the exact permitted
+stage: the current requirements token for the prepared write and the current
+conduit token for the final conversation write. Protected proof/Turnstile evidence
+is never replayed or synthesized.
+
+## Total invocation deadline
+
+The caller's browserless timeout is one total invocation deadline, not merely a
+curl timeout. It covers:
+
+- waiting for shared-client mutation authority;
+- continuation attach;
+- Sentinel prepare/finalize;
+- conversation prepare and final write;
+- synchronous recovery polling and its sleeps;
+- WebSocket handoff/recovery when reached by compatibility machinery;
+- canonical completion polling;
+- canonical status/message network reads.
+
+If the deadline expires before final mutation, the operation fails with proven
+zero-write semantics. If it expires after the final write may have been submitted,
+the result is conservatively reconciliation-required and is never retried.
+
+## Canonical finality and turn identity
 
 SSE is provisional observation, never canonical finality.
 
-A successful browserless execution requires:
+A successful browserless execution requires a non-empty assistant `message_id`
+from the submitted direct turn. Finality then binds three identities:
 
-1. a durable conversation identity;
-2. canonical status `completed`;
-3. a canonical assistant message identity newer than the continuation parent when
-   applicable;
-4. canonical assistant text;
-5. reconciliation of provisional stream text against that canonical text.
+```text
+submitted assistant message_id
+    == canonical completed-status message_id
+    == canonical assistant readback message_id
+```
 
-The returned response uses canonical text and identity. The normalized event
-stream ends with `canonical_text_finalized`.
+Missing submitted identity fails closed before canonical evidence can be used to
+manufacture success for an uncorrelated turn.
 
-If a conversation write may have been submitted but canonical completion cannot be
-proven, the transport does not retry.
+Canonical reads can briefly remain on a previously completed assistant after a
+successful write. A stale/identity-less `completed` snapshot is therefore treated
+as still pending for this one reconciliation invocation while deadline budget
+remains. Polling stops as success only when `completed` identifies the submitted
+assistant. The post-poll status and assistant readback checks repeat the exact
+identity comparison as defense in depth.
+
+For continuation, the submitted assistant must also advance beyond the prewrite
+parent identity. A foreign concurrent branch, stale old parent, or branch switch
+cannot supply finality for this turn.
+
+The returned response uses canonical text and canonical assistant identity. The
+normalized event stream ends with `canonical_text_finalized`.
 
 ## Ambiguous-write rules
 
 ```text
-Sentinel prepare/finalize failure before conversation write
+runtime assembly / auth / curl availability failure
+    -> product_turn_invocations = 0
+    -> conversation_write_attempts = 0
+    -> write_may_have_been_submitted = false
+    -> DIRECT_REQUEST_FAILED
+
+continuation attach or Sentinel prepare/finalize failure
     -> write_may_have_been_submitted = false
     -> reconciliation_required = false
 
-conversation prepare failure proven before final write
+conversation/prepare failure proven before final write
     -> write_may_have_been_submitted = false
     -> reconciliation_required = false
 
-stream/write outcome unknown
+final stream/write outcome unknown
     -> write_may_have_been_submitted = true
     -> reconciliation_required = true
     -> automatic retry = false
@@ -243,6 +338,10 @@ canonical readback/finality failure after returned write
     -> reconciliation_required = true
     -> automatic retry = false
 ```
+
+The mutation boundary is explicit: generic operational failure remains prewrite
+until the final conversation endpoint has actually begun; after that point
+ambiguity is conservative.
 
 ## Capability surface
 
@@ -255,10 +354,9 @@ canonical readback/finality failure after returned write
 - conversation attach/read/status;
 - provisional text streaming with canonical reconciliation.
 
-`AVAILABLE` means the transport implements and evidence-backs that capability
-contract. It does not mean every current session is allowed an unprotected write;
-per-turn Sentinel policy can still yield `CHALLENGE_BOUNDARY`. Server admission is
-therefore a per-invocation condition, separate from the static capability state.
+`AVAILABLE` is an implementation capability state. It does not mean every current
+session is allowed an unprotected write; per-turn Sentinel policy can still yield
+`CHALLENGE_BOUNDARY`.
 
 ### UNKNOWN
 
@@ -277,21 +375,21 @@ therefore a per-invocation condition, separate from the static capability state.
 - approval continuation;
 - multimodal continuation.
 
-Images/files/multimodal are PR9.2 work rather than an expansion of PR9.1.
+Images/files/multimodal remain later work rather than an expansion of PR9.1.
 
 ## Model and Temporary semantics
 
-PR9.1 does not claim that private backend model slugs are equivalent to the frozen
+PR9.1 does not claim private backend model slugs are equivalent to the frozen
 ChatGPT product modes `INSTANT`, `MEDIUM`, and `HIGH`.
 
-Therefore browserless model/reasoning product-profile selection begins as
-`UNKNOWN`. Explicit product-profile selection fails before any browserless network
-work until transport-specific evidence exists.
+Browserless model/reasoning product-profile selection therefore remains `UNKNOWN`.
+Explicit product-profile selection fails before browserless network mutation until
+transport-specific evidence exists.
 
-Temporary Chat also begins as `UNKNOWN`; a Temporary request fails before write
+Temporary Chat also remains `UNKNOWN`; a Temporary request fails before write
 rather than silently creating a durable conversation.
 
-## CLI
+## CLI and health semantics
 
 The experimental transport is selectable through product-runtime inspection and
 the low-level runtime send surface:
@@ -302,19 +400,14 @@ cwa status --transport browserless-request --json
 cwa runtime send --transport browserless-request "hello"
 ```
 
-The default remains `browser-owned`.
-
-Top-level `cwa send` retains the browser-owned product-profile policy; PR9.1 does
-not pretend those profile semantics are already proven on browserless.
-
-## Health semantics
+The default remains `browser-owned`. Top-level `cwa send` retains browser-owned
+product-profile policy rather than pretending those semantics are proven on the
+browserless transport.
 
 A new-chat browserless health result may be locally `ready` while explicitly
-stating that Sentinel preflight is pending. That means the runtime has the local
-direct-request and canonical surfaces needed to attempt a turn; it is not a claim
-that current server policy will permit an unprotected write.
-
-Per-turn Sentinel policy is authoritative.
+stating Sentinel preflight is pending. Conversation-scoped health reads obey the
+same no-replay header policy, but do not acquire mutation authority or invent a
+write deadline. Per-turn Sentinel policy remains authoritative.
 
 ## Bounded live gate
 
@@ -330,6 +423,13 @@ and has explicit outcomes:
   is not proven;
 - `DIRECT_REQUEST_FAILED` — a non-ambiguous operational failure before write.
 
+The report exists before runtime assembly begins. Malformed/unreadable auth,
+missing curl, capability materialization or contract materialization failures are
+returned as structured `DIRECT_REQUEST_FAILED` JSON with
+`request_stage="runtime_assembly"`, zero product-turn invocations and zero write
+counters. Ordinary operational `Exception`s are normalized there; process-control
+`KeyboardInterrupt` / `SystemExit` are intentionally not swallowed.
+
 The report separates transport invocation from mutation evidence:
 
 ```text
@@ -338,12 +438,9 @@ conversation_write_attempts
 conversation_write_completions
 ```
 
-A prewrite challenge boundary therefore reports one product-turn invocation but
+A prewrite challenge boundary therefore reports one product-turn invocation and
 zero conversation-write attempts. An ambiguous post-submit result reports one
 conversation-write attempt and zero completions.
-
-`CHALLENGE_BOUNDARY` is a valid safety result. It proves the boundary worked; it
-does not prove direct-write availability.
 
 ## Authenticated live observation — 2026-08-24
 
@@ -353,38 +450,65 @@ returned:
 ```text
 outcome = CHALLENGE_BOUNDARY
 required challenges = proofofwork, so, turnstile
+product_turn_invocations = 1
+conversation_write_attempts = 0
+conversation_write_completions = 0
 write_may_have_been_submitted = false
 reconciliation_required = false
 challenge_bypass_attempted = false
+automatic_write_retry = false
+fallback_transport = null
 ```
 
-This is strong evidence for the protected-write boundary on that live session:
-current server policy required browser-bound protection evidence, and PR9.1
-stopped before Sentinel finalize and before any conversation mutation. There was
-no browser fallback, challenge solver, protected credential replay, automatic
-retry, or ambiguous write.
+A repeat live run after the first safety-repair cycle reproduced the same protected
+boundary. The tested session required browser-bound protection evidence and PR9.1
+stopped before conversation mutation. There was no browser fallback, challenge
+solver, protected credential replay, automatic retry or ambiguous write.
 
-The observation **does not** establish `DIRECT_WRITE_COMPLETED` availability for
-that account/session. A future session or product deployment may admit a
-challenge-free path; that remains experimental and must be observed rather than
-assumed.
+This evidence proves the fail-closed live boundary for the tested session. It does
+**not** establish `DIRECT_WRITE_COMPLETED` availability for that account/session or
+for future deployments.
+
+## Deterministic validation
+
+The final PR9.1 regression surface includes dedicated coverage for:
+
+- current two-phase Sentinel and prepare/conduit sequencing;
+- future/malformed challenge descriptor fail-closed behavior;
+- execution-time provider isolation;
+- continuation attach and prewrite failure classification;
+- no protected credential replay across writes, reads and health;
+- total deadline enforcement across queue, preflight, mutation and recovery;
+- canonical submitted/status/readback identity correlation;
+- stale completed-status eventual-consistency polling;
+- missing submitted identity fail-closed behavior;
+- shared-client mutation serialization and queued-parent freshness;
+- callback reentrancy and cross-client deadlock prevention;
+- dynamic mutation-method replacement and decorator composition;
+- multiple browserless transports sharing one compatible client;
+- runtime-assembly and CLI structured zero-write failure reporting;
+- exact installed-wheel import/smoke behavior.
 
 ## Support promise
 
-PR9.1 freezes this relationship rather than private endpoint details:
+PR9.1 freezes the relationship below, not undocumented private endpoint details:
 
 ```text
 ChatGPTProductRuntime
     -> explicit transport selection
     -> browserless support tier = EXPERIMENTAL
+    -> browser-owned remains default / PRODUCTION
     -> current two-phase Sentinel only
-    -> no legacy protocol fallback
-    -> no browser fallback
-    -> no challenge solving
+    -> current prepare/conduit final-write path only
+    -> per-canonical-client mutation serialization
+    -> execution-local headers/deadline state
+    -> no legacy/browser/proof fallback
+    -> no protected credential replay
     -> no ambiguous write retry
     -> provisional stream != canonical finality
+    -> exact submitted-turn identity required for finality
     -> protected challenge == explicit boundary
 ```
 
 Because ChatGPT's private web protocol is undocumented and dynamically deployed,
-`browserless-request` remains `EXPERIMENTAL` even after successful live writes.
+`browserless-request` remains `EXPERIMENTAL` even after successful direct writes.
