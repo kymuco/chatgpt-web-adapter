@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import wraps
 from types import SimpleNamespace
 
 from chatgpt_web_adapter.browserless_request_scope import gate_browserless_request_execute
@@ -41,6 +42,35 @@ class _CompatibleSharedClient:
         return []
 
 
+def _execute_direct_probe(transport: BrowserlessRequestTransport, text: str) -> str:
+    def direct_probe(
+        current_transport,
+        current_text,
+        *,
+        conversation,
+        timeout,
+        poll_interval,
+        on_token,
+        on_event,
+    ):
+        return current_transport._direct_send(current_text, conversation=conversation)
+
+    execute = gate_browserless_request_execute(direct_probe)
+
+    # Real BrowserlessRequestTransport execution already owns browserless_request
+    # mutation authority before request-scope code runs.
+    with _mutation_authority(transport.client, "browserless_request"):
+        return execute(
+            transport,
+            text,
+            conversation=None,
+            timeout=1.0,
+            poll_interval=0.1,
+            on_token=None,
+            on_event=None,
+        )
+
+
 def test_second_transport_unwraps_first_transport_send_fence_before_direct_execution() -> None:
     client = _CompatibleSharedClient()
     first = BrowserlessRequestTransport(client)
@@ -50,35 +80,70 @@ def test_second_transport_unwraps_first_transport_send_fence_before_direct_execu
     # second transport therefore observes that wrapper during its original init.
     assert second._direct_send is not unfenced_mutation_callable(second._direct_send)
 
-    def direct_probe(
-        transport,
-        text,
-        *,
-        conversation,
-        timeout,
-        poll_interval,
-        on_token,
-        on_event,
-    ):
-        return transport._direct_send(text, conversation=conversation)
-
-    execute = gate_browserless_request_execute(direct_probe)
-
-    # Real BrowserlessRequestTransport execution is already inside this authority
-    # before request-scope code runs. Without direct-send normalization the captured
-    # fence deterministically rejects the call as a nested `send`.
-    with _mutation_authority(client, "browserless_request"):
-        result = execute(
-            second,
-            "probe",
-            conversation=None,
-            timeout=1.0,
-            poll_interval=0.1,
-            on_token=None,
-            on_event=None,
-        )
+    result = _execute_direct_probe(second, "probe")
 
     assert result == "sent:probe"
     assert client.send_calls == ["probe"]
     assert second._direct_send is unfenced_mutation_callable(second._direct_send)
+    assert first._write_lock is second._write_lock
+
+
+def test_second_transport_preserves_plain_decorator_around_preexisting_send_fence() -> None:
+    client = _CompatibleSharedClient()
+    first = BrowserlessRequestTransport(client)
+    first_fenced_send = client.send
+    decorator_calls: list[str] = []
+
+    # A caller decorates the public mutation surface after the first transport has
+    # installed its fence. The assignment guard creates:
+    # fence(decorator(first_fence(original))).
+    def decorated_send(prompt, *, conversation=None, **kwargs):
+        decorator_calls.append(prompt)
+        return first_fenced_send(prompt, conversation=conversation, **kwargs)
+
+    client.send = decorated_send
+    second = BrowserlessRequestTransport(client)
+
+    result = _execute_direct_probe(second, "plain-decorator")
+
+    assert result == "sent:plain-decorator"
+    assert decorator_calls == ["plain-decorator"]
+    assert client.send_calls == ["plain-decorator"]
+    # Browserless direct normalization must preserve the unrelated decorator
+    # rather than jumping straight to the original compatible-client method.
+    assert getattr(second._direct_send, "__wrapped__", None) is decorated_send
+    assert first._write_lock is second._write_lock
+
+
+def test_second_transport_preserves_wraps_decorator_that_copied_fence_metadata() -> None:
+    client = _CompatibleSharedClient()
+    first = BrowserlessRequestTransport(client)
+    first_fenced_send = client.send
+    decorator_calls: list[str] = []
+
+    # functools.wraps copies the wrapped fence's __dict__. In particular, copied
+    # package metadata must not make this unrelated decorator look like the real
+    # fence wrapper and get stripped from browserless direct execution.
+    @wraps(first_fenced_send)
+    def decorated_send(prompt, *, conversation=None, **kwargs):
+        decorator_calls.append(prompt)
+        return first_fenced_send(prompt, conversation=conversation, **kwargs)
+
+    copied_fence_identity = getattr(
+        decorated_send,
+        "_cwa_browserless_shared_write_fence_wrapper",
+        None,
+    )
+    assert copied_fence_identity is first_fenced_send
+    assert copied_fence_identity is not decorated_send
+
+    client.send = decorated_send
+    second = BrowserlessRequestTransport(client)
+
+    result = _execute_direct_probe(second, "wraps-decorator")
+
+    assert result == "sent:wraps-decorator"
+    assert decorator_calls == ["wraps-decorator"]
+    assert client.send_calls == ["wraps-decorator"]
+    assert getattr(second._direct_send, "__wrapped__", None) is decorated_send
     assert first._write_lock is second._write_lock
