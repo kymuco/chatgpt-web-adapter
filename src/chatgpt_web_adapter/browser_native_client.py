@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import inspect
 import time
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any, Callable, Sequence
 
 from .browser_native_provider import BrowserNativeTurnProvider
 from .exceptions import ConversationTimeoutError, RequestError
@@ -183,7 +184,6 @@ def _emit_revision_safe_event(
         pass
 
 
-
 def _provider_supports_revision_safe_streaming(provider: Any) -> bool:
     if not callable(getattr(provider, "send_text_streaming", None)):
         return False
@@ -209,12 +209,15 @@ def send_browser_native(
     poll_interval: float = 0.5,
     on_token: Callable[[str], None] | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
+    attachment_paths: Sequence[str | Path] | None = None,
 ) -> ChatResponse:
-    """Send one ordinary text turn through the persistent ChatGPT browser tab.
+    """Send one ordinary product turn through the persistent ChatGPT browser tab.
 
     PR8.9 exposes revision-safe early assistant text through ``on_event`` while
     keeping canonical readback authoritative. ``on_token`` intentionally remains
-    final-only because it cannot retract revisions.
+    final-only because it cannot retract revisions. PR9.2 carries validated local
+    attachment paths to the official page; attachment bytes are never embedded in
+    Native Messaging JSON and canonical assistant finality is unchanged.
     """
 
     provider = getattr(self, "_browser_native_turn_provider", None)
@@ -258,6 +261,7 @@ def send_browser_native(
         canonical_status_before_turn=canonical_status_before_turn,
         canonical_status_recovery_confirm=canonical_status_recovery_confirm,
         stale_ui_recovery_authorized=recovery_authorized,
+        attachment_count=len(tuple(attachment_paths or ())),
     )
 
     stream_state = RevisionSafeTextAccumulator()
@@ -270,6 +274,7 @@ def send_browser_native(
     streaming_requested = (
         on_event is not None and _provider_supports_revision_safe_streaming(provider)
     )
+    common_kwargs = {"attachment_paths": attachment_paths}
     if recovery_authorized:
         canonical_completed_at_ms = int(time.time() * 1000)
         if streaming_requested and callable(recovery_stream_send):
@@ -279,6 +284,7 @@ def send_browser_native(
                 timeout=timeout,
                 canonical_completed_at_ms=canonical_completed_at_ms,
                 on_text_event=handle_text_event,
+                **common_kwargs,
             )
         else:
             turn = recovery_send(
@@ -286,6 +292,7 @@ def send_browser_native(
                 conversation=conversation,
                 timeout=timeout,
                 canonical_completed_at_ms=canonical_completed_at_ms,
+                **common_kwargs,
             )
     elif streaming_requested and callable(stream_send):
         turn = stream_send(
@@ -293,9 +300,15 @@ def send_browser_native(
             conversation=conversation,
             timeout=timeout,
             on_text_event=handle_text_event,
+            **common_kwargs,
         )
     else:
-        turn = provider.send_text(prompt, conversation=conversation, timeout=timeout)
+        turn = provider.send_text(
+            prompt,
+            conversation=conversation,
+            timeout=timeout,
+            **common_kwargs,
+        )
 
     self._emit_event(
         on_event,
@@ -313,6 +326,7 @@ def send_browser_native(
         tab_active_after_write=turn.tab_active_after,
         tab_activated_during_turn=turn.tab_activated_during_turn,
         foreground_activation_observed=turn.foreground_activation_observed,
+        attachment_count=turn.attachment_count,
         revision_safe_stream_observation_count=stream_state.observation_count,
     )
 
@@ -383,6 +397,7 @@ def send_browser_native(
         message_id=final_message.message_id,
         model=final_message.model,
         total=total,
+        attachment_count=turn.attachment_count,
         canonical_payload_read_count=canonical_payload_read_count,
         canonical_payload_reused_for_attach=canonical_payload is not None,
         stream_canonical_reconciliation=finalization["reconciliation"],
