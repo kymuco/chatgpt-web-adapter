@@ -18,6 +18,7 @@ class _HealthCycleClient:
             turnstile_token=None,
         )
         self.status_reads = 0
+        self.message_reads = 0
 
     def _build_headers(self, extra=None):
         return {"authorization": "Bearer test", **dict(extra or {})}
@@ -51,6 +52,10 @@ class _HealthCycleClient:
             finish_reason="stop",
             message_id="current-parent",
         )
+
+    def get_messages(self, conversation, **kwargs):
+        self.message_reads += 1
+        return []
 
 
 def _conversation() -> ChatConversation:
@@ -104,3 +109,5 @@ def test_opposite_order_cross_client_health_callbacks_fail_without_deadlock() ->
     )
     assert client_a.status_reads == 0
     assert client_b.status_reads == 0
+    assert client_a.message_reads == 0
+    assert client_b.message_reads == 0
