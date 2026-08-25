@@ -3,6 +3,8 @@ from __future__ import annotations
 from threading import Event, Thread
 from types import SimpleNamespace
 
+import pytest
+
 from chatgpt_web_adapter.browserless_request_transport import BrowserlessRequestTransport
 from chatgpt_web_adapter.sentinel_bundle import prepared_send_active
 from chatgpt_web_adapter.types import ChatConversation, ChatMessage, ChatResponse
@@ -24,6 +26,7 @@ class _RaceFenceClient:
         self.browserless_send_calls = 0
         self.ordinary_send_calls = 0
         self.ordinary_entered_after_canonical_readback = False
+        self.ordinary_parent_message_id: str | None = None
 
     def _build_headers(self, extra=None):
         return {"authorization": "Bearer test", **dict(extra or {})}
@@ -51,9 +54,18 @@ class _RaceFenceClient:
             }
         raise AssertionError(f"unexpected URL: {url}")
 
+    @staticmethod
+    def _parent_id(conversation) -> str | None:
+        if isinstance(conversation, ChatConversation):
+            return conversation.parent_message_id or conversation.message_id
+        if isinstance(conversation, dict):
+            return conversation.get("parent_message_id") or conversation.get("message_id")
+        return None
+
     def send(self, prompt, *, conversation=None, on_token=None, on_event=None, **kwargs):
         if not prepared_send_active():
             self.ordinary_send_calls += 1
+            self.ordinary_parent_message_id = self._parent_id(conversation)
             self.ordinary_entered_after_canonical_readback = (
                 self.canonical_readback_finished.is_set()
             )
@@ -95,11 +107,16 @@ class _RaceFenceClient:
         )
 
     def attach_conversation(self, conversation):
+        parent = (
+            "browserless-assistant"
+            if self.canonical_readback_finished.is_set()
+            else "attached-parent"
+        )
         return SimpleNamespace(
             conversation=ChatConversation(
                 conversation_id="conversation-1",
-                message_id="attached-parent",
-                parent_message_id="attached-parent",
+                message_id=parent,
+                parent_message_id=parent,
             )
         )
 
@@ -123,27 +140,32 @@ class _RaceFenceClient:
         ]
 
 
-def test_same_client_ordinary_send_cannot_advance_parent_during_browserless_preflight() -> None:
+def _run_browserless_turn(
+    client: _RaceFenceClient,
+    transport: BrowserlessRequestTransport,
+    errors: list[BaseException],
+) -> None:
+    try:
+        response = transport.send_text(
+            "browserless prompt",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="stale-caller-parent",
+                parent_message_id="stale-caller-parent",
+            ),
+            timeout=2.0,
+            poll_interval=0.01,
+        )
+        assert response.text == "browserless canonical answer"
+    except BaseException as error:  # pragma: no cover - surfaced by callers
+        errors.append(error)
+
+
+def test_same_client_ordinary_send_rebinds_parent_after_browserless_queue() -> None:
     client = _RaceFenceClient()
     transport = BrowserlessRequestTransport(client)
     browserless_errors: list[BaseException] = []
     ordinary_errors: list[BaseException] = []
-
-    def run_browserless() -> None:
-        try:
-            response = transport.send_text(
-                "browserless prompt",
-                conversation=ChatConversation(
-                    conversation_id="conversation-1",
-                    message_id="stale-caller-parent",
-                    parent_message_id="stale-caller-parent",
-                ),
-                timeout=2.0,
-                poll_interval=0.01,
-            )
-            assert response.text == "browserless canonical answer"
-        except BaseException as error:  # pragma: no cover - surfaced below
-            browserless_errors.append(error)
 
     def run_ordinary() -> None:
         try:
@@ -158,15 +180,18 @@ def test_same_client_ordinary_send_cannot_advance_parent_during_browserless_pref
         except BaseException as error:  # pragma: no cover - surfaced below
             ordinary_errors.append(error)
 
-    browserless_thread = Thread(target=run_browserless)
+    browserless_thread = Thread(
+        target=_run_browserless_turn,
+        args=(client, transport, browserless_errors),
+    )
     browserless_thread.start()
     assert client.preflight_started.wait(1.0)
 
     ordinary_thread = Thread(target=run_ordinary)
     ordinary_thread.start()
 
-    # The ordinary public client.send() must be stopped by the same per-client
-    # RLock while browserless owns attach -> Sentinel -> mutation -> readback.
+    # The ordinary public client.send() is queued while browserless owns
+    # attach -> Sentinel -> mutation -> canonical readback.
     assert client.ordinary_send_entered.wait(0.10) is False
 
     client.release_preflight.set()
@@ -180,3 +205,74 @@ def test_same_client_ordinary_send_cannot_advance_parent_during_browserless_pref
     assert client.browserless_send_calls == 1
     assert client.ordinary_send_calls == 1
     assert client.ordinary_entered_after_canonical_readback is True
+    # Crucially, delaying the ordinary call does not preserve its queued parent.
+    # It canonically reattaches after lock acquisition and continues from the
+    # browserless assistant that became current while it was waiting.
+    assert client.ordinary_parent_message_id == "browserless-assistant"
+
+
+def test_replacing_instance_send_keeps_the_same_fence_and_post_queue_refresh() -> None:
+    client = _RaceFenceClient()
+    transport = BrowserlessRequestTransport(client)
+    browserless_errors: list[BaseException] = []
+    ordinary_errors: list[BaseException] = []
+    replacement_entered = Event()
+    replacement_parent: list[str | None] = []
+
+    def replacement_send(prompt, *, conversation=None, **kwargs):
+        replacement_parent.append(client._parent_id(conversation))
+        replacement_entered.set()
+        return ChatResponse(
+            text="replacement ordinary answer",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="replacement-assistant",
+                parent_message_id="replacement-assistant",
+            ),
+        )
+
+    # This is the exact compatible-client replacement pattern from the review.
+    # Guarded __setattr__ must automatically reapply the same per-client fence.
+    client.send = replacement_send
+
+    def run_replacement() -> None:
+        try:
+            client.send(
+                "replacement ordinary prompt",
+                conversation=ChatConversation(
+                    conversation_id="conversation-1",
+                    message_id="attached-parent",
+                    parent_message_id="attached-parent",
+                ),
+            )
+        except BaseException as error:  # pragma: no cover - surfaced below
+            ordinary_errors.append(error)
+
+    browserless_thread = Thread(
+        target=_run_browserless_turn,
+        args=(client, transport, browserless_errors),
+    )
+    browserless_thread.start()
+    assert client.preflight_started.wait(1.0)
+
+    ordinary_thread = Thread(target=run_replacement)
+    ordinary_thread.start()
+    assert replacement_entered.wait(0.10) is False
+
+    client.release_preflight.set()
+    browserless_thread.join(2.0)
+    ordinary_thread.join(2.0)
+
+    assert browserless_thread.is_alive() is False
+    assert ordinary_thread.is_alive() is False
+    assert browserless_errors == []
+    assert ordinary_errors == []
+    assert replacement_parent == ["browserless-assistant"]
+
+
+def test_fenced_mutation_entrypoint_cannot_be_deleted_normally() -> None:
+    client = _RaceFenceClient()
+    BrowserlessRequestTransport(client)
+
+    with pytest.raises(TypeError, match="cannot delete fenced mutation entrypoint send"):
+        del client.send
