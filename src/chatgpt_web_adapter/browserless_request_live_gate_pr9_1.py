@@ -19,6 +19,42 @@ DEFAULT_PROMPT = "Reply with exactly: CWA_PR9_1_BROWSERLESS_OK"
 DEFAULT_EXPECTED = "CWA_PR9_1_BROWSERLESS_OK"
 
 
+def _base_report() -> dict[str, Any]:
+    """Return the zero-write report envelope before runtime assembly begins."""
+
+    return {
+        "schema": SCHEMA,
+        "pr": "PR9.1",
+        "transport": "browserless-request",
+        "support_tier": None,
+        "product_write_budget": 1,
+        "product_turn_invocations": 0,
+        "conversation_write_attempts": 0,
+        "conversation_write_completions": 0,
+        "automatic_write_retry": False,
+        "fallback_transport": None,
+        "challenge_bypass_attempted": False,
+        "capabilities": None,
+        "contract": None,
+        "outcome": None,
+        "ok": False,
+    }
+
+
+def _runtime_assembly_error(error: Exception) -> dict[str, Any]:
+    """Serialize a proven-prewrite runtime assembly failure."""
+
+    return {
+        "error": type(error).__name__,
+        "message": str(error),
+        "request_stage": "runtime_assembly",
+        "status_code": None,
+        "endpoint": None,
+        "write_may_have_been_submitted": False,
+        "reconciliation_required": False,
+    }
+
+
 def run_live_gate(
     *,
     auth_file: str | Path = DEFAULT_AUTH_FILE,
@@ -35,32 +71,30 @@ def run_live_gate(
     ``product_turn_invocations`` counts calls into the transport. Conversation
     write counters describe only the mutation plane; a challenge/protocol boundary
     reached before that plane therefore records zero conversation write attempts.
+
+    Runtime assembly and contract/capability materialization are also part of the
+    proven-prewrite gate boundary. Operational failures there are returned as a
+    structured zero-write ``DIRECT_REQUEST_FAILED`` result rather than escaping as
+    a CLI traceback.
     """
 
-    runtime = assemble_product_runtime(
-        transport="browserless-request",
-        auth_file=auth_file,
-    )
-    capabilities = runtime.capabilities().to_dict()
-    contract = product_runtime_contract(runtime).to_dict()
-    report: dict[str, Any] = {
-        "schema": SCHEMA,
-        "pr": "PR9.1",
-        "transport": runtime.transport,
-        "support_tier": capabilities.get("transport_support_tier"),
-        "product_write_budget": 1,
-        "product_turn_invocations": 0,
-        "conversation_write_attempts": 0,
-        "conversation_write_completions": 0,
-        "automatic_write_retry": False,
-        "fallback_transport": None,
-        "challenge_bypass_attempted": False,
-        "capabilities": capabilities,
-        "contract": contract,
-        "outcome": None,
-        "ok": False,
-    }
+    report = _base_report()
+    try:
+        runtime = assemble_product_runtime(
+            transport="browserless-request",
+            auth_file=auth_file,
+        )
+        capabilities = runtime.capabilities().to_dict()
+        contract = product_runtime_contract(runtime).to_dict()
+    except Exception as error:
+        report["outcome"] = "DIRECT_REQUEST_FAILED"
+        report["error"] = _runtime_assembly_error(error)
+        return report
 
+    report["transport"] = runtime.transport
+    report["support_tier"] = capabilities.get("transport_support_tier")
+    report["capabilities"] = capabilities
+    report["contract"] = contract
     report["product_turn_invocations"] = 1
     try:
         execution = runtime.send_text_observed(
