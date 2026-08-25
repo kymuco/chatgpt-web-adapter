@@ -1,6 +1,6 @@
 # PR9.2 — Full Product Input Expansion
 
-Status: **implementation in progress / live graduation pending**
+Status: **implementation complete for browser-owned normal turns / live graduation pending**
 
 PR9.2 expands `ChatGPTProductRuntime` from text-only input toward images, files,
 and multimodal continuation without weakening the frozen PR9.0 browser-owned
@@ -62,6 +62,42 @@ path with no attachment argument.
 - Text-only custom providers retain their historical call signature; attachment
   kwargs are sent only for a real rich-input turn and only to a provider that
   explicitly accepts them.
+
+## Authenticated live gate
+
+`product_rich_input_live_gate_pr9_2` implements the bounded graduation gate. Before
+any product write it performs a no-write extension support probe that must prove:
+
+- PR9.2 rich-input schema `1` is loaded by the connected extension;
+- the staging primitive is `DOM.setFileInputFiles`;
+- Native Messaging does not carry attachment bytes;
+- the official page owns upload and the protected write;
+- automatic write retry is disabled;
+- fallback transport is absent;
+- the support probe itself performed no write.
+
+The live phase then has an exact budget of **three** product writes using generated,
+deterministic fixtures:
+
+1. PNG image + text in a new durable chat;
+2. general `.txt` file + text in another new durable chat;
+3. file + text continuation on the first durable conversation.
+
+Every write must produce exactly one browser-native write event and exactly one
+canonical readback event, both reporting attachment count `1`. The returned
+execution must prove `CANONICAL_READBACK` finality and preserve the expected
+conversation identity for the continuation.
+
+The gate is intentionally opt-in because it performs real authenticated product
+writes:
+
+```bash
+python -m chatgpt_web_adapter.product_rich_input_live_gate_pr9_2 \
+  --acknowledge-live-writes
+```
+
+A successful command prints a JSON report with `ok: true`, `write_attempts: 3`,
+`write_completions: 3`, per-turn identity/finality evidence, and no file contents.
 
 ## Capability graduation rule
 
