@@ -40,10 +40,13 @@ existing PR8/PR9 browser-owned write observation
 canonical assistant finality/readback
 ```
 
-The existing proven service-worker chain is not rewritten. The packaged extension
-loads `service_worker_rich_input_pr9_2.js`, which imports the previous final worker
-and wraps only `executeNativeTurn` for turns carrying `attachmentPaths`. Text-only
-turns delegate directly to the previous worker with no attachment argument.
+The existing proven service-worker chain is not rewritten and the packaged
+extension keeps its PR8.7 `0.1.13` manifest entrypoint. After that entrypoint has
+assembled the full prior worker chain and installed its own final
+`executeNativeTurn` wrapper, it imports `service_worker_rich_input_pr9_2.js` as one
+additional outer overlay. The overlay acts only on turns carrying
+`attachmentPaths`; text-only turns delegate directly to the exact prior worker
+path with no attachment argument.
 
 ## Safety and compatibility boundary
 
