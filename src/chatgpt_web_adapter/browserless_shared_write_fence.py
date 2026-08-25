@@ -130,6 +130,33 @@ def _is_actual_fence_wrapper(value: Any, lock: Any | None = None) -> bool:
     return _valid_lock(installed_lock)
 
 
+def _declared_slot_names(cls: type[Any]) -> Iterator[str]:
+    """Yield concrete slot attributes declared anywhere in one callable's MRO."""
+
+    for owner in getattr(cls, "__mro__", (cls,)):
+        slots = vars(owner).get("__slots__", ())
+        if isinstance(slots, str):
+            slot_names = (slots,)
+        else:
+            try:
+                slot_names = tuple(slots)
+            except TypeError:
+                continue
+
+        for raw_slot in slot_names:
+            if not isinstance(raw_slot, str):
+                continue
+            slot = raw_slot.strip()
+            if not slot or slot in {"__dict__", "__weakref__"}:
+                continue
+            # Private slots are name-mangled by the class that declared them.
+            if slot.startswith("__") and not slot.endswith("__"):
+                owner_name = getattr(owner, "__name__", "").lstrip("_")
+                if owner_name:
+                    slot = f"_{owner_name}{slot}"
+            yield slot
+
+
 def _callable_directly_captures(value: Any, target: Any) -> bool:
     """Return whether a replacement directly retains one exact predecessor callable.
 
@@ -169,18 +196,12 @@ def _callable_directly_captures(value: Any, target: Any) -> bool:
     ):
         return True
 
-    slots = getattr(type(value), "__slots__", ())
-    if isinstance(slots, str):
-        slots = (slots,)
-    if isinstance(slots, tuple):
-        for slot in slots:
-            if slot in {"__dict__", "__weakref__"}:
-                continue
-            try:
-                if getattr(value, slot) is target:
-                    return True
-            except (AttributeError, TypeError):
-                continue
+    for slot in _declared_slot_names(type(value)):
+        try:
+            if getattr(value, slot) is target:
+                return True
+        except (AttributeError, TypeError):
+            continue
 
     return False
 
