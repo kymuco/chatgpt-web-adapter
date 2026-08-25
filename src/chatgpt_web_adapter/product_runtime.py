@@ -173,10 +173,12 @@ def _rich_input_scope(
 
     Browser-owned normal turns are the only graduated implementation target in
     this milestone. Browserless and Temporary rich input fail before transport
-    dispatch; no fallback to text-only or another transport is permitted.
+    dispatch; no fallback to text-only or another transport is permitted. An
+    empty media sequence is ordinary text-only input, matching the historical
+    client contract for dynamically assembled attachment lists.
     """
 
-    if media is None:
+    if media is None or len(media) == 0:
         return nullcontext()
     mode = _normalize_conversation_mode(conversation_mode)
     transport_id = write_transport.transport_id.strip().lower()
