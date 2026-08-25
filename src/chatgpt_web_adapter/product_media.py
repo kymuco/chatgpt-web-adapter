@@ -3,8 +3,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-import mimetypes
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+import shutil
 import tempfile
 from typing import Iterator, Sequence
 
@@ -22,8 +22,9 @@ class BrowserOwnedMediaMaterialization:
     """Local file snapshot supplied to the official browser page.
 
     Only local paths cross the Native Messaging boundary. File bytes never travel
-    inside the JSON bridge message. Byte-backed inputs are materialized into a
-    short-lived private temporary directory for the duration of one product turn.
+    inside the JSON bridge message. Byte-backed inputs and explicit filename
+    overrides are materialized into a short-lived private temporary directory for
+    the duration of one product turn.
     """
 
     paths: tuple[str, ...]
@@ -32,21 +33,41 @@ class BrowserOwnedMediaMaterialization:
 
 
 def _split_media_item(item: MediaItem) -> tuple[MediaSource, str | None]:
+    """Preserve the historical MediaItem tuple contract: (source, filename)."""
+
     if isinstance(item, tuple):
         if len(item) != 2:
-            raise ValueError("media tuple must be (source, mime_type)")
-        source, mime_type = item
-        if mime_type is not None and (not isinstance(mime_type, str) or not mime_type.strip()):
-            raise ValueError("media mime_type must be a non-empty string or None")
-        return source, mime_type.strip() if isinstance(mime_type, str) else None
+            raise ValueError("media tuple must be (source, filename)")
+        source, filename = item
+        if filename is not None:
+            if not isinstance(filename, str) or not filename.strip():
+                raise ValueError("media filename must be a non-empty string or None")
+            filename = filename.strip()
+            windows_path = PureWindowsPath(filename)
+            if (
+                filename in {".", ".."}
+                or Path(filename).name != filename
+                or windows_path.name != filename
+                or "/" in filename
+                or "\\" in filename
+            ):
+                raise ValueError("media filename must be a basename without path components")
+        return source, filename
     return item, None
 
 
-def _suffix_for_mime_type(mime_type: str | None) -> str:
-    if not mime_type:
-        return ".bin"
-    guessed = mimetypes.guess_extension(mime_type, strict=False)
-    return guessed if isinstance(guessed, str) and guessed else ".bin"
+def _byte_source_default_suffix(payload: bytes) -> str:
+    """Keep unnamed image bytes classifiable without inventing MIME tuple semantics."""
+
+    if payload.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if payload.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if payload.startswith((b"GIF87a", b"GIF89a")):
+        return ".gif"
+    if len(payload) >= 12 and payload.startswith(b"RIFF") and payload[8:12] == b"WEBP":
+        return ".webp"
+    return ".bin"
 
 
 def _read_byte_source(source: bytes | bytearray) -> bytes:
@@ -55,16 +76,28 @@ def _read_byte_source(source: bytes | bytearray) -> bytes:
     return bytes(source)
 
 
+def _copy_with_filename(source: Path, *, root: Path, index: int, filename: str) -> Path:
+    target_dir = root / f"item-{index}"
+    target_dir.mkdir()
+    target = target_dir / filename
+    try:
+        shutil.copyfile(source, target)
+    except OSError as error:
+        raise ValueError(f"media[{index}] filename materialization failed") from error
+    return target.resolve(strict=True)
+
+
 @contextmanager
 def materialize_browser_owned_media(
     media: Sequence[MediaItem] | None,
 ) -> Iterator[BrowserOwnedMediaMaterialization]:
     """Resolve rich-input media to stable local paths for one browser-owned turn.
 
-    Existing path inputs are resolved and validated without copying. In-memory
-    bytes are snapshotted to temporary files, avoiding Native Messaging payload
-    inflation and keeping the official page responsible for the actual upload and
-    protected conversation write.
+    Existing path inputs without a filename override are resolved and validated
+    without copying. In-memory bytes are snapshotted to temporary files. A tuple
+    keeps the established ``(source, filename)`` meaning: the requested basename
+    is preserved for both byte-backed and path-backed sources, so the official
+    page sees the same filename contract as the legacy upload path.
     """
 
     if media is None:
@@ -81,18 +114,24 @@ def materialize_browser_owned_media(
     with tempfile.TemporaryDirectory(prefix="cwa-pr9-2-media-") as temp_dir:
         root = Path(temp_dir)
         paths: list[str] = []
-        materialized = 0
+        materialized_byte_inputs = 0
 
         for index, item in enumerate(items):
-            source, mime_type = _split_media_item(item)
+            source, filename = _split_media_item(item)
             if isinstance(source, (bytes, bytearray)):
                 payload = _read_byte_source(source)
                 if not payload:
                     raise ValueError(f"media[{index}] byte source is empty")
-                target = root / f"attachment-{index}{_suffix_for_mime_type(mime_type)}"
-                target.write_bytes(payload)
+                target_dir = root / f"item-{index}"
+                target_dir.mkdir()
+                target_name = filename or f"attachment-{index}{_byte_source_default_suffix(payload)}"
+                target = target_dir / target_name
+                try:
+                    target.write_bytes(payload)
+                except OSError as error:
+                    raise ValueError(f"media[{index}] byte materialization failed") from error
                 paths.append(str(target.resolve(strict=True)))
-                materialized += 1
+                materialized_byte_inputs += 1
                 continue
 
             if not isinstance(source, (str, Path)) and not hasattr(source, "__fspath__"):
@@ -105,12 +144,18 @@ def materialize_browser_owned_media(
                 raise ValueError(f"media[{index}] path is unavailable") from error
             if not path.is_file():
                 raise ValueError(f"media[{index}] path must reference a regular file")
-            paths.append(str(path))
+
+            if filename is None or filename == path.name:
+                paths.append(str(path))
+            else:
+                paths.append(
+                    str(_copy_with_filename(path, root=root, index=index, filename=filename))
+                )
 
         yield BrowserOwnedMediaMaterialization(
             paths=tuple(paths),
             count=len(paths),
-            materialized_byte_inputs=materialized,
+            materialized_byte_inputs=materialized_byte_inputs,
         )
 
 
