@@ -10,6 +10,7 @@
 // and the protected conversation write.
 
 const _pr92RichInputPriorExecuteNativeTurn = executeNativeTurn;
+const PR92_RICH_INPUT_SCHEMA = 1;
 const PR92_MAX_ATTACHMENT_COUNT = 32;
 
 function _pr92NormalizeAttachmentPaths(value) {
@@ -141,6 +142,24 @@ async function _pr92StageOfficialPageAttachments(tabId, attachmentPaths, timeout
 }
 
 executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) {
+  if (message?.characterizeRichInputSupport === true) {
+    if (message?.text != null || message?.attachmentPaths != null) {
+      throw new Error("PR9_2_RICH_INPUT_SUPPORT_PROBE_MUST_BE_NO_WRITE");
+    }
+    return {
+      richInputSupported: true,
+      richInputSchemaVersion: PR92_RICH_INPUT_SCHEMA,
+      stagingPrimitive: "DOM.setFileInputFiles",
+      maxAttachmentCount: PR92_MAX_ATTACHMENT_COUNT,
+      nativeMessagingCarriesAttachmentBytes: false,
+      officialPageOwnsUpload: true,
+      officialPageOwnsProtectedWrite: true,
+      automaticWriteRetry: false,
+      fallbackTransport: null,
+      writePerformed: false
+    };
+  }
+
   const attachmentPaths = _pr92NormalizeAttachmentPaths(message?.attachmentPaths);
   if (attachmentPaths.length === 0) {
     return _pr92RichInputPriorExecuteNativeTurn(message);
