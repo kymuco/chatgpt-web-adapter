@@ -11,12 +11,16 @@ from .types import ChatConversation
 
 _FENCE_MARKER = "_cwa_browserless_shared_write_fence_lock"
 _FENCE_ORIGINAL = "_cwa_browserless_shared_write_fence_original"
+_FENCE_SELF = "_cwa_browserless_shared_write_fence_wrapper"
+_FENCE_PREDECESSORS = "_cwa_browserless_shared_write_fence_predecessors"
+_FENCE_DIRECT = "_cwa_browserless_shared_write_fence_direct_callable"
 _INSTANCE_LOCK_ATTR = "_cwa_browserless_shared_write_fence_lock_state"
 _CLASS_SETATTR_MARKER = "_cwa_browserless_shared_write_fence_setattr_guard"
 _CLASS_DELATTR_MARKER = "_cwa_browserless_shared_write_fence_delattr_guard"
 _BROWSERLESS_EXECUTE_MARKER = "_cwa_browserless_shared_write_fence_execute_guard"
 _CLASS_GUARD_LOCK = threading.Lock()
 _MUTATION_AUTHORITY_STATE = threading.local()
+_FENCE_PREDECESSOR_STATE = threading.local()
 
 _ATOMIC_MUTATION_SURFACES = (
     "send",
@@ -113,6 +117,102 @@ def _mutation_authority(client: Any, name: str) -> Iterator[None]:
                 delattr(_MUTATION_AUTHORITY_STATE, "stack")
             except AttributeError:
                 pass
+
+
+def _is_actual_fence_wrapper(value: Any, lock: Any | None = None) -> bool:
+    """Distinguish our real wrapper from decorators that copied wrapper metadata."""
+
+    if not callable(value) or getattr(value, _FENCE_SELF, None) is not value:
+        return False
+    installed_lock = getattr(value, _FENCE_MARKER, None)
+    if lock is not None and installed_lock is not lock:
+        return False
+    return _valid_lock(installed_lock)
+
+
+def _direct_captured_fence_predecessors(value: Any, lock: Any) -> tuple[Any, ...]:
+    """Find exact predecessor fences directly captured by a replacement decorator.
+
+    We intentionally inspect only conventional direct composition links: __wrapped__,
+    closure cells, positional defaults, and keyword defaults. This supports normal
+    decorators without treating arbitrary callback object graphs as trusted nested
+    mutation authority.
+    """
+
+    found: list[Any] = []
+    seen: set[int] = set()
+
+    def remember(candidate: Any) -> None:
+        if not _is_actual_fence_wrapper(candidate, lock):
+            return
+        identity = id(candidate)
+        if identity in seen:
+            return
+        seen.add(identity)
+        found.append(candidate)
+
+    remember(getattr(value, "__wrapped__", None))
+
+    closure = getattr(value, "__closure__", None)
+    if isinstance(closure, tuple):
+        for cell in closure:
+            try:
+                remember(cell.cell_contents)
+            except ValueError:
+                continue
+
+    defaults = getattr(value, "__defaults__", None)
+    if isinstance(defaults, tuple):
+        for candidate in defaults:
+            remember(candidate)
+
+    kwdefaults = getattr(value, "__kwdefaults__", None)
+    if isinstance(kwdefaults, dict):
+        for candidate in kwdefaults.values():
+            remember(candidate)
+
+    return tuple(found)
+
+
+def _predecessor_stack() -> list[set[int]]:
+    stack = getattr(_FENCE_PREDECESSOR_STATE, "stack", None)
+    if stack is None:
+        stack = []
+        _FENCE_PREDECESSOR_STATE.stack = stack
+    return stack
+
+
+@contextmanager
+def _allow_fence_predecessors(predecessors: tuple[Any, ...]) -> Iterator[None]:
+    if not predecessors:
+        yield
+        return
+
+    stack = _predecessor_stack()
+    stack.append({id(item) for item in predecessors})
+    try:
+        yield
+    finally:
+        stack.pop()
+        if not stack:
+            try:
+                delattr(_FENCE_PREDECESSOR_STATE, "stack")
+            except AttributeError:
+                pass
+
+
+def _consume_allowed_fence_predecessor(wrapper: Any) -> bool:
+    stack = getattr(_FENCE_PREDECESSOR_STATE, "stack", None)
+    if not stack:
+        return False
+    allowed = stack[-1]
+    identity = id(wrapper)
+    if identity not in allowed:
+        return False
+    # One structural predecessor edge authorizes one call only. A decorator that
+    # invokes a captured old send twice still fails closed on the second attempt.
+    allowed.remove(identity)
+    return True
 
 
 def _normalize_attached_conversation(
@@ -239,16 +339,21 @@ def _refresh_mutation_call(
 
 
 def _fence_callable(client: Any, name: str, current: Callable[..., Any], lock: Any) -> Any:
-    installed_lock = getattr(current, _FENCE_MARKER, None)
-    if installed_lock is lock:
+    if _is_actual_fence_wrapper(current, lock):
         return current
-    if installed_lock is not None:
+    if _is_actual_fence_wrapper(current):
         raise TypeError(
             f"browserless shared-client mutation fence for {name} uses a different lock"
         )
 
+    predecessors = _direct_captured_fence_predecessors(current, lock)
+
     @wraps(current)
     def fenced(*args: Any, **kwargs: Any) -> Any:
+        if _consume_allowed_fence_predecessor(fenced):
+            with _allow_fence_predecessors(predecessors):
+                return current(*args, **kwargs)
+
         # Enter mutation authority before attempting lock acquisition. This makes
         # callback reentrancy fail closed and prevents opposite-order cross-client
         # lock acquisition from forming an AB/BA deadlock.
@@ -260,28 +365,54 @@ def _fence_callable(client: Any, name: str, current: Callable[..., Any], lock: A
                     args,
                     kwargs,
                 )
-                return current(*call_args, **call_kwargs)
+                with _allow_fence_predecessors(predecessors):
+                    return current(*call_args, **call_kwargs)
 
+    # functools.wraps() deliberately copies the wrapped callable's __dict__. Set
+    # our identity metadata afterwards so copied fence attributes on unrelated
+    # decorators can never make them look like an actual package fence wrapper.
     setattr(fenced, _FENCE_MARKER, lock)
     setattr(fenced, _FENCE_ORIGINAL, current)
+    setattr(fenced, _FENCE_SELF, fenced)
+    setattr(fenced, _FENCE_PREDECESSORS, predecessors)
     return fenced
 
 
 def unfenced_mutation_callable(value: Any) -> Any:
-    """Return the callable underneath this module's instance mutation wrappers."""
+    """Return a direct callable underneath this module's instance fence wrapper.
 
-    current = value
-    seen: set[int] = set()
-    while callable(current) and getattr(current, _FENCE_MARKER, None) is not None:
-        identity = id(current)
-        if identity in seen:
-            break
-        seen.add(identity)
-        original = getattr(current, _FENCE_ORIGINAL, None)
-        if not callable(original):
-            break
-        current = original
-    return current
+    If the wrapped callable is a decorator that directly captured an older package
+    fence, preserve that decorator and grant its exact predecessor edge one
+    single-use bypass while the decorator runs. This avoids both dropping
+    functools.wraps()-copied behavior and re-entering stale fence authority.
+    """
+
+    if not _is_actual_fence_wrapper(value):
+        return value
+
+    cached = getattr(value, _FENCE_DIRECT, None)
+    if callable(cached):
+        return cached
+
+    original = getattr(value, _FENCE_ORIGINAL, None)
+    if not callable(original):
+        return value
+    predecessors = getattr(value, _FENCE_PREDECESSORS, ())
+    if not isinstance(predecessors, tuple):
+        predecessors = ()
+
+    if not predecessors:
+        if _is_actual_fence_wrapper(original):
+            return unfenced_mutation_callable(original)
+        return original
+
+    @wraps(original, updated=())
+    def direct(*args: Any, **kwargs: Any) -> Any:
+        with _allow_fence_predecessors(predecessors):
+            return original(*args, **kwargs)
+
+    setattr(value, _FENCE_DIRECT, direct)
+    return direct
 
 
 def _install_assignment_guards(client: Any) -> None:
@@ -408,7 +539,7 @@ def assert_atomic_mutation_fence(client: Any, lock: Any) -> None:
 
     for name in _ATOMIC_MUTATION_SURFACES:
         current = getattr(client, name, None)
-        if callable(current) and getattr(current, _FENCE_MARKER, None) is not lock:
+        if callable(current) and not _is_actual_fence_wrapper(current, lock):
             from .browserless_request_transport import BrowserlessProtocolDriftError
 
             raise BrowserlessProtocolDriftError(
