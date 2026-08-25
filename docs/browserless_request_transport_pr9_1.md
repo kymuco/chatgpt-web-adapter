@@ -406,7 +406,9 @@ browserless transport.
 
 A new-chat browserless health result may be locally `ready` while explicitly
 stating Sentinel preflight is pending. Conversation-scoped health reads obey the
-same no-replay header policy, but do not acquire mutation authority or invent a
+same no-replay header policy and participate in the shared per-client lock-order
+authority: they may block behind an active mutation, and conflicting nested
+health/mutation authority fails closed. They do not perform a mutation or create a
 write deadline. Per-turn Sentinel policy remains authoritative.
 
 ## Bounded live gate
