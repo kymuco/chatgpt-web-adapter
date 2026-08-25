@@ -6,6 +6,10 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- experimental transport: add explicit `browserless-request` under `ChatGPTProductRuntime` while keeping `browser-owned` as the default `PRODUCTION` transport; browserless remains `EXPERIMENTAL` and uses only the current two-phase Sentinel prepare/finalize plus conversation-prepare/conduit final-write sequence
+- browserless safety: fail closed on required or malformed Sentinel challenge descriptors, never invoke browser/proof challenge providers or legacy/browser fallbacks, strip inherited one-shot requirements/proof/Turnstile/conduit credentials, and never automatically retry an ambiguous write
+- browserless finality: serialize continuation mutation authority per canonical client, refresh queued continuation parents after lock acquisition, enforce one total invocation deadline across queue/preflight/write/recovery/reconciliation, and require submitted assistant identity to match canonical completed-status and readback identity before success
+- browserless live gate: add bounded structured outcomes for direct completion, challenge boundary, protocol drift, reconciliation-required, and prewrite request/assembly failure; authenticated live evidence reproduced a zero-write `CHALLENGE_BOUNDARY` when current Sentinel required PoW, SO, and Turnstile evidence
 - runtime-contract: add schema-1 `ProductRuntimeContract` inspection, validate the complete stable runtime operation/interface boundary, and fail closed on missing or contradictory retry, fallback, reconciliation, finality, transport, or product-semantics governance
 - transport: classify built-in `browser-owned` as `PRODUCTION` while unknown/future transports default to `EXPERIMENTAL`; keep transport support tier independent from capability state and derive support/schema metadata rather than accepting caller self-promotion
 - compatibility: preserve the released `ChatGPTProductRuntime`, `ProductRuntimeHealth`, and minimal `ProductWriteTransport` surfaces while exposing new contract/support authority through the primary Python SDK and capability/contract serialization
