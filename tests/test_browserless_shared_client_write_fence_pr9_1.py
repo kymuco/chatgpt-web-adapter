@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from threading import Event, Thread
+from threading import Barrier, Event, Thread
 from types import SimpleNamespace
 
 import pytest
@@ -100,6 +100,8 @@ class _RaceFenceClient:
                 "x-conduit-token": "current-conduit",
             }
         )
+        if on_token is not None:
+            on_token("browserless-token")
         return ChatResponse(
             text="browserless stream",
             conversation=ChatConversation(
@@ -200,8 +202,6 @@ def test_same_client_ordinary_send_rebinds_parent_after_browserless_queue() -> N
     ordinary_thread = Thread(target=run_ordinary)
     ordinary_thread.start()
 
-    # The ordinary public client.send() is queued while browserless owns
-    # attach -> Sentinel -> mutation -> canonical readback.
     assert client.ordinary_send_entered.wait(0.10) is False
 
     client.release_preflight.set()
@@ -215,9 +215,6 @@ def test_same_client_ordinary_send_rebinds_parent_after_browserless_queue() -> N
     assert client.browserless_send_calls == 1
     assert client.ordinary_send_calls == 1
     assert client.ordinary_entered_after_canonical_readback is True
-    # Crucially, delaying the ordinary call does not preserve its queued parent.
-    # It canonically reattaches after lock acquisition and continues from the
-    # browserless assistant that became current while it was waiting.
     assert client.ordinary_parent_message_id == "browserless-assistant"
 
 
@@ -241,8 +238,6 @@ def test_replacing_instance_send_keeps_the_same_fence_and_post_queue_refresh() -
             ),
         )
 
-    # This is the exact compatible-client replacement pattern from the review.
-    # Guarded __setattr__ must automatically reapply the same per-client fence.
     client.send = replacement_send
 
     def run_replacement() -> None:
@@ -280,11 +275,55 @@ def test_replacing_instance_send_keeps_the_same_fence_and_post_queue_refresh() -
     assert replacement_parent == ["browserless-assistant"]
 
 
-def test_nested_same_client_raw_payload_still_validates_stale_parent() -> None:
+def test_browserless_on_token_same_client_mutation_fails_closed_before_second_write() -> None:
+    client = _RaceFenceClient()
+    transport = BrowserlessRequestTransport(client)
+    client.release_preflight.set()
+    nested_errors: list[BaseException] = []
+
+    def on_token(_token: str) -> None:
+        try:
+            client.send(
+                "nested callback prompt",
+                conversation=ChatConversation(
+                    conversation_id="conversation-1",
+                    message_id="attached-parent",
+                    parent_message_id="attached-parent",
+                ),
+            )
+        except BaseException as error:
+            nested_errors.append(error)
+
+    response = transport.send_text(
+        "browserless prompt",
+        conversation=ChatConversation(
+            conversation_id="conversation-1",
+            message_id="stale-caller-parent",
+            parent_message_id="stale-caller-parent",
+        ),
+        timeout=2.0,
+        poll_interval=0.01,
+        on_token=on_token,
+    )
+
+    assert response.text == "browserless canonical answer"
+    assert len(nested_errors) == 1
+    assert isinstance(nested_errors[0], RequestError)
+    assert "same-client nested mutation send while browserless_request owns mutation authority" in str(
+        nested_errors[0]
+    )
+    assert client.browserless_send_calls == 1
+    assert client.ordinary_send_calls == 0
+
+
+def test_top_level_raw_payload_still_validates_stale_parent() -> None:
     client = _RaceFenceClient()
     BrowserlessRequestTransport(client)
 
-    def replacement_send(prompt, *, conversation=None, **kwargs):
+    with pytest.raises(
+        RequestError,
+        match="shared-client mutation fence rejected a stale raw-payload parent",
+    ):
         client.send_payload(
             {
                 "conversation_id": "conversation-1",
@@ -292,13 +331,29 @@ def test_nested_same_client_raw_payload_still_validates_stale_parent() -> None:
                 "action": "next",
             }
         )
-        raise AssertionError("nested stale payload should have failed before mutation")
+
+    assert client.raw_payload_calls == 0
+
+
+def test_nested_same_client_mutation_fails_closed_before_raw_validation_or_write() -> None:
+    client = _RaceFenceClient()
+    BrowserlessRequestTransport(client)
+
+    def replacement_send(prompt, *, conversation=None, **kwargs):
+        client.send_payload(
+            {
+                "conversation_id": "conversation-1",
+                "parent_message_id": "attached-parent",
+                "action": "next",
+            }
+        )
+        raise AssertionError("nested mutation should have failed before raw mutation")
 
     client.send = replacement_send
 
     with pytest.raises(
         RequestError,
-        match="shared-client mutation fence rejected a stale raw-payload parent",
+        match="same-client nested mutation send_payload while send owns mutation authority",
     ):
         client.send(
             "outer prompt",
@@ -309,19 +364,18 @@ def test_nested_same_client_raw_payload_still_validates_stale_parent() -> None:
             ),
         )
 
-    # Validation runs before the nested raw mutation body.
     assert client.raw_payload_calls == 0
 
 
-def test_nested_cross_client_send_refreshes_its_own_parent() -> None:
+def test_nested_cross_client_mutation_fails_closed_before_second_lock() -> None:
     outer_client = _RaceFenceClient()
     inner_client = _RaceFenceClient()
     BrowserlessRequestTransport(outer_client)
     BrowserlessRequestTransport(inner_client)
-    inner_parent_seen: list[str | None] = []
+    inner_entered = Event()
 
     def inner_send(prompt, *, conversation=None, **kwargs):
-        inner_parent_seen.append(inner_client._parent_id(conversation))
+        inner_entered.set()
         return ChatResponse(
             text="inner answer",
             conversation=ChatConversation(
@@ -344,17 +398,152 @@ def test_nested_cross_client_send_refreshes_its_own_parent() -> None:
     inner_client.send = inner_send
     outer_client.send = outer_send
 
-    response = outer_client.send(
-        "outer prompt",
+    with pytest.raises(
+        RequestError,
+        match="cross-client nested mutation send while send owns mutation authority",
+    ):
+        outer_client.send(
+            "outer prompt",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="stale-outer-parent",
+                parent_message_id="stale-outer-parent",
+            ),
+        )
+
+    assert inner_entered.is_set() is False
+
+
+def test_opposite_order_cross_client_nested_mutations_fail_without_deadlock() -> None:
+    client_a = _RaceFenceClient()
+    client_b = _RaceFenceClient()
+    BrowserlessRequestTransport(client_a)
+    BrowserlessRequestTransport(client_b)
+    both_outer_locks_held = Barrier(2)
+    errors: list[BaseException] = []
+
+    def send_a(prompt, *, conversation=None, **kwargs):
+        both_outer_locks_held.wait(timeout=1.0)
+        return client_b.send(
+            "nested-b",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="attached-parent",
+                parent_message_id="attached-parent",
+            ),
+        )
+
+    def send_b(prompt, *, conversation=None, **kwargs):
+        both_outer_locks_held.wait(timeout=1.0)
+        return client_a.send(
+            "nested-a",
+            conversation=ChatConversation(
+                conversation_id="conversation-1",
+                message_id="attached-parent",
+                parent_message_id="attached-parent",
+            ),
+        )
+
+    client_a.send = send_a
+    client_b.send = send_b
+
+    def run(client: _RaceFenceClient, label: str) -> None:
+        try:
+            client.send(
+                label,
+                conversation=ChatConversation(
+                    conversation_id="conversation-1",
+                    message_id="attached-parent",
+                    parent_message_id="attached-parent",
+                ),
+            )
+        except BaseException as error:
+            errors.append(error)
+
+    thread_a = Thread(target=run, args=(client_a, "outer-a"))
+    thread_b = Thread(target=run, args=(client_b, "outer-b"))
+    thread_a.start()
+    thread_b.start()
+    thread_a.join(2.0)
+    thread_b.join(2.0)
+
+    assert thread_a.is_alive() is False
+    assert thread_b.is_alive() is False
+    assert len(errors) == 2
+    assert all(isinstance(error, RequestError) for error in errors)
+    assert all("cross-client nested mutation send" in str(error) for error in errors)
+
+
+def test_direct_chat_conversation_attach_result_is_supported_by_fence() -> None:
+    client = _RaceFenceClient()
+    BrowserlessRequestTransport(client)
+
+    def direct_attach(_conversation):
+        return ChatConversation(
+            conversation_id="conversation-1",
+            message_id="direct-parent",
+            parent_message_id="direct-parent",
+        )
+
+    client.attach_conversation = direct_attach
+
+    client.send(
+        "ordinary prompt",
         conversation=ChatConversation(
             conversation_id="conversation-1",
-            message_id="stale-outer-parent",
-            parent_message_id="stale-outer-parent",
+            message_id="stale-parent",
+            parent_message_id="stale-parent",
         ),
     )
+    assert client.ordinary_parent_message_id == "direct-parent"
 
-    assert response.text == "inner answer"
-    assert inner_parent_seen == ["attached-parent"]
+    result = client.send_payload(
+        {
+            "conversation_id": "conversation-1",
+            "parent_message_id": "direct-parent",
+            "action": "next",
+        }
+    )
+    assert result == {"ok": True}
+    assert client.raw_payload_calls == 1
+    assert client.raw_payload_parent == "direct-parent"
+
+
+def test_mapping_attach_result_is_supported_by_fence_and_raw_parent_validation() -> None:
+    client = _RaceFenceClient()
+    BrowserlessRequestTransport(client)
+
+    def mapping_attach(_conversation):
+        return {
+            "conversation": {
+                "conversation_id": "conversation-1",
+                "message_id": "mapping-parent",
+                "parent_message_id": "mapping-parent",
+            }
+        }
+
+    client.attach_conversation = mapping_attach
+
+    client.send(
+        "ordinary prompt",
+        conversation=ChatConversation(
+            conversation_id="conversation-1",
+            message_id="stale-parent",
+            parent_message_id="stale-parent",
+        ),
+    )
+    assert client.ordinary_parent_message_id == "mapping-parent"
+
+    result = client.send_payload(
+        {
+            "conversation_id": "conversation-1",
+            "parent_message_id": "mapping-parent",
+            "action": "next",
+        }
+    )
+    assert result == {"ok": True}
+    assert client.raw_payload_calls == 1
+    assert client.raw_payload_parent == "mapping-parent"
 
 
 def test_fenced_mutation_entrypoint_cannot_be_deleted_normally() -> None:
