@@ -13,7 +13,7 @@ const _pr92ClosurePriorClickSendButton = clickSendButton;
 const _pr92ClosurePriorSubmitWithEnter = submitWithEnter;
 const _pr92ClosurePriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 const _pr92ClosurePriorExecuteNativeTurn = executeNativeTurn;
-const PR92_CLOSURE_REPAIR_SCHEMA = 5;
+const PR92_CLOSURE_REPAIR_SCHEMA = 6;
 const PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE = "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE";
 const PR92_PAGE_ATTACHMENT_STABLE_POLLS = 2;
 const PR92_PAGE_ATTACHMENT_POLL_MS = 150;
@@ -260,9 +260,9 @@ submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit(
     return _pr92ClosurePriorSubmitOfficialPageTurn(debuggee, timeoutMs);
   }
 
-  // Revalidate page-owned attachment state immediately before the protected write.
-  // A file that was asynchronously rejected or removed after staging cannot ride a
-  // stale attachmentCount into a text-only submission.
+  // Validate page-owned attachment state before waiting for the Send control. This
+  // fails early when staging was rejected, but is not the final authority because
+  // upload/composer state may still change while Send readiness is being polled.
   const revalidatedCount = await _pr92ClosureWaitForPageOwnedAttachmentEvidence(
     debuggee,
     context.attachmentPaths,
@@ -292,6 +292,20 @@ submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit(
     ? point.selector
     : null;
   if (!selector) throw new Error("PR9_2_SEND_BUTTON_SELECTOR_REQUIRED");
+
+  // Send-readiness polling can outlive an asynchronously rejected upload. Re-read
+  // page-owned composer evidence AFTER that wait and immediately before the only
+  // protected-submit command. A text-only Send control can therefore never inherit
+  // a stale attachmentCount from the earlier staging/readiness phase.
+  const postReadinessCount = await _pr92ClosureWaitForPageOwnedAttachmentEvidence(
+    debuggee,
+    context.attachmentPaths,
+    context,
+    1
+  );
+  if (postReadinessCount !== context.attachmentPaths.length) {
+    throw new Error("PR9_2_POST_READINESS_ATTACHMENT_EVIDENCE_MISMATCH");
+  }
 
   const submitRemaining = _pr92RemainingTurnMs(context, "PAGE_GUARDED_SUBMIT");
   if (submitRemaining <= PR92_PAGE_SUBMIT_DEADLINE_SAFETY_MS) {
@@ -331,6 +345,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92ClosureRepair(messa
       attachmentCountEvidence: PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE,
       attachmentEvidenceStablePollCount: PR92_PAGE_ATTACHMENT_STABLE_POLLS,
       preSubmitAttachmentRevalidation: true,
+      postSendReadinessAttachmentRevalidation: true,
       protectedSubmitPrimitive: PR92_PAGE_GUARDED_SUBMIT_PRIMITIVE,
       richInputRawCdpInputSubmitDisabled: true,
       richInputEnterFallbackEnabled: false,
