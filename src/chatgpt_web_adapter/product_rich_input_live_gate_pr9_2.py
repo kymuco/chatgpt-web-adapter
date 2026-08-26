@@ -14,7 +14,7 @@ from .product_model_profile_pr8_10 import ProductModelProfileProvider
 from .product_provenance import CompletionSource, ProductExecutionProvenance
 from .product_runtime import assemble_product_runtime
 
-SCHEMA = 3
+SCHEMA = 4
 PRODUCT_WRITE_BUDGET = 3
 
 _IMAGE_REPLY = "BLUE,RED,GREEN"
@@ -91,6 +91,12 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "enter_key_release_affects_submitted_outcome": response.get(
                 "enterKeyReleaseAffectsSubmittedOutcome"
             ),
+            "mouse_to_enter_fallback_after_release_attempt": response.get(
+                "mouseToEnterFallbackAfterReleaseAttempt"
+            ),
+            "mouse_release_outcome_ambiguity_fails_closed": response.get(
+                "mouseReleaseOutcomeAmbiguityFailsClosed"
+            ),
             "stale_attachment_cleanup_proof": response.get(
                 "staleAttachmentCleanupProof"
             ),
@@ -130,6 +136,10 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_POST_WRITE_FENCE_RETENTION_NOT_PROVEN")
     if support.get("enter_key_release_affects_submitted_outcome") is not False:
         raise RuntimeError("PR9_2_ENTER_KEY_RELEASE_OUTCOME_NOT_PROVEN")
+    if support.get("mouse_to_enter_fallback_after_release_attempt") is not False:
+        raise RuntimeError("PR9_2_MOUSE_TO_ENTER_POST_RELEASE_RETRY_NOT_PROVEN")
+    if support.get("mouse_release_outcome_ambiguity_fails_closed") is not True:
+        raise RuntimeError("PR9_2_MOUSE_RELEASE_AMBIGUITY_FAIL_CLOSED_NOT_PROVEN")
     if (
         support.get("stale_attachment_cleanup_proof")
         != "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
@@ -382,6 +392,8 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "deadline_bounded_post_write_cleanup": True,
         "post_write_fence_retained_until_next_prewrite": True,
         "enter_key_release_affects_submitted_outcome": False,
+        "mouse_to_enter_fallback_after_release_attempt": False,
+        "mouse_release_outcome_ambiguity_fails_closed": True,
         "stale_attachment_cleanup_proof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
         "native_messaging_attachment_bytes": False,
         "official_page_owned_upload_and_write": True,
