@@ -31,7 +31,7 @@ def _support_response(request_id: str) -> dict:
         "request_id": request_id,
         "ok": True,
         "richInputSupported": True,
-        "richInputSchemaVersion": 2,
+        "richInputSchemaVersion": 3,
         "stagingPrimitive": "DOM.setFileInputFiles",
         "maxAttachmentCount": 32,
         "nativeMessagingCarriesAttachmentBytes": False,
@@ -44,6 +44,8 @@ def _support_response(request_id: str) -> dict:
         "preSubmitDeadlineGuard": True,
         "deadlineBoundedPostWriteCleanup": True,
         "postWriteFenceRetainedUntilNextPrewrite": True,
+        "enterKeyReleaseAffectsSubmittedOutcome": False,
+        "staleAttachmentCleanupProof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
         "automaticWriteRetry": False,
         "fallbackTransport": None,
         "writePerformed": False,
@@ -53,7 +55,7 @@ def _support_response(request_id: str) -> dict:
 def _validated_support() -> dict:
     return {
         "supported": True,
-        "schema": 2,
+        "schema": 3,
         "staging_primitive": "DOM.setFileInputFiles",
         "max_attachment_count": 32,
         "native_messaging_carries_attachment_bytes": False,
@@ -66,6 +68,8 @@ def _validated_support() -> dict:
         "pre_submit_deadline_guard": True,
         "deadline_bounded_post_write_cleanup": True,
         "post_write_fence_retained_until_next_prewrite": True,
+        "enter_key_release_affects_submitted_outcome": False,
+        "stale_attachment_cleanup_proof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
         "automatic_write_retry": False,
         "fallback_transport": None,
         "write_performed": False,
@@ -124,6 +128,7 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     _validate_support(support)
 
     assert len(calls) == 1
+    assert support["schema"] == 3
     assert support["recovery_before_attachment_staging"] is True
     assert support["stale_attachment_failure_fence"] is True
     assert support["stale_attachment_fence_persistent_across_worker_restart"] is True
@@ -131,6 +136,11 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     assert support["pre_submit_deadline_guard"] is True
     assert support["deadline_bounded_post_write_cleanup"] is True
     assert support["post_write_fence_retained_until_next_prewrite"] is True
+    assert support["enter_key_release_affects_submitted_outcome"] is False
+    assert (
+        support["stale_attachment_cleanup_proof"]
+        == "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
+    )
     assert support["write_performed"] is False
     assert support["automatic_write_retry"] is False
     assert support["fallback_transport"] is None
@@ -161,6 +171,27 @@ def test_support_validation_requires_recovery_and_persistent_cleanup_claims(fiel
     support = _validated_support()
     support[field] = False
     with pytest.raises(RuntimeError, match=error):
+        _validate_support(support)
+
+
+def test_support_validation_requires_post_submit_enter_outcome_contract():
+    support = _validated_support()
+    support["enter_key_release_affects_submitted_outcome"] = True
+    with pytest.raises(RuntimeError, match="ENTER_KEY_RELEASE_OUTCOME_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_requires_destructive_stale_cleanup_proof():
+    support = _validated_support()
+    support["stale_attachment_cleanup_proof"] = "FILE_INPUT_CLEARED"
+    with pytest.raises(RuntimeError, match="STALE_ATTACHMENT_CLEANUP_PROOF_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_rejects_pre_schema_3_overlay():
+    support = _validated_support()
+    support["schema"] = 2
+    with pytest.raises(RuntimeError, match="RICH_INPUT_SUPPORT_NOT_PROVEN"):
         _validate_support(support)
 
 
