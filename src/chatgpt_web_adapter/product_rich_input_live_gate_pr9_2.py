@@ -14,7 +14,7 @@ from .product_model_profile_pr8_10 import ProductModelProfileProvider
 from .product_provenance import CompletionSource, ProductExecutionProvenance
 from .product_runtime import assemble_product_runtime
 
-SCHEMA = 2
+SCHEMA = 3
 PRODUCT_WRITE_BUDGET = 3
 
 _IMAGE_REPLY = "BLUE,RED,GREEN"
@@ -88,6 +88,12 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "post_write_fence_retained_until_next_prewrite": response.get(
                 "postWriteFenceRetainedUntilNextPrewrite"
             ),
+            "enter_key_release_affects_submitted_outcome": response.get(
+                "enterKeyReleaseAffectsSubmittedOutcome"
+            ),
+            "stale_attachment_cleanup_proof": response.get(
+                "staleAttachmentCleanupProof"
+            ),
             "automatic_write_retry": response.get("automaticWriteRetry"),
             "fallback_transport": response.get("fallbackTransport"),
             "write_performed": response.get("writePerformed"),
@@ -122,6 +128,13 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_DEADLINE_BOUNDED_POST_WRITE_CLEANUP_NOT_PROVEN")
     if support.get("post_write_fence_retained_until_next_prewrite") is not True:
         raise RuntimeError("PR9_2_POST_WRITE_FENCE_RETENTION_NOT_PROVEN")
+    if support.get("enter_key_release_affects_submitted_outcome") is not False:
+        raise RuntimeError("PR9_2_ENTER_KEY_RELEASE_OUTCOME_NOT_PROVEN")
+    if (
+        support.get("stale_attachment_cleanup_proof")
+        != "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
+    ):
+        raise RuntimeError("PR9_2_STALE_ATTACHMENT_CLEANUP_PROOF_NOT_PROVEN")
     if support.get("automatic_write_retry") is not False:
         raise RuntimeError("PR9_2_AUTOMATIC_WRITE_RETRY_MUST_BE_FALSE")
     if support.get("fallback_transport") is not None:
@@ -368,6 +381,8 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "pre_submit_deadline_guard": True,
         "deadline_bounded_post_write_cleanup": True,
         "post_write_fence_retained_until_next_prewrite": True,
+        "enter_key_release_affects_submitted_outcome": False,
+        "stale_attachment_cleanup_proof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
         "native_messaging_attachment_bytes": False,
         "official_page_owned_upload_and_write": True,
         "automatic_write_retry": False,
