@@ -39,6 +39,8 @@ PR9.2 extension overlays
         |
         +-- one outer deadline reaches the exact protected-submit boundary
         |
+        +-- no mouse -> Enter retry after mouse release is attempted
+        |
         v
 CDP DOM.setFileInputFiles on official ChatGPT page
         |
@@ -95,6 +97,14 @@ protected-submit events are deadline-guarded. For the Enter fallback, successful
 `keyDown` is the write boundary; the later `keyUp` is best-effort and cannot turn an
 already-delegated write into a local timeout or error.
 
+The historical page helper also used a broad mouse-submit catch that could fall back
+to Enter after `mouseReleased` had already been delegated. That is unsafe because a
+CDP acknowledgement can be lost even when the page received the release and sent the
+conversation write. Schema 4 removes that ambiguity: Enter fallback remains allowed
+only before mouse release is attempted. Once `mouseReleased` is attempted, any error
+is terminal/fail-closed (`PR9_2_MOUSE_RELEASE_OUTCOME_UNCONFIRMED`) and no second
+submit path is invoked.
+
 Selecting a file mutates persistent page/composer state, so PR9.2 treats it as a
 separate safety boundary. Before `DOM.setFileInputFiles` may select any file, the
 runtime-tab ID is persisted to `chrome.storage.local` under the PR9.2 stale-attachment
@@ -121,7 +131,7 @@ permissions or change the extension identity/version.
 
 `product_rich_input_live_gate_pr9_2` implements the bounded graduation gate. Before
 any product write it performs a zero-write extension support probe that must prove
-**schema 3** and the complete current safety contract:
+**schema 4** and the complete current safety contract:
 
 - staging primitive is `DOM.setFileInputFiles`;
 - Native Messaging does not carry attachment bytes;
@@ -131,13 +141,15 @@ any product write it performs a zero-write extension support probe that must pro
 - one total rich-turn deadline is enforced through the actual submit boundary;
 - post-write cleanup is deadline-bounded and the fence remains until next prewrite;
 - post-submit Enter `keyUp` cannot affect the already-submitted outcome;
+- mouse-to-Enter fallback is forbidden after a mouse release attempt;
+- ambiguous mouse-release outcomes fail closed instead of issuing a second submit;
 - stale attachment cleanup authority is exactly
   `RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED`;
 - automatic write retry is disabled;
 - fallback transport is absent;
 - the support probe itself performed no write.
 
-Schema 2 and earlier overlays therefore fail the current gate even if ordinary live
+Schema 3 and earlier overlays therefore fail the current gate even if ordinary live
 turns happen not to exercise the repaired edge cases.
 
 The live phase then has an exact budget of **three** product writes using generated,
@@ -183,7 +195,7 @@ Graduation requires bounded authenticated browser-owned live evidence for at lea
 3. one attachment-dependent multimodal continuation on an existing durable conversation;
 4. canonical final assistant readback after each write;
 5. exact attachment-count observation with no hidden fallback or automatic retry;
-6. current recovery-before-staging, schema-3 deadline guarantees, and restart-safe
+6. current recovery-before-staging, schema-4 submit/deadline guarantees, and restart-safe
    destructive stale-composer cleanup proof.
 
 Until that live gate succeeds, existing capability metadata remains conservative.
