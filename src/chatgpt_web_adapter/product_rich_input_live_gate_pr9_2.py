@@ -14,7 +14,7 @@ from .product_model_profile_pr8_10 import ProductModelProfileProvider
 from .product_provenance import CompletionSource, ProductExecutionProvenance
 from .product_runtime import assemble_product_runtime
 
-SCHEMA = 5
+SCHEMA = 6
 PRODUCT_WRITE_BUDGET = 3
 
 _IMAGE_REPLY = "BLUE,RED,GREEN"
@@ -107,6 +107,9 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "pre_submit_attachment_revalidation": response.get(
                 "preSubmitAttachmentRevalidation"
             ),
+            "post_send_readiness_attachment_revalidation": response.get(
+                "postSendReadinessAttachmentRevalidation"
+            ),
             "protected_submit_primitive": response.get("protectedSubmitPrimitive"),
             "rich_input_raw_cdp_input_submit_disabled": response.get(
                 "richInputRawCdpInputSubmitDisabled"
@@ -169,6 +172,8 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_PAGE_ATTACHMENT_STABILITY_NOT_PROVEN")
     if support.get("pre_submit_attachment_revalidation") is not True:
         raise RuntimeError("PR9_2_PRE_SUBMIT_ATTACHMENT_REVALIDATION_NOT_PROVEN")
+    if support.get("post_send_readiness_attachment_revalidation") is not True:
+        raise RuntimeError("PR9_2_POST_SEND_READINESS_ATTACHMENT_REVALIDATION_NOT_PROVEN")
     if (
         support.get("protected_submit_primitive")
         != "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK"
@@ -433,6 +438,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "attachment_count_evidence": "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE",
         "attachment_evidence_stable_poll_count": 2,
         "pre_submit_attachment_revalidation": True,
+        "post_send_readiness_attachment_revalidation": True,
         "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK",
         "rich_input_raw_cdp_input_submit_disabled": True,
         "rich_input_enter_fallback_enabled": False,
