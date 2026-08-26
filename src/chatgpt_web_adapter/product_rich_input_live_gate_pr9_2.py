@@ -71,6 +71,15 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "official_page_owns_protected_write": response.get(
                 "officialPageOwnsProtectedWrite"
             ),
+            "recovery_before_attachment_staging": response.get(
+                "recoveryBeforeAttachmentStaging"
+            ),
+            "stale_attachment_failure_fence": response.get(
+                "staleAttachmentFailureFence"
+            ),
+            "stale_attachment_fence_persistent_across_worker_restart": response.get(
+                "staleAttachmentFencePersistentAcrossWorkerRestart"
+            ),
             "automatic_write_retry": response.get("automaticWriteRetry"),
             "fallback_transport": response.get("fallbackTransport"),
             "write_performed": response.get("writePerformed"),
@@ -91,6 +100,12 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_OFFICIAL_PAGE_UPLOAD_OWNERSHIP_NOT_PROVEN")
     if support.get("official_page_owns_protected_write") is not True:
         raise RuntimeError("PR9_2_OFFICIAL_PAGE_WRITE_OWNERSHIP_NOT_PROVEN")
+    if support.get("recovery_before_attachment_staging") is not True:
+        raise RuntimeError("PR9_2_RECOVERY_BEFORE_STAGING_NOT_PROVEN")
+    if support.get("stale_attachment_failure_fence") is not True:
+        raise RuntimeError("PR9_2_STALE_ATTACHMENT_FAILURE_FENCE_NOT_PROVEN")
+    if support.get("stale_attachment_fence_persistent_across_worker_restart") is not True:
+        raise RuntimeError("PR9_2_PERSISTENT_STALE_ATTACHMENT_FENCE_NOT_PROVEN")
     if support.get("automatic_write_retry") is not False:
         raise RuntimeError("PR9_2_AUTOMATIC_WRITE_RETRY_MUST_BE_FALSE")
     if support.get("fallback_transport") is not None:
@@ -330,6 +345,9 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "attachment_dependent_response_after_every_write": True,
         "canonical_finality_after_every_write": True,
         "exact_attachment_count_after_every_write": True,
+        "recovery_before_attachment_staging": True,
+        "stale_attachment_failure_fence": True,
+        "stale_attachment_fence_persistent_across_worker_restart": True,
         "native_messaging_attachment_bytes": False,
         "official_page_owned_upload_and_write": True,
         "automatic_write_retry": False,
