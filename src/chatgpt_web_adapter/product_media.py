@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import base64
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+import mimetypes
 from pathlib import Path, PureWindowsPath
+import re
 import shutil
 import tempfile
 from typing import Iterator, Sequence
+from urllib.parse import unquote, urlparse
+from urllib.request import Request, urlopen
 
 from .types import MediaItem, MediaSource
 
@@ -15,6 +20,11 @@ _BROWSER_OWNED_MEDIA_PATHS: ContextVar[tuple[str, ...] | None] = ContextVar(
     "cwa_browser_owned_media_paths",
     default=None,
 )
+_DATA_URI_RE = re.compile(
+    r"^data:([^;,]+)?(?:;[^,;]+)*;base64,(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_REMOTE_FETCH_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -22,14 +32,32 @@ class BrowserOwnedMediaMaterialization:
     """Local file snapshot supplied to the official browser page.
 
     Only local paths cross the Native Messaging boundary. File bytes never travel
-    inside the JSON bridge message. Byte-backed inputs and explicit filename
-    overrides are materialized into a short-lived private temporary directory for
-    the duration of one product turn.
+    inside the JSON bridge message. Byte-backed, data-URI, HTTP(S), and explicit
+    filename-override inputs are materialized into a short-lived private temporary
+    directory for the duration of one product turn.
     """
 
     paths: tuple[str, ...]
     count: int
     materialized_byte_inputs: int
+
+
+def _normalize_media_filename(filename: str | None) -> str | None:
+    if filename is None:
+        return None
+    if not isinstance(filename, str) or not filename.strip():
+        raise ValueError("media filename must be a non-empty string or None")
+    filename = filename.strip()
+    windows_path = PureWindowsPath(filename)
+    if (
+        filename in {".", ".."}
+        or Path(filename).name != filename
+        or windows_path.name != filename
+        or "/" in filename
+        or "\\" in filename
+    ):
+        raise ValueError("media filename must be a basename without path components")
+    return filename
 
 
 def _split_media_item(item: MediaItem) -> tuple[MediaSource, str | None]:
@@ -39,20 +67,7 @@ def _split_media_item(item: MediaItem) -> tuple[MediaSource, str | None]:
         if len(item) != 2:
             raise ValueError("media tuple must be (source, filename)")
         source, filename = item
-        if filename is not None:
-            if not isinstance(filename, str) or not filename.strip():
-                raise ValueError("media filename must be a non-empty string or None")
-            filename = filename.strip()
-            windows_path = PureWindowsPath(filename)
-            if (
-                filename in {".", ".."}
-                or Path(filename).name != filename
-                or windows_path.name != filename
-                or "/" in filename
-                or "\\" in filename
-            ):
-                raise ValueError("media filename must be a basename without path components")
-        return source, filename
+        return source, _normalize_media_filename(filename)
     return item, None
 
 
@@ -76,6 +91,82 @@ def _read_byte_source(source: bytes | bytearray) -> bytes:
     return bytes(source)
 
 
+def _decode_data_uri(source: str, *, index: int) -> tuple[bytes, str | None]:
+    match = _DATA_URI_RE.match(source)
+    if not match:
+        raise ValueError(f"media[{index}] data URI must use base64 encoding")
+    try:
+        payload = base64.b64decode(match.group(2))
+    except Exception as error:
+        raise ValueError(f"media[{index}] data URI base64 is invalid") from error
+    if not payload:
+        raise ValueError(f"media[{index}] data URI payload is empty")
+    mime_type = match.group(1).strip().lower() if match.group(1) else None
+    return payload, mime_type
+
+
+def _download_http_source(source: str, *, index: int) -> tuple[bytes, str | None, str]:
+    try:
+        request = Request(source, headers={"User-Agent": "Mozilla/5.0"})
+        with urlopen(request, timeout=_REMOTE_FETCH_TIMEOUT_SECONDS) as response:
+            payload = response.read()
+            content_type = response.headers.get_content_type() if response.headers else None
+            final_url = response.geturl() or source
+    except Exception as error:
+        raise ValueError(f"media[{index}] URL source is unavailable") from error
+    if not payload:
+        raise ValueError(f"media[{index}] URL source is empty")
+    return payload, content_type, final_url
+
+
+def _url_basename(source: str) -> str | None:
+    try:
+        basename = unquote(Path(urlparse(source).path).name)
+    except (TypeError, ValueError):
+        return None
+    try:
+        return _normalize_media_filename(basename) if basename else None
+    except ValueError:
+        return None
+
+
+def _materialized_name(
+    *,
+    payload: bytes,
+    index: int,
+    filename: str | None,
+    source_name: str | None = None,
+    mime_type: str | None = None,
+) -> str:
+    if filename:
+        return filename
+    if source_name:
+        if Path(source_name).suffix:
+            return source_name
+        guessed = mimetypes.guess_extension(mime_type or "", strict=False)
+        return f"{source_name}{guessed}" if guessed else source_name
+    guessed = mimetypes.guess_extension(mime_type or "", strict=False)
+    suffix = guessed or _byte_source_default_suffix(payload)
+    return f"attachment-{index}{suffix}"
+
+
+def _write_materialized_bytes(
+    payload: bytes,
+    *,
+    root: Path,
+    index: int,
+    filename: str,
+) -> Path:
+    target_dir = root / f"item-{index}"
+    target_dir.mkdir()
+    target = target_dir / filename
+    try:
+        target.write_bytes(payload)
+    except OSError as error:
+        raise ValueError(f"media[{index}] byte materialization failed") from error
+    return target.resolve(strict=True)
+
+
 def _copy_with_filename(source: Path, *, root: Path, index: int, filename: str) -> Path:
     target_dir = root / f"item-{index}"
     target_dir.mkdir()
@@ -91,13 +182,13 @@ def _copy_with_filename(source: Path, *, root: Path, index: int, filename: str) 
 def materialize_browser_owned_media(
     media: Sequence[MediaItem] | None,
 ) -> Iterator[BrowserOwnedMediaMaterialization]:
-    """Resolve rich-input media to stable local paths for one browser-owned turn.
+    """Resolve rich-input MediaItem values to stable local paths for one turn.
 
-    Existing path inputs without a filename override are resolved and validated
-    without copying. In-memory bytes are snapshotted to temporary files. A tuple
-    keeps the established ``(source, filename)`` meaning: the requested basename
-    is preserved for both byte-backed and path-backed sources, so the official
-    page sees the same filename contract as the legacy upload path.
+    The established public source forms remain valid: local paths, raw bytes,
+    base64 ``data:`` URIs, and HTTP(S) URLs. Non-path sources are snapshotted into
+    the private per-turn directory before browser delegation, so the Native
+    Messaging boundary remains path-only. A tuple keeps the established
+    ``(source, filename)`` meaning for every source form.
     """
 
     if media is None:
@@ -118,19 +209,60 @@ def materialize_browser_owned_media(
 
         for index, item in enumerate(items):
             source, filename = _split_media_item(item)
+
             if isinstance(source, (bytes, bytearray)):
                 payload = _read_byte_source(source)
                 if not payload:
                     raise ValueError(f"media[{index}] byte source is empty")
-                target_dir = root / f"item-{index}"
-                target_dir.mkdir()
-                target_name = filename or f"attachment-{index}{_byte_source_default_suffix(payload)}"
-                target = target_dir / target_name
-                try:
-                    target.write_bytes(payload)
-                except OSError as error:
-                    raise ValueError(f"media[{index}] byte materialization failed") from error
-                paths.append(str(target.resolve(strict=True)))
+                target_name = _materialized_name(
+                    payload=payload,
+                    index=index,
+                    filename=filename,
+                )
+                target = _write_materialized_bytes(
+                    payload,
+                    root=root,
+                    index=index,
+                    filename=target_name,
+                )
+                paths.append(str(target))
+                materialized_byte_inputs += 1
+                continue
+
+            if isinstance(source, str) and source.startswith("data:"):
+                payload, mime_type = _decode_data_uri(source, index=index)
+                target_name = _materialized_name(
+                    payload=payload,
+                    index=index,
+                    filename=filename,
+                    mime_type=mime_type,
+                )
+                target = _write_materialized_bytes(
+                    payload,
+                    root=root,
+                    index=index,
+                    filename=target_name,
+                )
+                paths.append(str(target))
+                materialized_byte_inputs += 1
+                continue
+
+            if isinstance(source, str) and source.startswith(("http://", "https://")):
+                payload, mime_type, final_url = _download_http_source(source, index=index)
+                target_name = _materialized_name(
+                    payload=payload,
+                    index=index,
+                    filename=filename,
+                    source_name=_url_basename(final_url),
+                    mime_type=mime_type,
+                )
+                target = _write_materialized_bytes(
+                    payload,
+                    root=root,
+                    index=index,
+                    filename=target_name,
+                )
+                paths.append(str(target))
                 materialized_byte_inputs += 1
                 continue
 
