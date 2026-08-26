@@ -354,11 +354,17 @@ executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) 
     if (context.staged !== true || context.attachmentCount !== attachmentPaths.length) {
       throw new Error("PR9_2_ATTACHMENT_STAGE_NOT_PROVEN");
     }
-    // Successful downstream return proves the official page completed its product
-    // turn. Clear the durable fence when possible. If extension storage is
-    // temporarily unavailable, retaining the fence is safer than converting a
-    // completed write into an ambiguous failure; the next turn must clean it.
-    await _pr92TryClearDirtyAttachmentFence();
+    // A completed write must not erase the persistent fence merely by returning.
+    // Remove the fence only after explicit file-input cleanup (or tab removal)
+    // succeeds. If cleanup is temporarily unavailable, retain the durable fence;
+    // returning the already-canonical write is safer than fabricating ambiguity,
+    // and the next turn will be blocked until cleanup is proven.
+    if (
+      Number.isInteger(context.stagedTabId) &&
+      await _pr92ClearOfficialPageAttachments(context.stagedTabId, timeoutMs)
+    ) {
+      await _pr92TryClearDirtyAttachmentFence();
+    }
     return {
       ...result,
       attachmentCount: context.attachmentCount
