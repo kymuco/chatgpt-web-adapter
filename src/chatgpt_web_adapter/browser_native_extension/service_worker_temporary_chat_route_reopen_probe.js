@@ -350,7 +350,10 @@ executeNativeTurn = async function _executeNativeTurnWithTemporaryRouteReopenPro
 // unchanged; text-only turns still delegate through the exact prior path.
 importScripts("service_worker_rich_input_pr9_2.js");
 
-// Final PR9.2 repair layer: exact pre-submit deadline authority and fully bounded
-// post-write cleanup/fence semantics. Loaded last so it guards the final composed
-// browser-owned write path without changing the historical manifest entrypoint.
+// PR9.2 deadline/fence repair layer.
 importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");
+
+// PR9.2 final closure repair: page-owned attachment evidence and page-side
+// deadline-guarded rich submission. Loaded last so raw CDP Input cannot regain
+// protected-write authority for rich turns.
+importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
