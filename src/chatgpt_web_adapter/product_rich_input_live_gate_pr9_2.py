@@ -14,7 +14,7 @@ from .product_model_profile_pr8_10 import ProductModelProfileProvider
 from .product_provenance import CompletionSource, ProductExecutionProvenance
 from .product_runtime import assemble_product_runtime
 
-SCHEMA = 4
+SCHEMA = 5
 PRODUCT_WRITE_BUDGET = 3
 
 _IMAGE_REPLY = "BLUE,RED,GREEN"
@@ -100,6 +100,23 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "stale_attachment_cleanup_proof": response.get(
                 "staleAttachmentCleanupProof"
             ),
+            "attachment_count_evidence": response.get("attachmentCountEvidence"),
+            "attachment_evidence_stable_poll_count": response.get(
+                "attachmentEvidenceStablePollCount"
+            ),
+            "pre_submit_attachment_revalidation": response.get(
+                "preSubmitAttachmentRevalidation"
+            ),
+            "protected_submit_primitive": response.get("protectedSubmitPrimitive"),
+            "rich_input_raw_cdp_input_submit_disabled": response.get(
+                "richInputRawCdpInputSubmitDisabled"
+            ),
+            "rich_input_enter_fallback_enabled": response.get(
+                "richInputEnterFallbackEnabled"
+            ),
+            "late_protected_submit_execution_prevented_by_page_deadline": response.get(
+                "lateProtectedSubmitExecutionPreventedByPageDeadline"
+            ),
             "automatic_write_retry": response.get("automaticWriteRetry"),
             "fallback_transport": response.get("fallbackTransport"),
             "write_performed": response.get("writePerformed"),
@@ -145,6 +162,24 @@ def _validate_support(support: dict[str, Any]) -> None:
         != "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
     ):
         raise RuntimeError("PR9_2_STALE_ATTACHMENT_CLEANUP_PROOF_NOT_PROVEN")
+    if support.get("attachment_count_evidence") != "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE":
+        raise RuntimeError("PR9_2_PAGE_ATTACHMENT_COUNT_EVIDENCE_NOT_PROVEN")
+    stable_polls = support.get("attachment_evidence_stable_poll_count")
+    if not isinstance(stable_polls, int) or isinstance(stable_polls, bool) or stable_polls < 2:
+        raise RuntimeError("PR9_2_PAGE_ATTACHMENT_STABILITY_NOT_PROVEN")
+    if support.get("pre_submit_attachment_revalidation") is not True:
+        raise RuntimeError("PR9_2_PRE_SUBMIT_ATTACHMENT_REVALIDATION_NOT_PROVEN")
+    if (
+        support.get("protected_submit_primitive")
+        != "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK"
+    ):
+        raise RuntimeError("PR9_2_PROTECTED_SUBMIT_PRIMITIVE_NOT_PROVEN")
+    if support.get("rich_input_raw_cdp_input_submit_disabled") is not True:
+        raise RuntimeError("PR9_2_RAW_CDP_INPUT_SUBMIT_NOT_DISABLED")
+    if support.get("rich_input_enter_fallback_enabled") is not False:
+        raise RuntimeError("PR9_2_RICH_INPUT_ENTER_FALLBACK_MUST_BE_DISABLED")
+    if support.get("late_protected_submit_execution_prevented_by_page_deadline") is not True:
+        raise RuntimeError("PR9_2_LATE_PROTECTED_SUBMIT_GUARD_NOT_PROVEN")
     if support.get("automatic_write_retry") is not False:
         raise RuntimeError("PR9_2_AUTOMATIC_WRITE_RETRY_MUST_BE_FALSE")
     if support.get("fallback_transport") is not None:
@@ -395,6 +430,13 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "mouse_to_enter_fallback_after_release_attempt": False,
         "mouse_release_outcome_ambiguity_fails_closed": True,
         "stale_attachment_cleanup_proof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
+        "attachment_count_evidence": "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE",
+        "attachment_evidence_stable_poll_count": 2,
+        "pre_submit_attachment_revalidation": True,
+        "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK",
+        "rich_input_raw_cdp_input_submit_disabled": True,
+        "rich_input_enter_fallback_enabled": False,
+        "late_protected_submit_execution_prevented_by_page_deadline": True,
         "native_messaging_attachment_bytes": False,
         "official_page_owned_upload_and_write": True,
         "automatic_write_retry": False,
