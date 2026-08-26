@@ -408,7 +408,7 @@ def test_browser_native_client_rejects_provider_that_ignores_rich_input(tmp_path
     ) as caught:
         send_browser_native(client, "inspect", attachment_paths=[source])
     assert caught.value.request_stage == "browser_native_turn_postwrite"
-    assert provider.attachment_paths == (str(source),)
+    assert provider.attachment_paths == (source,)
 
 
 def test_text_only_legacy_provider_result_need_not_expose_attachment_count():
