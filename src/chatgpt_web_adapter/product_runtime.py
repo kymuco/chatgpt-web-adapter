@@ -170,14 +170,15 @@ def _known_browser_owned_rich_input_transport(write_transport: ProductWriteTrans
     transport may reuse the ``browser-owned`` identity without consuming the
     execution-local media scope, so transport identity alone is not rich-input
     authority. Until the generic protocol grows an explicit media capability, only
-    the concrete BrowserOwnedProductTransport implementation may opt into PR9.2.
+    the exact concrete BrowserOwnedProductTransport implementation may opt into
+    PR9.2; subclasses can override the send path and therefore are not authority.
     """
 
     if write_transport.transport_id.strip().lower() != BROWSER_OWNED_PRODUCT_TRANSPORT:
         return False
     from .browser_owned_product_transport import BrowserOwnedProductTransport
 
-    return isinstance(write_transport, BrowserOwnedProductTransport)
+    return type(write_transport) is BrowserOwnedProductTransport
 
 
 def _rich_input_scope(

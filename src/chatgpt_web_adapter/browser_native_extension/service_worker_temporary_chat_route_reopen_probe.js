@@ -349,3 +349,8 @@ executeNativeTurn = async function _executeNativeTurnWithTemporaryRouteReopenPro
 // been assembled. The manifest entrypoint and historical worker ordering remain
 // unchanged; text-only turns still delegate through the exact prior path.
 importScripts("service_worker_rich_input_pr9_2.js");
+
+// Final PR9.2 repair layer: exact pre-submit deadline authority and fully bounded
+// post-write cleanup/fence semantics. Loaded last so it guards the final composed
+// browser-owned write path without changing the historical manifest entrypoint.
+importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");

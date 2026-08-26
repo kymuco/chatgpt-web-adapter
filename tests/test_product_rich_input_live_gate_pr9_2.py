@@ -31,7 +31,7 @@ def _support_response(request_id: str) -> dict:
         "request_id": request_id,
         "ok": True,
         "richInputSupported": True,
-        "richInputSchemaVersion": 1,
+        "richInputSchemaVersion": 2,
         "stagingPrimitive": "DOM.setFileInputFiles",
         "maxAttachmentCount": 32,
         "nativeMessagingCarriesAttachmentBytes": False,
@@ -41,6 +41,9 @@ def _support_response(request_id: str) -> dict:
         "staleAttachmentFailureFence": True,
         "staleAttachmentFencePersistentAcrossWorkerRestart": True,
         "singleTotalTurnDeadline": True,
+        "preSubmitDeadlineGuard": True,
+        "deadlineBoundedPostWriteCleanup": True,
+        "postWriteFenceRetainedUntilNextPrewrite": True,
         "automaticWriteRetry": False,
         "fallbackTransport": None,
         "writePerformed": False,
@@ -50,7 +53,7 @@ def _support_response(request_id: str) -> dict:
 def _validated_support() -> dict:
     return {
         "supported": True,
-        "schema": 1,
+        "schema": 2,
         "staging_primitive": "DOM.setFileInputFiles",
         "max_attachment_count": 32,
         "native_messaging_carries_attachment_bytes": False,
@@ -60,6 +63,9 @@ def _validated_support() -> dict:
         "stale_attachment_failure_fence": True,
         "stale_attachment_fence_persistent_across_worker_restart": True,
         "single_total_turn_deadline": True,
+        "pre_submit_deadline_guard": True,
+        "deadline_bounded_post_write_cleanup": True,
+        "post_write_fence_retained_until_next_prewrite": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
         "write_performed": False,
@@ -122,6 +128,9 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     assert support["stale_attachment_failure_fence"] is True
     assert support["stale_attachment_fence_persistent_across_worker_restart"] is True
     assert support["single_total_turn_deadline"] is True
+    assert support["pre_submit_deadline_guard"] is True
+    assert support["deadline_bounded_post_write_cleanup"] is True
+    assert support["post_write_fence_retained_until_next_prewrite"] is True
     assert support["write_performed"] is False
     assert support["automatic_write_retry"] is False
     assert support["fallback_transport"] is None
@@ -137,6 +146,15 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
             "PERSISTENT_STALE_ATTACHMENT_FENCE_NOT_PROVEN",
         ),
         ("single_total_turn_deadline", "SINGLE_TOTAL_TURN_DEADLINE_NOT_PROVEN"),
+        ("pre_submit_deadline_guard", "PRE_SUBMIT_DEADLINE_GUARD_NOT_PROVEN"),
+        (
+            "deadline_bounded_post_write_cleanup",
+            "DEADLINE_BOUNDED_POST_WRITE_CLEANUP_NOT_PROVEN",
+        ),
+        (
+            "post_write_fence_retained_until_next_prewrite",
+            "POST_WRITE_FENCE_RETENTION_NOT_PROVEN",
+        ),
     ],
 )
 def test_support_validation_requires_recovery_and_persistent_cleanup_claims(field, error):
