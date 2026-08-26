@@ -41,7 +41,11 @@ PR9.2 extension overlays
         |
         +-- stable page-owned composer attachment evidence
         |
-        +-- immediate pre-submit attachment revalidation
+        +-- pre-readiness attachment validation
+        |
+        +-- wait for Send readiness
+        |
+        +-- post-readiness page-owned attachment revalidation
         |
         +-- page-side deadline-guarded Send click
         |
@@ -64,7 +68,7 @@ canonical assistant finality/readback
 The existing proven service-worker chain is not rewritten and the packaged
 extension keeps its PR8.7 `0.1.13` manifest entrypoint. After that entrypoint has
 assembled the full prior worker chain, it imports the PR9.2 rich-input overlay,
-the deadline/cleanup repair overlay, and finally the schema-5 closure overlay.
+the deadline/cleanup repair overlay, and finally the schema-6 closure overlay.
 The closure overlay acts only while a rich-input context is active; text-only turns
 continue through the historical product path.
 
@@ -95,12 +99,12 @@ reload cannot silently erase an already-selected file.
 
 One outer rich-turn deadline governs stale-UI recovery/reload, runtime-tab waits,
 attachment staging, protected page dispatch, and cleanup. Earlier repair layers
-closed Enter and mouse-to-Enter retry ambiguities, but a fresh closure review found
-that raw CDP `Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` commands are not
+closed Enter and mouse-to-Enter retry ambiguities, but a closure review found that
+raw CDP `Input.dispatchMouseEvent` / `Input.dispatchKeyEvent` commands are not
 cancellable once dispatched. Racing such a command against a local timer can report
 timeout while Chrome executes the queued protected input later.
 
-Schema 5 removes raw CDP Input from rich-turn submit authority. The final closure
+Schema 5 removed raw CDP Input from rich-turn submit authority. The final closure
 layer locates the ready Send control but performs the protected action through a
 `Runtime.evaluate` expression whose **page-side `Date.now()` check** rejects execution
 after a deadline reserved inside the outer RPC deadline. Raw mouse submit and Enter
@@ -115,11 +119,18 @@ fence. This makes the fence survive Manifest V3 service-worker suspension/restar
 while the runtime tab remains alive.
 
 `DOM.setFileInputFiles` path count is **not** accepted as proof that ChatGPT ingested
-the attachments. Schema 5 waits for stable page-owned composer evidence matching
-every expected attachment basename. Rejection/error state fails the turn, evidence
-must remain stable across multiple polls, and the same page-owned evidence is
-revalidated immediately before the protected Send click. `attachmentCount` is only
-returned after that page-owned evidence succeeds.
+the attachments. The closure layer waits for stable page-owned composer evidence
+matching every expected attachment basename. Rejection/error state fails the turn
+and evidence must remain stable across multiple polls.
+
+A fresh schema-5 review found one more race: attachment evidence was revalidated
+before `waitForSendButtonPoint`, but an upload could be rejected or its chip could
+disappear while Send-readiness polling continued. Schema 6 therefore performs a
+second mandatory page-owned evidence read **after Send becomes ready and immediately
+before the page-guarded click**. The zero-write support contract exposes
+`postSendReadinessAttachmentRevalidation=true`; schema 5 and earlier are rejected by
+the live gate. A text-only Send control can no longer inherit an earlier rich
+`attachmentCount` after an asynchronous attachment loss.
 
 Clearing only the underlying file input is **not** accepted as proof that ChatGPT's
 composer/upload state is clean. After staging, the same rich turn retains the durable
@@ -141,7 +152,7 @@ permissions or change the extension identity/version.
 
 `product_rich_input_live_gate_pr9_2` implements the bounded graduation gate. Before
 any product write it performs a zero-write extension support probe that must prove
-**schema 5** and the complete current safety contract:
+**schema 6** and the complete current safety contract:
 
 - staging primitive is `DOM.setFileInputFiles`;
 - Native Messaging does not carry attachment bytes;
@@ -153,7 +164,8 @@ any product write it performs a zero-write extension support probe that must pro
 - historical Enter/mouse retry ambiguity remains closed;
 - attachment count is derived from `PAGE_OWNED_COMPOSER_ATTACHMENT_STATE`, not requested paths;
 - page-owned attachment evidence is stable across at least two polls;
-- page-owned attachment evidence is revalidated immediately before submit;
+- page-owned attachment evidence is checked before Send-readiness polling;
+- page-owned attachment evidence is checked again after Send readiness and immediately before submit;
 - rich turns disable raw CDP Input submit and Enter fallback;
 - protected rich submit uses `PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK`;
 - late protected-submit execution is blocked by the page-side deadline check;
@@ -163,8 +175,8 @@ any product write it performs a zero-write extension support probe that must pro
 - fallback transport is absent;
 - the support probe itself performed no write.
 
-Schema 4 and earlier overlays therefore fail the current gate even if ordinary live
-turns happen not to exercise the repaired edge cases.
+Schema 5 and earlier overlays therefore fail the current gate even if ordinary live
+turns happen not to exercise the repaired asynchronous attachment-loss race.
 
 The live phase then has an exact budget of **three** product writes using generated,
 deterministic fixtures. Each response must depend on content that is absent from
@@ -209,7 +221,8 @@ Graduation requires bounded authenticated browser-owned live evidence for at lea
 3. one attachment-dependent multimodal continuation on an existing durable conversation;
 4. canonical final assistant readback after each write;
 5. exact page-owned attachment-count evidence with no hidden fallback or automatic retry;
-6. current recovery-before-staging, schema-5 page-deadline submit guarantees, and
-   restart-safe destructive stale-composer cleanup proof.
+6. current recovery-before-staging, schema-6 page-deadline submit guarantees,
+   post-Send-readiness attachment revalidation, and restart-safe destructive
+   stale-composer cleanup proof.
 
 Until that live gate succeeds, existing capability metadata remains conservative.
