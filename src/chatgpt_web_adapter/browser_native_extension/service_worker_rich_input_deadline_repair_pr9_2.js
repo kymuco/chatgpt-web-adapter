@@ -57,6 +57,18 @@ function _pr92DeadlineRepairRichContext() {
   return _pr92ActiveRichInputContext;
 }
 
+function _pr92DeadlineRepairIsTimeoutError(error) {
+  return Boolean(
+    error instanceof Error &&
+    error.message.startsWith("PR9_2_TOTAL_TURN_TIMEOUT:")
+  );
+}
+
+function _pr92DeadlineRepairIsMissingTabError(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /no tab with id|invalid tab id|tab not found/i.test(message);
+}
+
 // The actual conversation write can be triggered by mouse release or Enter.
 // Guard those exact CDP input events, rather than trusting nested timeoutMs
 // values in the older page-turn chain whose prewrite waits can floor an expired
@@ -113,6 +125,10 @@ submitWithEnter = async function _pr92SubmitWithEnterWithinDeadline(debuggee) {
     return _pr92DeadlineRepairPriorSubmitWithEnter(debuggee);
   }
 
+  // keyDown is the protected write boundary. If it succeeds, the conversation may
+  // already be delegated. A later keyUp must therefore never convert that submitted
+  // outcome into a local timeout/error. Dispatch release best-effort and return
+  // immediately so post-submit housekeeping cannot consume the remaining RPC budget.
   await _pr92DeadlineRepairRunUntil(
     context.deadlineAt,
     "PRE_SUBMIT_ENTER_KEY_DOWN",
@@ -124,59 +140,38 @@ submitWithEnter = async function _pr92SubmitWithEnterWithinDeadline(debuggee) {
       nativeVirtualKeyCode: 13
     })
   );
-  await _pr92DeadlineRepairRunUntil(
-    context.deadlineAt,
-    "POST_SUBMIT_ENTER_KEY_UP",
-    () => chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
+  try {
+    chrome.debugger.sendCommand(debuggee, "Input.dispatchKeyEvent", {
       type: "keyUp",
       key: "Enter",
       code: "Enter",
       windowsVirtualKeyCode: 13,
       nativeVirtualKeyCode: 13
-    })
-  );
+    }).catch(() => {});
+  } catch {}
 };
 
-async function _pr92DeadlineRepairBestEffortReleaseObject(
-  debuggee,
-  objectId,
-  deadlineAt
-) {
-  if (!objectId) return;
+async function _pr92DeadlineRepairProveTabAbsent(tabId, deadlineAt) {
   try {
-    if (performance.now() < deadlineAt) {
-      await _pr92DeadlineRepairRunUntil(
-        deadlineAt,
-        "CLEANUP_RELEASE_OBJECT",
-        () => chrome.debugger.sendCommand(debuggee, "Runtime.releaseObject", { objectId })
-      );
-    } else {
-      chrome.debugger.sendCommand(
-        debuggee,
-        "Runtime.releaseObject",
-        { objectId }
-      ).catch(() => {});
-    }
-  } catch {}
+    await _pr92DeadlineRepairRunUntil(
+      deadlineAt,
+      "CLEANUP_RUNTIME_TAB_ABSENCE_CONFIRM",
+      () => chrome.tabs.get(tabId)
+    );
+    return false;
+  } catch (error) {
+    if (_pr92DeadlineRepairIsTimeoutError(error)) return false;
+    return _pr92DeadlineRepairIsMissingTabError(error);
+  }
 }
 
-async function _pr92DeadlineRepairBestEffortDetach(debuggee, deadlineAt) {
-  try {
-    if (performance.now() < deadlineAt) {
-      await _pr92DeadlineRepairRunUntil(
-        deadlineAt,
-        "CLEANUP_DEBUGGER_DETACH",
-        () => chrome.debugger.detach(debuggee)
-      );
-    } else {
-      chrome.debugger.detach(debuggee).catch(() => {});
-    }
-  } catch {}
-}
-
-// Replace the original cleanup helper so every awaited browser operation shares
-// one local cleanup deadline, itself capped by the outer rich-turn deadline.
-// Expiry returns false and leaves the durable fence authoritative.
+// Clearing input.files is not sufficient cleanup authority: the product page may
+// already have ingested the file into composer/upload state. For a durable dirty
+// fence, the only generic proof available without reconstructing product internals
+// is destruction of the dedicated runtime tab followed by explicit absence proof.
+// The same rich turn never performs that destructive cleanup; it returns/throws
+// with the fence intact. The next prewrite closes the dirty tab under its own outer
+// deadline, proves it no longer exists, and only then may clear the durable fence.
 _pr92ClearOfficialPageAttachments = async function _pr92ClearAttachmentsWithinDeadline(
   tabId,
   timeoutMs
@@ -185,93 +180,42 @@ _pr92ClearOfficialPageAttachments = async function _pr92ClearAttachmentsWithinDe
     return false;
   }
 
+  const richContext = _pr92ActiveRichInputContext;
+  if (richContext !== null && richContext.staged === true) {
+    return false;
+  }
+
   const deadlineAt = _pr92DeadlineRepairDeadlineFromBudget(timeoutMs);
   try {
     await _pr92DeadlineRepairRunUntil(
       deadlineAt,
-      "CLEANUP_TAB_LOOKUP",
+      "CLEANUP_RUNTIME_TAB_LOOKUP",
       () => chrome.tabs.get(tabId)
     );
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.startsWith("PR9_2_TOTAL_TURN_TIMEOUT:")
-    ) {
-      return false;
-    }
-    // A synchronously proven removed tab cannot retain a stale composer.
-    return true;
+    if (_pr92DeadlineRepairIsTimeoutError(error)) return false;
+    return _pr92DeadlineRepairIsMissingTabError(error);
   }
 
   try {
-    const remaining = _pr92DeadlineRepairRemainingMs(
-      deadlineAt,
-      "CLEANUP_TAB_COMPLETE"
-    );
     await _pr92DeadlineRepairRunUntil(
       deadlineAt,
-      "CLEANUP_TAB_COMPLETE",
-      () => waitForTabComplete(tabId, Math.max(1, Math.min(remaining, 10_000)))
+      "CLEANUP_RUNTIME_TAB_CLOSE",
+      () => chrome.tabs.remove(tabId)
     );
-  } catch {
-    return false;
+  } catch (error) {
+    if (_pr92DeadlineRepairIsTimeoutError(error)) return false;
+    // A concurrent close can race this call. Only explicit subsequent absence
+    // proof can turn that race into successful cleanup authority.
   }
 
-  const debuggee = { tabId };
-  let attached = false;
-  let objectId = null;
-  try {
-    await _pr92DeadlineRepairRunUntil(
-      deadlineAt,
-      "CLEANUP_DEBUGGER_ATTACH",
-      () => chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION)
-    );
-    attached = true;
-    await _pr92DeadlineRepairRunUntil(
-      deadlineAt,
-      "CLEANUP_RUNTIME_ENABLE",
-      () => chrome.debugger.sendCommand(debuggee, "Runtime.enable")
-    );
-    await _pr92DeadlineRepairRunUntil(
-      deadlineAt,
-      "CLEANUP_DOM_ENABLE",
-      () => chrome.debugger.sendCommand(debuggee, "DOM.enable")
-    );
-    objectId = await _pr92DeadlineRepairRunUntil(
-      deadlineAt,
-      "CLEANUP_FILE_INPUT_LOOKUP",
-      () => _pr92FindFileInputObjectId(debuggee)
-    );
-    if (!objectId) return false;
-    await _pr92DeadlineRepairRunUntil(
-      deadlineAt,
-      "CLEANUP_FILE_SELECTION_CLEAR",
-      () => chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles", {
-        files: [],
-        objectId
-      })
-    );
-    return true;
-  } catch {
-    return false;
-  } finally {
-    if (objectId) {
-      await _pr92DeadlineRepairBestEffortReleaseObject(
-        debuggee,
-        objectId,
-        deadlineAt
-      );
-    }
-    if (attached) {
-      await _pr92DeadlineRepairBestEffortDetach(debuggee, deadlineAt);
-    }
-  }
+  return _pr92DeadlineRepairProveTabAbsent(tabId, deadlineAt);
 };
 
 // Never remove the durable fence in the same rich turn after attachment staging.
-// Even after file-input cleanup succeeds, returning the completed write takes
-// priority over a late storage mutation. The next turn re-proves cleanup before
-// clearing the fence and before any subsequent write authority is available.
+// Even after cleanup succeeds, returning the completed write takes priority over
+// a late storage mutation. The next turn re-proves cleanup before clearing the
+// fence and before any subsequent write authority is available.
 _pr92TryClearDirtyAttachmentFence = async function _pr92ClearFenceWithinDeadline() {
   const richContext = _pr92ActiveRichInputContext;
   if (richContext !== null && richContext.staged === true) {
@@ -309,6 +253,8 @@ executeNativeTurn = async function _executeNativeTurnWithPr92DeadlineRepair(mess
     richInputSchemaVersion: PR92_DEADLINE_REPAIR_SCHEMA,
     preSubmitDeadlineGuard: true,
     deadlineBoundedPostWriteCleanup: true,
-    postWriteFenceRetainedUntilNextPrewrite: true
+    postWriteFenceRetainedUntilNextPrewrite: true,
+    enterKeyReleaseAffectsSubmittedOutcome: false,
+    staleAttachmentCleanupProof: "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
   };
 };
