@@ -31,7 +31,7 @@ def _support_response(request_id: str) -> dict:
         "request_id": request_id,
         "ok": True,
         "richInputSupported": True,
-        "richInputSchemaVersion": 4,
+        "richInputSchemaVersion": 5,
         "stagingPrimitive": "DOM.setFileInputFiles",
         "maxAttachmentCount": 32,
         "nativeMessagingCarriesAttachmentBytes": False,
@@ -48,6 +48,13 @@ def _support_response(request_id: str) -> dict:
         "mouseToEnterFallbackAfterReleaseAttempt": False,
         "mouseReleaseOutcomeAmbiguityFailsClosed": True,
         "staleAttachmentCleanupProof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
+        "attachmentCountEvidence": "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE",
+        "attachmentEvidenceStablePollCount": 2,
+        "preSubmitAttachmentRevalidation": True,
+        "protectedSubmitPrimitive": "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK",
+        "richInputRawCdpInputSubmitDisabled": True,
+        "richInputEnterFallbackEnabled": False,
+        "lateProtectedSubmitExecutionPreventedByPageDeadline": True,
         "automaticWriteRetry": False,
         "fallbackTransport": None,
         "writePerformed": False,
@@ -57,7 +64,7 @@ def _support_response(request_id: str) -> dict:
 def _validated_support() -> dict:
     return {
         "supported": True,
-        "schema": 4,
+        "schema": 5,
         "staging_primitive": "DOM.setFileInputFiles",
         "max_attachment_count": 32,
         "native_messaging_carries_attachment_bytes": False,
@@ -74,6 +81,13 @@ def _validated_support() -> dict:
         "mouse_to_enter_fallback_after_release_attempt": False,
         "mouse_release_outcome_ambiguity_fails_closed": True,
         "stale_attachment_cleanup_proof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
+        "attachment_count_evidence": "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE",
+        "attachment_evidence_stable_poll_count": 2,
+        "pre_submit_attachment_revalidation": True,
+        "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK",
+        "rich_input_raw_cdp_input_submit_disabled": True,
+        "rich_input_enter_fallback_enabled": False,
+        "late_protected_submit_execution_prevented_by_page_deadline": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
         "write_performed": False,
@@ -132,7 +146,7 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     _validate_support(support)
 
     assert len(calls) == 1
-    assert support["schema"] == 4
+    assert support["schema"] == 5
     assert support["recovery_before_attachment_staging"] is True
     assert support["stale_attachment_failure_fence"] is True
     assert support["stale_attachment_fence_persistent_across_worker_restart"] is True
@@ -143,6 +157,13 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     assert support["enter_key_release_affects_submitted_outcome"] is False
     assert support["mouse_to_enter_fallback_after_release_attempt"] is False
     assert support["mouse_release_outcome_ambiguity_fails_closed"] is True
+    assert support["attachment_count_evidence"] == "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE"
+    assert support["attachment_evidence_stable_poll_count"] == 2
+    assert support["pre_submit_attachment_revalidation"] is True
+    assert support["protected_submit_primitive"] == "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK"
+    assert support["rich_input_raw_cdp_input_submit_disabled"] is True
+    assert support["rich_input_enter_fallback_enabled"] is False
+    assert support["late_protected_submit_execution_prevented_by_page_deadline"] is True
     assert (
         support["stale_attachment_cleanup_proof"]
         == "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
@@ -153,33 +174,52 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("field", "error"),
+    ("field", "value", "error"),
     [
-        ("recovery_before_attachment_staging", "RECOVERY_BEFORE_STAGING_NOT_PROVEN"),
-        ("stale_attachment_failure_fence", "STALE_ATTACHMENT_FAILURE_FENCE_NOT_PROVEN"),
+        ("recovery_before_attachment_staging", False, "RECOVERY_BEFORE_STAGING_NOT_PROVEN"),
+        ("stale_attachment_failure_fence", False, "STALE_ATTACHMENT_FAILURE_FENCE_NOT_PROVEN"),
         (
             "stale_attachment_fence_persistent_across_worker_restart",
+            False,
             "PERSISTENT_STALE_ATTACHMENT_FENCE_NOT_PROVEN",
         ),
-        ("single_total_turn_deadline", "SINGLE_TOTAL_TURN_DEADLINE_NOT_PROVEN"),
-        ("pre_submit_deadline_guard", "PRE_SUBMIT_DEADLINE_GUARD_NOT_PROVEN"),
+        ("single_total_turn_deadline", False, "SINGLE_TOTAL_TURN_DEADLINE_NOT_PROVEN"),
+        ("pre_submit_deadline_guard", False, "PRE_SUBMIT_DEADLINE_GUARD_NOT_PROVEN"),
         (
             "deadline_bounded_post_write_cleanup",
+            False,
             "DEADLINE_BOUNDED_POST_WRITE_CLEANUP_NOT_PROVEN",
         ),
         (
             "post_write_fence_retained_until_next_prewrite",
+            False,
             "POST_WRITE_FENCE_RETENTION_NOT_PROVEN",
         ),
         (
             "mouse_release_outcome_ambiguity_fails_closed",
+            False,
             "MOUSE_RELEASE_AMBIGUITY_FAIL_CLOSED_NOT_PROVEN",
+        ),
+        (
+            "pre_submit_attachment_revalidation",
+            False,
+            "PRE_SUBMIT_ATTACHMENT_REVALIDATION_NOT_PROVEN",
+        ),
+        (
+            "rich_input_raw_cdp_input_submit_disabled",
+            False,
+            "RAW_CDP_INPUT_SUBMIT_NOT_DISABLED",
+        ),
+        (
+            "late_protected_submit_execution_prevented_by_page_deadline",
+            False,
+            "LATE_PROTECTED_SUBMIT_GUARD_NOT_PROVEN",
         ),
     ],
 )
-def test_support_validation_requires_recovery_and_persistent_cleanup_claims(field, error):
+def test_support_validation_requires_schema_5_safety_claims(field, value, error):
     support = _validated_support()
-    support[field] = False
+    support[field] = value
     with pytest.raises(RuntimeError, match=error):
         _validate_support(support)
 
@@ -205,9 +245,33 @@ def test_support_validation_requires_destructive_stale_cleanup_proof():
         _validate_support(support)
 
 
-def test_support_validation_rejects_pre_schema_4_overlay():
+def test_support_validation_requires_page_owned_attachment_count_evidence():
     support = _validated_support()
-    support["schema"] = 3
+    support["attachment_count_evidence"] = "REQUESTED_PATH_COUNT"
+    with pytest.raises(RuntimeError, match="PAGE_ATTACHMENT_COUNT_EVIDENCE_NOT_PROVEN"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["attachment_evidence_stable_poll_count"] = 1
+    with pytest.raises(RuntimeError, match="PAGE_ATTACHMENT_STABILITY_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_requires_page_guarded_submit_without_enter_fallback():
+    support = _validated_support()
+    support["protected_submit_primitive"] = "CDP_INPUT_MOUSE_RELEASE"
+    with pytest.raises(RuntimeError, match="PROTECTED_SUBMIT_PRIMITIVE_NOT_PROVEN"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["rich_input_enter_fallback_enabled"] = True
+    with pytest.raises(RuntimeError, match="RICH_INPUT_ENTER_FALLBACK_MUST_BE_DISABLED"):
+        _validate_support(support)
+
+
+def test_support_validation_rejects_pre_schema_5_overlay():
+    support = _validated_support()
+    support["schema"] = 4
     with pytest.raises(RuntimeError, match="RICH_INPUT_SUPPORT_NOT_PROVEN"):
         _validate_support(support)
 
