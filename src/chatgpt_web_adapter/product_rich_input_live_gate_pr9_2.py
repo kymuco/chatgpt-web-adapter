@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 from pathlib import Path
+import struct
 import tempfile
 from typing import Any, Iterable
 import uuid
+import zlib
 
 from .client import ChatGPTWebClient
 from .product_model_profile_pr8_10 import ProductModelProfileProvider
@@ -16,14 +17,23 @@ from .product_runtime import assemble_product_runtime
 SCHEMA = 1
 PRODUCT_WRITE_BUDGET = 3
 
-_IMAGE_REPLY = "SDK_PR9_2_IMAGE_NEW_CHAT_OK"
-_FILE_REPLY = "SDK_PR9_2_FILE_NEW_CHAT_OK"
-_CONTINUATION_REPLY = "SDK_PR9_2_MULTIMODAL_CONTINUATION_OK"
+_IMAGE_REPLY = "BLUE,RED,GREEN"
+_FILE_REPLY = "CWA_PR9_2_FILE_EVIDENCE_7Q4M9X"
+_CONTINUATION_REPLY = "CWA_PR9_2_CONTINUATION_EVIDENCE_K8N2VP"
 
-# Deterministic 1x1 PNG transport fixture. The fixture has no semantic role; it
-# exists only to exercise the product image-upload path.
-_PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z93sAAAAASUVORK5CYII="
+_IMAGE_PROMPT = (
+    "Inspect the attached PNG image. It contains three solid vertical color bands. "
+    "Reply with only the color names from left to right in uppercase, separated "
+    "by commas with no spaces."
+)
+_FILE_PROMPT = (
+    "Read the attached text file. Find the line beginning with EVIDENCE:. "
+    "Reply with only the text after EVIDENCE:, exactly as written."
+)
+_CONTINUATION_PROMPT = (
+    "Read the newly attached text file in this continuation. Find the line "
+    "beginning with EVIDENCE:. Reply with only the text after EVIDENCE:, exactly "
+    "as written."
 )
 
 
@@ -104,13 +114,15 @@ def _validate_execution(
     events: list[dict[str, Any]],
     expected_text: str,
     expected_attachment_count: int,
+    attachment_evidence_kind: str,
     expected_conversation_id: str | None = None,
 ) -> dict[str, Any]:
     response = execution.response
     actual_text = response.text.strip()
     if actual_text != expected_text:
         raise RuntimeError(
-            f"PR9_2_{label}:UNEXPECTED_RESPONSE expected={expected_text!r} actual={actual_text!r}"
+            f"PR9_2_{label}:ATTACHMENT_DEPENDENT_RESPONSE_MISMATCH "
+            f"expected={expected_text!r} actual={actual_text!r}"
         )
 
     write_events = _events_of_type(events, "browser_native_write_completed")
@@ -155,6 +167,8 @@ def _validate_execution(
         "message_id": message_id,
         "observed_model": provenance.identity.observed_model,
         "attachment_count": expected_attachment_count,
+        "attachment_dependent_evidence": True,
+        "attachment_evidence_kind": attachment_evidence_kind,
         "write_event_count": len(write_events),
         "readback_event_count": len(readback_events),
         "browser_authority_lease_id": write_events[0].get(
@@ -165,22 +179,52 @@ def _validate_execution(
     }
 
 
-def _write_fixtures(root: Path) -> tuple[Path, Path]:
-    image = root / "pr9_2_transport_fixture.png"
-    text_file = root / "pr9_2_transport_fixture.txt"
-    image.write_bytes(_PNG_1X1)
+def _png_chunk(chunk_type: bytes, payload: bytes) -> bytes:
+    checksum = zlib.crc32(chunk_type)
+    checksum = zlib.crc32(payload, checksum) & 0xFFFFFFFF
+    return (
+        struct.pack(">I", len(payload))
+        + chunk_type
+        + payload
+        + struct.pack(">I", checksum)
+    )
+
+
+def _build_color_band_png() -> bytes:
+    """Create a deterministic BLUE | RED | GREEN PNG without external deps."""
+
+    width = 96
+    height = 48
+    blue = bytes((0, 0, 255))
+    red = bytes((255, 0, 0))
+    green = bytes((0, 255, 0))
+    row = blue * 32 + red * 32 + green * 32
+    raw = b"".join(b"\x00" + row for _ in range(height))
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", ihdr)
+        + _png_chunk(b"IDAT", zlib.compress(raw, level=9))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def _write_fixtures(root: Path) -> tuple[Path, Path, Path]:
+    image = root / "pr9_2_attachment_evidence.png"
+    text_file = root / "pr9_2_file_evidence.txt"
+    continuation_file = root / "pr9_2_continuation_evidence.txt"
+    image.write_bytes(_build_color_band_png())
     text_file.write_text(
-        "PR9.2 deterministic general-file transport fixture.\n",
+        "PR9.2 general-file attachment evidence fixture.\n"
+        f"EVIDENCE: {_FILE_REPLY}\n",
         encoding="utf-8",
     )
-    return image, text_file
-
-
-def _prompt(expected: str, *, fixture_kind: str) -> str:
-    return (
-        f"Reply with exactly: {expected}\n"
-        f"The attached {fixture_kind} is only a transport fixture. Do not describe it."
+    continuation_file.write_text(
+        "PR9.2 continuation attachment evidence fixture.\n"
+        f"EVIDENCE: {_CONTINUATION_REPLY}\n",
+        encoding="utf-8",
     )
+    return image, text_file, continuation_file
 
 
 def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
@@ -208,12 +252,12 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
     }
 
     with tempfile.TemporaryDirectory(prefix="cwa-pr9-2-live-") as temp_dir:
-        image_path, file_path = _write_fixtures(Path(temp_dir))
+        image_path, file_path, continuation_path = _write_fixtures(Path(temp_dir))
 
         image_events: list[dict[str, Any]] = []
         report["write_attempts"] += 1
         image_execution = runtime.send_text_observed(
-            _prompt(_IMAGE_REPLY, fixture_kind="PNG image"),
+            _IMAGE_PROMPT,
             media=[image_path],
             timeout=timeout,
             conversation_mode="normal",
@@ -226,13 +270,14 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
             events=image_events,
             expected_text=_IMAGE_REPLY,
             expected_attachment_count=1,
+            attachment_evidence_kind="image_color_band_order",
         )
         report["turns"].append(image_turn)
 
         file_events: list[dict[str, Any]] = []
         report["write_attempts"] += 1
         file_execution = runtime.send_text_observed(
-            _prompt(_FILE_REPLY, fixture_kind="text file"),
+            _FILE_PROMPT,
             media=[file_path],
             timeout=timeout,
             conversation_mode="normal",
@@ -245,6 +290,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
             events=file_events,
             expected_text=_FILE_REPLY,
             expected_attachment_count=1,
+            attachment_evidence_kind="general_file_hidden_marker",
         )
         report["turns"].append(file_turn)
 
@@ -252,9 +298,9 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         continuation_id = image_execution.response.conversation.conversation_id
         report["write_attempts"] += 1
         continuation_execution = runtime.send_text_observed(
-            _prompt(_CONTINUATION_REPLY, fixture_kind="text file"),
+            _CONTINUATION_PROMPT,
             conversation=image_execution.response.conversation,
-            media=[file_path],
+            media=[continuation_path],
             timeout=timeout,
             conversation_mode="normal",
             on_event=continuation_events.append,
@@ -266,6 +312,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
             events=continuation_events,
             expected_text=_CONTINUATION_REPLY,
             expected_attachment_count=1,
+            attachment_evidence_kind="continuation_file_hidden_marker",
             expected_conversation_id=continuation_id,
         )
         report["turns"].append(continuation_turn)
@@ -280,6 +327,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "image_new_chat_proven": True,
         "general_file_new_chat_proven": True,
         "multimodal_continuation_proven": True,
+        "attachment_dependent_response_after_every_write": True,
         "canonical_finality_after_every_write": True,
         "exact_attachment_count_after_every_write": True,
         "native_messaging_attachment_bytes": False,
