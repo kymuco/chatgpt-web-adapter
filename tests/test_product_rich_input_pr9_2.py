@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+import chatgpt_web_adapter.product_media as product_media
 from chatgpt_web_adapter.browser_native_client import send_browser_native
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeTurnProvider
 from chatgpt_web_adapter.product_media import (
@@ -134,6 +136,30 @@ class _LegacyBrowserNativeClient:
         )
 
 
+class _FakeUrlHeaders:
+    def get_content_type(self):
+        return "text/plain"
+
+
+class _FakeUrlResponse:
+    def __init__(self, payload: bytes, url: str) -> None:
+        self._payload = payload
+        self._url = url
+        self.headers = _FakeUrlHeaders()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self):
+        return self._payload
+
+    def geturl(self):
+        return self._url
+
+
 def test_browser_owned_media_scope_preserves_filename_contract_and_cleanup(tmp_path):
     existing = tmp_path / "notes.txt"
     existing.write_text("hello", encoding="utf-8")
@@ -165,6 +191,38 @@ def test_browser_owned_media_scope_infers_unnamed_png_suffix():
     png = b"\x89PNG\r\n\x1a\nfixture"
     with browser_owned_media_scope([png]) as materialization:
         assert Path(materialization.paths[0]).suffix == ".png"
+
+
+def test_browser_owned_media_scope_preserves_data_uri_source():
+    payload = b"data-uri-body"
+    encoded = base64.b64encode(payload).decode("ascii")
+    source = f"data:text/plain;base64,{encoded}"
+
+    with browser_owned_media_scope([(source, "evidence.txt")]) as materialization:
+        generated = Path(materialization.paths[0])
+        assert generated.name == "evidence.txt"
+        assert generated.read_bytes() == payload
+        assert materialization.materialized_byte_inputs == 1
+    assert not generated.exists()
+
+
+def test_browser_owned_media_scope_preserves_http_url_source(monkeypatch):
+    payload = b"remote-file-body"
+    source = "https://example.test/files/report.txt"
+    calls = []
+
+    def fake_urlopen(request, *, timeout):
+        calls.append((request.full_url, timeout))
+        return _FakeUrlResponse(payload, source)
+
+    monkeypatch.setattr(product_media, "urlopen", fake_urlopen)
+    with browser_owned_media_scope([source]) as materialization:
+        generated = Path(materialization.paths[0])
+        assert generated.name == "report.txt"
+        assert generated.read_bytes() == payload
+        assert materialization.materialized_byte_inputs == 1
+    assert calls == [(source, product_media._REMOTE_FETCH_TIMEOUT_SECONDS)]
+    assert not generated.exists()
 
 
 def test_browser_owned_media_scope_rejects_filename_paths():
@@ -329,7 +387,7 @@ def test_packaged_extension_layers_pr9_2_above_preserved_entrypoint():
     assert "_pr92RichInputPriorExecuteNativeTurn(message)" in overlay
 
 
-def test_pr9_2_stages_only_after_stale_ui_recovery_and_fences_failure_cleanup():
+def test_pr9_2_stages_only_after_stale_ui_recovery_and_persists_failure_fence():
     extension = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -340,12 +398,23 @@ def test_pr9_2_stages_only_after_stale_ui_recovery_and_fences_failure_cleanup():
 
     recovery = "const recovery = await _pr92PriorMaybeRecoverStaleRuntimeUi(message);"
     staging = "const count = await _pr92StageOfficialPageAttachments("
+    persist = "await _pr92PersistDirtyAttachmentFence(tabId);"
+    file_selection = 'await chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles"'
     assert recovery in overlay
     assert staging in overlay
     assert overlay.index(recovery) < overlay.index(staging)
+    assert persist in overlay
+    assert file_selection in overlay
+    assert overlay.index(persist) < overlay.index(file_selection)
+
+    assert "PR92_DIRTY_ATTACHMENT_STORAGE_KEY" in overlay
+    assert "chrome.storage.local.set" in overlay
+    assert "chrome.storage.local.get" in overlay
+    assert "chrome.storage.local.remove" in overlay
     assert "_pr92ClearOfficialPageAttachments" in overlay
-    assert "_pr92DirtyAttachmentTabId" in overlay
     assert "PR9_2_STALE_ATTACHMENT_CLEANUP_REQUIRED" in overlay
+    assert "PR9_2_STALE_ATTACHMENT_FENCE_READ_FAILED" in overlay
     assert "PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN" in overlay
     assert "recoveryBeforeAttachmentStaging: true" in overlay
     assert "staleAttachmentFailureFence: true" in overlay
+    assert "staleAttachmentFencePersistentAcrossWorkerRestart: true" in overlay
