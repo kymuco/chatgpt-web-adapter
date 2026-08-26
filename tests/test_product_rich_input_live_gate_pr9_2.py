@@ -37,9 +37,30 @@ def _support_response(request_id: str) -> dict:
         "nativeMessagingCarriesAttachmentBytes": False,
         "officialPageOwnsUpload": True,
         "officialPageOwnsProtectedWrite": True,
+        "recoveryBeforeAttachmentStaging": True,
+        "staleAttachmentFailureFence": True,
+        "staleAttachmentFencePersistentAcrossWorkerRestart": True,
         "automaticWriteRetry": False,
         "fallbackTransport": None,
         "writePerformed": False,
+    }
+
+
+def _validated_support() -> dict:
+    return {
+        "supported": True,
+        "schema": 1,
+        "staging_primitive": "DOM.setFileInputFiles",
+        "max_attachment_count": 32,
+        "native_messaging_carries_attachment_bytes": False,
+        "official_page_owns_upload": True,
+        "official_page_owns_protected_write": True,
+        "recovery_before_attachment_staging": True,
+        "stale_attachment_failure_fence": True,
+        "stale_attachment_fence_persistent_across_worker_restart": True,
+        "automatic_write_retry": False,
+        "fallback_transport": None,
+        "write_performed": False,
     }
 
 
@@ -95,24 +116,35 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     _validate_support(support)
 
     assert len(calls) == 1
+    assert support["recovery_before_attachment_staging"] is True
+    assert support["stale_attachment_failure_fence"] is True
+    assert support["stale_attachment_fence_persistent_across_worker_restart"] is True
     assert support["write_performed"] is False
     assert support["automatic_write_retry"] is False
     assert support["fallback_transport"] is None
 
 
+@pytest.mark.parametrize(
+    ("field", "error"),
+    [
+        ("recovery_before_attachment_staging", "RECOVERY_BEFORE_STAGING_NOT_PROVEN"),
+        ("stale_attachment_failure_fence", "STALE_ATTACHMENT_FAILURE_FENCE_NOT_PROVEN"),
+        (
+            "stale_attachment_fence_persistent_across_worker_restart",
+            "PERSISTENT_STALE_ATTACHMENT_FENCE_NOT_PROVEN",
+        ),
+    ],
+)
+def test_support_validation_requires_recovery_and_persistent_cleanup_claims(field, error):
+    support = _validated_support()
+    support[field] = False
+    with pytest.raises(RuntimeError, match=error):
+        _validate_support(support)
+
+
 def test_support_validation_fails_if_probe_claims_a_write():
-    support = {
-        "supported": True,
-        "schema": 1,
-        "staging_primitive": "DOM.setFileInputFiles",
-        "max_attachment_count": 32,
-        "native_messaging_carries_attachment_bytes": False,
-        "official_page_owns_upload": True,
-        "official_page_owns_protected_write": True,
-        "automatic_write_retry": False,
-        "fallback_transport": None,
-        "write_performed": True,
-    }
+    support = _validated_support()
+    support["write_performed"] = True
     with pytest.raises(RuntimeError, match="SUPPORT_PROBE_MUST_BE_NO_WRITE"):
         _validate_support(support)
 
