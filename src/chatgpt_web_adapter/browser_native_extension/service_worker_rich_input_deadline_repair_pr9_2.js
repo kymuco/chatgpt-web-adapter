@@ -7,11 +7,12 @@
 
 const _pr92DeadlineRepairPriorClickSendButton = clickSendButton;
 const _pr92DeadlineRepairPriorSubmitWithEnter = submitWithEnter;
+const _pr92DeadlineRepairPriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 const _pr92DeadlineRepairPriorTryClearDirtyAttachmentFence = (
   _pr92TryClearDirtyAttachmentFence
 );
 const _pr92DeadlineRepairPriorExecuteNativeTurn = executeNativeTurn;
-const PR92_DEADLINE_REPAIR_SCHEMA = 3;
+const PR92_DEADLINE_REPAIR_SCHEMA = 4;
 
 function _pr92DeadlineRepairTimeoutError(stage) {
   return new Error(`PR9_2_TOTAL_TURN_TIMEOUT:${stage}`);
@@ -151,6 +152,103 @@ submitWithEnter = async function _pr92SubmitWithEnterWithinDeadline(debuggee) {
   } catch {}
 };
 
+// The historical submit helper treats any mouse-click failure as permission to
+// fall back to Enter. That is safe only before the mouse release is attempted.
+// Once mouseReleased has been delegated, an ACK loss/timeout can coexist with a
+// real conversation write. Never issue a second submit in that state.
+submitOfficialPageTurn = async function _pr92SubmitOfficialPageTurnWithoutPostBoundaryRetry(
+  debuggee,
+  timeoutMs
+) {
+  const context = _pr92DeadlineRepairRichContext();
+  if (context === null) {
+    return _pr92DeadlineRepairPriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+  }
+
+  let point = null;
+  try {
+    const readyBudget = Math.min(
+      _pr92DeadlineRepairRemainingMs(context.deadlineAt, "SUBMIT_BUTTON_READY"),
+      Number.isFinite(timeoutMs) ? Math.max(1, Number(timeoutMs)) : DEFAULT_SUBMIT_READY_TIMEOUT_MS,
+      DEFAULT_SUBMIT_READY_TIMEOUT_MS
+    );
+    point = await _pr92DeadlineRepairRunUntil(
+      context.deadlineAt,
+      "SUBMIT_BUTTON_READY",
+      () => waitForSendButtonPoint(debuggee, readyBudget)
+    );
+  } catch {
+    // No mouse protected-write boundary has been attempted, so the historical
+    // Enter fallback remains valid. Its focus and keyDown are still outer-deadline bounded.
+    await _pr92DeadlineRepairRunUntil(
+      context.deadlineAt,
+      "ENTER_FALLBACK_FOCUS",
+      () => locateAndFocusComposer(debuggee)
+    );
+    await submitWithEnter(debuggee);
+    return { strategy: "enter_fallback", selector: null };
+  }
+
+  const x = Number(point?.x);
+  const y = Number(point?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error("CHATGPT_SEND_BUTTON_POINT_INVALID");
+  }
+
+  let mouseReleaseAttempted = false;
+  try {
+    await _pr92DeadlineRepairRunUntil(
+      context.deadlineAt,
+      "PRE_SUBMIT_MOUSE_MOVE",
+      () => chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none"
+      })
+    );
+    await _pr92DeadlineRepairRunUntil(
+      context.deadlineAt,
+      "PRE_SUBMIT_MOUSE_PRESS",
+      () => chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x,
+        y,
+        button: "left",
+        clickCount: 1
+      })
+    );
+    mouseReleaseAttempted = true;
+    await _pr92DeadlineRepairRunUntil(
+      context.deadlineAt,
+      "PRE_SUBMIT_MOUSE_RELEASE",
+      () => chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x,
+        y,
+        button: "left",
+        clickCount: 1
+      })
+    );
+    return { strategy: "send_button_click", selector: point.selector };
+  } catch (error) {
+    if (mouseReleaseAttempted) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`PR9_2_MOUSE_RELEASE_OUTCOME_UNCONFIRMED:${detail}`);
+    }
+
+    // Mouse release was never attempted, so no click-based write boundary exists.
+    // Enter remains a single allowed submit path, still bounded by the same deadline.
+    await _pr92DeadlineRepairRunUntil(
+      context.deadlineAt,
+      "ENTER_FALLBACK_FOCUS",
+      () => locateAndFocusComposer(debuggee)
+    );
+    await submitWithEnter(debuggee);
+    return { strategy: "enter_fallback", selector: null };
+  }
+};
+
 async function _pr92DeadlineRepairProveTabAbsent(tabId, deadlineAt) {
   try {
     await _pr92DeadlineRepairRunUntil(
@@ -255,6 +353,8 @@ executeNativeTurn = async function _executeNativeTurnWithPr92DeadlineRepair(mess
     deadlineBoundedPostWriteCleanup: true,
     postWriteFenceRetainedUntilNextPrewrite: true,
     enterKeyReleaseAffectsSubmittedOutcome: false,
+    mouseToEnterFallbackAfterReleaseAttempt: false,
+    mouseReleaseOutcomeAmbiguityFailsClosed: true,
     staleAttachmentCleanupProof: "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
   };
 };
