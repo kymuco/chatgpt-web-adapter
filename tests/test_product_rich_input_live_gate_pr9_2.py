@@ -14,6 +14,12 @@ from chatgpt_web_adapter.product_provenance import (
 from chatgpt_web_adapter.product_rich_input_live_gate_pr9_2 import (
     PRODUCT_WRITE_BUDGET,
     ProductRichInputLiveProvider,
+    _CONTINUATION_PROMPT,
+    _CONTINUATION_REPLY,
+    _FILE_PROMPT,
+    _FILE_REPLY,
+    _IMAGE_PROMPT,
+    _IMAGE_REPLY,
     _validate_execution,
     _validate_support,
     _write_fixtures,
@@ -130,11 +136,14 @@ def test_execution_validation_requires_exact_attachment_events_and_canonical_fin
         events=events,
         expected_text=expected,
         expected_attachment_count=1,
+        attachment_evidence_kind="test_fixture_marker",
         expected_conversation_id="conversation-1",
     )
     assert result["canonical_completion_proven"] is True
     assert result["completion_source"] == "CANONICAL_READBACK"
     assert result["attachment_count"] == 1
+    assert result["attachment_dependent_evidence"] is True
+    assert result["attachment_evidence_kind"] == "test_fixture_marker"
 
     events[0]["attachment_count"] = 0
     with pytest.raises(RuntimeError, match="WRITE_ATTACHMENT_COUNT_MISMATCH"):
@@ -144,13 +153,45 @@ def test_execution_validation_requires_exact_attachment_events_and_canonical_fin
             events=events,
             expected_text=expected,
             expected_attachment_count=1,
+            attachment_evidence_kind="test_fixture_marker",
         )
 
 
-def test_live_gate_has_exact_three_write_budget_and_deterministic_fixtures(tmp_path):
+def test_execution_validation_rejects_wrong_attachment_dependent_response():
+    events = [
+        {"type": "browser_native_write_completed", "attachment_count": 1},
+        {"type": "browser_native_readback_completed", "attachment_count": 1},
+    ]
+    with pytest.raises(RuntimeError, match="ATTACHMENT_DEPENDENT_RESPONSE_MISMATCH"):
+        _validate_execution(
+            label="TEST",
+            execution=_execution("WRONG"),
+            events=events,
+            expected_text="EXPECTED_FROM_ATTACHMENT",
+            expected_attachment_count=1,
+            attachment_evidence_kind="test_fixture_marker",
+        )
+
+
+def test_live_gate_prompts_do_not_disclose_expected_attachment_evidence():
+    assert _IMAGE_REPLY not in _IMAGE_PROMPT
+    assert _FILE_REPLY not in _FILE_PROMPT
+    assert _CONTINUATION_REPLY not in _CONTINUATION_PROMPT
+    assert "attached PNG image" in _IMAGE_PROMPT
+    assert "attached text file" in _FILE_PROMPT
+    assert "newly attached text file" in _CONTINUATION_PROMPT
+
+
+def test_live_gate_has_exact_three_write_budget_and_attachment_dependent_fixtures(tmp_path):
     assert PRODUCT_WRITE_BUDGET == 3
-    image, text_file = _write_fixtures(Path(tmp_path))
-    assert image.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-    assert "deterministic general-file transport fixture" in text_file.read_text(
-        encoding="utf-8"
-    )
+    image, text_file, continuation_file = _write_fixtures(Path(tmp_path))
+
+    image_bytes = image.read_bytes()
+    assert image_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    assert len(image_bytes) > 50
+
+    file_text = text_file.read_text(encoding="utf-8")
+    continuation_text = continuation_file.read_text(encoding="utf-8")
+    assert f"EVIDENCE: {_FILE_REPLY}" in file_text
+    assert f"EVIDENCE: {_CONTINUATION_REPLY}" in continuation_text
+    assert _FILE_REPLY != _CONTINUATION_REPLY
