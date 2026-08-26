@@ -23,7 +23,7 @@ def test_deadline_repair_overlay_is_loaded_after_primary_rich_input_overlay():
 
 def test_deadline_repair_guards_submit_and_requires_destructive_stale_cleanup_proof():
     text = REPAIR.read_text(encoding="utf-8")
-    assert "const PR92_DEADLINE_REPAIR_SCHEMA = 3;" in text
+    assert "const PR92_DEADLINE_REPAIR_SCHEMA = 4;" in text
     assert "PRE_SUBMIT_MOUSE_PRESS" in text
     assert "PRE_SUBMIT_MOUSE_RELEASE" in text
     assert "PRE_SUBMIT_ENTER_KEY_DOWN" in text
@@ -31,6 +31,13 @@ def test_deadline_repair_guards_submit_and_requires_destructive_stale_cleanup_pr
     assert 'type: "keyUp"' in text
     assert ".catch(() => {})" in text
     assert "enterKeyReleaseAffectsSubmittedOutcome: false" in text
+    assert "mouseToEnterFallbackAfterReleaseAttempt: false" in text
+    assert "mouseReleaseOutcomeAmbiguityFailsClosed: true" in text
+    assert "PR9_2_MOUSE_RELEASE_OUTCOME_UNCONFIRMED" in text
+    assert "let mouseReleaseAttempted = false;" in text
+    assert "mouseReleaseAttempted = true;" in text
+    assert "if (mouseReleaseAttempted)" in text
+    assert "_pr92SubmitOfficialPageTurnWithoutPostBoundaryRetry" in text
     assert "CLEANUP_RUNTIME_TAB_LOOKUP" in text
     assert "CLEANUP_RUNTIME_TAB_CLOSE" in text
     assert "CLEANUP_RUNTIME_TAB_ABSENCE_CONFIRM" in text
