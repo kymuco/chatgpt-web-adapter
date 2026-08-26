@@ -11,7 +11,7 @@ const _pr92DeadlineRepairPriorTryClearDirtyAttachmentFence = (
   _pr92TryClearDirtyAttachmentFence
 );
 const _pr92DeadlineRepairPriorExecuteNativeTurn = executeNativeTurn;
-const PR92_DEADLINE_REPAIR_SCHEMA = 2;
+const PR92_DEADLINE_REPAIR_SCHEMA = 3;
 
 function _pr92DeadlineRepairTimeoutError(stage) {
   return new Error(`PR9_2_TOTAL_TURN_TIMEOUT:${stage}`);
