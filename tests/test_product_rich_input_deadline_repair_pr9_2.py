@@ -23,6 +23,7 @@ def test_deadline_repair_overlay_is_loaded_after_primary_rich_input_overlay():
 
 def test_deadline_repair_guards_submit_and_requires_destructive_stale_cleanup_proof():
     text = REPAIR.read_text(encoding="utf-8")
+    assert "const PR92_DEADLINE_REPAIR_SCHEMA = 3;" in text
     assert "PRE_SUBMIT_MOUSE_PRESS" in text
     assert "PRE_SUBMIT_MOUSE_RELEASE" in text
     assert "PRE_SUBMIT_ENTER_KEY_DOWN" in text
