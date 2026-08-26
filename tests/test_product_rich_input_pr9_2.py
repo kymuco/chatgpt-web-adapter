@@ -10,6 +10,8 @@ import pytest
 import chatgpt_web_adapter.product_media as product_media
 from chatgpt_web_adapter.browser_native_client import send_browser_native
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeTurnProvider
+from chatgpt_web_adapter.browser_owned_product_transport import BrowserOwnedProductTransport
+from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.product_media import (
     browser_owned_media_scope,
     current_browser_owned_attachment_paths,
@@ -17,6 +19,7 @@ from chatgpt_web_adapter.product_media import (
 from chatgpt_web_adapter.product_runtime import (
     ChatGPTProductRuntime,
     ProductRichInputUnavailableError,
+    _rich_input_scope,
 )
 from chatgpt_web_adapter.product_transport import (
     BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
@@ -87,6 +90,29 @@ class _LegacyTurnProvider:
         return SimpleNamespace(
             conversation_id="conversation-legacy",
             turn_exchange_id="exchange-legacy",
+            response_status=200,
+            elapsed_ms=1,
+            runtime_reloaded=False,
+            runtime_reload_ms=None,
+            tab_id=7,
+            runtime_tab_preexisting=True,
+            runtime_tab_created_for_turn=False,
+            tab_was_active=False,
+            tab_active_after=False,
+            tab_activated_during_turn=False,
+            foreground_activation_observed=False,
+        )
+
+
+class _IgnoringRichTurnProvider:
+    def __init__(self) -> None:
+        self.attachment_paths = None
+
+    def send_text(self, text, *, conversation=None, timeout=None, attachment_paths=None):
+        self.attachment_paths = tuple(attachment_paths or ())
+        return SimpleNamespace(
+            conversation_id="conversation-ignored-rich",
+            turn_exchange_id="exchange-ignored-rich",
             response_status=200,
             elapsed_ms=1,
             runtime_reloaded=False,
@@ -240,7 +266,18 @@ def test_browser_owned_media_scope_rejects_nested_authority(tmp_path):
                 pass
 
 
-def test_product_runtime_binds_media_only_during_browser_owned_normal_turn(tmp_path):
+def test_known_browser_owned_transport_can_bind_pr9_2_media_scope(tmp_path):
+    media = tmp_path / "input.txt"
+    media.write_text("payload", encoding="utf-8")
+    transport = object.__new__(BrowserOwnedProductTransport)
+
+    assert current_browser_owned_attachment_paths() is None
+    with _rich_input_scope(transport, media=[media], conversation_mode="normal"):
+        assert current_browser_owned_attachment_paths() == (str(media.resolve()),)
+    assert current_browser_owned_attachment_paths() is None
+
+
+def test_injected_browser_owned_transport_cannot_silently_drop_media(tmp_path):
     media = tmp_path / "input.txt"
     media.write_text("payload", encoding="utf-8")
     transport = _ScopeAwareWriteTransport(BROWSER_OWNED_PRODUCT_TRANSPORT)
@@ -250,10 +287,11 @@ def test_product_runtime_binds_media_only_during_browser_owned_normal_turn(tmp_p
         write_transport=transport,
     )
 
-    assert runtime.send_text("describe", media=[media]) == "sent"
-    assert transport.send_calls == 1
-    assert transport.paths_seen == (str(media.resolve()),)
-    assert current_browser_owned_attachment_paths() is None
+    with pytest.raises(ProductRichInputUnavailableError) as caught:
+        runtime.send_text("describe", media=[media])
+    assert caught.value.to_dict()["write_may_have_been_submitted"] is False
+    assert transport.send_calls == 0
+    assert transport.paths_seen is None
 
 
 def test_product_runtime_browserless_media_fails_before_transport_dispatch(tmp_path):
@@ -357,6 +395,22 @@ def test_browser_native_provider_rejects_missing_attachment_before_rpc(tmp_path)
     assert provider.payload is None
 
 
+def test_browser_native_client_rejects_provider_that_ignores_rich_input(tmp_path):
+    source = tmp_path / "must-be-confirmed.txt"
+    source.write_text("evidence", encoding="utf-8")
+    client = _LegacyBrowserNativeClient()
+    provider = _IgnoringRichTurnProvider()
+    client._browser_native_turn_provider = provider
+
+    with pytest.raises(
+        RequestError,
+        match="BROWSER_NATIVE_RICH_INPUT_ATTACHMENT_CONFIRMATION_MISMATCH",
+    ) as caught:
+        send_browser_native(client, "inspect", attachment_paths=[source])
+    assert caught.value.request_stage == "browser_native_turn_postwrite"
+    assert provider.attachment_paths == (str(source),)
+
+
 def test_text_only_legacy_provider_result_need_not_expose_attachment_count():
     response = send_browser_native(_LegacyBrowserNativeClient(), "hello")
     assert response.text == "legacy-ok"
@@ -418,3 +472,24 @@ def test_pr9_2_stages_only_after_stale_ui_recovery_and_persists_failure_fence():
     assert "recoveryBeforeAttachmentStaging: true" in overlay
     assert "staleAttachmentFailureFence: true" in overlay
     assert "staleAttachmentFencePersistentAcrossWorkerRestart: true" in overlay
+
+
+def test_pr9_2_rich_turn_uses_one_total_deadline_across_all_browser_phases():
+    extension = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "chatgpt_web_adapter"
+        / "browser_native_extension"
+    )
+    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(encoding="utf-8")
+
+    assert "_pr92CreateTurnContext" in overlay
+    assert "deadlineAt: startedAt + timeoutMs" in overlay
+    assert "_pr92RemainingTurnMs" in overlay
+    assert "_pr92WaitForTabCompleteWithinTurn" in overlay
+    assert "_pr92ReloadRuntimeTabWithinTurn" in overlay
+    assert "_pr92ExecuteOfficialPageTurnWithinTurn" in overlay
+    assert 'message.timeoutMs = _pr92RemainingTurnMs(context, "PRE_DISPATCH")' in overlay
+    assert "_pr92RemainingTurnMsOrZero(context)" in overlay
+    assert "singleTotalTurnDeadline: PR92_TOTAL_DEADLINE_HOOKS_AVAILABLE" in overlay
+    assert "Math.max(1000, Math.min(timeoutMs, 10_000))" not in overlay

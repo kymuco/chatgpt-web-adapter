@@ -355,8 +355,26 @@ def send_browser_native(
             **attachment_kwargs,
         )
 
-    attachment_count = getattr(turn, "attachment_count", 0)
-    if not isinstance(attachment_count, int) or isinstance(attachment_count, bool) or attachment_count < 0:
+    raw_attachment_count = getattr(turn, "attachment_count", None)
+    if normalized_attachment_paths:
+        expected_attachment_count = len(normalized_attachment_paths)
+        if (
+            not isinstance(raw_attachment_count, int)
+            or isinstance(raw_attachment_count, bool)
+            or raw_attachment_count != expected_attachment_count
+        ):
+            raise RequestError(
+                "BROWSER_NATIVE_RICH_INPUT_ATTACHMENT_CONFIRMATION_MISMATCH",
+                request_stage="browser_native_turn_postwrite",
+            )
+        attachment_count = raw_attachment_count
+    elif (
+        isinstance(raw_attachment_count, int)
+        and not isinstance(raw_attachment_count, bool)
+        and raw_attachment_count >= 0
+    ):
+        attachment_count = raw_attachment_count
+    else:
         attachment_count = 0
 
     self._emit_event(

@@ -40,6 +40,7 @@ def _support_response(request_id: str) -> dict:
         "recoveryBeforeAttachmentStaging": True,
         "staleAttachmentFailureFence": True,
         "staleAttachmentFencePersistentAcrossWorkerRestart": True,
+        "singleTotalTurnDeadline": True,
         "automaticWriteRetry": False,
         "fallbackTransport": None,
         "writePerformed": False,
@@ -58,6 +59,7 @@ def _validated_support() -> dict:
         "recovery_before_attachment_staging": True,
         "stale_attachment_failure_fence": True,
         "stale_attachment_fence_persistent_across_worker_restart": True,
+        "single_total_turn_deadline": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
         "write_performed": False,
@@ -119,6 +121,7 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     assert support["recovery_before_attachment_staging"] is True
     assert support["stale_attachment_failure_fence"] is True
     assert support["stale_attachment_fence_persistent_across_worker_restart"] is True
+    assert support["single_total_turn_deadline"] is True
     assert support["write_performed"] is False
     assert support["automatic_write_retry"] is False
     assert support["fallback_transport"] is None
@@ -133,6 +136,7 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
             "stale_attachment_fence_persistent_across_worker_restart",
             "PERSISTENT_STALE_ATTACHMENT_FENCE_NOT_PROVEN",
         ),
+        ("single_total_turn_deadline", "SINGLE_TOTAL_TURN_DEADLINE_NOT_PROVEN"),
     ],
 )
 def test_support_validation_requires_recovery_and_persistent_cleanup_claims(field, error):

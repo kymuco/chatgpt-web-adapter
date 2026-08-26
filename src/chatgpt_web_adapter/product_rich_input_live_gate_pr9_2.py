@@ -80,6 +80,7 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "stale_attachment_fence_persistent_across_worker_restart": response.get(
                 "staleAttachmentFencePersistentAcrossWorkerRestart"
             ),
+            "single_total_turn_deadline": response.get("singleTotalTurnDeadline"),
             "automatic_write_retry": response.get("automaticWriteRetry"),
             "fallback_transport": response.get("fallbackTransport"),
             "write_performed": response.get("writePerformed"),
@@ -106,6 +107,8 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_STALE_ATTACHMENT_FAILURE_FENCE_NOT_PROVEN")
     if support.get("stale_attachment_fence_persistent_across_worker_restart") is not True:
         raise RuntimeError("PR9_2_PERSISTENT_STALE_ATTACHMENT_FENCE_NOT_PROVEN")
+    if support.get("single_total_turn_deadline") is not True:
+        raise RuntimeError("PR9_2_SINGLE_TOTAL_TURN_DEADLINE_NOT_PROVEN")
     if support.get("automatic_write_retry") is not False:
         raise RuntimeError("PR9_2_AUTOMATIC_WRITE_RETRY_MUST_BE_FALSE")
     if support.get("fallback_transport") is not None:
@@ -348,6 +351,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "recovery_before_attachment_staging": True,
         "stale_attachment_failure_fence": True,
         "stale_attachment_fence_persistent_across_worker_restart": True,
+        "single_total_turn_deadline": True,
         "native_messaging_attachment_bytes": False,
         "official_page_owned_upload_and_write": True,
         "automatic_write_retry": False,

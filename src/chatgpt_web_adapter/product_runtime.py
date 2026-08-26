@@ -163,6 +163,23 @@ def _conversation_mode_override_kwargs(
     return mode, {"conversation_mode": _TEMPORARY_CONVERSATION_MODE}
 
 
+def _known_browser_owned_rich_input_transport(write_transport: ProductWriteTransport) -> bool:
+    """Return whether the selected writer is the proven PR9.2 implementation.
+
+    ProductWriteTransport intentionally remains a text-oriented protocol. A custom
+    transport may reuse the ``browser-owned`` identity without consuming the
+    execution-local media scope, so transport identity alone is not rich-input
+    authority. Until the generic protocol grows an explicit media capability, only
+    the concrete BrowserOwnedProductTransport implementation may opt into PR9.2.
+    """
+
+    if write_transport.transport_id.strip().lower() != BROWSER_OWNED_PRODUCT_TRANSPORT:
+        return False
+    from .browser_owned_product_transport import BrowserOwnedProductTransport
+
+    return isinstance(write_transport, BrowserOwnedProductTransport)
+
+
 def _rich_input_scope(
     write_transport: ProductWriteTransport,
     *,
@@ -171,18 +188,22 @@ def _rich_input_scope(
 ):
     """Resolve PR9.2 media without widening the transport protocol.
 
-    Browser-owned normal turns are the only graduated implementation target in
-    this milestone. Browserless and Temporary rich input fail before transport
-    dispatch; no fallback to text-only or another transport is permitted. An
-    empty media sequence is ordinary text-only input, matching the historical
-    client contract for dynamically assembled attachment lists.
+    Browser-owned normal turns through the known BrowserOwnedProductTransport are
+    the only implementation target in this milestone. Browserless, Temporary, and
+    injected/custom writers fail before transport dispatch; no fallback to
+    text-only or another transport is permitted. An empty media sequence is
+    ordinary text-only input, matching the historical client contract for
+    dynamically assembled attachment lists.
     """
 
     if media is None or len(media) == 0:
         return nullcontext()
     mode = _normalize_conversation_mode(conversation_mode)
     transport_id = write_transport.transport_id.strip().lower()
-    if transport_id != BROWSER_OWNED_PRODUCT_TRANSPORT or mode != _NORMAL_CONVERSATION_MODE:
+    if (
+        mode != _NORMAL_CONVERSATION_MODE
+        or not _known_browser_owned_rich_input_transport(write_transport)
+    ):
         raise ProductRichInputUnavailableError(
             transport=transport_id,
             conversation_mode=mode,
@@ -613,7 +634,9 @@ class ChatGPTProductRuntime:
             transport_governance.get("temporary_chat_product_runtime_selection_supported")
             is True
         )
-        rich_input_browser_owned = self.transport == BROWSER_OWNED_PRODUCT_TRANSPORT
+        rich_input_browser_owned = _known_browser_owned_rich_input_transport(
+            self.write_transport
+        )
         transport_governance.update(
             {
                 "transport": self.transport,
