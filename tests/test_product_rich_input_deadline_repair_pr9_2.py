@@ -21,17 +21,24 @@ def test_deadline_repair_overlay_is_loaded_after_primary_rich_input_overlay():
     assert text.index(primary) < text.index(repair)
 
 
-def test_deadline_repair_guards_exact_submit_events_and_bounded_cleanup():
+def test_deadline_repair_guards_submit_and_requires_destructive_stale_cleanup_proof():
     text = REPAIR.read_text(encoding="utf-8")
     assert "PRE_SUBMIT_MOUSE_PRESS" in text
     assert "PRE_SUBMIT_MOUSE_RELEASE" in text
     assert "PRE_SUBMIT_ENTER_KEY_DOWN" in text
-    assert "_pr92DeadlineRepairRunUntil" in text
-    assert "CLEANUP_DEBUGGER_ATTACH" in text
-    assert "CLEANUP_RUNTIME_ENABLE" in text
-    assert "CLEANUP_DOM_ENABLE" in text
-    assert "CLEANUP_FILE_INPUT_LOOKUP" in text
-    assert "CLEANUP_FILE_SELECTION_CLEAR" in text
+    assert "POST_SUBMIT_ENTER_KEY_UP" not in text
+    assert 'type: "keyUp"' in text
+    assert ".catch(() => {})" in text
+    assert "enterKeyReleaseAffectsSubmittedOutcome: false" in text
+    assert "CLEANUP_RUNTIME_TAB_LOOKUP" in text
+    assert "CLEANUP_RUNTIME_TAB_CLOSE" in text
+    assert "CLEANUP_RUNTIME_TAB_ABSENCE_CONFIRM" in text
+    assert "chrome.tabs.remove(tabId)" in text
+    assert "DOM.setFileInputFiles" not in text
+    assert (
+        'staleAttachmentCleanupProof: "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"'
+        in text
+    )
     assert "postWriteFenceRetainedUntilNextPrewrite: true" in text
     assert "preSubmitDeadlineGuard: true" in text
     assert "deadlineBoundedPostWriteCleanup: true" in text
