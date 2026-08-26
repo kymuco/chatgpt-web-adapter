@@ -16,6 +16,7 @@ const _pr92PriorMaybeRecoverStaleRuntimeUi = (
 );
 const PR92_RICH_INPUT_SCHEMA = 1;
 const PR92_MAX_ATTACHMENT_COUNT = 32;
+const PR92_DIRTY_ATTACHMENT_STORAGE_KEY = "pr92DirtyAttachmentFenceV1";
 
 let _pr92ActiveRichInputContext = null;
 let _pr92DirtyAttachmentTabId = null;
@@ -38,6 +39,50 @@ function _pr92TurnTimeoutMs(message) {
   return Number.isFinite(message?.timeoutMs)
     ? Math.max(10_000, Math.min(Number(message.timeoutMs), 300_000))
     : DEFAULT_TIMEOUT_MS;
+}
+
+async function _pr92ReadDirtyAttachmentFence() {
+  try {
+    const stored = await chrome.storage.local.get(PR92_DIRTY_ATTACHMENT_STORAGE_KEY);
+    const record = stored?.[PR92_DIRTY_ATTACHMENT_STORAGE_KEY];
+    const tabId = Number.isInteger(record?.tabId) ? record.tabId : null;
+    _pr92DirtyAttachmentTabId = tabId;
+    return tabId;
+  } catch {
+    // A storage read failure means we cannot prove that a previous worker did not
+    // leave a staged file in the persistent composer. Fail closed before any turn.
+    throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_READ_FAILED");
+  }
+}
+
+async function _pr92PersistDirtyAttachmentFence(tabId) {
+  if (!Number.isInteger(tabId)) {
+    throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_TAB_REQUIRED");
+  }
+  try {
+    // Persist BEFORE DOM.setFileInputFiles. A worker crash after the file selection
+    // can therefore never erase the authority fence while the runtime tab survives.
+    await chrome.storage.local.set({
+      [PR92_DIRTY_ATTACHMENT_STORAGE_KEY]: {
+        schema: 1,
+        tabId
+      }
+    });
+  } catch {
+    throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_PERSIST_FAILED");
+  }
+  _pr92DirtyAttachmentTabId = tabId;
+}
+
+async function _pr92TryClearDirtyAttachmentFence() {
+  try {
+    await chrome.storage.local.remove(PR92_DIRTY_ATTACHMENT_STORAGE_KEY);
+    _pr92DirtyAttachmentTabId = null;
+    return true;
+  } catch {
+    // Retaining the fence is safe: the next turn will retry cleanup before write.
+    return false;
+  }
 }
 
 function _pr92FindFileInputExpression() {
@@ -128,17 +173,23 @@ async function _pr92StageOfficialPageAttachments(tabId, attachmentPaths, timeout
     }
     if (!objectId) throw new Error("PR9_2_FILE_INPUT_NOT_FOUND");
 
+    // The persistent fence is authoritative across Manifest V3 worker restarts.
+    // It must exist before the browser is allowed to select any local file.
+    await _pr92PersistDirtyAttachmentFence(tabId);
     await chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles", {
       files: attachmentPaths,
       objectId
     });
-    // From this point until proven downstream success, a later turn must not be
-    // allowed to reuse the persistent composer without cleanup.
-    _pr92DirtyAttachmentTabId = tabId;
     await sleep(100);
     return attachmentPaths.length;
   } catch (error) {
     if (error instanceof Error && error.message === "PR9_2_FILE_INPUT_NOT_FOUND") {
+      throw error;
+    }
+    if (
+      error instanceof Error &&
+      error.message.startsWith("PR9_2_STALE_ATTACHMENT_FENCE_")
+    ) {
       throw error;
     }
     throw new Error("PR9_2_ATTACHMENT_STAGE_FAILED");
@@ -199,14 +250,16 @@ async function _pr92ClearOfficialPageAttachments(tabId, timeoutMs) {
 }
 
 async function _pr92RequireCleanAttachmentState(timeoutMs) {
-  if (!Number.isInteger(_pr92DirtyAttachmentTabId)) return;
-  const dirtyTabId = _pr92DirtyAttachmentTabId;
+  const dirtyTabId = await _pr92ReadDirtyAttachmentFence();
+  if (!Number.isInteger(dirtyTabId)) return;
+
   const cleared = await _pr92ClearOfficialPageAttachments(dirtyTabId, timeoutMs);
-  if (cleared) {
-    _pr92DirtyAttachmentTabId = null;
-    return;
+  if (!cleared) {
+    throw new Error("PR9_2_STALE_ATTACHMENT_CLEANUP_REQUIRED");
   }
-  throw new Error("PR9_2_STALE_ATTACHMENT_CLEANUP_REQUIRED");
+  if (!await _pr92TryClearDirtyAttachmentFence()) {
+    throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_CLEAR_FAILED");
+  }
 }
 
 // Recovery is the last operation that is allowed to reload the runtime tab before
@@ -255,6 +308,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) 
       officialPageOwnsProtectedWrite: true,
       recoveryBeforeAttachmentStaging: true,
       staleAttachmentFailureFence: true,
+      staleAttachmentFencePersistentAcrossWorkerRestart: true,
       automaticWriteRetry: false,
       fallbackTransport: null,
       writePerformed: false
@@ -301,19 +355,21 @@ executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) 
       throw new Error("PR9_2_ATTACHMENT_STAGE_NOT_PROVEN");
     }
     // Successful downstream return proves the official page completed its product
-    // turn. The selected attachment is no longer considered reusable composer state.
-    _pr92DirtyAttachmentTabId = null;
+    // turn. Clear the durable fence when possible. If extension storage is
+    // temporarily unavailable, retaining the fence is safer than converting a
+    // completed write into an ambiguous failure; the next turn must clean it.
+    await _pr92TryClearDirtyAttachmentFence();
     return {
       ...result,
       attachmentCount: context.attachmentCount
     };
   } catch (error) {
-    const dirtyTabId = _pr92DirtyAttachmentTabId;
+    const dirtyTabId = await _pr92ReadDirtyAttachmentFence();
     if (Number.isInteger(dirtyTabId)) {
       const cleared = await _pr92ClearOfficialPageAttachments(dirtyTabId, timeoutMs);
-      if (cleared) _pr92DirtyAttachmentTabId = null;
+      if (cleared) await _pr92TryClearDirtyAttachmentFence();
     }
-    if (Number.isInteger(_pr92DirtyAttachmentTabId)) {
+    if (Number.isInteger(await _pr92ReadDirtyAttachmentFence())) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:${detail}`);
     }
