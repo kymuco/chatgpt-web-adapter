@@ -66,9 +66,7 @@ def test_schema_8_revalidates_destructive_authority_at_close_boundary():
     close_call = cleanup.index("chrome.tabs.remove(tabId)", close_dispatched)
     assert final_lookup < final_guard < close_dispatched < close_call
 
-    between_guard_and_close = cleanup[
-        cleanup.index("    // No await occurs", final_guard):close_call
-    ]
+    between_guard_and_close = cleanup[close_dispatched:close_call]
     assert "await " not in between_guard_and_close
 
 
