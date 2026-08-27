@@ -1,10 +1,8 @@
 # PR9.2 — Full Product Input Expansion
 
-Status: **browser-owned normal-turn implementation complete / authenticated live graduation pending**
+Status: **browser-owned normal-turn implementation complete / schema-8 deterministic closure pending / authenticated live graduation pending**
 
-PR9.2 expands `ChatGPTProductRuntime` from text-only input to images, files, and
-multimodal continuation without weakening the frozen PR9.0 browser-owned production
-boundary or the PR9.1 browserless challenge boundary.
+PR9.2 expands `ChatGPTProductRuntime` from text-only input to images, files, and multimodal continuation without weakening the frozen PR9.0 browser-owned production boundary or the PR9.1 browserless challenge boundary.
 
 ## Current architecture
 
@@ -30,13 +28,16 @@ Native Messaging: local paths only, never attachment bytes
 PR8.11 stale-UI recovery
         |
         v
+schema-8 clean-composer proof
+        |
+        v
 durable local fence + browser-session runtime identity
         |
         v
 DOM.setFileInputFiles on official ChatGPT page
         |
         v
-stable page-owned composer attachment evidence
+stable page-owned EXACT attachment-set evidence
         |
         v
 Send readiness
@@ -44,7 +45,7 @@ Send readiness
         v
 ONE page task:
   absolute page deadline check
-  + final attachment evidence validation
+  + final exact attachment-set validation
   + Send button validation
   + button.click()
         |
@@ -55,184 +56,163 @@ Network.requestWillBeSent proves protected conversation write
 existing browser-owned completion + canonical assistant readback
 ```
 
-The packaged extension keeps the historical PR8.7 `0.1.13` manifest entrypoint.
-After the full prior worker chain is assembled, PR9.2 loads, in order:
+The packaged extension keeps the historical PR8.7 `0.1.13` manifest entrypoint. After the full prior worker chain is assembled, PR9.2 loads the primary, deadline, and closure layers, then the historical schema-7 compatibility filename. That compatibility loader imports the immutable reviewed schema-7 core and immediately imports the schema-8 closure repair.
 
-1. `service_worker_rich_input_pr9_2.js`;
-2. `service_worker_rich_input_deadline_repair_pr9_2.js`;
-3. `service_worker_rich_input_closure_repair_pr9_2.js`;
-4. `service_worker_rich_input_schema7_repair_pr9_2.js`.
+In other words, the manifest and long-lived service-worker entrypoint remain unchanged while authority progresses as:
 
-The schema-7 overlay is loaded last and changes authority only while a rich-input
-context is active. Text-only turns continue through the historical product path.
+```text
+historical worker chain
+  -> PR9.2 primary rich-input layer
+  -> deadline/fence repair
+  -> page-owned closure repair
+  -> schema-7 core
+  -> schema-8 closure repair
+```
+
+Text-only turns continue through the historical product path. Schema-8 changes authority only while rich input is active or while a durable rich-input fence must be recovered.
 
 ## Input and transport boundary
 
-- The existing public `MediaItem` contract remains compatible with local paths,
-  bytes/bytearray, base64 `data:` URIs, HTTP(S) URLs, and `(source, filename)`.
+- The existing public `MediaItem` contract remains compatible with local paths, bytes/bytearray, base64 `data:` URIs, HTTP(S) URLs, and `(source, filename)`.
 - Non-path inputs are materialized before browser delegation.
-- Native Messaging carries only validated local paths; attachment bytes never cross
-  the bridge.
+- Native Messaging carries only validated local paths; attachment bytes never cross the bridge.
 - `media=[]` is text-only.
 - Browserless rich input fails before write.
 - Temporary Chat rich input fails before write until independently characterized.
-- Injected/custom/subclassed browser-owned transports cannot gain rich-input
-  authority merely by using the `browser-owned` transport identity.
+- Injected/custom/subclassed browser-owned transports cannot gain rich-input authority merely by using the `browser-owned` transport identity.
 - A rich custom provider result must confirm the exact requested attachment count.
-- No browserless fallback, challenge bypass, protected-request reconstruction, or
-  automatic write retry is introduced.
+- No browserless fallback, challenge bypass, protected-request reconstruction, or automatic write retry is introduced.
 
 ## Recovery and one total deadline
 
-Attachment staging occurs only after PR8.11 stale-UI recovery, so an authorized
-reload cannot silently erase an already-selected file.
+Attachment staging occurs only after PR8.11 stale-UI recovery, so an authorized reload cannot silently erase an already-selected file.
 
-One outer rich-turn deadline governs recovery/reload, runtime-tab waits, staging,
-protected submission, post-submit observation, and cleanup. Earlier repair layers
-also close historical mouse-to-Enter and Enter-key outcome ambiguities. Raw CDP
-`Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` are not protected-submit
-authority for rich turns.
+One outer rich-turn deadline governs recovery/reload, runtime-tab waits, clean-composer proof, staging, protected submission, post-submit observation, and cleanup. Raw CDP `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` are not protected-submit authority for rich turns.
 
-## Page-owned attachment evidence
+A potentially protected page click is guarded by an absolute page deadline. The debugger acknowledgement of a command that may click is not awaited, because an acknowledgement timeout after the page has already submitted would create response-loss ambiguity. The already-installed `Network.requestWillBeSent` observation of the protected conversation POST is the first post-submit proof. Missing observation fails without retry; canonical assistant readback remains final completion authority.
 
-`DOM.setFileInputFiles` path count is not evidence that ChatGPT accepted an
-attachment. PR9.2 waits for stable `PAGE_OWNED_COMPOSER_ATTACHMENT_STATE` matching
-every expected basename. Explicit upload/attachment rejection fails the turn.
+## Schema-8 exact page-owned attachment evidence
 
-An early evidence check rejects already-bad state before waiting for Send readiness.
-The final evidence check executes **inside the same synchronous page-side expression
-as `button.click()`**. There is no second CDP command and no page-task scheduling
-window between final attachment validation and protected click.
+`DOM.setFileInputFiles` path count is not evidence that ChatGPT accepted an attachment. Likewise, merely finding every requested filename is not enough: a persistent composer can already contain a manual attachment or an old same-name chip.
 
-The protected primitive is
-`PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK`. The page expression
-checks an absolute deadline before validation and again before click. A command
-delivered after that page deadline cannot produce a late write.
+Schema 8 therefore enforces two independent conditions.
 
-## Post-click outcome boundary
+### 1. Clean composer before staging
 
-A debugger command that can execute `button.click()` is not awaited for its CDP
-acknowledgement. Waiting for that acknowledgement could report a local timeout after
-the page had already submitted the write.
+Before selecting any requested file, the official page must show **zero page-owned attachment evidence across two stable polls**. If a pre-existing attachment is visible, the rich turn fails before `DOM.setFileInputFiles` with no protected write.
 
-Before submission the existing browser-owned runtime has already installed its
-Network listener. Schema 7 reserves at least the normal submit-observation window
-inside the outer deadline, dispatches the atomic page expression, and relies on
-`Network.requestWillBeSent` for the protected conversation POST as the first
-post-submit proof. Missing observation fails; it does not trigger retry. Canonical
-assistant readback remains final completion authority.
+This prevents an old same-name chip from being mistaken for the newly requested upload.
 
-Current support claims include:
+### 2. Exact set after staging and at submit
 
-- `postClickDebuggerAckRequired=false`;
-- `protectedSubmitOutcomeProof=NETWORK_REQUEST_OBSERVATION`;
-- a bounded submit-observation reserve before dispatch.
+After staging, page-owned composer evidence must describe the **exact requested attachment set**, not a superset. Matching every requested basename while leaving unused attachment labels/chips is rejected.
 
-## Durable stale-composer fence and tab identity
+The exact-set evidence is used throughout the later rich-input path, including the schema-7 atomic final validator. The last evidence validation and `button.click()` execute synchronously inside one page-side expression:
 
-Before `DOM.setFileInputFiles`, PR9.2 persists a durable local fence containing the
-runtime tab ID and random runtime identity, plus a matching identity in
-`chrome.storage.session`.
+`PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK`
 
-The local fence survives Manifest V3 worker suspension/restart and remains the
-safety authority. Session identity is used only as destructive-cleanup authority.
-Clearing `input.files` is never accepted as cleanup proof.
+There is therefore no separate CDP/page-task window in which the page can remove or add an attachment between final validation and the protected click.
 
-A later prewrite may close the fenced runtime tab only when all of these are proven
-under the remaining deadline:
+## Durable stale-composer fence
 
-1. the numeric tab still exists and is a ChatGPT tab;
-2. it is still the currently stored extension runtime tab;
-3. the durable local fence contains a valid identity for that tab;
-4. browser-session identity exists for the same tab;
-5. session and durable identities match exactly.
+Before `DOM.setFileInputFiles`, PR9.2 persists a durable local fence containing the runtime tab ID and a random runtime identity, plus a matching identity in `chrome.storage.session`.
 
-Only then may the extension remove the tab and separately prove its absence.
-`RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED` is the only destructive cleanup proof
-that permits fence retirement.
+The local fence survives Manifest V3 worker suspension/restart and remains the safety authority. Session identity is only destructive-cleanup authority. Clearing `input.files` is never accepted as composer-cleanup proof.
 
-If a numeric ID points outside ChatGPT, the old ChatGPT composer is absent and the
-candidate is never closed. If a still-live ChatGPT candidate has a missing,
-mismatched, or otherwise unproven runtime identity—including after a browser restart
-where session identity is unavailable—the extension **does not close it and does not
-clear the durable fence**. Identity mismatch is fail-closed, not absence proof.
+The only generic destructive cleanup proof remains:
 
-The existing `storage` permission is reused; PR9.2 does not change extension identity
-or version.
+`RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED`
 
-## Schema-7 zero-write support gate
+A reused numeric tab ID pointing outside ChatGPT is never closed. A still-live ChatGPT tab with missing, mismatched, or unproven runtime identity remains untouched and keeps the durable fence fail-closed.
 
-Before authenticated writes, `product_rich_input_live_gate_pr9_2` performs a
-zero-write support probe. The installed extension must prove schema 7 and the
-complete current contract, including:
+## Schema-8 destructive-close authority revalidation
+
+Schema 7 verified the candidate ChatGPT URL, current extension runtime-tab ID, and matching local/session identities before destructive cleanup. Fresh closure review identified a remaining time-of-check/time-of-use window: those proofs could become stale while later asynchronous reads were pending.
+
+Schema 8 closes that boundary.
+
+While destructive authority is assembled, the extension observes relevant tab navigation/removal and local/session storage ownership changes. Immediately before `chrome.tabs.remove(tabId)` it re-reads:
+
+1. the durable local fence identity;
+2. the browser-session fence identity;
+3. the currently stored extension runtime-tab ID;
+4. the current tab and ChatGPT URL.
+
+Any intervening ownership/navigation change fails closed. After the final authority guard there is **no awaited operation before dispatch of `chrome.tabs.remove(tabId)`**. Only the already-authorized close is then awaited under the remaining outer deadline, followed by explicit tab-absence proof.
+
+## Extension JavaScript parser regression
+
+During schema-8 source review, the exact schema-7 release artifact exposed a separate packaging/runtime blocker: the closure overlay contained a nested unescaped template literal inside a generated `Runtime.evaluate` expression. Python regressions had treated the JavaScript as text and therefore did not parse it.
+
+The closure expression is repaired, and PR9.2 now includes a regression that runs `node --check` over every packaged extension `.js` file. A syntactically invalid service-worker asset can no longer pass the deterministic test suite merely because Python string assertions are green.
+
+## Schema-8 zero-write support gate
+
+The frozen schema-7 gate remains in the package for provenance and intentionally cannot graduate schema 8. The authoritative current gate is:
+
+`product_rich_input_live_gate_schema8_pr9_2`
+
+Before any authenticated product write it performs only zero-write characterization RPCs. It preserves every schema-7 support assertion and additionally requires all four schema-8 closure guarantees:
+
+- `preStageComposerAttachmentClean=true`;
+- `exactComposerAttachmentSetRequired=true`;
+- `destructiveCleanupAuthorityRevalidatedAtClose=true`;
+- `destructiveCleanupOwnershipChangeFailsClosed=true`.
+
+The inherited schema-7 contract still requires, among other invariants:
 
 - `DOM.setFileInputFiles` staging and Native Messaging path-only transport;
 - official-page upload/protected-write ownership;
-- recovery before staging;
-- durable fence across worker restart;
+- recovery before staging and restart-persistent durable fence;
 - one total rich-turn deadline and bounded cleanup;
 - stable page-owned attachment evidence;
 - raw-CDP Input and rich Enter fallback disabled;
 - atomic final attachment validation + Send click in one page task;
-- protected primitive exactly
-  `PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK`;
-- late execution blocked by the absolute page deadline;
+- protected submit primitive exactly `PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK`;
+- late execution prevented by the page-side absolute deadline;
 - post-click debugger acknowledgement not required;
 - protected-submit outcome proved by `NETWORK_REQUEST_OBSERVATION`;
 - sufficient submit-observation reserve;
 - destructive cleanup requires browser-session runtime identity;
-- identity mismatch never closes a tab **and fails closed**;
-- unproven identity fails closed;
-- no automatic retry, no fallback transport, and no support-probe write.
+- mismatched/unproven identity fails closed and never authorizes tab destruction;
+- automatic write retry disabled;
+- no fallback transport;
+- support characterization performs no write.
 
-Schema 6 and earlier overlays fail the gate. An intermediate schema-7 build lacking
-the final identity-mismatch fail-closed claim also fails.
+Schema 7 and earlier cannot satisfy the authoritative schema-8 gate.
 
 ## Bounded authenticated live evidence
 
-The opt-in live phase has an exact budget of **three** real product writes:
+The authenticated phase remains explicit opt-in and has an exact budget of **three** real product writes:
 
 1. image + text new chat using a generated `BLUE | RED | GREEN` image fixture;
 2. general file + text new chat using a hidden `EVIDENCE:` marker;
 3. multimodal continuation using a distinct newly attached hidden marker.
 
-Expected answers are absent from the prompts. Every turn must depend on attachment
-content, produce exactly one browser-native write event and one canonical readback
-event with attachment count `1`, and prove `CANONICAL_READBACK` finality. The
-continuation must preserve conversation identity.
+Expected answers are absent from the prompts. Every turn must depend on attachment-only content, produce exactly one browser-native write event and one canonical readback event with attachment count `1`, and prove `CANONICAL_READBACK` finality. The continuation must preserve conversation identity.
+
+The current authoritative command is:
 
 ```bash
-python -m chatgpt_web_adapter.product_rich_input_live_gate_pr9_2 \
+python -m chatgpt_web_adapter.product_rich_input_live_gate_schema8_pr9_2 \
   --acknowledge-live-writes
 ```
 
-## Deterministic validation
+The command has **not** been run while deterministic closure/review is pending.
 
-Final schema-7 implementation head before any authenticated live writes:
-`289014884efa160c2c58c7c9d0d935768bd18617`.
+## Deterministic closure rule
 
-CI #359 (`33046134981`) completed successfully after one rerun of an unrelated
-historical PR9.1 10 ms timing test on Windows Python 3.11. That same job passed on
-rerun without code changes, while all other matrix jobs had already passed.
+A previously green CI run is not sufficient after a new authority repair. Schema 8 requires a fresh exact-head full CI/release/wheel result plus a fresh Codex closure review of the same implementation head.
 
-Final deterministic evidence:
+Until that deterministic closure is clean:
 
-- Ubuntu Python 3.10/3.11/3.12/3.13/3.14: PASS;
-- Windows Python 3.10/3.11/3.12/3.13/3.14: PASS;
-- Ubuntu Python 3.10 reference: **1450 passed, 1 warning**;
-- release build, metadata and artifact validation: PASS;
-- exact built-wheel smoke: Ubuntu 3.10/3.14 + Windows 3.10/3.14: **4/4 PASS**.
-
-The remaining warning is the pre-existing invalid escape-sequence warning in
-`tests/test_payload_validation.py:117`.
+- authenticated rich-input writes are not run;
+- `images`, `files`, and `multimodal_continuation` remain conservative;
+- no capability is graduated from implementation alone;
+- PR9.2 is not merged.
 
 ## Capability graduation rule
 
-Implementation and deterministic CI are not live product evidence. `images`,
-`files`, and `multimodal_continuation` remain conservative until the bounded
-schema-7 authenticated gate succeeds.
+Implementation, static support claims, and deterministic CI are not live product evidence. Graduation requires all three attachment-dependent authenticated turns, exact write/readback evidence, canonical finality, conversation identity preservation, and the complete schema-8 recovery/deadline/exact-attachment/atomic-submit/session-identity/destructive-cleanup contract.
 
-Graduation requires all three attachment-dependent live turns, exact write/readback
-evidence, canonical finality, and the current schema-7 recovery/deadline/atomic
-submit/session-identity safety contract. Until then no rich-input capability is
-claimed `AVAILABLE` from implementation alone.
+Until that bounded gate succeeds, no rich-input capability is claimed `AVAILABLE`.
