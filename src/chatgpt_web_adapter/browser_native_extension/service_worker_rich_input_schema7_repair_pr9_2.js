@@ -172,8 +172,10 @@ _pr92ClearOfficialPageAttachments = async function _pr92Schema7ClearFencedRuntim
     return false;
   }
   if (currentRuntimeTabId !== tabId) {
-    // The extension has already moved on to a different managed runtime tab.
-    return true;
+    // The candidate is still a ChatGPT tab. A different current runtime id is not
+    // enough evidence that this candidate cannot retain the fenced composer, so
+    // retain the durable fence and require explicit/manual recovery.
+    return false;
   }
 
   let records;
@@ -204,9 +206,9 @@ _pr92ClearOfficialPageAttachments = async function _pr92Schema7ClearFencedRuntim
     typeof sessionIdentity !== "string" ||
     sessionIdentity !== localIdentity
   ) {
-    // Session identity mismatch proves this numeric id is not the fenced runtime.
-    // Do not close the candidate; the old composer is absent in this session.
-    return true;
+    // A still-live ChatGPT candidate with mismatched identity is ambiguous, not
+    // proof of absence. Never close it and never retire the durable fence.
+    return false;
   }
 
   try {
@@ -360,6 +362,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema7Repair(messa
     submitObservationReserveMs: PR92_SCHEMA7_SUBMIT_OBSERVATION_RESERVE_MS,
     staleAttachmentCleanupRequiresSessionRuntimeIdentity: true,
     staleAttachmentIdentityMismatchClosesTab: false,
+    staleAttachmentIdentityMismatchFailsClosed: true,
     staleAttachmentUnprovenIdentityFailsClosed: true
   };
 };
