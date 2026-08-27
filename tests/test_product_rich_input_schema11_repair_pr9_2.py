@@ -27,25 +27,24 @@ def test_schema_11_parses_complete_removal_payload_without_suffix_aliases():
     assert "label.endsWith(name)" not in text
     assert "label.includes(name)" not in text
     assert "structuredRemovalControlBasenameParsing: true" in text
+    assert "Do not strip quotes" in text
 
     def removal_payload(label: str) -> str:
         value = label.strip()
-        match = re.match(r"^(?:remove|delete|discard)(?:\s+|:\s*)", value, re.I)
+        match = re.match(r"^(?:remove|delete|discard|удалить)(?:\s+|:\s*)", value, re.I)
         if match is None:
             return ""
-        value = value[match.end() :].strip()
-        pairs = {'"': '"', "'": "'", "“": "”", "‘": "’"}
-        if len(value) >= 2 and value[0] in pairs and value[-1] == pairs[value[0]]:
-            value = value[1:-1].strip()
-        return value
+        return value[match.end() :].strip()
 
     assert removal_payload("Remove report.txt") == "report.txt"
     assert removal_payload("Remove: report.txt") == "report.txt"
-    assert removal_payload('Delete "report.txt"') == "report.txt"
+    assert removal_payload("Удалить report.txt") == "report.txt"
     assert removal_payload("Remove old report.txt") == "old report.txt"
     assert removal_payload("Remove old-report.txt") == "old-report.txt"
     assert removal_payload("Remove report.txt.bak") == "report.txt.bak"
+    assert removal_payload('Delete "report.txt"') == '"report.txt"'
     assert removal_payload("Remove old report.txt") != "report.txt"
+    assert removal_payload('Delete "report.txt"') != "report.txt"
 
 
 def test_schema_11_bounds_the_shared_attachment_evidence_read():
