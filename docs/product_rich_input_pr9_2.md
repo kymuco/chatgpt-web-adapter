@@ -1,6 +1,6 @@
 # PR9.2 — Full Product Input Expansion
 
-Status: **browser-owned normal-turn implementation complete / schema-10 closure review pending / authenticated live graduation pending**
+Status: **browser-owned normal-turn implementation complete / schema-11 code closure green / final docs-synchronized exact-head closure pending / authenticated live graduation pending**
 
 PR9.2 expands `ChatGPTProductRuntime` from text-only input to images, files, and multimodal continuation without weakening the frozen PR9.0 browser-owned production boundary or the PR9.1 browserless challenge boundary.
 
@@ -28,7 +28,7 @@ Native Messaging: local paths only, never attachment bytes
 PR8.11 stale-UI recovery
         |
         v
-schema-10 deadline-bounded official-composer clean proof
+schema-11 deadline-bounded official-composer clean proof
         |
         v
 durable local fence + browser-session runtime identity
@@ -63,6 +63,7 @@ schema-7 reviewed core
   -> schema-8 clean-composer / destructive-close repair
   -> schema-9 cross-evidence-channel exactness repair
   -> schema-10 official-composer / basename / pre-stage-deadline repair
+  -> schema-11 structured-basename / evidence-read-deadline repair
 ```
 
 Text-only turns continue through the historical product path. Later overlays change authority only for rich input or durable rich-input fence recovery.
@@ -82,7 +83,7 @@ Text-only turns continue through the historical product path. Later overlays cha
 
 Attachment staging occurs only after PR8.11 stale-UI recovery, so an authorized reload cannot erase a selected file after staging.
 
-One outer rich-turn deadline governs recovery/reload, runtime-tab waits, clean-composer proof, debugger setup, staging, protected submission, post-submit observation, and cleanup. Raw CDP `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` are not protected-submit authority for rich turns.
+One outer rich-turn deadline governs recovery/reload, runtime-tab waits, clean-composer proof, debugger setup, every page-owned attachment evidence read, staging, protected submission, post-submit observation, and cleanup. Raw CDP `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` are not protected-submit authority for rich turns.
 
 The only rich protected-submit primitive is:
 
@@ -104,33 +105,31 @@ Schema 8 introduced a stable pre-stage clean-composer proof and exact-set matchi
 
 The page exposes attachment evidence through multiple observable channels, currently role-group labels and attachment-removal controls. Schema 9 requires every non-empty evidence channel to independently describe the requested set exactly. One correct channel cannot mask extra, partial, or different evidence in another.
 
-### Schema 10 — official composer only
+### Schema 10 — official composer and pre-stage debugger deadline
 
-Fresh closure review found that an empty fallback `form` or `document.body` could previously be mistaken for a clean composer while the real prompt editor was still mounting.
+Schema 10 removed fallback `form`/`document.body` cleanliness proof. Attachment evidence is unavailable until the official prompt editor is present through `#prompt-textarea` or `[data-testid="prompt-textarea"]` and belongs to its composer form. Missing official composer yields `ready=false` and cannot count as a clean poll.
 
-Schema 10 removes those fallbacks. Attachment evidence is unavailable until the official prompt editor is present through `#prompt-textarea` or `[data-testid="prompt-textarea"]` and belongs to its composer form. Missing official composer yields `ready=false` and cannot count as a clean poll.
+The pre-stage clean proof requires two stable polls with the official composer mounted, exact empty attachment evidence, and zero observed attachment labels. Schema 10 also bounded pre-stage `chrome.debugger.attach` and `Runtime.enable` by the one outer deadline, including best-effort detach when a non-cancellable attach completes only after the local deadline.
 
-The pre-stage clean proof requires two stable polls with:
+### Schema 11 — literal structured basename association and bounded evidence reads
 
-- the official composer mounted;
-- exact-basename association enabled;
-- exact empty attachment evidence;
-- zero observed role-group labels;
-- zero observed removal-control labels.
+The final schema-10 closure review found two remaining gaps.
 
-The shared evidence binding is replaced at the newest layer, so schema-10 semantics are also used by post-stage stable evidence and schema-7's atomic final validate+click.
+First, delimiter-based tail matching could still alias a filename containing spaces: requested `report.txt` could be satisfied by a removal label such as `Remove old report.txt`. Schema 11 removes tail inference completely. Role-group evidence still requires exact label equality. Removal-control evidence must begin with an anchored recognized removal action (`remove`, `delete`, `discard`, or `удалить`); the **entire trimmed payload after that action is treated literally as the candidate basename**, and that candidate must equal the requested basename exactly.
 
-## Exact basename association
+Therefore:
 
-Schema 10 also removes substring filename aliases. Requested `report.txt` must not be satisfied by `old-report.txt`, `report.txt.bak`, or `Remove old-report.txt`.
+- `Remove report.txt` may confirm `report.txt`;
+- `Remove old report.txt` cannot confirm `report.txt`;
+- `Remove old-report.txt` cannot confirm `report.txt`;
+- `Remove report.txt.bak` cannot confirm `report.txt`;
+- ambiguously decorated `Delete "report.txt"` fails closed rather than silently stripping quotes.
 
-Role-group evidence requires exact basename equality. Removal controls may contain UI wording such as `Remove report.txt`, but the requested basename must appear as the complete tail token with a valid UI-wording boundary before it. Cross-channel exactness from schema 9 remains mandatory.
+No suffix, delimiter, quote, punctuation, or substring heuristic may manufacture basename equality. Schema-9 cross-channel exactness remains mandatory.
 
-## Deadline-bounded pre-stage debugger setup
+Second, the shared page-owned evidence reader previously awaited raw `Runtime.evaluate` and only checked the deadline before and after the command. Schema 11 wraps the complete shared evidence-read primitive in `_pr92Schema7RunUntil` against the same absolute rich-turn deadline. This applies to pre-stage clean polls and all later stable/final attachment evidence reads. A late evidence read has no write authority and cannot extend the active request past the governed deadline.
 
-Schema 8 added debugger setup for the clean-composer proof, but fresh review found raw awaits on `chrome.debugger.attach` and `Runtime.enable` outside the absolute deadline runner.
-
-Schema 10 bounds both operations by the one outer rich-turn deadline. Because a Chrome debugger attach is not cancellable after dispatch, schema 10 also handles the late-completion case: if the local deadline wins but the pending attach later succeeds, a best-effort detach is immediately dispatched so stale debugger ownership cannot block a later turn. Normal pre-stage detach is likewise best-effort and non-blocking.
+The shared evidence-expression and evidence-read bindings are replaced at the newest layer, so schema-11 semantics are consumed by pre-stage proof, post-stage stable evidence, and schema-7's atomic final validate+click.
 
 ## Durable stale-composer fence and destructive cleanup
 
@@ -148,26 +147,24 @@ Before destructive close, schema 8 observes relevant tab/storage ownership chang
 
 ## Extension parser and package-data hardening
 
-Source review previously found a real JavaScript syntax defect that Python text assertions did not detect. PR9.2 now runs `node --check` over every packaged extension `.js` asset.
+Every packaged extension `.js` asset is parsed with `node --check`.
 
-The release gate also compares the complete source browser-extension `*.js`/`*.json` asset set with the built wheel, so a new authority overlay cannot exist only in the source tree while the installed package silently ships an older runtime.
+The release gate compares the complete source browser-extension `*.js`/`*.json` asset set with the built wheel, so a new authority overlay cannot exist only in the source tree while the installed package silently ships an older runtime.
 
-## Schema-10 zero-write support gate
+## Schema-11 zero-write support gate
 
-Schema-7 through schema-9 gate modules remain packaged for provenance but cannot graduate schema 10. The authoritative current module is:
+Schema-7 through schema-10 gate modules remain packaged for provenance but cannot graduate schema 11. The authoritative current module is:
 
-`product_rich_input_live_gate_schema10_pr9_2`
+`product_rich_input_live_gate_schema11_pr9_2`
 
-Its support phase performs characterization-only RPCs containing no text and no attachment paths. It preserves every earlier validator requirement and additionally requires:
+Its support phase performs **five characterization-only RPCs**, each containing no text and no attachment paths. It preserves every earlier validator requirement and additionally requires:
 
-- `officialComposerRequiredForAttachmentEvidence=true`;
-- `exactBasenameAssociationRequired=true`;
-- `preStageDebuggerSetupDeadlineBounded=true`;
-- `latePreStageDebuggerAttachAutoDetached=true`.
+- `structuredRemovalControlBasenameParsing=true`;
+- `attachmentEvidenceReadsDeadlineBounded=true`.
 
-Inherited requirements include schema-9 cross-channel exactness, schema-8 clean-composer/destructive-close guarantees, schema-7 atomic submit/session identity guarantees, one total deadline, page-owned evidence, no rich raw-CDP fallback, no automatic retry, and no fallback transport.
+Inherited requirements include schema-10 official-composer evidence and pre-stage debugger deadline guarantees, schema-9 cross-channel exactness, schema-8 clean-composer/destructive-close guarantees, schema-7 atomic submit/session identity guarantees, one total deadline, page-owned evidence, no rich raw-CDP fallback, no automatic retry, and no fallback transport.
 
-Schema 9 and earlier cannot satisfy the authoritative schema-10 gate.
+Schema 10 and earlier cannot satisfy the authoritative schema-11 gate.
 
 ## Bounded authenticated live evidence
 
@@ -182,15 +179,24 @@ Expected answers are absent from the prompts. Every turn must depend on attachme
 The authoritative command is:
 
 ```bash
-python -m chatgpt_web_adapter.product_rich_input_live_gate_schema10_pr9_2 \
+python -m chatgpt_web_adapter.product_rich_input_live_gate_schema11_pr9_2 \
   --acknowledge-live-writes
 ```
 
-Authenticated rich-input writes have **not** been run while closure review is pending.
+Authenticated rich-input writes have **not** been run while deterministic/source-review closure is pending.
 
-## Deterministic closure rule
+## Deterministic closure evidence
 
-A previously green CI run is not sufficient after a new authority generation or a head-changing synchronization commit. The final schema-10 head requires:
+Schema-11 code head `d5d30fc90011585b80962eda0eded4ed2245c0e5` passed CI #376 (`33093670838`) completely:
+
+- Ubuntu/Windows Python 3.10–3.14 matrix: **10/10 PASS**;
+- Ubuntu Python 3.10 reference: **1489 passed, 1 warning**;
+- release build / metadata / complete browser-extension package-data contract: **PASS**;
+- installed exact-wheel smoke Ubuntu/Windows Python 3.10/3.14: **4/4 PASS**.
+
+The two fresh schema-10 closure-review findings were replied to and resolved against this evidence.
+
+A previously green CI run is not sufficient after a head-changing synchronization commit. Therefore this documentation synchronization creates a new final candidate that must itself pass:
 
 - full Ubuntu/Windows Python 3.10–3.14 test matrix;
 - release build and package-data contract validation;
@@ -207,6 +213,6 @@ Until this closure is clean:
 
 ## Capability graduation rule
 
-Implementation, static support claims, deterministic CI, and source review are still not live product evidence. Graduation requires all three attachment-dependent authenticated turns, exact browser-native write/readback evidence, canonical finality, conversation identity preservation, and the complete schema-10 recovery/deadline/official-composer/exact-basename/cross-channel-exact/atomic-submit/session-identity/destructive-cleanup contract.
+Implementation, static support claims, deterministic CI, and source review are still not live product evidence. Graduation requires all three attachment-dependent authenticated turns, exact browser-native write/readback evidence, canonical finality, conversation identity preservation, and the complete schema-11 recovery/deadline/official-composer/literal-basename/cross-channel-exact/atomic-submit/session-identity/destructive-cleanup contract.
 
 Until that bounded gate succeeds, no rich-input capability is claimed `AVAILABLE`.
