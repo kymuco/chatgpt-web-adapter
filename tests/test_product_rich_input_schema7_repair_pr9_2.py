@@ -75,13 +75,24 @@ def test_schema_7_fenced_tab_cleanup_requires_browser_session_identity():
     assert "chrome.tabs.remove(tabId)" in text
     assert "staleAttachmentCleanupRequiresSessionRuntimeIdentity: true" in text
     assert "staleAttachmentIdentityMismatchClosesTab: false" in text
+    assert "staleAttachmentIdentityMismatchFailsClosed: true" in text
     assert "staleAttachmentUnprovenIdentityFailsClosed: true" in text
 
     cleanup = text[
         text.index("_pr92ClearOfficialPageAttachments = async function _pr92Schema7ClearFencedRuntimeTab") :
         text.index("function _pr92Schema7AtomicAttachmentSubmitExpression")
     ]
+    current_id_branch = cleanup[
+        cleanup.index("if (currentRuntimeTabId !== tabId)") :
+        cleanup.index("let records;")
+    ]
+    assert "return false;" in current_id_branch
+
     session_check = cleanup.index("if (records.session == null)")
     identity_match = cleanup.index("sessionIdentity !== localIdentity")
     close = cleanup.index("chrome.tabs.remove(tabId)")
     assert session_check < identity_match < close
+    mismatch_branch = cleanup[
+        identity_match : cleanup.index("try {", identity_match)
+    ]
+    assert "return false;" in mismatch_branch
