@@ -53,12 +53,12 @@ function _pr92Schema11AttachmentEvidenceExpression(expectedNames) {
     )
       .filter(isVisible)
       .map((element) => normalize(element.getAttribute('aria-label')))
-      .filter((label) => /^(remove|delete|discard)(?:\\s+|:\\s*)/i.test(label));
+      .filter((label) => /^(remove|delete|discard|удалить)(?:\\s+|:\\s*)/i.test(label));
 
     const exactGroupBasename = (label, name) => label === name;
     const removalControlBasename = (label) => {
       let value = normalize(label);
-      const action = value.match(/^(?:remove|delete|discard)(?:\\s+|:\\s*)/i);
+      const action = value.match(/^(?:remove|delete|discard|удалить)(?:\\s+|:\\s*)/i);
       if (!action) return '';
       value = value.slice(action[0].length).trim();
       if (value.length >= 2) {
