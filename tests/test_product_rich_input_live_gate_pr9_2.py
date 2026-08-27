@@ -31,7 +31,7 @@ def _support_response(request_id: str) -> dict:
         "request_id": request_id,
         "ok": True,
         "richInputSupported": True,
-        "richInputSchemaVersion": 6,
+        "richInputSchemaVersion": 7,
         "stagingPrimitive": "DOM.setFileInputFiles",
         "maxAttachmentCount": 32,
         "nativeMessagingCarriesAttachmentBytes": False,
@@ -52,10 +52,17 @@ def _support_response(request_id: str) -> dict:
         "attachmentEvidenceStablePollCount": 2,
         "preSubmitAttachmentRevalidation": True,
         "postSendReadinessAttachmentRevalidation": True,
-        "protectedSubmitPrimitive": "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK",
+        "protectedSubmitPrimitive": "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK",
         "richInputRawCdpInputSubmitDisabled": True,
         "richInputEnterFallbackEnabled": False,
         "lateProtectedSubmitExecutionPreventedByPageDeadline": True,
+        "atomicAttachmentValidationAndSubmit": True,
+        "postClickDebuggerAckRequired": False,
+        "protectedSubmitOutcomeProof": "NETWORK_REQUEST_OBSERVATION",
+        "submitObservationReserveMs": 10_500,
+        "staleAttachmentCleanupRequiresSessionRuntimeIdentity": True,
+        "staleAttachmentIdentityMismatchClosesTab": False,
+        "staleAttachmentUnprovenIdentityFailsClosed": True,
         "automaticWriteRetry": False,
         "fallbackTransport": None,
         "writePerformed": False,
@@ -65,7 +72,7 @@ def _support_response(request_id: str) -> dict:
 def _validated_support() -> dict:
     return {
         "supported": True,
-        "schema": 6,
+        "schema": 7,
         "staging_primitive": "DOM.setFileInputFiles",
         "max_attachment_count": 32,
         "native_messaging_carries_attachment_bytes": False,
@@ -86,10 +93,17 @@ def _validated_support() -> dict:
         "attachment_evidence_stable_poll_count": 2,
         "pre_submit_attachment_revalidation": True,
         "post_send_readiness_attachment_revalidation": True,
-        "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK",
+        "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK",
         "rich_input_raw_cdp_input_submit_disabled": True,
         "rich_input_enter_fallback_enabled": False,
         "late_protected_submit_execution_prevented_by_page_deadline": True,
+        "atomic_attachment_validation_and_submit": True,
+        "post_click_debugger_ack_required": False,
+        "protected_submit_outcome_proof": "NETWORK_REQUEST_OBSERVATION",
+        "submit_observation_reserve_ms": 10_500,
+        "stale_attachment_cleanup_requires_session_runtime_identity": True,
+        "stale_attachment_identity_mismatch_closes_tab": False,
+        "stale_attachment_unproven_identity_fails_closed": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
         "write_performed": False,
@@ -148,7 +162,7 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     _validate_support(support)
 
     assert len(calls) == 1
-    assert support["schema"] == 6
+    assert support["schema"] == 7
     assert support["recovery_before_attachment_staging"] is True
     assert support["stale_attachment_failure_fence"] is True
     assert support["stale_attachment_fence_persistent_across_worker_restart"] is True
@@ -163,7 +177,16 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     assert support["attachment_evidence_stable_poll_count"] == 2
     assert support["pre_submit_attachment_revalidation"] is True
     assert support["post_send_readiness_attachment_revalidation"] is True
-    assert support["protected_submit_primitive"] == "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK"
+    assert support["atomic_attachment_validation_and_submit"] is True
+    assert support["protected_submit_primitive"] == (
+        "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK"
+    )
+    assert support["post_click_debugger_ack_required"] is False
+    assert support["protected_submit_outcome_proof"] == "NETWORK_REQUEST_OBSERVATION"
+    assert support["submit_observation_reserve_ms"] >= 10_000
+    assert support["stale_attachment_cleanup_requires_session_runtime_identity"] is True
+    assert support["stale_attachment_identity_mismatch_closes_tab"] is False
+    assert support["stale_attachment_unproven_identity_fails_closed"] is True
     assert support["rich_input_raw_cdp_input_submit_disabled"] is True
     assert support["rich_input_enter_fallback_enabled"] is False
     assert support["late_protected_submit_execution_prevented_by_page_deadline"] is True
@@ -214,6 +237,21 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
             "POST_SEND_READINESS_ATTACHMENT_REVALIDATION_NOT_PROVEN",
         ),
         (
+            "atomic_attachment_validation_and_submit",
+            False,
+            "ATOMIC_ATTACHMENT_SUBMIT_NOT_PROVEN",
+        ),
+        (
+            "stale_attachment_cleanup_requires_session_runtime_identity",
+            False,
+            "STALE_ATTACHMENT_SESSION_IDENTITY_NOT_PROVEN",
+        ),
+        (
+            "stale_attachment_unproven_identity_fails_closed",
+            False,
+            "STALE_ATTACHMENT_UNPROVEN_IDENTITY_FAIL_CLOSED_NOT_PROVEN",
+        ),
+        (
             "rich_input_raw_cdp_input_submit_disabled",
             False,
             "RAW_CDP_INPUT_SUBMIT_NOT_DISABLED",
@@ -225,7 +263,7 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
         ),
     ],
 )
-def test_support_validation_requires_schema_6_safety_claims(field, value, error):
+def test_support_validation_requires_schema_7_safety_claims(field, value, error):
     support = _validated_support()
     support[field] = value
     with pytest.raises(RuntimeError, match=error):
@@ -265,10 +303,34 @@ def test_support_validation_requires_page_owned_attachment_count_evidence():
         _validate_support(support)
 
 
-def test_support_validation_requires_page_guarded_submit_without_enter_fallback():
+def test_support_validation_requires_atomic_page_submit_and_network_outcome_proof():
     support = _validated_support()
-    support["protected_submit_primitive"] = "CDP_INPUT_MOUSE_RELEASE"
+    support["protected_submit_primitive"] = "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK"
     with pytest.raises(RuntimeError, match="PROTECTED_SUBMIT_PRIMITIVE_NOT_PROVEN"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["post_click_debugger_ack_required"] = True
+    with pytest.raises(RuntimeError, match="POST_CLICK_DEBUGGER_ACK_MUST_NOT_BE_REQUIRED"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["protected_submit_outcome_proof"] = "DEBUGGER_COMMAND_ACK"
+    with pytest.raises(RuntimeError, match="PROTECTED_SUBMIT_OUTCOME_PROOF_NOT_PROVEN"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["submit_observation_reserve_ms"] = 9999
+    with pytest.raises(RuntimeError, match="SUBMIT_OBSERVATION_RESERVE_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_rejects_identity_mismatch_tab_close_and_enter_fallback():
+    support = _validated_support()
+    support["stale_attachment_identity_mismatch_closes_tab"] = True
+    with pytest.raises(
+        RuntimeError, match="STALE_ATTACHMENT_IDENTITY_MISMATCH_MUST_NOT_CLOSE_TAB"
+    ):
         _validate_support(support)
 
     support = _validated_support()
@@ -277,9 +339,9 @@ def test_support_validation_requires_page_guarded_submit_without_enter_fallback(
         _validate_support(support)
 
 
-def test_support_validation_rejects_pre_schema_6_overlay():
+def test_support_validation_rejects_pre_schema_7_overlay():
     support = _validated_support()
-    support["schema"] = 5
+    support["schema"] = 6
     with pytest.raises(RuntimeError, match="RICH_INPUT_SUPPORT_NOT_PROVEN"):
         _validate_support(support)
 
