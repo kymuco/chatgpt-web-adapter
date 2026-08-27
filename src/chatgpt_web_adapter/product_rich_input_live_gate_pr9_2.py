@@ -136,6 +136,9 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "stale_attachment_identity_mismatch_closes_tab": response.get(
                 "staleAttachmentIdentityMismatchClosesTab"
             ),
+            "stale_attachment_identity_mismatch_fails_closed": response.get(
+                "staleAttachmentIdentityMismatchFailsClosed"
+            ),
             "stale_attachment_unproven_identity_fails_closed": response.get(
                 "staleAttachmentUnprovenIdentityFailsClosed"
             ),
@@ -221,6 +224,8 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_STALE_ATTACHMENT_SESSION_IDENTITY_NOT_PROVEN")
     if support.get("stale_attachment_identity_mismatch_closes_tab") is not False:
         raise RuntimeError("PR9_2_STALE_ATTACHMENT_IDENTITY_MISMATCH_MUST_NOT_CLOSE_TAB")
+    if support.get("stale_attachment_identity_mismatch_fails_closed") is not True:
+        raise RuntimeError("PR9_2_STALE_ATTACHMENT_IDENTITY_MISMATCH_FAIL_CLOSED_NOT_PROVEN")
     if support.get("stale_attachment_unproven_identity_fails_closed") is not True:
         raise RuntimeError("PR9_2_STALE_ATTACHMENT_UNPROVEN_IDENTITY_FAIL_CLOSED_NOT_PROVEN")
     if support.get("automatic_write_retry") is not False:
@@ -483,6 +488,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "protected_submit_outcome_proof": "NETWORK_REQUEST_OBSERVATION",
         "stale_attachment_cleanup_requires_session_runtime_identity": True,
         "stale_attachment_identity_mismatch_closes_tab": False,
+        "stale_attachment_identity_mismatch_fails_closed": True,
         "stale_attachment_unproven_identity_fails_closed": True,
         "rich_input_raw_cdp_input_submit_disabled": True,
         "rich_input_enter_fallback_enabled": False,
