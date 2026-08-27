@@ -82,11 +82,9 @@ function _pr92ClosureAttachmentEvidenceExpression(expectedNames) {
       composer.querySelectorAll('[role="alert"], [aria-live], [data-testid*="error"], [aria-label]')
     ).filter(isVisible);
     const statusText = statusNodes.map((element) => {
-      return `${normalize(element.getAttribute('aria-label'))} ${normalize(element.textContent)}`;
+      return normalize(element.getAttribute('aria-label')) + ' ' + normalize(element.textContent);
     }).join(' ');
-    const rejected = /(upload|attachment|file).{0,40}(failed|error|unsupported|too large)|` +
-      `(failed|error|unsupported).{0,40}(upload|attachment|file)|` +
-      `(не удалось|ошибка).{0,40}(загруз|файл)/i.test(statusText);
+    const rejected = /(upload|attachment|file).{0,40}(failed|error|unsupported|too large)|(failed|error|unsupported).{0,40}(upload|attachment|file)|(не удалось|ошибка).{0,40}(загруз|файл)/i.test(statusText);
 
     return {
       ready,

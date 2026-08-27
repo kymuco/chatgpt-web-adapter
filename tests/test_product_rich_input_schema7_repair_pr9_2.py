@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-SCHEMA7 = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
+SCHEMA7 = EXT / "service_worker_rich_input_schema7_core_pr9_2.js"
 ENTRYPOINT = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
 
 
