@@ -57,20 +57,12 @@ function _pr92Schema11AttachmentEvidenceExpression(expectedNames) {
 
     const exactGroupBasename = (label, name) => label === name;
     const removalControlBasename = (label) => {
-      let value = normalize(label);
+      const value = normalize(label);
       const action = value.match(/^(?:remove|delete|discard|удалить)(?:\\s+|:\\s*)/i);
       if (!action) return '';
-      value = value.slice(action[0].length).trim();
-      if (value.length >= 2) {
-        const first = value[0];
-        const last = value[value.length - 1];
-        const paired = (first === '\"' && last === '\"') ||
-          (first === "'" && last === "'") ||
-          (first === '“' && last === '”') ||
-          (first === '‘' && last === '’');
-        if (paired) value = value.slice(1, -1).trim();
-      }
-      return value;
+      // Treat the complete post-action payload literally. Do not strip quotes,
+      // punctuation, prefixes, or suffixes: any ambiguity must fail closed.
+      return value.slice(action[0].length).trim();
     };
     const exactRemovalBasename = (label, name) => removalControlBasename(label) === name;
 
