@@ -357,3 +357,8 @@ importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");
 // deadline-guarded rich submission. Loaded last so raw CDP Input cannot regain
 // protected-write authority for rich turns.
 importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
+
+// PR9.2 schema-7 final authority repair: atomic attachment validation+submit,
+// non-awaited post-click debugger acknowledgement, and session-bound fenced-tab
+// identity before destructive cleanup. Loaded last.
+importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");
