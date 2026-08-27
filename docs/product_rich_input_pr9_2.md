@@ -100,130 +100,131 @@ attachment. PR9.2 waits for stable `PAGE_OWNED_COMPOSER_ATTACHMENT_STATE` matchi
 every expected basename. Explicit upload/attachment rejection fails the turn.
 
 An early evidence check rejects already-bad state before waiting for Send readiness.
-The final evidence check is stronger: in schema 7 it executes **inside the same
-synchronous page-side expression as `button.click()`**. There is no second CDP
-command and therefore no page-task scheduling window between the final attachment
-validation and the protected click.
+The final evidence check executes **inside the same synchronous page-side expression
+as `button.click()`**. There is no second CDP command and no page-task scheduling
+window between final attachment validation and protected click.
 
-The protected primitive is:
+The protected primitive is
+`PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK`. The page expression
+checks an absolute deadline before validation and again before click. A command
+delivered after that page deadline cannot produce a late write.
 
-`PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK`
-
-The page expression checks an absolute deadline before validation and again before
-clicking. A Runtime.evaluate command delivered after that page deadline cannot
-produce a late write.
-
-## Post-click outcome and response-loss boundary
+## Post-click outcome boundary
 
 A debugger command that can execute `button.click()` is not awaited for its CDP
 acknowledgement. Waiting for that acknowledgement could report a local timeout after
 the page had already submitted the write.
 
-Instead, before submission the existing browser-owned page runtime has already
-installed its Network listener. Schema 7 reserves at least the normal submit
-observation window inside the outer deadline, dispatches the page-side atomic
-validate+click expression, and then relies on the existing
-`Network.requestWillBeSent` observation of the protected conversation POST as the
-first post-submit proof. No retry follows a missing observation.
+Before submission the existing browser-owned runtime has already installed its
+Network listener. Schema 7 reserves at least the normal submit-observation window
+inside the outer deadline, dispatches the atomic page expression, and relies on
+`Network.requestWillBeSent` for the protected conversation POST as the first
+post-submit proof. Missing observation fails; it does not trigger retry. Canonical
+assistant readback remains final completion authority.
 
-Current support claims are therefore:
+Current support claims include:
 
 - `postClickDebuggerAckRequired=false`;
 - `protectedSubmitOutcomeProof=NETWORK_REQUEST_OBSERVATION`;
-- a bounded submit-observation reserve is required before dispatch.
-
-Canonical assistant readback remains the final completion authority after the
-browser-owned write has been observed.
+- a bounded submit-observation reserve before dispatch.
 
 ## Durable stale-composer fence and tab identity
 
-Selecting a file mutates persistent page/composer state. Before
-`DOM.setFileInputFiles` may select any file, PR9.2 persists:
-
-- a durable fence in `chrome.storage.local` containing the runtime tab ID and a
-  random runtime identity;
-- the matching runtime identity in `chrome.storage.session`.
+Before `DOM.setFileInputFiles`, PR9.2 persists a durable local fence containing the
+runtime tab ID and random runtime identity, plus a matching identity in
+`chrome.storage.session`.
 
 The local fence survives Manifest V3 worker suspension/restart and remains the
-safety authority. Session storage is used only as destructive-cleanup authority: it
-survives worker suspension within the browser session but does not authorize a tab
-across a browser restart.
+safety authority. Session identity is used only as destructive-cleanup authority.
+Clearing `input.files` is never accepted as cleanup proof.
 
-Clearing `input.files` is never accepted as composer cleanup proof. A later prewrite
-may close the fenced runtime tab only when all of the following are proven under the
-remaining deadline:
+A later prewrite may close the fenced runtime tab only when all of these are proven
+under the remaining deadline:
 
 1. the numeric tab still exists and is a ChatGPT tab;
 2. it is still the currently stored extension runtime tab;
-3. the durable local fence contains a valid runtime identity for that tab;
+3. the durable local fence contains a valid identity for that tab;
 4. browser-session identity exists for the same tab;
-5. the session and durable runtime identities match exactly.
+5. session and durable identities match exactly.
 
 Only then may the extension remove the tab and separately prove its absence.
-`RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED` remains the only destructive cleanup
-proof that permits fence retirement.
+`RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED` is the only destructive cleanup proof
+that permits fence retirement.
 
-If the numeric tab ID now points outside ChatGPT, the old ChatGPT composer is absent
-and the candidate is never closed. If a still-live ChatGPT candidate has a missing,
+If a numeric ID points outside ChatGPT, the old ChatGPT composer is absent and the
+candidate is never closed. If a still-live ChatGPT candidate has a missing,
 mismatched, or otherwise unproven runtime identity—including after a browser restart
 where session identity is unavailable—the extension **does not close it and does not
-clear the durable fence**. The next write fails closed instead of risking destruction
-of a user tab or stale attachment reuse.
+clear the durable fence**. Identity mismatch is fail-closed, not absence proof.
 
 The existing `storage` permission is reused; PR9.2 does not change extension identity
 or version.
 
 ## Schema-7 zero-write support gate
 
-Before any authenticated write, `product_rich_input_live_gate_pr9_2` performs a
-zero-write support probe. The installed extension must report schema 7 and prove the
+Before authenticated writes, `product_rich_input_live_gate_pr9_2` performs a
+zero-write support probe. The installed extension must prove schema 7 and the
 complete current contract, including:
 
 - `DOM.setFileInputFiles` staging and Native Messaging path-only transport;
-- official-page upload and protected-write ownership;
+- official-page upload/protected-write ownership;
 - recovery before staging;
-- durable stale-attachment fencing across worker restart;
-- one total rich-turn deadline;
-- deadline-bounded cleanup and fence retention;
-- page-owned attachment evidence stable across at least two polls;
-- rich raw-CDP Input and Enter fallback disabled;
+- durable fence across worker restart;
+- one total rich-turn deadline and bounded cleanup;
+- stable page-owned attachment evidence;
+- raw-CDP Input and rich Enter fallback disabled;
 - atomic final attachment validation + Send click in one page task;
 - protected primitive exactly
   `PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK`;
-- late page execution blocked by the absolute page deadline;
-- post-click CDP acknowledgement not required;
+- late execution blocked by the absolute page deadline;
+- post-click debugger acknowledgement not required;
 - protected-submit outcome proved by `NETWORK_REQUEST_OBSERVATION`;
-- sufficient submit-observation reserve before dispatch;
+- sufficient submit-observation reserve;
 - destructive cleanup requires browser-session runtime identity;
-- identity mismatch never closes a tab and fails closed;
+- identity mismatch never closes a tab **and fails closed**;
 - unproven identity fails closed;
-- no automatic retry, no fallback transport, and no write by the support probe.
+- no automatic retry, no fallback transport, and no support-probe write.
 
-Schema 6 and earlier overlays fail the current gate. An intermediate schema-7 build
-that does not expose the final identity-mismatch fail-closed claim also fails the
-current gate.
+Schema 6 and earlier overlays fail the gate. An intermediate schema-7 build lacking
+the final identity-mismatch fail-closed claim also fails.
 
 ## Bounded authenticated live evidence
 
-The live phase is deliberately opt-in and has an exact budget of **three** real
-product writes:
+The opt-in live phase has an exact budget of **three** real product writes:
 
 1. image + text new chat using a generated `BLUE | RED | GREEN` image fixture;
 2. general file + text new chat using a hidden `EVIDENCE:` marker;
 3. multimodal continuation using a distinct newly attached hidden marker.
 
-The expected answers are absent from the prompts. Every turn must therefore depend
-on attachment content, and every write must produce exactly one browser-native write
-event and one canonical readback event with attachment count `1`. The continuation
-must preserve conversation identity, and completion must be proven through
-`CANONICAL_READBACK`.
-
-The gate is intentionally explicit because it performs authenticated writes:
+Expected answers are absent from the prompts. Every turn must depend on attachment
+content, produce exactly one browser-native write event and one canonical readback
+event with attachment count `1`, and prove `CANONICAL_READBACK` finality. The
+continuation must preserve conversation identity.
 
 ```bash
 python -m chatgpt_web_adapter.product_rich_input_live_gate_pr9_2 \
   --acknowledge-live-writes
 ```
+
+## Deterministic validation
+
+Final schema-7 implementation head before any authenticated live writes:
+`289014884efa160c2c58c7c9d0d935768bd18617`.
+
+CI #359 (`33046134981`) completed successfully after one rerun of an unrelated
+historical PR9.1 10 ms timing test on Windows Python 3.11. That same job passed on
+rerun without code changes, while all other matrix jobs had already passed.
+
+Final deterministic evidence:
+
+- Ubuntu Python 3.10/3.11/3.12/3.13/3.14: PASS;
+- Windows Python 3.10/3.11/3.12/3.13/3.14: PASS;
+- Ubuntu Python 3.10 reference: **1450 passed, 1 warning**;
+- release build, metadata and artifact validation: PASS;
+- exact built-wheel smoke: Ubuntu 3.10/3.14 + Windows 3.10/3.14: **4/4 PASS**.
+
+The remaining warning is the pre-existing invalid escape-sequence warning in
+`tests/test_payload_validation.py:117`.
 
 ## Capability graduation rule
 
