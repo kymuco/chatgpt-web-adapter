@@ -62,6 +62,7 @@ def _support_response(request_id: str) -> dict:
         "submitObservationReserveMs": 10_500,
         "staleAttachmentCleanupRequiresSessionRuntimeIdentity": True,
         "staleAttachmentIdentityMismatchClosesTab": False,
+        "staleAttachmentIdentityMismatchFailsClosed": True,
         "staleAttachmentUnprovenIdentityFailsClosed": True,
         "automaticWriteRetry": False,
         "fallbackTransport": None,
@@ -103,6 +104,7 @@ def _validated_support() -> dict:
         "submit_observation_reserve_ms": 10_500,
         "stale_attachment_cleanup_requires_session_runtime_identity": True,
         "stale_attachment_identity_mismatch_closes_tab": False,
+        "stale_attachment_identity_mismatch_fails_closed": True,
         "stale_attachment_unproven_identity_fails_closed": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
@@ -186,6 +188,7 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
     assert support["submit_observation_reserve_ms"] >= 10_000
     assert support["stale_attachment_cleanup_requires_session_runtime_identity"] is True
     assert support["stale_attachment_identity_mismatch_closes_tab"] is False
+    assert support["stale_attachment_identity_mismatch_fails_closed"] is True
     assert support["stale_attachment_unproven_identity_fails_closed"] is True
     assert support["rich_input_raw_cdp_input_submit_disabled"] is True
     assert support["rich_input_enter_fallback_enabled"] is False
@@ -245,6 +248,11 @@ def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
             "stale_attachment_cleanup_requires_session_runtime_identity",
             False,
             "STALE_ATTACHMENT_SESSION_IDENTITY_NOT_PROVEN",
+        ),
+        (
+            "stale_attachment_identity_mismatch_fails_closed",
+            False,
+            "STALE_ATTACHMENT_IDENTITY_MISMATCH_FAIL_CLOSED_NOT_PROVEN",
         ),
         (
             "stale_attachment_unproven_identity_fails_closed",
