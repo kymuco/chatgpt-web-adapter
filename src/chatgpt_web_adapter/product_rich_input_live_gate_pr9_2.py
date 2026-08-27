@@ -14,7 +14,7 @@ from .product_model_profile_pr8_10 import ProductModelProfileProvider
 from .product_provenance import CompletionSource, ProductExecutionProvenance
 from .product_runtime import assemble_product_runtime
 
-SCHEMA = 6
+SCHEMA = 7
 PRODUCT_WRITE_BUDGET = 3
 
 _IMAGE_REPLY = "BLUE,RED,GREEN"
@@ -120,6 +120,25 @@ class ProductRichInputLiveProvider(ProductModelProfileProvider):
             "late_protected_submit_execution_prevented_by_page_deadline": response.get(
                 "lateProtectedSubmitExecutionPreventedByPageDeadline"
             ),
+            "atomic_attachment_validation_and_submit": response.get(
+                "atomicAttachmentValidationAndSubmit"
+            ),
+            "post_click_debugger_ack_required": response.get(
+                "postClickDebuggerAckRequired"
+            ),
+            "protected_submit_outcome_proof": response.get(
+                "protectedSubmitOutcomeProof"
+            ),
+            "submit_observation_reserve_ms": response.get("submitObservationReserveMs"),
+            "stale_attachment_cleanup_requires_session_runtime_identity": response.get(
+                "staleAttachmentCleanupRequiresSessionRuntimeIdentity"
+            ),
+            "stale_attachment_identity_mismatch_closes_tab": response.get(
+                "staleAttachmentIdentityMismatchClosesTab"
+            ),
+            "stale_attachment_unproven_identity_fails_closed": response.get(
+                "staleAttachmentUnprovenIdentityFailsClosed"
+            ),
             "automatic_write_retry": response.get("automaticWriteRetry"),
             "fallback_transport": response.get("fallbackTransport"),
             "write_performed": response.get("writePerformed"),
@@ -176,7 +195,7 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_POST_SEND_READINESS_ATTACHMENT_REVALIDATION_NOT_PROVEN")
     if (
         support.get("protected_submit_primitive")
-        != "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK"
+        != "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK"
     ):
         raise RuntimeError("PR9_2_PROTECTED_SUBMIT_PRIMITIVE_NOT_PROVEN")
     if support.get("rich_input_raw_cdp_input_submit_disabled") is not True:
@@ -185,6 +204,25 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_RICH_INPUT_ENTER_FALLBACK_MUST_BE_DISABLED")
     if support.get("late_protected_submit_execution_prevented_by_page_deadline") is not True:
         raise RuntimeError("PR9_2_LATE_PROTECTED_SUBMIT_GUARD_NOT_PROVEN")
+    if support.get("atomic_attachment_validation_and_submit") is not True:
+        raise RuntimeError("PR9_2_ATOMIC_ATTACHMENT_SUBMIT_NOT_PROVEN")
+    if support.get("post_click_debugger_ack_required") is not False:
+        raise RuntimeError("PR9_2_POST_CLICK_DEBUGGER_ACK_MUST_NOT_BE_REQUIRED")
+    if support.get("protected_submit_outcome_proof") != "NETWORK_REQUEST_OBSERVATION":
+        raise RuntimeError("PR9_2_PROTECTED_SUBMIT_OUTCOME_PROOF_NOT_PROVEN")
+    reserve_ms = support.get("submit_observation_reserve_ms")
+    if (
+        not isinstance(reserve_ms, int)
+        or isinstance(reserve_ms, bool)
+        or reserve_ms < 10_000
+    ):
+        raise RuntimeError("PR9_2_SUBMIT_OBSERVATION_RESERVE_NOT_PROVEN")
+    if support.get("stale_attachment_cleanup_requires_session_runtime_identity") is not True:
+        raise RuntimeError("PR9_2_STALE_ATTACHMENT_SESSION_IDENTITY_NOT_PROVEN")
+    if support.get("stale_attachment_identity_mismatch_closes_tab") is not False:
+        raise RuntimeError("PR9_2_STALE_ATTACHMENT_IDENTITY_MISMATCH_MUST_NOT_CLOSE_TAB")
+    if support.get("stale_attachment_unproven_identity_fails_closed") is not True:
+        raise RuntimeError("PR9_2_STALE_ATTACHMENT_UNPROVEN_IDENTITY_FAIL_CLOSED_NOT_PROVEN")
     if support.get("automatic_write_retry") is not False:
         raise RuntimeError("PR9_2_AUTOMATIC_WRITE_RETRY_MUST_BE_FALSE")
     if support.get("fallback_transport") is not None:
@@ -439,7 +477,13 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "attachment_evidence_stable_poll_count": 2,
         "pre_submit_attachment_revalidation": True,
         "post_send_readiness_attachment_revalidation": True,
-        "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK",
+        "atomic_attachment_validation_and_submit": True,
+        "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK",
+        "post_click_debugger_ack_required": False,
+        "protected_submit_outcome_proof": "NETWORK_REQUEST_OBSERVATION",
+        "stale_attachment_cleanup_requires_session_runtime_identity": True,
+        "stale_attachment_identity_mismatch_closes_tab": False,
+        "stale_attachment_unproven_identity_fails_closed": True,
         "rich_input_raw_cdp_input_submit_disabled": True,
         "rich_input_enter_fallback_enabled": False,
         "late_protected_submit_execution_prevented_by_page_deadline": True,
