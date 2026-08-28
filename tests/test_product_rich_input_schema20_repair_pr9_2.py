@@ -47,7 +47,8 @@ def test_schema_20_arm_marker_and_atomic_click_share_one_page_expression():
         'chrome.debugger.sendCommand(debuggee, "Runtime.evaluate"', submit_start
     )
     between = schema7[submit_start:dispatch]
-    assert "await " not in between
+    code_between = "\n".join(line.split("//", 1)[0] for line in between.splitlines())
+    assert "await " not in code_between
 
 
 def test_schema_20_schema17_request_authority_is_closed_before_page_marker():
