@@ -4,14 +4,14 @@ import argparse
 import json
 import uuid
 
-from .product_rich_input_live_gate_schema23_pr9_2 import ProductRichInputSchema23LiveProvider
+from .product_rich_input_live_gate_schema24_pr9_2 import ProductRichInputSchema24LiveProvider
 
 
 def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
     if timeout <= 0:
         raise ValueError("timeout must be positive")
 
-    provider = ProductRichInputSchema23LiveProvider()
+    provider = ProductRichInputSchema24LiveProvider()
     request_id = str(uuid.uuid4())
     response = provider._rpc(
         {
