@@ -1,6 +1,6 @@
 # PR9.2 — Full Product Input Expansion
 
-Status: **browser-owned normal-turn implementation complete / schema-13 code closure green / final docs-synchronized exact-head closure pending / authenticated live graduation pending**
+Status: **browser-owned normal-turn implementation complete / schema-14 code closure green / final docs-synchronized exact-head closure pending / authenticated live graduation pending**
 
 PR9.2 expands `ChatGPTProductRuntime` from text-only input to images, files, and multimodal continuation without weakening the frozen PR9.0 browser-owned production boundary or the PR9.1 browserless challenge boundary.
 
@@ -23,6 +23,9 @@ execution-local MediaItem materialization
         |
         v
 Native Messaging: local paths only, never attachment bytes
+        |
+        +-- if attachmentPaths + requiredModelMode:
+        |      schema-14 fail closed before PR9.2 staging / PR8.10 selector / write
         |
         v
 PR8.11 stale-UI recovery
@@ -72,9 +75,10 @@ schema-7 reviewed core
   -> schema-11 structured-basename / evidence-read-deadline repair
   -> schema-12 post-stage-debugger / send-readiness-deadline repair
   -> schema-13 actual-staging-primitive deadline / durable-fence repair
+  -> schema-14 rich-input/model-profile composition guard
 ```
 
-Text-only turns continue through the historical product path. Later overlays change authority only for rich input or durable rich-input fence recovery.
+Text-only turns continue through the historical product path. Later overlays change authority only for rich input, durable rich-input fence recovery, or the explicitly unproven rich-input/model-profile composition.
 
 ## Input and transport boundary
 
@@ -83,15 +87,19 @@ Text-only turns continue through the historical product path. Later overlays cha
 - Native Messaging carries validated local paths only; attachment bytes never cross the bridge.
 - `media=[]` remains text-only.
 - Browserless and Temporary Chat rich input fail before write.
+- Rich input combined with `model_profile` is **not** a proven PR9.2 composition and fails closed in schema 14 before attachment staging, PR8.10 selector mutation, or protected write.
+- Text-only `model_profile` turns retain their independently proven PR8.10 behavior.
 - Injected/custom/subclassed browser-owned transports cannot gain rich-input authority merely by reusing the `browser-owned` transport identity.
 - Rich provider results must confirm the exact requested attachment count.
-- No browserless fallback, challenge bypass, protected-request reconstruction, or automatic write retry is introduced.
+- No browserless fallback, challenge bypass, protected-request reconstruction, automatic write retry, or silent rich-input-to-text fallback is introduced.
 
 ## One total deadline and protected-submit authority
 
 Attachment staging occurs only after PR8.11 stale-UI recovery, so an authorized reload cannot erase a selected file after staging.
 
-One outer rich-turn deadline governs recovery/reload, runtime-tab waits, clean-composer proof, the complete attachment-staging primitive, pre-stage and post-stage debugger setup, every page-owned attachment evidence read, the complete Send-readiness wait, protected submission, post-submit observation, and cleanup. Raw CDP `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` are not protected-submit authority for rich turns.
+For the **supported PR9.2 rich-input scope**—ordinary browser-owned normal turns without a `model_profile` requirement—one outer rich-turn deadline governs recovery/reload, runtime-tab waits, clean-composer proof, the complete attachment-staging primitive, pre-stage and post-stage debugger setup, every page-owned attachment evidence read, the complete Send-readiness wait, protected submission, post-submit observation, and cleanup. Raw CDP `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent` are not protected-submit authority for rich turns.
+
+PR8.10 model-profile selection was proven independently before PR9.2 and still owns fixed/raw prewrite selector operations. PR9.2 does not claim that selector is governed by the rich-turn deadline. Schema 14 therefore prevents the new `media + model_profile` composition from entering either rich staging or the PR8.10 selector. This keeps the one-deadline claim exact instead of silently composing two independently proven mechanisms without a shared proof.
 
 The only rich protected-submit primitive is:
 
@@ -175,7 +183,7 @@ The safety boundary around the non-cancellable file-selection side effect is exp
 
 On the normal successful path, release/detach also complete inside the same deadline before post-stage evidence reattaches, preventing a detach/reattach ownership race. If staging exits through timeout/error, cleanup falls back to best-effort non-authoritative release/detach so cleanup itself cannot extend or rewrite the already governed failure outcome.
 
-Schema 13 advertises and the authoritative support gate requires:
+Schema 13 advertises and the authoritative support chain requires:
 
 - `attachmentStagingPrimitiveDeadlineBounded=true`;
 - `stagingDebuggerSetupDeadlineBounded=true`;
@@ -183,11 +191,38 @@ Schema 13 advertises and the authoritative support gate requires:
 - `stagingFileInputLookupDeadlineBounded=true`;
 - `stagingFencePersistenceDeadlineBounded=true`;
 - `stagingFileSelectionDeadlineBounded=true`;
+- `stagingPostSelectionCleanupDeadlineBounded=true`;
 - `lateStagingDebuggerAttachAutoDetached=true`;
 - `lateFileSelectionFailsClosedBehindDurableFence=true`;
-- `postSelectionCleanupDeadlineBounded=true`.
+- `postSelectionCleanupBestEffortAfterTimeout=true`.
 
 All schema-12, schema-11, schema-10, schema-9, schema-8, and schema-7 authority remains inherited.
+
+### Schema 14 — fail-closed rich-input/model-profile composition boundary
+
+A manual exact-head source audit after schema 13 found a reachable composition that had not been included in the rich-input deadline proof. The high-level runtime permits both `media=[...]` and `model_profile=...`; the default `ProductModelProfileProvider` then injects `requiredModelMode` into the same browser-native turn. PR8.10's independently proven selector still contains fixed prewrite waits and raw CDP/input operations for model-picker control. Those operations are safe under their own PR8.10 contract, but they are not governed by PR9.2's rich-turn deadline.
+
+Schema 14 does not rewrite or weaken PR8.10. Instead, the outermost rich-input overlay detects a turn containing both non-empty `attachmentPaths` and non-empty `requiredModelMode` and throws `PR9_2_RICH_INPUT_MODEL_PROFILE_COMBINATION_UNAVAILABLE` **before delegating to the schema-13/prior worker chain**.
+
+Therefore, on the rejected composition:
+
+- no PR9.2 turn/staging context is entered;
+- no durable attachment fence is created;
+- no attachment is selected;
+- no PR8.10 model-selector mutation begins;
+- no protected conversation write can occur;
+- no fallback or retry is attempted.
+
+Text-only model-profile turns remain unchanged and continue to use the proven PR8.10 selector. Ordinary PR9.2 rich-input turns without a model-profile requirement remain unchanged and continue through schema 13.
+
+Schema 14 advertises and the authoritative support gate requires:
+
+- `richInputModelProfileCombinationSupported=false`;
+- `richInputModelProfileCombinationFailsBeforeStaging=true`;
+- `richInputModelProfileCombinationFailsBeforeWrite=true`;
+- `pr810RawPrewriteSelectorExcludedFromRichInput=true`.
+
+This is a composition boundary, not capability graduation for rich input + model selection.
 
 ## Durable stale-composer fence and destructive cleanup
 
@@ -209,17 +244,17 @@ Every packaged extension `.js` asset is parsed with `node --check`.
 
 The release gate compares the complete source browser-extension `*.js`/`*.json` asset set with the built wheel, so a new authority overlay cannot exist only in the source tree while the installed package silently ships an older runtime.
 
-## Schema-13 zero-write support gate
+## Schema-14 zero-write support gate
 
-Schema-7 through schema-12 gate modules remain packaged for provenance but cannot graduate schema 13. The authoritative current module is:
+Schema-7 through schema-13 gate modules remain packaged for provenance but cannot graduate schema 14. The authoritative current module is:
 
-`product_rich_input_live_gate_schema13_pr9_2`
+`product_rich_input_live_gate_schema14_pr9_2`
 
-Its support phase performs **seven characterization-only RPCs**, each containing no text and no attachment paths. It preserves every earlier validator requirement and additionally requires the complete schema-13 staging deadline/fence contract listed above.
+Its support phase performs **eight characterization-only RPCs**, each containing no text and no attachment paths. It preserves every earlier validator requirement and additionally requires the schema-14 composition boundary above.
 
-Inherited requirements include schema-12 post-stage debugger/readiness deadlines, schema-11 literal structured basename association and bounded evidence reads, schema-10 official-composer evidence and pre-stage debugger deadline guarantees, schema-9 cross-channel exactness, schema-8 clean-composer/destructive-close guarantees, schema-7 atomic submit/session identity guarantees, one total deadline, page-owned evidence, no rich raw-CDP submit fallback, no automatic retry, and no fallback transport.
+Inherited requirements include schema-13 complete staging deadline/fence guarantees, schema-12 post-stage debugger/readiness deadlines, schema-11 literal structured basename association and bounded evidence reads, schema-10 official-composer evidence and pre-stage debugger deadline guarantees, schema-9 cross-channel exactness, schema-8 clean-composer/destructive-close guarantees, schema-7 atomic submit/session identity guarantees, one total deadline within the supported rich-input scope, page-owned evidence, no rich raw-CDP submit fallback, no automatic retry, and no fallback transport.
 
-Schema 12 and earlier cannot satisfy the authoritative schema-13 gate.
+Schema 13 and earlier cannot satisfy the authoritative schema-14 gate.
 
 ## Bounded authenticated live evidence
 
@@ -229,12 +264,14 @@ The authenticated phase remains explicit opt-in and has an exact budget of **thr
 2. general file + text new chat using a hidden `EVIDENCE:` marker;
 3. multimodal continuation using a distinct newly attached hidden marker.
 
+These live fixtures deliberately do not request a model profile; schema 14 defines that composition as unavailable rather than silently pretending it is part of the proven rich-input surface.
+
 Expected answers are absent from the prompts. Every turn must depend on attachment-only content, produce exactly one browser-native write event and one canonical readback event with attachment count `1`, prove `CANONICAL_READBACK` finality, and preserve continuation conversation identity.
 
 The authoritative command is:
 
 ```bash
-python -m chatgpt_web_adapter.product_rich_input_live_gate_schema13_pr9_2 \
+python -m chatgpt_web_adapter.product_rich_input_live_gate_schema14_pr9_2 \
   --acknowledge-live-writes
 ```
 
@@ -242,16 +279,14 @@ Authenticated rich-input writes have **not** been run while deterministic/source
 
 ## Deterministic closure evidence
 
-Schema-13 code head `71978f2f5e28f452f8afb3c9bef72af124440af6` passed CI #389 (`33154435709`) completely:
+Schema-14 code head `309d6784e364e994f45b45a1618ce4be27bd45e9` passed CI #394 (`33156185618`) completely:
 
 - Ubuntu/Windows Python 3.10–3.14 matrix: **10/10 PASS**;
-- Ubuntu Python 3.10 reference: **1503 passed, 1 warning**;
+- Ubuntu Python 3.10 reference: **1509 passed, 1 warning**;
 - release build / metadata / complete browser-extension package-data contract: **PASS**;
 - installed exact-wheel smoke Ubuntu/Windows Python 3.10/3.14: **4/4 PASS**.
 
-The first Windows Python 3.11 execution hit an unrelated pre-existing floating-point boundary in `test_absolute_finalize_expiry_clamps_relative_ttl`: the observed interval was `25.00000000000003` against a `<= 25` assertion while the other 1502 tests in that job passed. A targeted rerun of only that job passed; no PR9.2 path was involved.
-
-The fresh schema-12 exact-head closure-review staging finding was replied to and resolved against the schema-13 code-head evidence above.
+Schema-13 code head `71978f2f5e28f452f8afb3c9bef72af124440af6` had previously passed CI #389, and its docs-synchronized head `7a75af69359b563ee13637c4288ad897c87a6673` passed CI #390. A fresh Codex review had begun on that schema-13 docs head, but it became stale when the manual audit found the reachable rich-input/model-profile composition and schema 14 changed the branch. No schema-13 review verdict is reused as schema-14 evidence.
 
 A previously green CI run is not sufficient after a head-changing synchronization commit. Therefore this documentation synchronization creates a new final candidate that must itself pass:
 
@@ -265,11 +300,12 @@ Until this closure is clean:
 
 - authenticated rich-input writes are not run;
 - `images`, `files`, and `multimodal_continuation` remain conservative;
+- rich input + `model_profile` remains explicitly unavailable;
 - no capability is graduated from implementation alone;
 - PR9.2 is not merged.
 
 ## Capability graduation rule
 
-Implementation, static support claims, deterministic CI, and source review are still not live product evidence. Graduation requires all three attachment-dependent authenticated turns, exact browser-native write/readback evidence, canonical finality, conversation identity preservation, and the complete schema-13 staging/fence/recovery/deadline/official-composer/literal-basename/cross-channel-exact/atomic-submit/session-identity/destructive-cleanup contract.
+Implementation, static support claims, deterministic CI, and source review are still not live product evidence. Graduation requires all three attachment-dependent authenticated turns, exact browser-native write/readback evidence, canonical finality, conversation identity preservation, and the complete schema-14 composition boundary plus inherited schema-13 staging/fence/recovery/deadline/official-composer/literal-basename/cross-channel-exact/atomic-submit/session-identity/destructive-cleanup contract.
 
 Until that bounded gate succeeds, no rich-input capability is claimed `AVAILABLE`.
