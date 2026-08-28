@@ -126,14 +126,15 @@ def test_schema_27_diagnostic_reports_both_corroborated_interpretations():
     assert "singleAttachmentCrossChannelExact" in text
 
 
-def test_schema_27_support_explicitly_supersedes_schema26_literal_first_claim():
+def test_schema_27_support_explicitly_supersedes_schema25_and_schema26_parser_claims():
     text = GATE27.read_text(encoding="utf-8")
     assert "SCHEMA = 27" in text
     assert "class ProductRichInputSchema27LiveProvider" in text
-    assert 'legacy["schema"] = _v25.SCHEMA' in text
-    assert "_v25._validate_support(legacy)" in text
+    assert 'legacy["schema"] = _v24.SCHEMA' in text
+    assert "_v24._validate_support(legacy)" in text
+    assert "_v25._validate_support" not in text
     assert "_v26._validate_support" not in text
-    assert "Schema 27 explicitly supersedes schema 26" in text
+    assert "Schemas 25 and 26 are superseded parser experiments" in text
     assert "indexed_removal_ambiguity_bidirectional_fail_closed" in text
     assert "indexed_removal_literal_interpretation_requires_independent_filename_group" in text
     assert "indexed_removal_stripped_interpretation_requires_independent_filename_group" in text
