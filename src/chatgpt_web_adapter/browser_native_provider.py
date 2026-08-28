@@ -15,7 +15,7 @@ from .browser_native_protocol import (
     recv_local_message,
     send_local_message,
 )
-from .exceptions import RequestError
+from .exceptions import ConversationTimeoutError, RequestError
 from .types import ChatConversation, ConversationRef
 
 
@@ -301,8 +301,14 @@ class BrowserNativeTurnProvider:
                 request_stage="browser_native_bridge",
             )
         if not response.get("ok"):
-            error = response.get("error") or "BROWSER_NATIVE_TURN_FAILED"
-            raise RequestError(str(error), request_stage="browser_native_turn")
+            error = str(response.get("error") or "BROWSER_NATIVE_TURN_FAILED")
+            if error.startswith("PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED"):
+                raise ConversationTimeoutError(
+                    error,
+                    timeout=total_timeout,
+                    last_status="browser_native_write_completed_identity_unresolved",
+                )
+            raise RequestError(error, request_stage="browser_native_turn")
         result_conversation_id = response.get("conversationId")
         status = response.get("responseStatus")
         if not isinstance(result_conversation_id, str) or not result_conversation_id.strip():
