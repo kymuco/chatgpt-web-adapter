@@ -23,3 +23,4 @@ importScripts("service_worker_rich_input_schema24_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");
 importScripts("service_worker_rich_input_schema25_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema26_repair_pr9_2.js");
+importScripts("service_worker_rich_input_schema26_staging_diagnostic_pr9_2.js");
