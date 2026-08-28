@@ -1,4 +1,4 @@
-// PR9.2 schema-24 official-composer mount/readiness race repair.
+// PR9.2 schema-24 official-composer mount race repair.
 //
 // Loaded after schema 23. Authenticated live validation showed a fresh inactive
 // runtime tab can reach browser tab "complete" before ChatGPT's React composer has
@@ -6,14 +6,40 @@
 // evidence after Runtime.enable and therefore treated `officialComposerMounted=false`
 // as a dirty composer instead of a transient not-yet-mounted state.
 //
-// Schema 24 keeps every clean-composer safety invariant but inserts one bounded
-// official-composer readiness wait before the two authoritative empty-set evidence
-// polls. Once the composer is mounted, any real attachment evidence still fails
-// closed immediately. The wait consumes the same single outer rich-turn deadline;
-// there is no retry, staging, or protected-write authority in this phase.
+// Schema 24 keeps every clean-composer safety invariant but first waits, through
+// the same production page-owned attachment-evidence reader, until the official
+// prompt + owning form are mounted. Only then do the two authoritative empty-set
+// clean polls run. A mounted composer with any attachment evidence still fails
+// closed immediately. The mount wait consumes the same single outer rich-turn
+// deadline; there is no retry, staging, or protected-write authority in this phase.
 
 const _pr92Schema24PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA24_REPAIR_SCHEMA = 24;
+
+async function _pr92Schema24WaitForOfficialComposerMounted(debuggee, context) {
+  while (true) {
+    const evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
+      debuggee,
+      [],
+      context
+    );
+    if (evidence?.officialComposerMounted === true) return evidence;
+    await _pr92BoundedSleep(
+      context,
+      PR92_PAGE_ATTACHMENT_POLL_MS,
+      "SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_MOUNT_WAIT"
+    );
+  }
+}
+
+function _pr92Schema24EvidenceIsClean(evidence) {
+  const groupCount = Number(evidence?.groupLabelCount);
+  const removalCount = Number(evidence?.removalLabelCount);
+  return evidence?.officialComposerMounted === true &&
+    evidence?.exactBasenameAssociation === true &&
+    evidence?.exactAttachmentSet === true &&
+    groupCount === 0 && removalCount === 0;
+}
 
 _pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function _pr92Schema24RequireOfficialCleanComposerBeforeStaging(
   tabId,
@@ -54,38 +80,17 @@ _pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function _pr92Sch
       () => chrome.debugger.sendCommand(debuggee, "Runtime.enable")
     );
 
-    // A browser tab reporting load-complete is not proof that the client-side
-    // composer has mounted. Wait for the same official composer readiness used by
-    // the page-turn path before interpreting a missing composer as attachment
-    // state. This wait is bounded by the one outer rich-turn deadline.
-    const readinessBudget = _pr92RemainingTurnMs(
-      context,
-      "SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_READY_BUDGET"
-    );
-    await _pr92Schema7RunUntil(
-      context.deadlineAt,
-      "SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_READY",
-      () => waitForComposerReady(debuggee, readinessBudget)
-    );
+    // Browser tab load completion is not composer-mount authority. Reuse the exact
+    // production attachment-evidence reader and treat `officialComposerMounted=false`
+    // as transient until the one outer turn deadline expires.
+    let evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context);
 
-    // After mount/readiness, preserve the exact schema-15 authoritative proof:
-    // two stable empty-set polls, exact basename semantics, and zero role-group /
-    // structured-removal evidence. Any actual attachment remains an immediate
-    // fail-closed condition before staging.
+    // The evidence that first proves mount is also the first clean poll. If the
+    // freshly mounted composer already contains any attachment evidence, fail
+    // closed immediately rather than sleeping or attempting staging.
     let stable = 0;
     while (stable < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS) {
-      const evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
-        debuggee,
-        [],
-        context
-      );
-      const groupCount = Number(evidence?.groupLabelCount);
-      const removalCount = Number(evidence?.removalLabelCount);
-      const clean = evidence?.officialComposerMounted === true &&
-        evidence?.exactBasenameAssociation === true &&
-        evidence?.exactAttachmentSet === true &&
-        groupCount === 0 && removalCount === 0;
-      if (!clean) {
+      if (!_pr92Schema24EvidenceIsClean(evidence)) {
         throw new Error("PR9_2_OFFICIAL_COMPOSER_NOT_CLEAN_BEFORE_STAGING");
       }
       stable += 1;
@@ -94,6 +99,11 @@ _pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function _pr92Sch
           context,
           PR92_PAGE_ATTACHMENT_POLL_MS,
           "SCHEMA24_PRESTAGE_CLEAN_STABILITY"
+        );
+        evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
+          debuggee,
+          [],
+          context
         );
       }
     }
@@ -118,10 +128,11 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema24Repair(mess
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA24_REPAIR_SCHEMA,
-    preStageOfficialComposerReadinessAwaited: true,
-    preStageOfficialComposerReadinessDeadlineBounded: true,
+    preStageOfficialComposerMountAwaited: true,
+    preStageOfficialComposerMountWaitDeadlineBounded: true,
+    officialComposerMountUsesProductionAttachmentEvidenceReader: true,
     tabCompleteAloneCanProveComposerMounted: false,
-    missingComposerBeforeReadinessClassifiedDirty: false,
+    missingComposerBeforeMountClassifiedDirty: false,
     mountedAttachmentEvidenceStillFailsClosed: true
   };
 };
