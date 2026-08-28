@@ -60,14 +60,17 @@ class ProductRichInputSchema13LiveProvider(_v12.ProductRichInputSchema12LiveProv
         support["staging_file_selection_deadline_bounded"] = response.get(
             "stagingFileSelectionDeadlineBounded"
         )
+        support["staging_post_selection_cleanup_deadline_bounded"] = response.get(
+            "stagingPostSelectionCleanupDeadlineBounded"
+        )
         support["late_staging_debugger_attach_auto_detached"] = response.get(
             "lateStagingDebuggerAttachAutoDetached"
         )
         support["late_file_selection_fails_closed_behind_durable_fence"] = response.get(
             "lateFileSelectionFailsClosedBehindDurableFence"
         )
-        support["post_selection_cleanup_non_blocking"] = response.get(
-            "postSelectionCleanupNonBlocking"
+        support["post_selection_cleanup_best_effort_after_timeout"] = response.get(
+            "postSelectionCleanupBestEffortAfterTimeout"
         )
         return support
 
@@ -93,12 +96,14 @@ def _validate_support(support: dict[str, Any]) -> None:
             "PR9_2_STAGING_FENCE_PERSISTENCE_DEADLINE_NOT_PROVEN",
         "staging_file_selection_deadline_bounded":
             "PR9_2_STAGING_FILE_SELECTION_DEADLINE_NOT_PROVEN",
+        "staging_post_selection_cleanup_deadline_bounded":
+            "PR9_2_STAGING_POST_SELECTION_CLEANUP_DEADLINE_NOT_PROVEN",
         "late_staging_debugger_attach_auto_detached":
             "PR9_2_LATE_STAGING_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
         "late_file_selection_fails_closed_behind_durable_fence":
             "PR9_2_LATE_FILE_SELECTION_FENCE_NOT_PROVEN",
-        "post_selection_cleanup_non_blocking":
-            "PR9_2_POST_SELECTION_CLEANUP_NON_BLOCKING_NOT_PROVEN",
+        "post_selection_cleanup_best_effort_after_timeout":
+            "PR9_2_POST_SELECTION_CLEANUP_FALLBACK_NOT_PROVEN",
     }
     for key, error in required.items():
         if support.get(key) is not True:
@@ -214,7 +219,8 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "schema_12_safety_contract_preserved": True,
         "attachment_staging_primitive_deadline_bounded": True,
         "late_file_selection_fails_closed_behind_durable_fence": True,
-        "post_selection_cleanup_non_blocking": True,
+        "staging_post_selection_cleanup_deadline_bounded": True,
+        "post_selection_cleanup_best_effort_after_timeout": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
     }
