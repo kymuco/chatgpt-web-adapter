@@ -27,7 +27,6 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema27StagingDiag
   const context = _pr92CreateTurnContext(message);
   context.attachmentPaths = attachmentPaths;
   _pr92ActiveTurnContext = context;
-  let staged = false;
   let stagedTabId = null;
   try {
     await _pr92RequireCleanAttachmentState(context);
@@ -52,7 +51,6 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema27StagingDiag
     if (stagedCount !== 1) {
       throw new Error("PR9_2_SCHEMA27_STAGING_DIAGNOSTIC_STAGE_COUNT_MISMATCH");
     }
-    staged = true;
 
     // Reuse the bounded diagnostic DOM observer only as a reader. Its historical
     // schema-26 normalization field is deliberately ignored; schema 27 recomputes
@@ -113,16 +111,20 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema27StagingDiag
       durableFenceCleared: true
     };
   } catch (error) {
-    // Never manufacture a clean result after uncertain staging. If cleanup is still
-    // possible within the same deadline, attempt the established fenced recovery;
-    // otherwise the durable fence remains and the next write is fail-closed.
-    if (staged) {
-      try {
-        if (_pr92RemainingTurnMsOrZero(context) > 0) {
+    // The full production staging wrapper can fail after DOM.setFileInputFiles has
+    // already executed (for example, during post-stage evidence). Do not key cleanup
+    // eligibility on the wrapper having returned successfully. The durable fence was
+    // persisted before file selection and is the authoritative proof that partial
+    // staging may exist. If budget remains, read that fence and invoke the established
+    // destructive prewrite recovery; otherwise retain it so the next write fails closed.
+    try {
+      if (_pr92RemainingTurnMsOrZero(context) > 0) {
+        const residualFence = await _pr92ReadDirtyAttachmentFence();
+        if (Number.isInteger(residualFence)) {
           await _pr92RequireCleanAttachmentState(context);
         }
-      } catch {}
-    }
+      }
+    } catch {}
     throw error;
   } finally {
     _pr92ActiveTurnContext = null;
