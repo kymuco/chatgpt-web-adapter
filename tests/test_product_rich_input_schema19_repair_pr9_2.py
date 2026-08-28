@@ -48,7 +48,7 @@ def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
     assert "const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;" in text
     assert "const PR92_SCHEMA19_RPC_RETURN_RESERVE_MS = 500;" in text
     start = text.index("_pr92Schema17OptionalPostWrite = async function")
-    end = text.index("function _pr92Schema19CanonicalConversationUrl", start)
+    end = text.index("executeOfficialPageTurn = async function", start)
     block = text[start:end]
     assert 'stage === "SCHEMA17_POSTWRITE_RESPONSE_BODY"' in block
     assert "context?.schema19RequestedConversationId == null" in block
@@ -80,10 +80,12 @@ def test_schema_19_route_can_neither_satisfy_nor_override_new_chat_identity():
     assert "if (!causalConversationId)" in block
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in block
     assert "const routeConversationId = conversationIdFromUrl" in block
+    assert "const routeMatchesCausalIdentity = routeConversationId === causalConversationId" in block
+    assert "finalUrl: routeMatchesCausalIdentity ? result.finalUrl : null" in block
     assert "conversationId: causalConversationId" in block
     assert "routeConversationIdentityAuthoritative: false" in block
     assert "routeConversationId: routeConversationId || null" in block
-    assert "causalConversationId" in block
+    assert "routeMatchesCausalIdentity," in block
     assert block.index("if (!causalConversationId)") < block.index(
         "const routeConversationId = conversationIdFromUrl"
     )
