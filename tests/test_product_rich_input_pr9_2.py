@@ -166,10 +166,14 @@ class _FakeUrlHeaders:
     def get_content_type(self):
         return "text/plain"
 
+    def get(self, name, default=None):
+        return default
+
 
 class _FakeUrlResponse:
     def __init__(self, payload: bytes, url: str) -> None:
         self._payload = payload
+        self._offset = 0
         self._url = url
         self.headers = _FakeUrlHeaders()
 
@@ -179,8 +183,13 @@ class _FakeUrlResponse:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def read(self):
-        return self._payload
+    def read(self, size=-1):
+        if size is None or size < 0:
+            size = len(self._payload) - self._offset
+        start = self._offset
+        end = min(len(self._payload), start + size)
+        self._offset = end
+        return self._payload[start:end]
 
     def geturl(self):
         return self._url
