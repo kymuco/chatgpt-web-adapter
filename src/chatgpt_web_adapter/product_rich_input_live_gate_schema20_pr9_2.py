@@ -16,7 +16,7 @@ from .product_runtime import assemble_product_runtime
 SCHEMA = 20
 PRODUCT_WRITE_BUDGET = _v19.PRODUCT_WRITE_BUDGET
 _EXPECTED_IDENTITY_AUTHORITY = "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"
-_EXPECTED_REQUEST_CORRELATION = "PROTECTED_SUBMIT_ARMED_SINGLE_CONVERSATION_POST"
+_EXPECTED_REQUEST_CORRELATION = "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST"
 _SCHEMA19_IDENTITY_AUTHORITY = "NETWORK_REQUEST_BOUND_STREAM_HANDOFF"
 
 
@@ -50,8 +50,11 @@ class ProductRichInputSchema20LiveProvider(_v19.ProductRichInputSchema19LiveProv
         support["protected_submit_request_correlation"] = response.get(
             "protectedSubmitRequestCorrelation"
         )
-        support["protected_submit_request_armed_at_atomic_dispatch_boundary"] = response.get(
-            "protectedSubmitRequestArmedAtAtomicDispatchBoundary"
+        support["protected_submit_request_armed_by_page_side_marker"] = response.get(
+            "protectedSubmitRequestArmedByPageSideMarker"
+        )
+        support["page_side_arm_marker_and_protected_click_same_task"] = response.get(
+            "pageSideArmMarkerAndProtectedClickSameTask"
         )
         support["pre_arm_conversation_requests_authoritative"] = response.get(
             "preArmConversationRequestsAuthoritative"
@@ -86,8 +89,10 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_SUBMIT_BOUND_CONVERSATION_ID_AUTHORITY_NOT_PROVEN")
     if support.get("protected_submit_request_correlation") != _EXPECTED_REQUEST_CORRELATION:
         raise RuntimeError("PR9_2_PROTECTED_SUBMIT_REQUEST_CORRELATION_NOT_PROVEN")
-    if support.get("protected_submit_request_armed_at_atomic_dispatch_boundary") is not True:
-        raise RuntimeError("PR9_2_PROTECTED_SUBMIT_ARM_BOUNDARY_NOT_PROVEN")
+    if support.get("protected_submit_request_armed_by_page_side_marker") is not True:
+        raise RuntimeError("PR9_2_PAGE_SIDE_PROTECTED_SUBMIT_ARM_NOT_PROVEN")
+    if support.get("page_side_arm_marker_and_protected_click_same_task") is not True:
+        raise RuntimeError("PR9_2_PAGE_SIDE_ARM_CLICK_ATOMICITY_NOT_PROVEN")
     if support.get("pre_arm_conversation_requests_authoritative") is not False:
         raise RuntimeError("PR9_2_PRE_ARM_CONVERSATION_REQUEST_AUTHORITY_NOT_DENIED")
     if support.get("exactly_one_post_arm_conversation_request_required") is not True:
@@ -214,6 +219,8 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "schema_19_safety_contract_preserved": True,
         "new_chat_conversation_identity_authority": _EXPECTED_IDENTITY_AUTHORITY,
         "protected_submit_request_correlation": _EXPECTED_REQUEST_CORRELATION,
+        "protected_submit_request_armed_by_page_side_marker": True,
+        "page_side_arm_marker_and_protected_click_same_task": True,
         "pre_arm_conversation_requests_authoritative": False,
         "exactly_one_post_arm_conversation_request_required": True,
         "user_gesture_post_arm_request_can_satisfy_protected_submit": False,
