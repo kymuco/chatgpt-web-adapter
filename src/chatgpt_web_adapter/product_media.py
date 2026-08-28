@@ -8,7 +8,9 @@ import mimetypes
 from pathlib import Path, PureWindowsPath
 import re
 import shutil
+import socket
 import tempfile
+import threading
 import time
 from typing import Iterator, Sequence
 from urllib.parse import unquote, urlparse
@@ -125,20 +127,60 @@ def _response_content_length(response: object) -> int | None:
     return value if value >= 0 else None
 
 
-def _set_response_read_timeout(response: object, timeout_seconds: float) -> None:
-    """Best-effort tighten the standard urllib socket to the remaining deadline."""
-
-    timeout_seconds = max(0.001, float(timeout_seconds))
+def _response_socket_candidates(response: object) -> tuple[object, ...]:
     fp = getattr(response, "fp", None)
     candidates = (
         getattr(getattr(fp, "raw", None), "_sock", None),
         getattr(fp, "_sock", None),
     )
-    for candidate in candidates:
+    return tuple(candidate for candidate in candidates if candidate is not None)
+
+
+def _set_response_read_timeout(response: object, timeout_seconds: float) -> None:
+    """Best-effort tighten the standard urllib socket to the remaining deadline."""
+
+    timeout_seconds = max(0.001, float(timeout_seconds))
+    for candidate in _response_socket_candidates(response):
         setter = getattr(candidate, "settimeout", None)
         if callable(setter):
             setter(timeout_seconds)
             return
+
+
+def _abort_response_read(response: object) -> None:
+    """Interrupt an in-flight urllib body read at the absolute download deadline."""
+
+    for candidate in _response_socket_candidates(response):
+        shutdown = getattr(candidate, "shutdown", None)
+        if callable(shutdown):
+            try:
+                shutdown(socket.SHUT_RDWR)
+            except (OSError, ValueError):
+                pass
+        close = getattr(candidate, "close", None)
+        if callable(close):
+            try:
+                close()
+            except OSError:
+                pass
+    close_response = getattr(response, "close", None)
+    if callable(close_response):
+        try:
+            close_response()
+        except OSError:
+            pass
+
+
+def _read_response_step(response: object, read_size: int) -> bytes:
+    """Prefer one underlying read step; generic fallbacks consume one byte only."""
+
+    read1 = getattr(response, "read1", None)
+    if callable(read1):
+        return read1(read_size)
+    read = getattr(response, "read", None)
+    if not callable(read):
+        raise TypeError("URL response does not expose a readable body")
+    return read(1 if read_size > 0 else 0)
 
 
 def _url_basename(source: str) -> str | None:
@@ -191,7 +233,8 @@ def _download_http_source_to_file(
 
     try:
         with response_context as response:
-            if time.monotonic() >= deadline_at:
+            remaining = deadline_at - time.monotonic()
+            if remaining <= 0:
                 raise ValueError(f"media[{index}] URL source exceeded total download deadline")
 
             declared_length = _response_content_length(response)
@@ -205,48 +248,72 @@ def _download_http_source_to_file(
             target_dir = root / f"item-{index}"
             target_dir.mkdir()
 
-            total_bytes = 0
-            prefix = bytearray()
-            with tempfile.NamedTemporaryFile(
-                mode="wb",
-                dir=target_dir,
-                prefix=".remote-",
-                suffix=".part",
-                delete=False,
-            ) as staging_file:
-                staging_path = Path(staging_file.name)
-                while True:
-                    remaining = deadline_at - time.monotonic()
-                    if remaining <= 0:
-                        raise ValueError(
-                            f"media[{index}] URL source exceeded total download deadline"
+            deadline_abort_fired = threading.Event()
+
+            def abort_at_deadline() -> None:
+                deadline_abort_fired.set()
+                _abort_response_read(response)
+
+            deadline_timer = threading.Timer(remaining, abort_at_deadline)
+            deadline_timer.daemon = True
+            deadline_timer.start()
+            try:
+                total_bytes = 0
+                prefix = bytearray()
+                with tempfile.NamedTemporaryFile(
+                    mode="wb",
+                    dir=target_dir,
+                    prefix=".remote-",
+                    suffix=".part",
+                    delete=False,
+                ) as staging_file:
+                    staging_path = Path(staging_file.name)
+                    while True:
+                        remaining = deadline_at - time.monotonic()
+                        if remaining <= 0 or deadline_abort_fired.is_set():
+                            raise ValueError(
+                                f"media[{index}] URL source exceeded total download deadline"
+                            )
+                        _set_response_read_timeout(
+                            response,
+                            min(_REMOTE_FETCH_TIMEOUT_SECONDS, remaining),
                         )
-                    _set_response_read_timeout(
-                        response,
-                        min(_REMOTE_FETCH_TIMEOUT_SECONDS, remaining),
+                        read_size = min(
+                            _REMOTE_FETCH_CHUNK_BYTES,
+                            _REMOTE_FETCH_MAX_BYTES - total_bytes + 1,
+                        )
+                        try:
+                            chunk = _read_response_step(response, read_size)
+                        except Exception as error:
+                            if deadline_abort_fired.is_set() or time.monotonic() >= deadline_at:
+                                raise ValueError(
+                                    f"media[{index}] URL source exceeded total download deadline"
+                                ) from error
+                            raise
+                        if not chunk:
+                            break
+                        if not isinstance(chunk, (bytes, bytearray)):
+                            raise ValueError(f"media[{index}] URL source returned non-byte data")
+                        total_bytes += len(chunk)
+                        if total_bytes > _REMOTE_FETCH_MAX_BYTES:
+                            raise ValueError(
+                                f"media[{index}] URL source exceeds {_REMOTE_FETCH_MAX_BYTES} bytes"
+                            )
+                        if len(prefix) < _REMOTE_PREFIX_BYTES:
+                            needed = _REMOTE_PREFIX_BYTES - len(prefix)
+                            prefix.extend(chunk[:needed])
+                        staging_file.write(chunk)
+                        if time.monotonic() >= deadline_at or deadline_abort_fired.is_set():
+                            raise ValueError(
+                                f"media[{index}] URL source exceeded total download deadline"
+                            )
+
+                if deadline_abort_fired.is_set() or time.monotonic() >= deadline_at:
+                    raise ValueError(
+                        f"media[{index}] URL source exceeded total download deadline"
                     )
-                    read_size = min(
-                        _REMOTE_FETCH_CHUNK_BYTES,
-                        _REMOTE_FETCH_MAX_BYTES - total_bytes + 1,
-                    )
-                    chunk = response.read(read_size)
-                    if not chunk:
-                        break
-                    if not isinstance(chunk, (bytes, bytearray)):
-                        raise ValueError(f"media[{index}] URL source returned non-byte data")
-                    total_bytes += len(chunk)
-                    if total_bytes > _REMOTE_FETCH_MAX_BYTES:
-                        raise ValueError(
-                            f"media[{index}] URL source exceeds {_REMOTE_FETCH_MAX_BYTES} bytes"
-                        )
-                    if len(prefix) < _REMOTE_PREFIX_BYTES:
-                        needed = _REMOTE_PREFIX_BYTES - len(prefix)
-                        prefix.extend(chunk[:needed])
-                    staging_file.write(chunk)
-                    if time.monotonic() >= deadline_at:
-                        raise ValueError(
-                            f"media[{index}] URL source exceeded total download deadline"
-                        )
+            finally:
+                deadline_timer.cancel()
 
             if total_bytes == 0:
                 raise ValueError(f"media[{index}] URL source is empty")
