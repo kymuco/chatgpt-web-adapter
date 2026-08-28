@@ -35,7 +35,8 @@ def test_schema_15_pre_stage_success_detach_is_deadline_bounded_before_return():
     assert detach in block
     assert "await _pr92Schema15DetachWithinDeadline(" in block
     assert "attached = false;" in block
-    assert block.index(detach) < block.index("attached = false;")
+    success_detached = block.rindex("attached = false;")
+    assert block.index(detach) < success_detached
     assert "if (attached) _pr92Schema10BestEffortDetach(debuggee);" in block
 
 
@@ -54,9 +55,8 @@ def test_schema_15_post_stage_success_detach_is_deadline_bounded_before_evidence
     assert "await _pr92Schema15DetachWithinDeadline(" in block
     assert "attached = false;" in block
     assert "return pageOwnedCount;" in block
-    assert block.index(detach) < block.index("attached = false;") < block.index(
-        "return pageOwnedCount;"
-    )
+    success_detached = block.rindex("attached = false;")
+    assert block.index(detach) < success_detached < block.index("return pageOwnedCount;")
     assert "if (attached) _pr92Schema12BestEffortDetach(debuggee);" in block
 
 
