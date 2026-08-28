@@ -67,18 +67,19 @@ def test_schema_18_success_requires_real_identity_after_write_completion_proof()
 
 def test_schema_18_unresolved_identity_is_explicit_committed_failure_not_success():
     text = SCHEMA18.read_text(encoding="utf-8")
-    assert (
-        '"PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED"'
-        in text
-    )
+    assert '"PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED"' in text
     resolver_start = text.index("async function _pr92Schema18ResolvePostWriteConversationIdentity")
     resolver_end = text.index("executeOfficialPageTurn = async function", resolver_start)
     resolver = text[resolver_start:resolver_end]
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in resolver
-    support = text[text.index("executeNativeTurn = async function") :]
-    assert "missingConversationIdentityCanReturnTransportSuccess: false" in support
-    assert "unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true" in support
-    assert "automaticWriteRetryAfterIdentityFailure: false" in support
+
+    native_start = text.index("executeNativeTurn = async function")
+    native = text[native_start:]
+    assert "detail.includes(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)" in native
+    assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in native
+    assert "missingConversationIdentityCanReturnTransportSuccess: false" in native
+    assert "unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true" in native
+    assert "automaticWriteRetryAfterIdentityFailure: false" in native
 
 
 def test_provider_maps_committed_identity_failure_to_readback_incomplete_timeout_semantics():
@@ -87,7 +88,7 @@ def test_provider_maps_committed_identity_failure_to_readback_incomplete_timeout
     start = text.index('if not response.get("ok"):')
     end = text.index("result_conversation_id = response.get", start)
     block = text[start:end]
-    assert '"PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED" in error' in block
+    assert 'error.startswith("PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED")' in block
     assert "raise ConversationTimeoutError(" in block
     assert 'last_status="browser_native_write_completed_identity_unresolved"' in block
     assert block.index("raise ConversationTimeoutError(") < block.index(
