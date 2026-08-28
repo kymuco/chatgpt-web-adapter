@@ -2,8 +2,10 @@
 //
 // Diagnostic-only. This file does not change the advertised rich-input schema or
 // any attachment/write authority. It exposes one explicit no-write RPC that reads
-// the current official composer DOM so live UI false positives can be classified
-// from evidence rather than by adding another heuristic repair.
+// the current official composer DOM and, crucially, executes the same production
+// page-owned attachment evidence reader used by the pre-stage clean gate. Live UI
+// false positives can therefore be classified from exact gate evidence rather
+// than from a parallel approximation.
 
 const _pr92Schema23DiagnosticPriorExecuteNativeTurn = executeNativeTurn;
 
@@ -93,6 +95,15 @@ function _pr92Schema23DiagnosticExpression() {
   })()`;
 }
 
+function _pr92Schema23DiagnosticProductionClean(evidence) {
+  const groupCount = Number(evidence?.groupLabelCount);
+  const removalCount = Number(evidence?.removalLabelCount);
+  return evidence?.officialComposerMounted === true &&
+    evidence?.exactBasenameAssociation === true &&
+    evidence?.exactAttachmentSet === true &&
+    groupCount === 0 && removalCount === 0;
+}
+
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(message) {
   if (message?.diagnosePr92ComposerEvidence !== true) {
     return _pr92Schema23DiagnosticPriorExecuteNativeTurn(message);
@@ -131,6 +142,31 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
         Math.max(1, Math.ceil(context.deadlineAt - performance.now()))
       )
     );
+
+    // Execute the exact production reader twice with the exact expected=[] clean
+    // semantics used by schema 10 before staging. This is the authoritative dry
+    // run of the gate that raised PR9_2_OFFICIAL_COMPOSER_NOT_CLEAN_BEFORE_STAGING.
+    const productionPolls = [];
+    for (let index = 0; index < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS; index += 1) {
+      const evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
+        debuggee,
+        [],
+        context
+      );
+      productionPolls.push({
+        index,
+        clean: _pr92Schema23DiagnosticProductionClean(evidence),
+        evidence
+      });
+      if (index + 1 < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS) {
+        await _pr92BoundedSleep(
+          context,
+          PR92_PAGE_ATTACHMENT_POLL_MS,
+          "SCHEMA23_DIAGNOSTIC_PRODUCTION_CLEAN_STABILITY"
+        );
+      }
+    }
+
     const evaluated = await _pr92Schema7RunUntil(
       context.deadlineAt,
       "SCHEMA23_DIAGNOSTIC_EVIDENCE_READ",
@@ -147,6 +183,12 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
       protectedSubmitAttempted: false,
       richInputSchemaVersion: PR92_SCHEMA23_REPAIR_SCHEMA,
       tabId: tab.id,
+      productionCleanProof: {
+        stablePollsRequired: PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS,
+        allPollsClean: productionPolls.length === PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS &&
+          productionPolls.every((poll) => poll.clean === true),
+        polls: productionPolls
+      },
       evidence: evaluated?.result?.value || null
     };
   } finally {
