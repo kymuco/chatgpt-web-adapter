@@ -7,3 +7,4 @@ importScripts("service_worker_rich_input_schema8_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema9_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema10_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema11_repair_pr9_2.js");
+importScripts("service_worker_rich_input_schema12_repair_pr9_2.js");
