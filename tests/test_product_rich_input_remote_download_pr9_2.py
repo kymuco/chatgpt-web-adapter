@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
+import time
 
 import pytest
 
@@ -33,6 +35,8 @@ class _StreamingResponse:
         self._url = url
         self.headers = _Headers(content_length=content_length)
         self.read_sizes: list[int] = []
+        self.read1_sizes: list[int] = []
+        self.closed = False
 
     def __enter__(self):
         return self
@@ -40,8 +44,7 @@ class _StreamingResponse:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def read(self, size=-1):
-        self.read_sizes.append(size)
+    def _take(self, size: int) -> bytes:
         if not self._chunks:
             return b""
         chunk = self._chunks.pop(0)
@@ -50,11 +53,50 @@ class _StreamingResponse:
             return chunk[:size]
         return chunk
 
+    def read(self, size=-1):
+        self.read_sizes.append(size)
+        return self._take(size)
+
+    def read1(self, size=-1):
+        self.read1_sizes.append(size)
+        return self._take(size)
+
+    def close(self):
+        self.closed = True
+
     def geturl(self):
         return self._url
 
 
-def test_remote_media_streams_to_disk_in_bounded_reads(monkeypatch):
+class _BlockingReadResponse:
+    def __init__(self, url: str) -> None:
+        self._url = url
+        self.headers = _Headers()
+        self.read_started = threading.Event()
+        self.read_released = threading.Event()
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read1(self, size=-1):
+        self.read_started.set()
+        if not self.read_released.wait(timeout=5.0):
+            raise AssertionError("deadline abort did not interrupt the blocking body read")
+        raise OSError("response closed by deadline abort")
+
+    def close(self):
+        self.closed = True
+        self.read_released.set()
+
+    def geturl(self):
+        return self._url
+
+
+def test_remote_media_streams_to_disk_in_bounded_read1_steps(monkeypatch):
     source = "https://example.test/files/blob.bin"
     response = _StreamingResponse([b"abc", b"def", b"ghi"], source, content_length=9)
 
@@ -67,9 +109,10 @@ def test_remote_media_streams_to_disk_in_bounded_reads(monkeypatch):
         assert generated.name == "blob.bin"
         assert materialization.materialized_byte_inputs == 1
 
-    assert response.read_sizes
-    assert all(size > 0 for size in response.read_sizes)
-    assert max(response.read_sizes) <= 4
+    assert response.read1_sizes
+    assert response.read_sizes == []
+    assert all(size > 0 for size in response.read1_sizes)
+    assert max(response.read1_sizes) <= 4
     assert not generated.exists()
 
 
@@ -86,6 +129,7 @@ def test_remote_media_rejects_oversized_content_length_before_read(monkeypatch):
     with pytest.raises(ValueError, match=r"exceeds 8 bytes"):
         with browser_owned_media_scope([source]):
             pass
+    assert response.read1_sizes == []
     assert response.read_sizes == []
 
 
@@ -99,7 +143,8 @@ def test_remote_media_rejects_stream_that_exceeds_actual_byte_cap(monkeypatch):
     with pytest.raises(ValueError, match=r"exceeds 8 bytes"):
         with browser_owned_media_scope([source]):
             pass
-    assert response.read_sizes == [4, 4, 1]
+    assert response.read1_sizes == [4, 4, 1]
+    assert response.read_sizes == []
 
 
 def test_remote_media_enforces_total_deadline_while_data_keeps_arriving(monkeypatch):
@@ -119,12 +164,50 @@ def test_remote_media_enforces_total_deadline_while_data_keeps_arriving(monkeypa
     with pytest.raises(ValueError, match="total download deadline"):
         with browser_owned_media_scope([source]):
             pass
-    assert response.read_sizes
+    assert response.read1_sizes
 
 
-def test_remote_media_source_code_has_no_unbounded_response_read():
+def test_remote_media_absolute_deadline_interrupts_blocking_body_read(monkeypatch):
+    source = "https://example.test/files/drip-feed.bin"
+    response = _BlockingReadResponse(source)
+    monkeypatch.setattr(product_media, "urlopen", lambda request, *, timeout: response)
+    monkeypatch.setattr(product_media, "_REMOTE_FETCH_TOTAL_DEADLINE_SECONDS", 0.05)
+
+    started = time.monotonic()
+    with pytest.raises(ValueError, match="total download deadline"):
+        with browser_owned_media_scope([source]):
+            pass
+    elapsed = time.monotonic() - started
+
+    assert response.read_started.is_set()
+    assert response.read_released.is_set()
+    assert response.closed is True
+    assert elapsed < 1.0
+
+
+def test_remote_media_generic_read_fallback_consumes_one_byte_per_deadline_check(monkeypatch):
+    source = "https://example.test/files/fallback.bin"
+
+    class _ReadOnlyResponse(_StreamingResponse):
+        read1 = None
+
+    response = _ReadOnlyResponse([b"abc"], source, content_length=3)
+    monkeypatch.setattr(product_media, "urlopen", lambda request, *, timeout: response)
+
+    with browser_owned_media_scope([source]) as materialization:
+        assert Path(materialization.paths[0]).read_bytes() == b"abc"
+
+    assert response.read1_sizes == []
+    assert response.read_sizes == [1, 1, 1, 1]
+
+
+def test_remote_media_source_code_has_cancellable_absolute_deadline():
     source = Path(product_media.__file__).read_text(encoding="utf-8")
     assert "response.read()" not in source
-    assert "response.read(read_size)" in source
+    assert "response.read(read_size)" not in source
+    assert "read1(read_size)" in source
+    assert "threading.Timer(remaining, abort_at_deadline)" in source
+    assert "_abort_response_read(response)" in source
+    assert "shutdown(socket.SHUT_RDWR)" in source
     assert "_REMOTE_FETCH_MAX_BYTES" in source
     assert "_REMOTE_FETCH_TOTAL_DEADLINE_SECONDS" in source
