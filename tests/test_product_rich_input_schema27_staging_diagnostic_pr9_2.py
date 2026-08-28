@@ -71,7 +71,33 @@ def test_schema_27_staging_diagnostic_requires_cleanup_before_success():
     assert staged < evidence < normalization < cleanup < fence_read < result
     assert "cleanupProven: true" in text[result:]
     assert "durableFenceCleared: true" in text[result:]
-    assert "if (staged)" in text
+
+
+def test_schema_27_staging_diagnostic_partial_stage_failure_cleanup_keys_off_durable_fence():
+    text = DIAGNOSTIC.read_text(encoding="utf-8")
+    catch = text.index("} catch (error) {")
+    final = text.index("} finally {", catch)
+    block = text[catch:final]
+    remaining = block.index("_pr92RemainingTurnMsOrZero(context) > 0")
+    fence_read = block.index("const residualFence = await _pr92ReadDirtyAttachmentFence()", remaining)
+    fence_guard = block.index("if (Number.isInteger(residualFence))", fence_read)
+    cleanup = block.index("await _pr92RequireCleanAttachmentState(context)", fence_guard)
+    assert remaining < fence_read < fence_guard < cleanup
+    assert "if (staged)" not in block
+    assert "let staged =" not in text
+    assert "persisted before file selection" in block
+
+
+def test_schema_27_staging_diagnostic_retains_fence_when_cleanup_budget_is_exhausted():
+    text = DIAGNOSTIC.read_text(encoding="utf-8")
+    catch = text.index("} catch (error) {")
+    final = text.index("} finally {", catch)
+    block = text[catch:final]
+    assert "_pr92RemainingTurnMsOrZero(context) > 0" in block
+    assert "otherwise retain it so the next write fails closed" in block
+    assert block.index("_pr92RemainingTurnMsOrZero(context) > 0") < block.index(
+        "_pr92ReadDirtyAttachmentFence()"
+    )
 
 
 def test_schema_27_staging_diagnostic_cli_uploads_one_fixture_but_sends_no_text():
