@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
 LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
+SCHEMA17 = EXT / "service_worker_rich_input_schema17_repair_pr9_2.js"
 SCHEMA19 = EXT / "service_worker_rich_input_schema19_repair_pr9_2.js"
 GATE19 = PKG / "product_rich_input_live_gate_schema19_pr9_2.py"
 
@@ -41,6 +42,22 @@ def test_schema_19_causal_identity_is_captured_only_from_safe_stream_metadata():
     assert "context.schema19CausalTurnExchangeId = metadata.turnExchangeId.trim()" in block
     assert "conversationIdFromUrl" not in block
     assert "chrome.tabs" not in block
+
+
+def test_schema_19_causal_stream_metadata_is_bound_to_exact_completed_request_id():
+    schema17 = SCHEMA17.read_text(encoding="utf-8")
+    response_start = schema17.index("const responseBodyAttempt = _pr92Schema17OptionalPostWrite(")
+    response_end = schema17.index("const finalTabAttempt", response_start)
+    response_block = schema17[response_start:response_end]
+    assert '"SCHEMA17_POSTWRITE_RESPONSE_BODY"' in response_block
+    assert '"Network.getResponseBody", { requestId }' in response_block
+    assert "extractSafeStreamMetadata" in schema17
+
+    schema19 = SCHEMA19.read_text(encoding="utf-8")
+    capture_start = schema19.index("extractSafeStreamMetadata = function")
+    capture_end = schema19.index("_pr92Schema17OptionalPostWrite = async function", capture_start)
+    capture_block = schema19[capture_start:capture_end]
+    assert "context.schema19CausalConversationId = metadata.conversationId.trim()" in capture_block
 
 
 def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
