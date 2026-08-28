@@ -55,6 +55,18 @@ def test_composer_diagnostic_executes_exact_schema24_production_clean_dry_run():
     assert "waitForComposerReady" not in text
 
 
+def test_composer_diagnostic_awaits_successful_debugger_detach_before_return():
+    text = DIAGNOSTIC.read_text(encoding="utf-8")
+    result = text.index("const result = {")
+    detach = text.index("await _pr92Schema15DetachWithinDeadline", result)
+    clear = text.index("attached = false", detach)
+    returned = text.index("return result", clear)
+    finally_block = text.index("} finally {", returned)
+    assert result < detach < clear < returned < finally_block
+    assert '"SCHEMA24_DIAGNOSTIC_DEBUGGER_DETACH"' in text
+    assert "_pr92Schema23DiagnosticBestEffortDetach(debuggee)" in text[finally_block:]
+
+
 def test_composer_diagnostic_cli_sends_no_text_or_attachment_paths():
     text = CLI.read_text(encoding="utf-8")
     start = text.index("response = provider._rpc")
