@@ -1,4 +1,4 @@
-// PR9.2 schema-23 live composer-evidence diagnostic overlay.
+// PR9.2 live composer-evidence diagnostic overlay.
 //
 // Diagnostic-only. This file does not change the advertised rich-input schema or
 // any attachment/write authority. It exposes one explicit no-write RPC that reads
@@ -120,7 +120,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
   };
   const tab = await _pr92Schema7RunUntil(
     context.deadlineAt,
-    "SCHEMA23_DIAGNOSTIC_RUNTIME_TAB",
+    "SCHEMA24_DIAGNOSTIC_RUNTIME_TAB",
     () => ensureRuntimeTab(null)
   );
   if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
@@ -131,21 +131,18 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
     attached = await _pr92Schema13AttachWithinDeadline(debuggee, context);
     await _pr92Schema7RunUntil(
       context.deadlineAt,
-      "SCHEMA23_DIAGNOSTIC_RUNTIME_ENABLE",
+      "SCHEMA24_DIAGNOSTIC_RUNTIME_ENABLE",
       () => chrome.debugger.sendCommand(debuggee, "Runtime.enable")
     );
     await _pr92Schema7RunUntil(
       context.deadlineAt,
-      "SCHEMA23_DIAGNOSTIC_COMPOSER_READY",
+      "SCHEMA24_DIAGNOSTIC_COMPOSER_READY",
       () => waitForComposerReady(
         debuggee,
         Math.max(1, Math.ceil(context.deadlineAt - performance.now()))
       )
     );
 
-    // Execute the exact production reader twice with the exact expected=[] clean
-    // semantics used by schema 10 before staging. This is the authoritative dry
-    // run of the gate that raised PR9_2_OFFICIAL_COMPOSER_NOT_CLEAN_BEFORE_STAGING.
     const productionPolls = [];
     for (let index = 0; index < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS; index += 1) {
       const evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
@@ -162,14 +159,14 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
         await _pr92BoundedSleep(
           context,
           PR92_PAGE_ATTACHMENT_POLL_MS,
-          "SCHEMA23_DIAGNOSTIC_PRODUCTION_CLEAN_STABILITY"
+          "SCHEMA24_DIAGNOSTIC_PRODUCTION_CLEAN_STABILITY"
         );
       }
     }
 
     const evaluated = await _pr92Schema7RunUntil(
       context.deadlineAt,
-      "SCHEMA23_DIAGNOSTIC_EVIDENCE_READ",
+      "SCHEMA24_DIAGNOSTIC_EVIDENCE_READ",
       () => chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
         expression: _pr92Schema23DiagnosticExpression(),
         returnByValue: true,
@@ -181,7 +178,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
       writePerformed: false,
       attachmentStagingPerformed: false,
       protectedSubmitAttempted: false,
-      richInputSchemaVersion: PR92_SCHEMA23_REPAIR_SCHEMA,
+      richInputSchemaVersion: PR92_SCHEMA24_REPAIR_SCHEMA,
       tabId: tab.id,
       productionCleanProof: {
         stablePollsRequired: PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS,
