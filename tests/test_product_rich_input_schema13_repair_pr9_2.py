@@ -42,10 +42,12 @@ def test_schema_13_bounds_every_awaited_staging_phase():
         "SCHEMA13_STAGE_FILE_INPUT_LOOKUP_AFTER_REVEAL",
         "SCHEMA13_STAGE_FENCE_PERSIST",
         "SCHEMA13_STAGE_FILE_SELECTION",
+        "SCHEMA13_STAGE_RELEASE_OBJECT",
+        "SCHEMA13_STAGE_DEBUGGER_DETACH",
     ]
     for stage in required_stages:
         assert f'"{stage}"' in text
-    assert text.count("await _pr92Schema7RunUntil(") >= 7
+    assert text.count("await _pr92Schema7RunUntil(") >= 9
     assert "() => waitForComposerReady(debuggee, readyBudget)" in text
     assert "() => _pr92PersistDirtyAttachmentFence(tabId)" in text
     assert '() => chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles"' in text
@@ -68,14 +70,24 @@ def test_schema_13_uses_page_deadline_for_side_effecting_reveal():
     assert "button.click();" in text
 
 
-def test_schema_13_post_selection_release_and_detach_are_non_blocking():
+def test_schema_13_success_cleanup_is_bounded_before_poststage_observer():
+    text = SCHEMA13.read_text(encoding="utf-8")
+    selection = text.index('"SCHEMA13_STAGE_FILE_SELECTION"')
+    release = text.index('"SCHEMA13_STAGE_RELEASE_OBJECT"')
+    detach = text.index('"SCHEMA13_STAGE_DEBUGGER_DETACH"')
+    returned = text.index("return attachmentPaths.length;")
+    assert selection < release < detach < returned
+    assert "stagingPostSelectionCleanupDeadlineBounded: true" in text
+
+
+def test_schema_13_timeout_cleanup_is_best_effort_and_non_awaited():
     text = SCHEMA13.read_text(encoding="utf-8")
     assert "_pr92Schema13BestEffortReleaseObject(debuggee, objectId);" in text
     assert "if (attached) _pr92Schema13BestEffortDetach(debuggee);" in text
     finally_tail = text.split("} finally {", 1)[1].split("}\n}\n", 1)[0]
     assert "await chrome.debugger.detach" not in finally_tail
     assert "await chrome.debugger.sendCommand" not in finally_tail
-    assert "postSelectionCleanupNonBlocking: true" in text
+    assert "postSelectionCleanupBestEffortAfterTimeout: true" in text
 
 
 def test_schema_13_late_debugger_attach_is_auto_detached():
@@ -97,9 +109,10 @@ def test_schema_13_gate_requires_complete_staging_deadline_contract():
         "staging_file_input_lookup_deadline_bounded",
         "staging_fence_persistence_deadline_bounded",
         "staging_file_selection_deadline_bounded",
+        "staging_post_selection_cleanup_deadline_bounded",
         "late_staging_debugger_attach_auto_detached",
         "late_file_selection_fails_closed_behind_durable_fence",
-        "post_selection_cleanup_non_blocking",
+        "post_selection_cleanup_best_effort_after_timeout",
     ]
     for key in required:
         assert key in text
