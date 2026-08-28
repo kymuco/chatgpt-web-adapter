@@ -45,6 +45,7 @@ def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
         "protected_submit_attempted": False,
         "schema": response.get("richInputSchemaVersion"),
         "tab_id": response.get("tabId"),
+        "production_clean_proof": response.get("productionCleanProof"),
         "evidence": response.get("evidence"),
     }
 
