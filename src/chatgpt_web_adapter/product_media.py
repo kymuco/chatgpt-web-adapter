@@ -9,6 +9,7 @@ from pathlib import Path, PureWindowsPath
 import re
 import shutil
 import tempfile
+import time
 from typing import Iterator, Sequence
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
@@ -25,6 +26,10 @@ _DATA_URI_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _REMOTE_FETCH_TIMEOUT_SECONDS = 30.0
+_REMOTE_FETCH_TOTAL_DEADLINE_SECONDS = 30.0
+_REMOTE_FETCH_MAX_BYTES = 512 * 1024 * 1024
+_REMOTE_FETCH_CHUNK_BYTES = 1024 * 1024
+_REMOTE_PREFIX_BYTES = 16
 
 
 @dataclass(frozen=True)
@@ -105,18 +110,35 @@ def _decode_data_uri(source: str, *, index: int) -> tuple[bytes, str | None]:
     return payload, mime_type
 
 
-def _download_http_source(source: str, *, index: int) -> tuple[bytes, str | None, str]:
+def _response_content_length(response: object) -> int | None:
+    headers = getattr(response, "headers", None)
+    getter = getattr(headers, "get", None)
+    if not callable(getter):
+        return None
+    raw = getter("Content-Length")
+    if raw is None:
+        return None
     try:
-        request = Request(source, headers={"User-Agent": "Mozilla/5.0"})
-        with urlopen(request, timeout=_REMOTE_FETCH_TIMEOUT_SECONDS) as response:
-            payload = response.read()
-            content_type = response.headers.get_content_type() if response.headers else None
-            final_url = response.geturl() or source
-    except Exception as error:
-        raise ValueError(f"media[{index}] URL source is unavailable") from error
-    if not payload:
-        raise ValueError(f"media[{index}] URL source is empty")
-    return payload, content_type, final_url
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+def _set_response_read_timeout(response: object, timeout_seconds: float) -> None:
+    """Best-effort tighten the standard urllib socket to the remaining deadline."""
+
+    timeout_seconds = max(0.001, float(timeout_seconds))
+    fp = getattr(response, "fp", None)
+    candidates = (
+        getattr(getattr(fp, "raw", None), "_sock", None),
+        getattr(fp, "_sock", None),
+    )
+    for candidate in candidates:
+        setter = getattr(candidate, "settimeout", None)
+        if callable(setter):
+            setter(timeout_seconds)
+            return
 
 
 def _url_basename(source: str) -> str | None:
@@ -148,6 +170,104 @@ def _materialized_name(
     guessed = mimetypes.guess_extension(mime_type or "", strict=False)
     suffix = guessed or _byte_source_default_suffix(payload)
     return f"attachment-{index}{suffix}"
+
+
+def _download_http_source_to_file(
+    source: str,
+    *,
+    index: int,
+    root: Path,
+    filename: str | None,
+) -> Path:
+    """Stream one remote source directly to disk under byte and wall-clock bounds."""
+
+    started_at = time.monotonic()
+    deadline_at = started_at + _REMOTE_FETCH_TOTAL_DEADLINE_SECONDS
+    try:
+        request = Request(source, headers={"User-Agent": "Mozilla/5.0"})
+        response_context = urlopen(request, timeout=_REMOTE_FETCH_TIMEOUT_SECONDS)
+    except Exception as error:
+        raise ValueError(f"media[{index}] URL source is unavailable") from error
+
+    try:
+        with response_context as response:
+            if time.monotonic() >= deadline_at:
+                raise ValueError(f"media[{index}] URL source exceeded total download deadline")
+
+            declared_length = _response_content_length(response)
+            if declared_length is not None and declared_length > _REMOTE_FETCH_MAX_BYTES:
+                raise ValueError(
+                    f"media[{index}] URL source exceeds {_REMOTE_FETCH_MAX_BYTES} bytes"
+                )
+
+            content_type = response.headers.get_content_type() if response.headers else None
+            final_url = response.geturl() or source
+            target_dir = root / f"item-{index}"
+            target_dir.mkdir()
+
+            total_bytes = 0
+            prefix = bytearray()
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                dir=target_dir,
+                prefix=".remote-",
+                suffix=".part",
+                delete=False,
+            ) as staging_file:
+                staging_path = Path(staging_file.name)
+                while True:
+                    remaining = deadline_at - time.monotonic()
+                    if remaining <= 0:
+                        raise ValueError(
+                            f"media[{index}] URL source exceeded total download deadline"
+                        )
+                    _set_response_read_timeout(
+                        response,
+                        min(_REMOTE_FETCH_TIMEOUT_SECONDS, remaining),
+                    )
+                    read_size = min(
+                        _REMOTE_FETCH_CHUNK_BYTES,
+                        _REMOTE_FETCH_MAX_BYTES - total_bytes + 1,
+                    )
+                    chunk = response.read(read_size)
+                    if not chunk:
+                        break
+                    if not isinstance(chunk, (bytes, bytearray)):
+                        raise ValueError(f"media[{index}] URL source returned non-byte data")
+                    total_bytes += len(chunk)
+                    if total_bytes > _REMOTE_FETCH_MAX_BYTES:
+                        raise ValueError(
+                            f"media[{index}] URL source exceeds {_REMOTE_FETCH_MAX_BYTES} bytes"
+                        )
+                    if len(prefix) < _REMOTE_PREFIX_BYTES:
+                        needed = _REMOTE_PREFIX_BYTES - len(prefix)
+                        prefix.extend(chunk[:needed])
+                    staging_file.write(chunk)
+                    if time.monotonic() >= deadline_at:
+                        raise ValueError(
+                            f"media[{index}] URL source exceeded total download deadline"
+                        )
+
+            if total_bytes == 0:
+                raise ValueError(f"media[{index}] URL source is empty")
+
+            target_name = _materialized_name(
+                payload=bytes(prefix),
+                index=index,
+                filename=filename,
+                source_name=_url_basename(final_url),
+                mime_type=content_type,
+            )
+            target = target_dir / target_name
+            try:
+                staging_path.replace(target)
+            except OSError as error:
+                raise ValueError(f"media[{index}] URL materialization failed") from error
+            return target.resolve(strict=True)
+    except ValueError:
+        raise
+    except Exception as error:
+        raise ValueError(f"media[{index}] URL source is unavailable") from error
 
 
 def _write_materialized_bytes(
@@ -248,19 +368,11 @@ def materialize_browser_owned_media(
                 continue
 
             if isinstance(source, str) and source.startswith(("http://", "https://")):
-                payload, mime_type, final_url = _download_http_source(source, index=index)
-                target_name = _materialized_name(
-                    payload=payload,
+                target = _download_http_source_to_file(
+                    source,
                     index=index,
-                    filename=filename,
-                    source_name=_url_basename(final_url),
-                    mime_type=mime_type,
-                )
-                target = _write_materialized_bytes(
-                    payload,
                     root=root,
-                    index=index,
-                    filename=target_name,
+                    filename=filename,
                 )
                 paths.append(str(target))
                 materialized_byte_inputs += 1
