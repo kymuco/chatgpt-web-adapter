@@ -44,6 +44,19 @@ def test_composer_diagnostic_reports_schema23_retained_groups_and_structure():
     assert "descendants" in text
 
 
+def test_composer_diagnostic_executes_exact_production_clean_reader_twice():
+    text = DIAGNOSTIC.read_text(encoding="utf-8")
+    assert "_pr92ClosureReadPageOwnedAttachmentEvidence" in text
+    assert "PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS" in text
+    assert "_pr92Schema23DiagnosticProductionClean" in text
+    assert "productionCleanProof" in text
+    assert "allPollsClean" in text
+    assert "exactBasenameAssociation" in text
+    assert "exactAttachmentSet" in text
+    assert "groupLabelCount" in text
+    assert "removalLabelCount" in text
+
+
 def test_composer_diagnostic_cli_sends_no_text_or_attachment_paths():
     text = CLI.read_text(encoding="utf-8")
     start = text.index("response = provider._rpc")
@@ -55,3 +68,4 @@ def test_composer_diagnostic_cli_sends_no_text_or_attachment_paths():
     assert 'response.get("writePerformed") is not False' in text
     assert 'response.get("attachmentStagingPerformed") is not False' in text
     assert 'response.get("protectedSubmitAttempted") is not False' in text
+    assert '"production_clean_proof": response.get("productionCleanProof")' in text
