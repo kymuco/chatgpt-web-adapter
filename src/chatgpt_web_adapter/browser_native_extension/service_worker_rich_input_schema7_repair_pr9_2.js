@@ -13,3 +13,4 @@ importScripts("service_worker_rich_input_schema14_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema15_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema16_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema17_repair_pr9_2.js");
+importScripts("service_worker_rich_input_schema18_repair_pr9_2.js");
