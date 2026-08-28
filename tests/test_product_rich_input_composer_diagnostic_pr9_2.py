@@ -11,13 +11,13 @@ DIAGNOSTIC = EXT / "service_worker_rich_input_schema23_diagnostic_pr9_2.js"
 CLI = PKG / "product_rich_input_composer_diagnostic_pr9_2.py"
 
 
-def test_schema23_diagnostic_overlay_loads_after_schema23_repair():
+def test_schema23_diagnostic_overlay_loads_after_schema24_repair():
     text = LOADER.read_text(encoding="utf-8")
-    repair = 'importScripts("service_worker_rich_input_schema23_repair_pr9_2.js");'
+    schema24 = 'importScripts("service_worker_rich_input_schema24_repair_pr9_2.js");'
     diagnostic = 'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
-    assert repair in text
+    assert schema24 in text
     assert diagnostic in text
-    assert text.index(repair) < text.index(diagnostic)
+    assert text.index(schema24) < text.index(diagnostic)
 
 
 def test_composer_diagnostic_is_explicitly_zero_write_and_zero_staging():
@@ -44,17 +44,15 @@ def test_composer_diagnostic_reports_schema23_retained_groups_and_structure():
     assert "descendants" in text
 
 
-def test_composer_diagnostic_executes_exact_production_clean_reader_twice():
+def test_composer_diagnostic_executes_exact_schema24_production_clean_dry_run():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
+    assert "_pr92Schema24WaitForOfficialComposerMounted" in text
+    assert "_pr92Schema24EvidenceIsClean" in text
     assert "_pr92ClosureReadPageOwnedAttachmentEvidence" in text
     assert "PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS" in text
-    assert "_pr92Schema23DiagnosticProductionClean" in text
     assert "productionCleanProof" in text
     assert "allPollsClean" in text
-    assert "exactBasenameAssociation" in text
-    assert "exactAttachmentSet" in text
-    assert "groupLabelCount" in text
-    assert "removalLabelCount" in text
+    assert "waitForComposerReady" not in text
 
 
 def test_composer_diagnostic_cli_sends_no_text_or_attachment_paths():
