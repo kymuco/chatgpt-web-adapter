@@ -158,7 +158,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
         awaitPromise: false
       })
     );
-    return {
+    const result = {
       diagnosticOnly: true,
       writePerformed: false,
       attachmentStagingPerformed: false,
@@ -172,7 +172,20 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
       },
       evidence: evaluated?.result?.value || null
     };
+
+    // A successful diagnostic is not complete until debugger ownership has been
+    // relinquished. Otherwise the immediately following real turn can race a
+    // still-pending detach and fail its own attach despite a valid clean proof.
+    await _pr92Schema15DetachWithinDeadline(
+      debuggee,
+      context,
+      "SCHEMA24_DIAGNOSTIC_DEBUGGER_DETACH"
+    );
+    attached = false;
+    return result;
   } finally {
+    // Failure/timeout cleanup remains best-effort and cannot extend/rewrite the
+    // already failed diagnostic outcome.
     if (attached) _pr92Schema23DiagnosticBestEffortDetach(debuggee);
   }
 };
