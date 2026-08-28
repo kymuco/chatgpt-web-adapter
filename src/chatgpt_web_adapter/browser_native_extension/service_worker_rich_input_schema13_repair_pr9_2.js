@@ -208,6 +208,33 @@ async function _pr92Schema13StageFileSelection(tabId, attachmentPaths, context) 
       100,
       "SCHEMA13_STAGE_SELECTION_SETTLE"
     );
+
+    // A successful staging result must hand the post-stage observer a fully
+    // detached debugger. Bound cleanup rather than fire-and-forget it, so normal
+    // success cannot race the observer's next attach. If either cleanup command
+    // loses the deadline race after file selection, this turn fails closed and
+    // the durable fence remains; finally only dispatches best-effort cleanup.
+    if (objectId) {
+      await _pr92Schema7RunUntil(
+        context.deadlineAt,
+        "SCHEMA13_STAGE_RELEASE_OBJECT",
+        () => chrome.debugger.sendCommand(
+          debuggee,
+          "Runtime.releaseObject",
+          { objectId }
+        )
+      );
+      objectId = null;
+    }
+    if (attached) {
+      await _pr92Schema7RunUntil(
+        context.deadlineAt,
+        "SCHEMA13_STAGE_DEBUGGER_DETACH",
+        () => chrome.debugger.detach(debuggee)
+      );
+      attached = false;
+    }
+
     return attachmentPaths.length;
   } catch (error) {
     if (
@@ -222,9 +249,8 @@ async function _pr92Schema13StageFileSelection(tabId, attachmentPaths, context) 
     }
     throw new Error("PR9_2_ATTACHMENT_STAGE_FAILED");
   } finally {
-    // Cleanup after a command that may already have selected local files must not
-    // extend the RPC or convert a bounded staging outcome into response loss.
-    // The durable fence, not successful release/detach, is cleanup authority.
+    // Error/timeout cleanup never extends the RPC. On the success path objectId
+    // and attached have already been cleared by bounded cleanup above.
     _pr92Schema13BestEffortReleaseObject(debuggee, objectId);
     if (attached) _pr92Schema13BestEffortDetach(debuggee);
   }
@@ -269,8 +295,9 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema13Repair(mess
     stagingFileInputLookupDeadlineBounded: true,
     stagingFencePersistenceDeadlineBounded: true,
     stagingFileSelectionDeadlineBounded: true,
+    stagingPostSelectionCleanupDeadlineBounded: true,
     lateStagingDebuggerAttachAutoDetached: true,
     lateFileSelectionFailsClosedBehindDurableFence: true,
-    postSelectionCleanupNonBlocking: true
+    postSelectionCleanupBestEffortAfterTimeout: true
   };
 };
