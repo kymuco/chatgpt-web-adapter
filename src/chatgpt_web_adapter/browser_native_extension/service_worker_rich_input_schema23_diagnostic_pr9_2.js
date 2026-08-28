@@ -2,10 +2,8 @@
 //
 // Diagnostic-only. This file does not change the advertised rich-input schema or
 // any attachment/write authority. It exposes one explicit no-write RPC that reads
-// the current official composer DOM and, crucially, executes the same production
-// page-owned attachment evidence reader used by the pre-stage clean gate. Live UI
-// false positives can therefore be classified from exact gate evidence rather
-// than from a parallel approximation.
+// the current official composer DOM and executes the same schema-24 production
+// mount wait + empty-set clean proof used before attachment staging.
 
 const _pr92Schema23DiagnosticPriorExecuteNativeTurn = executeNativeTurn;
 
@@ -95,15 +93,6 @@ function _pr92Schema23DiagnosticExpression() {
   })()`;
 }
 
-function _pr92Schema23DiagnosticProductionClean(evidence) {
-  const groupCount = Number(evidence?.groupLabelCount);
-  const removalCount = Number(evidence?.removalLabelCount);
-  return evidence?.officialComposerMounted === true &&
-    evidence?.exactBasenameAssociation === true &&
-    evidence?.exactAttachmentSet === true &&
-    groupCount === 0 && removalCount === 0;
-}
-
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(message) {
   if (message?.diagnosePr92ComposerEvidence !== true) {
     return _pr92Schema23DiagnosticPriorExecuteNativeTurn(message);
@@ -134,32 +123,28 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
       "SCHEMA24_DIAGNOSTIC_RUNTIME_ENABLE",
       () => chrome.debugger.sendCommand(debuggee, "Runtime.enable")
     );
-    await _pr92Schema7RunUntil(
-      context.deadlineAt,
-      "SCHEMA24_DIAGNOSTIC_COMPOSER_READY",
-      () => waitForComposerReady(
-        debuggee,
-        Math.max(1, Math.ceil(context.deadlineAt - performance.now()))
-      )
-    );
 
+    // Exact schema-24 production dry-run: use the production mount wait and then
+    // apply the production clean predicate to the mount evidence plus the second
+    // stable poll. No text, files, staging, focus mutation, or submit is involved.
+    let evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context);
     const productionPolls = [];
-    for (let index = 0; index < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS; index += 1) {
-      const evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
-        debuggee,
-        [],
-        context
-      );
-      productionPolls.push({
-        index,
-        clean: _pr92Schema23DiagnosticProductionClean(evidence),
-        evidence
-      });
-      if (index + 1 < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS) {
+    let stable = 0;
+    while (stable < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS) {
+      const clean = _pr92Schema24EvidenceIsClean(evidence);
+      productionPolls.push({ index: stable, clean, evidence });
+      if (!clean) break;
+      stable += 1;
+      if (stable < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS) {
         await _pr92BoundedSleep(
           context,
           PR92_PAGE_ATTACHMENT_POLL_MS,
           "SCHEMA24_DIAGNOSTIC_PRODUCTION_CLEAN_STABILITY"
+        );
+        evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
+          debuggee,
+          [],
+          context
         );
       }
     }
@@ -182,8 +167,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
       tabId: tab.id,
       productionCleanProof: {
         stablePollsRequired: PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS,
-        allPollsClean: productionPolls.length === PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS &&
-          productionPolls.every((poll) => poll.clean === true),
+        allPollsClean: stable === PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS,
         polls: productionPolls
       },
       evidence: evaluated?.result?.value || null
