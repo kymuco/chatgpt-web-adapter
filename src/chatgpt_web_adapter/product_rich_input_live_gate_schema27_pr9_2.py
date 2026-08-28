@@ -10,7 +10,7 @@ import uuid
 from .client import ChatGPTWebClient
 from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema21_pr9_2 as _v21
-from . import product_rich_input_live_gate_schema25_pr9_2 as _v25
+from . import product_rich_input_live_gate_schema24_pr9_2 as _v24
 from . import product_rich_input_live_gate_schema26_pr9_2 as _v26
 from .product_runtime import assemble_product_runtime
 
@@ -68,12 +68,13 @@ def _validate_support(support: dict[str, Any]) -> None:
     if support.get("supported") is not True or support.get("schema") != SCHEMA:
         raise RuntimeError("PR9_2_SCHEMA27_RICH_INPUT_SUPPORT_NOT_PROVEN")
 
-    # Schema 27 explicitly supersedes schema 26's literal-first indexed-removal
-    # interpretation, so do not validate the invalid schema-26 semantic claim as a
-    # prerequisite. Preserve the complete safe chain through schema 25 instead.
+    # Schemas 25 and 26 are superseded parser experiments. Do not require their
+    # semantic claims as prerequisites for the final ambiguity-safe contract.
+    # Preserve the complete reviewed authority chain through schema 24, then require
+    # the replacement schema-27 semantics below.
     legacy = dict(support)
-    legacy["schema"] = _v25.SCHEMA
-    _v25._validate_support(legacy)
+    legacy["schema"] = _v24.SCHEMA
+    _v24._validate_support(legacy)
 
     if support.get("indexed_removal_ambiguity_bidirectional_fail_closed") is not True:
         raise RuntimeError("PR9_2_SCHEMA27_BIDIRECTIONAL_AMBIGUITY_NOT_FAIL_CLOSED")
@@ -195,8 +196,8 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "attachment_dependent_response_after_every_write": True,
         "canonical_finality_after_every_write": True,
         "exact_attachment_count_after_every_write": True,
-        "schema_25_and_prior_safety_contract_preserved": True,
-        "schema_26_literal_first_indexed_semantics_superseded": True,
+        "schema_24_and_prior_safety_contract_preserved": True,
+        "schema_25_and_26_parser_semantics_superseded": True,
         "indexed_removal_ambiguity_bidirectional_fail_closed": True,
         "indexed_removal_literal_interpretation_requires_independent_filename_group": True,
         "indexed_removal_stripped_interpretation_requires_independent_filename_group": True,
