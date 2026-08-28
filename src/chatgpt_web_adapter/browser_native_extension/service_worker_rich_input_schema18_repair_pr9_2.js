@@ -177,7 +177,20 @@ executeOfficialPageTurn = async function _pr92Schema18ExecuteOfficialPageTurnWit
 };
 
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema18Repair(message) {
-  const result = await _pr92Schema18PriorExecuteNativeTurn(message);
+  let result;
+  try {
+    result = await _pr92Schema18PriorExecuteNativeTurn(message);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (detail.includes(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)) {
+      // Earlier rich-input layers may wrap downstream failures while retaining a
+      // durable attachment fence. Preserve that fence, but normalize this one
+      // post-write identity state so the provider can classify it as committed
+      // readback-incomplete rather than an unknown write outcome.
+      throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);
+    }
+    throw error;
+  }
   if (message?.characterizeRichInputSupport !== true) return result;
   return {
     ...result,
