@@ -22,15 +22,19 @@ def test_schema_24_overlay_is_loaded_after_schema_23_and_before_diagnostic():
     assert text.index(schema23) < text.index(schema24) < text.index(diagnostic)
 
 
-def test_schema_24_waits_for_official_composer_before_empty_set_clean_polls():
+def test_schema_24_waits_for_official_composer_mount_via_production_evidence_reader():
     text = SCHEMA24.read_text(encoding="utf-8")
     runtime_enable = text.index("SCHEMA24_PRESTAGE_CLEAN_RUNTIME_ENABLE")
-    readiness = text.index("waitForComposerReady", runtime_enable)
-    evidence = text.index("_pr92ClosureReadPageOwnedAttachmentEvidence", readiness)
-    assert runtime_enable < readiness < evidence
-    assert "SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_READY" in text
-    assert "context.deadlineAt" in text
-    assert "_pr92Schema7RunUntil" in text
+    mount_wait = text.index("_pr92Schema24WaitForOfficialComposerMounted", runtime_enable)
+    assert runtime_enable < mount_wait
+    helper_start = text.index("async function _pr92Schema24WaitForOfficialComposerMounted")
+    helper_end = text.index("function _pr92Schema24EvidenceIsClean", helper_start)
+    helper = text[helper_start:helper_end]
+    assert "_pr92ClosureReadPageOwnedAttachmentEvidence" in helper
+    assert "evidence?.officialComposerMounted === true" in helper
+    assert "_pr92BoundedSleep" in helper
+    assert "SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_MOUNT_WAIT" in helper
+    assert "waitForComposerReady" not in text
 
 
 def test_schema_24_preserves_exact_fail_closed_clean_evidence_after_mount():
@@ -44,13 +48,22 @@ def test_schema_24_preserves_exact_fail_closed_clean_evidence_after_mount():
     assert "_pr92Schema15DetachWithinDeadline" in text
 
 
+def test_schema_24_first_mount_evidence_is_first_authoritative_clean_poll():
+    text = SCHEMA24.read_text(encoding="utf-8")
+    assert "let evidence = await _pr92Schema24WaitForOfficialComposerMounted" in text
+    assert "if (!_pr92Schema24EvidenceIsClean(evidence))" in text
+    assert "stable += 1" in text
+    assert "evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence" in text
+
+
 def test_schema_24_support_contract_records_mount_race_repair():
     text = SCHEMA24.read_text(encoding="utf-8")
     assert "richInputSchemaVersion: PR92_SCHEMA24_REPAIR_SCHEMA" in text
-    assert "preStageOfficialComposerReadinessAwaited: true" in text
-    assert "preStageOfficialComposerReadinessDeadlineBounded: true" in text
+    assert "preStageOfficialComposerMountAwaited: true" in text
+    assert "preStageOfficialComposerMountWaitDeadlineBounded: true" in text
+    assert "officialComposerMountUsesProductionAttachmentEvidenceReader: true" in text
     assert "tabCompleteAloneCanProveComposerMounted: false" in text
-    assert "missingComposerBeforeReadinessClassifiedDirty: false" in text
+    assert "missingComposerBeforeMountClassifiedDirty: false" in text
     assert "mountedAttachmentEvidenceStillFailsClosed: true" in text
 
 
@@ -60,10 +73,11 @@ def test_schema_24_gate_preserves_schema_23_and_requires_new_fields():
     assert "class ProductRichInputSchema24LiveProvider" in text
     assert 'legacy["schema"] = _v23.SCHEMA' in text
     assert "_v23._validate_support(legacy)" in text
-    assert "pre_stage_official_composer_readiness_awaited" in text
-    assert "pre_stage_official_composer_readiness_deadline_bounded" in text
+    assert "pre_stage_official_composer_mount_awaited" in text
+    assert "pre_stage_official_composer_mount_wait_deadline_bounded" in text
+    assert "official_composer_mount_uses_production_attachment_evidence_reader" in text
     assert "tab_complete_alone_can_prove_composer_mounted" in text
-    assert "missing_composer_before_readiness_classified_dirty" in text
+    assert "missing_composer_before_mount_classified_dirty" in text
     assert "mounted_attachment_evidence_still_fails_closed" in text
     assert "PRODUCT_WRITE_BUDGET = _v21.PRODUCT_WRITE_BUDGET" in text
 
