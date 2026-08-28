@@ -93,10 +93,6 @@ _pr92Schema17OptionalPostWrite = async function _pr92Schema19OptionalPostWrite(
   }
 };
 
-function _pr92Schema19CanonicalConversationUrl(conversationId) {
-  return `${CHATGPT_ORIGIN}/c/${encodeURIComponent(conversationId)}`;
-}
-
 executeOfficialPageTurn = async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity(
   args
 ) {
@@ -131,6 +127,7 @@ executeOfficialPageTurn = async function _pr92Schema19ExecuteOfficialPageTurnWit
   }
 
   const routeConversationId = conversationIdFromUrl(result?.finalUrl || "");
+  const routeMatchesCausalIdentity = routeConversationId === causalConversationId;
   const causalTurnExchangeId =
     typeof context.schema19CausalTurnExchangeId === "string" &&
     context.schema19CausalTurnExchangeId.trim()
@@ -139,10 +136,9 @@ executeOfficialPageTurn = async function _pr92Schema19ExecuteOfficialPageTurnWit
 
   return {
     ...result,
-    finalUrl:
-      routeConversationId === causalConversationId
-        ? result.finalUrl
-        : _pr92Schema19CanonicalConversationUrl(causalConversationId),
+    // `finalUrl` means observed final tab state. Never fabricate a canonical URL
+    // when the observed route is absent or belongs to another conversation.
+    finalUrl: routeMatchesCausalIdentity ? result.finalUrl : null,
     conversationId: causalConversationId,
     turnExchangeId: causalTurnExchangeId || result?.turnExchangeId || null,
     diagnostics: {
@@ -150,6 +146,7 @@ executeOfficialPageTurn = async function _pr92Schema19ExecuteOfficialPageTurnWit
       conversationIdentityAuthority: PR92_SCHEMA19_IDENTITY_AUTHORITY,
       routeConversationIdentityAuthoritative: false,
       routeConversationId: routeConversationId || null,
+      routeMatchesCausalIdentity,
       causalConversationId
     }
   };
