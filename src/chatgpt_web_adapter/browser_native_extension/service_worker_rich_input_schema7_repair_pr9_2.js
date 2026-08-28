@@ -19,4 +19,5 @@ importScripts("service_worker_rich_input_schema20_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema21_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema22_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema23_repair_pr9_2.js");
+importScripts("service_worker_rich_input_schema24_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");
