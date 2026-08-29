@@ -108,12 +108,19 @@ extractSafeStreamMetadata = function _pr92Schema28ExtractSafeStreamMetadata(
   base64Encoded
 ) {
   // Preserve the complete pre-schema-28 metadata observer chain for side effects
-  // such as PR8.8 INSTANT/model/reasoning responseHints. Its returned metadata is
+  // such as PR8.8 INSTANT/model/reasoning responseHints. When CDP represents the
+  // body as base64, decode it first and present the prior observer with the same
+  // UTF-8 SSE text it historically understands. Its returned metadata is
   // deliberately ignored: schema-28 request-bound parsing below remains the sole
   // authority for conversationId/turnExchangeId. Any historical schema-19 causal
   // fields written by the prior observer are overwritten from schema-28 results.
+  const observerBody = _pr92Schema28DecodeResponseBody(body, base64Encoded);
   try {
-    _pr92Schema28PriorExtractSafeStreamMetadata(body, base64Encoded);
+    if (typeof observerBody === "string") {
+      _pr92Schema28PriorExtractSafeStreamMetadata(observerBody, false);
+    } else {
+      _pr92Schema28PriorExtractSafeStreamMetadata(body, base64Encoded);
+    }
   } catch {
     // Observability must never perturb the request-bound identity path.
   }
