@@ -175,10 +175,16 @@ async function _pr92Schema28CommittedIdentityDiagnostic(message) {
       }
     }
 
+    // Route state is captured before any governed cleanup only as diagnostic
+    // evidence. It cannot satisfy or override request-bound conversation identity.
     const tabBeforeCleanup = await _pr92Schema28ReadDiagnosticTab(runtimeTabId, context);
     let cleanupAttempted = false;
     if (Number.isInteger(fenceBefore)) {
       cleanupAttempted = true;
+      // This production recovery returns only after its existing identity-guarded
+      // destructive close and explicit tab-absence proof have completed, and clears
+      // the durable fence only after that proof. Do not manufacture a second proof
+      // with a post-cleanup tabs.get whose timeout could be mistaken for absence.
       await _pr92RequireCleanAttachmentState(context);
     }
 
@@ -187,23 +193,7 @@ async function _pr92Schema28CommittedIdentityDiagnostic(message) {
       throw new Error("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_FENCE_REMAINS");
     }
 
-    let fencedTabAbsentAfterCleanup = null;
-    if (Number.isInteger(fenceBefore)) {
-      try {
-        await _pr92Schema7RunUntil(
-          context.deadlineAt,
-          "SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_TAB_ABSENCE",
-          () => chrome.tabs.get(fenceBefore)
-        );
-        fencedTabAbsentAfterCleanup = false;
-      } catch {
-        fencedTabAbsentAfterCleanup = true;
-      }
-      if (fencedTabAbsentAfterCleanup !== true) {
-        throw new Error("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_TAB_STILL_PRESENT");
-      }
-    }
-
+    const fencedTabAbsentAfterCleanup = Number.isInteger(fenceBefore) ? true : null;
     return {
       diagnosticOnly: true,
       reconciliationOnly: true,
@@ -220,6 +210,9 @@ async function _pr92Schema28CommittedIdentityDiagnostic(message) {
       cleanupProven: !Number.isInteger(fenceAfter),
       durableFenceCleared: !Number.isInteger(fenceAfter),
       fencedTabAbsentAfterCleanup,
+      fencedTabAbsenceAuthority: Number.isInteger(fenceBefore)
+        ? "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"
+        : null,
       observedTabIdBeforeCleanup: tabBeforeCleanup?.tabId ?? null,
       observedRouteConversationIdDiagnostic:
         tabBeforeCleanup?.routeConversationId ?? null,
