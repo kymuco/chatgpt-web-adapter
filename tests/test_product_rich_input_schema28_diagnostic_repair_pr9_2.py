@@ -38,7 +38,7 @@ const _pr92DeadlineRepairIsMissingTabError = () => false;
 const conversationIdFromUrl = () => null;
 {helpers}
 (async () => {{
-  const context = {{ deadlineAt: Date.now() + 5000 }};
+  const context = {{ deadlineAt: performance.now() + 5000 }};
   const result = await _pr92Schema28DiagnosticRouteSample(42, context, true);
   console.log(JSON.stringify({{ tabGets, result }}));
 }})().catch((error) => {{ console.error(error); process.exit(1); }});
@@ -64,10 +64,10 @@ const _pr92DeadlineRepairIsMissingTabError = (error) => error?.missing === true;
 const conversationIdFromUrl = (url) => url.includes('/c/') ? 'example' : null;
 {helpers}
 (async () => {{
-  const presentContext = {{ deadlineAt: Date.now() + 5000 }};
+  const presentContext = {{ deadlineAt: performance.now() + 5000 }};
   const present = await _pr92Schema28DiagnosticPostCleanupPresence(42, presentContext);
   mode = 'absent';
-  const absentContext = {{ deadlineAt: Date.now() + 5000 }};
+  const absentContext = {{ deadlineAt: performance.now() + 5000 }};
   const absent = await _pr92Schema28DiagnosticPostCleanupPresence(42, absentContext);
   console.log(JSON.stringify({{ present, absent }}));
 }})().catch((error) => {{ console.error(error); process.exit(1); }});
@@ -77,6 +77,45 @@ const conversationIdFromUrl = (url) => url.includes('/c/') ? 'example' : null;
     assert result["present"]["routeConversationId"] == "example"
     assert result["absent"]["state"] == "absent"
     assert result["absent"]["url"] is None
+
+
+def test_schema28_diagnostic_budget_is_monotonic_and_ignores_epoch_clock_jump():
+    helpers = _helper_block()
+    script = f"""
+let tabGets = 0;
+Date.now = () => 999999999999999;
+const chrome = {{ tabs: {{ get: async () => {{
+  tabGets += 1;
+  return {{ id: 42, url: 'https://chatgpt.com/c/example' }};
+}} }} }};
+const _pr92Schema7RunUntil = async (deadlineAt, _label, fn) => {{
+  if (!(deadlineAt > performance.now())) throw new Error('non-monotonic-deadline');
+  return fn();
+}};
+const _pr92DeadlineRepairIsMissingTabError = () => false;
+const conversationIdFromUrl = () => 'example';
+{helpers}
+(async () => {{
+  const context = {{ deadlineAt: performance.now() + 12000 }};
+  const route = await _pr92Schema28DiagnosticRouteSample(42, context, true);
+  const post = await _pr92Schema28DiagnosticPostCleanupPresence(42, context);
+  console.log(JSON.stringify({{ tabGets, route, post }}));
+}})().catch((error) => {{ console.error(error); process.exit(1); }});
+"""
+    result = _run_node(script)
+    assert result["tabGets"] == 2
+    assert result["route"]["state"] == "present"
+    assert result["route"]["skippedForCleanupReserve"] is False
+    assert result["post"]["state"] == "present"
+
+
+def test_schema28_diagnostic_repair_uses_monotonic_clock_domain_only():
+    text = REPAIR.read_text(encoding="utf-8")
+    helpers = _helper_block()
+    assert "performance.now()" in helpers
+    assert "Date.now()" not in helpers
+    assert "context.deadlineAt - performance.now()" in helpers
+    assert "performance.now() + budget" in helpers
 
 
 def test_schema28_diagnostic_repair_keeps_write_authority_untouched():
