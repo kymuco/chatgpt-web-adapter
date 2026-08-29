@@ -142,6 +142,9 @@ def test_schema_28_reconciliation_diagnostic_is_zero_write_and_fence_authoritati
     assert "message?.text != null || message?.attachmentPaths != null" in block
     assert "await _pr92ReadDirtyAttachmentFence()" in block
     assert "await _pr92RequireCleanAttachmentState(context)" in block
+    assert "SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_TAB_ABSENCE" not in block
+    assert 'fencedTabAbsenceAuthority: Number.isInteger(fenceBefore)' in block
+    assert '"PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in block
     assert "writePerformed: false" in block
     assert "conversationWritePerformed: false" in block
     assert "attachmentStagingPerformed: false" in block
@@ -159,3 +162,5 @@ def test_schema_28_reconciliation_diagnostic_is_zero_write_and_fence_authoritati
     assert 'response.get("writePerformed") is not False' in py
     assert 'response.get("protectedSubmitAttempted") is not False' in py
     assert 'response.get("durableFenceCleared") is not True' in py
+    assert 'fence_absence_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in py
+    assert 'fenced_tab_absent is not True' in py
