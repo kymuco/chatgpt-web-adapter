@@ -17,6 +17,7 @@
 // multiple stream_handoff records disagree on conversation identity.
 
 const _pr92Schema28PriorExecuteNativeTurn = executeNativeTurn;
+const _pr92Schema28PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA28_REPAIR_SCHEMA = 28;
 const PR92_SCHEMA28_COMMITTED_IDENTITY_ERROR =
   "PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED";
@@ -106,6 +107,17 @@ extractSafeStreamMetadata = function _pr92Schema28ExtractSafeStreamMetadata(
   body,
   base64Encoded
 ) {
+  // Preserve the complete pre-schema-28 metadata observer chain for side effects
+  // such as PR8.8 INSTANT/model/reasoning responseHints. Its returned metadata is
+  // deliberately ignored: schema-28 request-bound parsing below remains the sole
+  // authority for conversationId/turnExchangeId. Any historical schema-19 causal
+  // fields written by the prior observer are overwritten from schema-28 results.
+  try {
+    _pr92Schema28PriorExtractSafeStreamMetadata(body, base64Encoded);
+  } catch {
+    // Observability must never perturb the request-bound identity path.
+  }
+
   const parsed = _pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded);
   _pr92Schema28LastIdentityParseDiagnostics = { ...parsed.diagnostics };
 
@@ -264,6 +276,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(mess
     causalStreamHandoffJsonWhitespaceInvariant: true,
     causalStreamHandoffBase64BodyDecodingSupported: true,
     conflictingStreamHandoffConversationIdsFailClosed: true,
+    priorStreamMetadataObserverSideEffectsPreserved: true,
     routeConversationIdentityAuthoritative: false,
     automaticWriteRetryAfterCausalIdentityFailure: false
   };
