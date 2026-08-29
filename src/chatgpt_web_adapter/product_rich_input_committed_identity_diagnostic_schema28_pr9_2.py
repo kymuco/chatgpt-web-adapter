@@ -49,6 +49,22 @@ def run_diagnostic(*, timeout: float = 30.0) -> dict[str, object]:
     if response.get("automaticWriteRetry") is not False or response.get("fallbackTransport") is not None:
         raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_FALLBACK_STATE_INVALID")
 
+    fence_before = response.get("durableFencePresentBefore") is True
+    fence_absence_authority = response.get("fencedTabAbsenceAuthority")
+    fenced_tab_absent = response.get("fencedTabAbsentAfterCleanup")
+    if fence_before:
+        if response.get("cleanupAttempted") is not True:
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_CLEANUP_NOT_ATTEMPTED")
+        if fenced_tab_absent is not True:
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_FENCED_TAB_ABSENCE_NOT_PROVEN")
+        if fence_absence_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE":
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_ABSENCE_AUTHORITY_INVALID")
+    else:
+        if response.get("cleanupAttempted") is not False:
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_UNEXPECTED_CLEANUP")
+        if fenced_tab_absent is not None or fence_absence_authority is not None:
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_UNEXPECTED_ABSENCE_PROOF")
+
     return {
         "ok": True,
         "diagnostic_only": True,
@@ -59,11 +75,12 @@ def run_diagnostic(*, timeout: float = 30.0) -> dict[str, object]:
         "text_insertion_performed": False,
         "protected_submit_attempted": False,
         "schema": 28,
-        "durable_fence_present_before": response.get("durableFencePresentBefore"),
+        "durable_fence_present_before": fence_before,
         "cleanup_attempted": response.get("cleanupAttempted"),
         "cleanup_proven": True,
         "durable_fence_cleared": True,
-        "fenced_tab_absent_after_cleanup": response.get("fencedTabAbsentAfterCleanup"),
+        "fenced_tab_absent_after_cleanup": fenced_tab_absent,
+        "fenced_tab_absence_authority": fence_absence_authority,
         "observed_tab_id_before_cleanup": response.get("observedTabIdBeforeCleanup"),
         "observed_route_conversation_id_diagnostic": response.get(
             "observedRouteConversationIdDiagnostic"
