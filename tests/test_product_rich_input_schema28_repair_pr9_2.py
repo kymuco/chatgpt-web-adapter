@@ -10,6 +10,7 @@ PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
 LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA28 = EXT / "service_worker_rich_input_schema28_repair_pr9_2.js"
+DIAGNOSTIC_REPAIR28 = EXT / "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js"
 GATE28 = PKG / "product_rich_input_live_gate_schema28_pr9_2.py"
 DIAGNOSTIC28 = PKG / "product_rich_input_committed_identity_diagnostic_schema28_pr9_2.py"
 
@@ -93,9 +94,11 @@ def test_schema_28_overlay_is_loaded_after_schema_27_diagnostic():
     text = LOADER.read_text(encoding="utf-8")
     schema27 = 'importScripts("service_worker_rich_input_schema27_staging_diagnostic_pr9_2.js");'
     schema28 = 'importScripts("service_worker_rich_input_schema28_repair_pr9_2.js");'
+    diagnostic_repair28 = 'importScripts("service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js");'
     assert schema27 in text
     assert schema28 in text
-    assert text.index(schema27) < text.index(schema28)
+    assert diagnostic_repair28 in text
+    assert text.index(schema27) < text.index(schema28) < text.index(diagnostic_repair28)
 
 
 def test_schema_28_parser_is_json_first_and_not_serialization_specific():
@@ -200,23 +203,27 @@ def test_schema_28_support_gate_preserves_schema_27_and_requires_parser_repair_c
     assert "performs exactly three product writes" in text
 
 
-def test_schema_28_reconciliation_diagnostic_is_zero_write_and_fence_authoritative():
-    js = SCHEMA28.read_text(encoding="utf-8")
-    start = js.index("async function _pr92Schema28CommittedIdentityDiagnostic")
-    end = js.index("executeNativeTurn = async function", start)
-    block = js[start:end]
-    assert "message?.text != null || message?.attachmentPaths != null" in block
-    assert "await _pr92ReadDirtyAttachmentFence()" in block
-    assert "await _pr92RequireCleanAttachmentState(context)" in block
-    assert "SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_TAB_ABSENCE" not in block
-    assert 'fencedTabAbsenceAuthority: Number.isInteger(fenceBefore)' in block
-    assert '"PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in block
-    assert "writePerformed: false" in block
-    assert "conversationWritePerformed: false" in block
-    assert "attachmentStagingPerformed: false" in block
-    assert "textInsertionPerformed: false" in block
-    assert "protectedSubmitAttempted: false" in block
-    assert "routeConversationIdentityAuthoritative: false" in block
+def test_schema_28_reconciliation_diagnostic_is_zero_write_and_reserves_cleanup_authority():
+    js = DIAGNOSTIC_REPAIR28.read_text(encoding="utf-8")
+    assert "message?.text != null || message?.attachmentPaths != null" in js
+    assert "PR92_SCHEMA28_DIAGNOSTIC_ROUTE_SAMPLE_MAX_MS = 250" in js
+    assert "PR92_SCHEMA28_DIAGNOSTIC_CLEANUP_RESERVE_MS = 10000" in js
+    assert "available = remaining - reserve" in js
+    assert "skippedForCleanupReserve" in js
+    assert "await _pr92ReadDirtyAttachmentFence()" in js
+    assert "await _pr92RequireCleanAttachmentState(context)" in js
+    assert 'cleanupProofAuthority: cleanupRequired' in js
+    assert '"PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in js
+    assert '"POST_CLEANUP_TAB_ABSENCE_PROBE"' in js
+    assert '"POST_CLEANUP_TAB_PRESENCE_PROBE"' in js
+    assert 'tabAfterCleanup.state === "absent"' in js
+    assert 'tabAfterCleanup.state === "present"' in js
+    assert "writePerformed: false" in js
+    assert "conversationWritePerformed: false" in js
+    assert "attachmentStagingPerformed: false" in js
+    assert "textInsertionPerformed: false" in js
+    assert "protectedSubmitAttempted: false" in js
+    assert "routeConversationIdentityAuthoritative: false" in js
 
     py = DIAGNOSTIC28.read_text(encoding="utf-8")
     assert '"diagnosePr92CommittedIdentityStateSchema28": True' in py
@@ -228,5 +235,9 @@ def test_schema_28_reconciliation_diagnostic_is_zero_write_and_fence_authoritati
     assert 'response.get("writePerformed") is not False' in py
     assert 'response.get("protectedSubmitAttempted") is not False' in py
     assert 'response.get("durableFenceCleared") is not True' in py
-    assert 'fence_absence_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in py
-    assert 'fenced_tab_absent is not True' in py
+    assert 'response.get("staleComposerReconciled") is not True' in py
+    assert 'cleanup_proof_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in py
+    assert 'fenced_tab_absent is True' in py
+    assert 'fenced_tab_absent is False' in py
+    assert '"POST_CLEANUP_TAB_ABSENCE_PROBE"' in py
+    assert '"POST_CLEANUP_TAB_PRESENCE_PROBE"' in py
