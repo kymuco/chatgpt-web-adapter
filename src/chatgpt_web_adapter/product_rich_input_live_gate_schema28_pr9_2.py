@@ -52,6 +52,9 @@ class ProductRichInputSchema28LiveProvider(_v27.ProductRichInputSchema27LiveProv
         support["conflicting_stream_handoff_conversation_ids_fail_closed"] = response.get(
             "conflictingStreamHandoffConversationIdsFailClosed"
         )
+        support["prior_stream_metadata_observer_side_effects_preserved"] = response.get(
+            "priorStreamMetadataObserverSideEffectsPreserved"
+        )
         return support
 
 
@@ -71,6 +74,8 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_SCHEMA28_BASE64_RESPONSE_BODY_DECODING_NOT_PROVEN")
     if support.get("conflicting_stream_handoff_conversation_ids_fail_closed") is not True:
         raise RuntimeError("PR9_2_SCHEMA28_CONFLICTING_STREAM_HANDOFF_IDS_NOT_FAIL_CLOSED")
+    if support.get("prior_stream_metadata_observer_side_effects_preserved") is not True:
+        raise RuntimeError("PR9_2_SCHEMA28_PRIOR_METADATA_OBSERVER_NOT_PRESERVED")
     if support.get("route_conversation_identity_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA28_ROUTE_IDENTITY_AUTHORITY_REGRESSED")
     if support.get("automatic_write_retry_after_causal_identity_failure") is not False:
@@ -188,6 +193,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "causal_stream_handoff_json_whitespace_invariant": True,
         "causal_stream_handoff_base64_body_decoding_supported": True,
         "conflicting_stream_handoff_conversation_ids_fail_closed": True,
+        "prior_stream_metadata_observer_side_effects_preserved": True,
         "route_conversation_identity_authoritative": False,
         "automatic_write_retry": False,
         "fallback_transport": None,
