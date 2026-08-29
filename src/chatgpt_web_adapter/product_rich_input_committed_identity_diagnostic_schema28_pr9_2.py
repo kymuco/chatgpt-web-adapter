@@ -44,26 +44,41 @@ def run_diagnostic(*, timeout: float = 30.0) -> dict[str, object]:
         raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_SCHEMA_MISMATCH")
     if response.get("cleanupProven") is not True or response.get("durableFenceCleared") is not True:
         raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_CLEANUP_NOT_PROVEN")
+    if response.get("staleComposerReconciled") is not True:
+        raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_STALE_COMPOSER_NOT_RECONCILED")
     if response.get("routeConversationIdentityAuthoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_ROUTE_AUTHORITY_INVALID")
     if response.get("automaticWriteRetry") is not False or response.get("fallbackTransport") is not None:
         raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_FALLBACK_STATE_INVALID")
 
     fence_before = response.get("durableFencePresentBefore") is True
-    fence_absence_authority = response.get("fencedTabAbsenceAuthority")
+    cleanup_proof_authority = response.get("cleanupProofAuthority")
     fenced_tab_absent = response.get("fencedTabAbsentAfterCleanup")
+    fence_absence_authority = response.get("fencedTabAbsenceAuthority")
+
+    if fenced_tab_absent not in (True, False, None):
+        raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_TAB_PRESENCE_STATE_INVALID")
+
     if fence_before:
         if response.get("cleanupAttempted") is not True:
             raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_CLEANUP_NOT_ATTEMPTED")
-        if fenced_tab_absent is not True:
-            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_FENCED_TAB_ABSENCE_NOT_PROVEN")
-        if fence_absence_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE":
-            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_ABSENCE_AUTHORITY_INVALID")
+        if cleanup_proof_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE":
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_CLEANUP_AUTHORITY_INVALID")
+        if fenced_tab_absent is True:
+            if fence_absence_authority != "POST_CLEANUP_TAB_ABSENCE_PROBE":
+                raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_ABSENCE_AUTHORITY_INVALID")
+        elif fenced_tab_absent is False:
+            if fence_absence_authority != "POST_CLEANUP_TAB_PRESENCE_PROBE":
+                raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_PRESENCE_AUTHORITY_INVALID")
+        elif fence_absence_authority is not None:
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_UNKNOWN_TAB_AUTHORITY_INVALID")
     else:
         if response.get("cleanupAttempted") is not False:
             raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_UNEXPECTED_CLEANUP")
+        if cleanup_proof_authority is not None:
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_UNEXPECTED_CLEANUP_AUTHORITY")
         if fenced_tab_absent is not None or fence_absence_authority is not None:
-            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_UNEXPECTED_ABSENCE_PROOF")
+            raise RuntimeError("PR9_2_SCHEMA28_COMMITTED_IDENTITY_DIAGNOSTIC_UNEXPECTED_TAB_PROOF")
 
     return {
         "ok": True,
@@ -78,14 +93,21 @@ def run_diagnostic(*, timeout: float = 30.0) -> dict[str, object]:
         "durable_fence_present_before": fence_before,
         "cleanup_attempted": response.get("cleanupAttempted"),
         "cleanup_proven": True,
+        "stale_composer_reconciled": True,
+        "cleanup_proof_authority": cleanup_proof_authority,
         "durable_fence_cleared": True,
         "fenced_tab_absent_after_cleanup": fenced_tab_absent,
         "fenced_tab_absence_authority": fence_absence_authority,
+        "observed_tab_state_before_cleanup": response.get("observedTabStateBeforeCleanup"),
         "observed_tab_id_before_cleanup": response.get("observedTabIdBeforeCleanup"),
         "observed_route_conversation_id_diagnostic": response.get(
             "observedRouteConversationIdDiagnostic"
         ),
         "observed_url_before_cleanup": response.get("observedUrlBeforeCleanup"),
+        "route_sample_skipped_for_cleanup_reserve": response.get(
+            "routeSampleSkippedForCleanupReserve"
+        ),
+        "observed_tab_state_after_cleanup": response.get("observedTabStateAfterCleanup"),
         "route_conversation_identity_authoritative": False,
         "automatic_write_retry": False,
         "fallback_transport": None,
