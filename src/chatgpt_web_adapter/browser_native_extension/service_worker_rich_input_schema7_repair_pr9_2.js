@@ -26,3 +26,4 @@ importScripts("service_worker_rich_input_schema26_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema26_staging_diagnostic_pr9_2.js");
 importScripts("service_worker_rich_input_schema27_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema27_staging_diagnostic_pr9_2.js");
+importScripts("service_worker_rich_input_schema28_repair_pr9_2.js");
