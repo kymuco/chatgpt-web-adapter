@@ -46,6 +46,49 @@ console.log(JSON.stringify({{
     return json.loads(completed.stdout)
 
 
+def _run_observer_preservation_case() -> dict[str, object]:
+    text = SCHEMA28.read_text(encoding="utf-8")
+    helper_start = text.index("function _pr92Schema28DecodeResponseBody")
+    override_start = text.index("extractSafeStreamMetadata = function", helper_start)
+    override_end = text.index("async function _pr92Schema28ReadDiagnosticTab", override_start)
+    helpers = text[helper_start:override_start]
+    override = text[override_start:override_end]
+    script = f"""
+{helpers}
+let priorCalls = 0;
+const _pr92Schema28PriorExtractSafeStreamMetadata = (body, base64Encoded) => {{
+  priorCalls += 1;
+  globalThis.observerSideEffect = `${{base64Encoded === true}}:${{body.length}}`;
+  return {{ conversationId: "WRONG_PRIOR_ID", turnExchangeId: "WRONG_PRIOR_TURN" }};
+}};
+let _pr92Schema28LastIdentityParseDiagnostics = null;
+let _pr92ActiveRichInputContext = {{
+  schema19CausalConversationId: "OLD_ID",
+  schema19CausalTurnExchangeId: "OLD_TURN"
+}};
+let extractSafeStreamMetadata;
+{override}
+const cid = "11111111-2222-3333-4444-555555555555";
+const turn = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const body = `data: {{\"type\": \"stream_handoff\", \"conversation_id\": \"${{cid}}\", \"turn_exchange_id\": \"${{turn}}\"}}\n`;
+const result = extractSafeStreamMetadata(body, false);
+console.log(JSON.stringify({{
+  priorCalls,
+  observerSideEffect: globalThis.observerSideEffect,
+  result,
+  context: _pr92ActiveRichInputContext
+}}));
+"""
+    completed = subprocess.run(
+        ["node", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return json.loads(completed.stdout)
+
+
 def test_schema_28_overlay_is_loaded_after_schema_27_diagnostic():
     text = LOADER.read_text(encoding="utf-8")
     schema27 = 'importScripts("service_worker_rich_input_schema27_staging_diagnostic_pr9_2.js");'
@@ -91,12 +134,32 @@ def test_schema_28_non_handoff_and_conflicting_handoffs_fail_closed():
     assert results["conflict"]["diagnostics"]["conflictingConversationIds"] is True
 
 
+def test_schema_28_preserves_prior_metadata_observer_side_effects_without_trusting_its_ids():
+    result = _run_observer_preservation_case()
+    expected_cid = "11111111-2222-3333-4444-555555555555"
+    expected_turn = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    assert result["priorCalls"] == 1
+    assert result["observerSideEffect"].startswith("false:")
+    assert result["result"] == {
+        "conversationId": expected_cid,
+        "turnExchangeId": expected_turn,
+    }
+    assert result["context"]["schema19CausalConversationId"] == expected_cid
+    assert result["context"]["schema19CausalTurnExchangeId"] == expected_turn
+    assert result["result"]["conversationId"] != "WRONG_PRIOR_ID"
+
+
 def test_schema_28_repaired_metadata_still_populates_schema_19_request_bound_context():
     text = SCHEMA28.read_text(encoding="utf-8")
+    assert "const _pr92Schema28PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;" in text
     start = text.index("extractSafeStreamMetadata = function")
     end = text.index("async function _pr92Schema28ReadDiagnosticTab", start)
     block = text[start:end]
+    assert "_pr92Schema28PriorExtractSafeStreamMetadata(body, base64Encoded)" in block
     assert "_pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded)" in block
+    assert block.index("_pr92Schema28PriorExtractSafeStreamMetadata") < block.index(
+        "_pr92Schema28ExtractRequestBoundStreamMetadata"
+    )
     assert "context.schema19CausalConversationId" in block
     assert "context.schema19CausalTurnExchangeId" in block
     assert "conversationIdFromUrl" not in block
@@ -113,6 +176,7 @@ def test_schema_28_committed_identity_error_keeps_no_retry_classification_and_sa
     assert "conflictingConversationIds=" in text
     assert "automaticWriteRetryAfterCausalIdentityFailure: false" in text
     assert "routeConversationIdentityAuthoritative: false" in text
+    assert "priorStreamMetadataObserverSideEffectsPreserved: true" in text
 
 
 def test_schema_28_support_gate_preserves_schema_27_and_requires_parser_repair_contract():
@@ -126,9 +190,11 @@ def test_schema_28_support_gate_preserves_schema_27_and_requires_parser_repair_c
         "causal_stream_handoff_json_whitespace_invariant",
         "causal_stream_handoff_base64_body_decoding_supported",
         "conflicting_stream_handoff_conversation_ids_fail_closed",
+        "prior_stream_metadata_observer_side_effects_preserved",
     ]
     for key in required:
         assert key in text
+    assert "PR9_2_SCHEMA28_PRIOR_METADATA_OBSERVER_NOT_PRESERVED" in text
     assert "PRODUCT_WRITE_BUDGET = _v27.PRODUCT_WRITE_BUDGET" in text
     assert "--acknowledge-live-writes" in text
     assert "performs exactly three product writes" in text
