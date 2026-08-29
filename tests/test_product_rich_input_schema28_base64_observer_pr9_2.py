@@ -30,8 +30,8 @@ const _pr92Schema28PriorExtractSafeStreamMetadata = (body, base64Encoded) => {{
   priorCalls.push({{ body, base64Encoded }});
   if (
     base64Encoded === false &&
-    body.includes('\\"model\\": \\"instant\\"') &&
-    body.includes('\\"reasoning_effort\\": \\"none\\"')
+    body.includes('"model": "instant"') &&
+    body.includes('"reasoning_effort": "none"')
   ) {{
     responseHintsObserved = true;
   }}
