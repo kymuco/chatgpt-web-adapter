@@ -8,6 +8,9 @@
 //      imply that the numeric tab id is literally absent (a reused non-ChatGPT
 //      id is intentionally left untouched), so tab presence is reported as a
 //      separate tri-state diagnostic observation.
+//
+// Turn deadlines are monotonic (performance.now based), so every local diagnostic
+// sub-budget below deliberately stays in that same clock domain.
 
 const _pr92Schema28DiagnosticRepairPriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA28_DIAGNOSTIC_ROUTE_SAMPLE_MAX_MS = 250;
@@ -16,11 +19,11 @@ const PR92_SCHEMA28_DIAGNOSTIC_RETURN_RESERVE_MS = 1000;
 const PR92_SCHEMA28_DIAGNOSTIC_POST_CLEANUP_SAMPLE_MAX_MS = 250;
 
 function _pr92Schema28DiagnosticRemainingMs(context) {
-  return Math.max(0, context.deadlineAt - Date.now());
+  return Math.max(0, context.deadlineAt - performance.now());
 }
 
 async function _pr92Schema28DiagnosticReadTab(tabId, deadlineAt, label) {
-  if (!Number.isInteger(tabId) || !Number.isFinite(deadlineAt) || deadlineAt <= Date.now()) {
+  if (!Number.isInteger(tabId) || !Number.isFinite(deadlineAt) || deadlineAt <= performance.now()) {
     return {
       state: "unknown",
       tabId: Number.isInteger(tabId) ? tabId : null,
@@ -76,7 +79,7 @@ async function _pr92Schema28DiagnosticRouteSample(tabId, context, cleanupRequire
   const budget = Math.min(PR92_SCHEMA28_DIAGNOSTIC_ROUTE_SAMPLE_MAX_MS, available);
   const sampled = await _pr92Schema28DiagnosticReadTab(
     tabId,
-    Date.now() + budget,
+    performance.now() + budget,
     "SCHEMA28_DIAGNOSTIC_ROUTE_SAMPLE"
   );
   return {
@@ -97,7 +100,7 @@ async function _pr92Schema28DiagnosticPostCleanupPresence(tabId, context) {
   const budget = Math.min(PR92_SCHEMA28_DIAGNOSTIC_POST_CLEANUP_SAMPLE_MAX_MS, available);
   return _pr92Schema28DiagnosticReadTab(
     tabId,
-    Date.now() + budget,
+    performance.now() + budget,
     "SCHEMA28_DIAGNOSTIC_POST_CLEANUP_TAB_SAMPLE"
   );
 }
