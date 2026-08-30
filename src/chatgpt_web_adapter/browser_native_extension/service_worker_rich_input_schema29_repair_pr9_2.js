@@ -44,7 +44,6 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
     rootAddValueConversationIdRecordCount: 0,
     distinctProtocolConversationIdCount: 0,
     protocolConversationIdSourceKinds: [],
-    topLevelConversationIdEventTypes: [],
     streamHandoffCount: 0,
     conflictingConversationIds: false,
     conflictingTurnExchangeIds: false
@@ -60,7 +59,6 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
   const conversationIds = new Set();
   const turnExchangeIds = new Set();
   const sourceKinds = new Set();
-  const eventTypes = new Set();
 
   for (const rawLine of decoded.split(/\r?\n/)) {
     if (!rawLine.startsWith("data:")) continue;
@@ -80,7 +78,7 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
     }
     diagnostics.parsedJsonDataRecords += 1;
 
-    const eventType = _pr92Schema29NonEmptyString(payload.type) || "<untyped>";
+    const eventType = _pr92Schema29NonEmptyString(payload.type);
     if (eventType === "stream_handoff") diagnostics.streamHandoffCount += 1;
 
     let topLevelConversationId = null;
@@ -92,7 +90,6 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
       diagnostics.topLevelConversationIdRecordCount += 1;
       conversationIds.add(topLevelConversationId);
       sourceKinds.add("top-level");
-      eventTypes.add(eventType);
 
       if (Object.prototype.hasOwnProperty.call(payload, "turn_exchange_id")) {
         const candidateTurnExchangeId = _pr92Schema29NonEmptyString(
@@ -129,7 +126,6 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
 
   diagnostics.distinctProtocolConversationIdCount = conversationIds.size;
   diagnostics.protocolConversationIdSourceKinds = Array.from(sourceKinds).sort();
-  diagnostics.topLevelConversationIdEventTypes = Array.from(eventTypes).sort().slice(0, 16);
   diagnostics.conflictingConversationIds = conversationIds.size > 1;
   diagnostics.conflictingTurnExchangeIds = turnExchangeIds.size > 1;
 
@@ -232,8 +228,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
           `:streamHandoffCount=${Number(diagnostics.streamHandoffCount) || 0}` +
           `:conflictingConversationIds=${diagnostics.conflictingConversationIds === true}` +
           `:conflictingTurnExchangeIds=${diagnostics.conflictingTurnExchangeIds === true}` +
-          `:protocolConversationIdSourceKinds=${diagnostics.protocolConversationIdSourceKinds.join(",")}` +
-          `:topLevelConversationIdEventTypes=${diagnostics.topLevelConversationIdEventTypes.join(",")}`
+          `:protocolConversationIdSourceKinds=${diagnostics.protocolConversationIdSourceKinds.join(",")}`
         : ":SCHEMA29:identityParserNotReached=true";
       throw new Error(`${PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR}${suffix}`);
     }
