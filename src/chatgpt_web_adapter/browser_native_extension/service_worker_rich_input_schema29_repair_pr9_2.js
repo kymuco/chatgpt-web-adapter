@@ -1,31 +1,37 @@
-// PR9.2 schema-29 exact-request top-level conversation-id consensus repair.
+// PR9.2 schema-29 exact-request protocol conversation-id consensus repair.
 //
 // The authenticated schema-28 one-write probe proved that the protected image
 // write committed and ChatGPT answered, while the exact protected response body
 // decoded successfully and contained 25 JSON SSE data records but zero
 // `stream_handoff` records. Schema 28 therefore failed after commit because it
 // treated one transport event type as the identity authority instead of treating
-// the exact protected request body itself as the causal boundary.
+// the exact protected request body and recognized protocol identity slots as the
+// causal boundary.
 //
-// Schema 29 keeps the same exact-request authority boundary established by
-// schemas 17/19/20/21. It accepts only non-empty TOP-LEVEL `conversation_id`
-// fields from JSON SSE data records in Network.getResponseBody for the exact
-// protected requestId. Nested content can never supply identity. All observed
-// top-level conversation ids must agree; disagreement fails closed. A
-// `stream_handoff.conversation_id` remains valid, but stream_handoff is no longer
-// required. Route state remains diagnostic only and automatic write retry remains
-// forbidden.
+// Current ChatGPT /backend-api/f/conversation SSE can carry conversation identity
+// in either a top-level `conversation_id` field or in the root delta-add envelope
+// `{p:"", o:"add", v:{..., conversation_id:"..."}}`. Schema 29 accepts only
+// those two recognized protocol slots from Network.getResponseBody for the exact
+// protected requestId. Arbitrary nested message/content/tool data can never supply
+// identity. Every observed recognized conversation id must agree; disagreement
+// fails closed. A `stream_handoff.conversation_id` remains valid as a top-level
+// special case, but stream_handoff is no longer required. Route state remains
+// diagnostic only and automatic write retry remains forbidden.
 
 const _pr92Schema29PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema29PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _pr92Schema29PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA29_REPAIR_SCHEMA = 29;
 const PR92_SCHEMA29_IDENTITY_AUTHORITY =
-  "NETWORK_REQUEST_BOUND_TOP_LEVEL_CONVERSATION_ID_CONSENSUS";
+  "NETWORK_REQUEST_BOUND_PROTOCOL_CONVERSATION_ID_CONSENSUS";
 const PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR =
   "PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED";
 
 let _pr92Schema29LastIdentityParseDiagnostics = null;
+
+function _pr92Schema29NonEmptyString(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
 
 function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encoded) {
   const decoded = _pr92Schema28DecodeResponseBody(body, base64Encoded);
@@ -33,8 +39,11 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
     bodyDecoded: typeof decoded === "string",
     base64Encoded: base64Encoded === true,
     parsedJsonDataRecords: 0,
+    protocolConversationIdRecordCount: 0,
     topLevelConversationIdRecordCount: 0,
-    distinctTopLevelConversationIdCount: 0,
+    rootAddValueConversationIdRecordCount: 0,
+    distinctProtocolConversationIdCount: 0,
+    protocolConversationIdSourceKinds: [],
     topLevelConversationIdEventTypes: [],
     streamHandoffCount: 0,
     conflictingConversationIds: false,
@@ -50,6 +59,7 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
 
   const conversationIds = new Set();
   const turnExchangeIds = new Set();
+  const sourceKinds = new Set();
   const eventTypes = new Set();
 
   for (const rawLine of decoded.split(/\r?\n/)) {
@@ -70,32 +80,55 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
     }
     diagnostics.parsedJsonDataRecords += 1;
 
-    const eventType = typeof payload.type === "string" && payload.type.trim()
-      ? payload.type.trim()
-      : "<untyped>";
+    const eventType = _pr92Schema29NonEmptyString(payload.type) || "<untyped>";
     if (eventType === "stream_handoff") diagnostics.streamHandoffCount += 1;
 
-    if (!Object.prototype.hasOwnProperty.call(payload, "conversation_id")) continue;
-    const candidateConversationId =
-      typeof payload.conversation_id === "string" && payload.conversation_id.trim()
-        ? payload.conversation_id.trim()
+    let topLevelConversationId = null;
+    if (Object.prototype.hasOwnProperty.call(payload, "conversation_id")) {
+      topLevelConversationId = _pr92Schema29NonEmptyString(payload.conversation_id);
+    }
+    if (topLevelConversationId) {
+      diagnostics.protocolConversationIdRecordCount += 1;
+      diagnostics.topLevelConversationIdRecordCount += 1;
+      conversationIds.add(topLevelConversationId);
+      sourceKinds.add("top-level");
+      eventTypes.add(eventType);
+
+      if (Object.prototype.hasOwnProperty.call(payload, "turn_exchange_id")) {
+        const candidateTurnExchangeId = _pr92Schema29NonEmptyString(
+          payload.turn_exchange_id
+        );
+        if (candidateTurnExchangeId) turnExchangeIds.add(candidateTurnExchangeId);
+      }
+    }
+
+    const rootAddValue =
+      payload.p === "" &&
+      payload.o === "add" &&
+      payload.v !== null &&
+      typeof payload.v === "object" &&
+      !Array.isArray(payload.v)
+        ? payload.v
         : null;
-    if (!candidateConversationId) continue;
-
-    diagnostics.topLevelConversationIdRecordCount += 1;
-    conversationIds.add(candidateConversationId);
-    eventTypes.add(eventType);
-
-    if (Object.prototype.hasOwnProperty.call(payload, "turn_exchange_id")) {
-      const candidateTurnExchangeId =
-        typeof payload.turn_exchange_id === "string" && payload.turn_exchange_id.trim()
-          ? payload.turn_exchange_id.trim()
-          : null;
-      if (candidateTurnExchangeId) turnExchangeIds.add(candidateTurnExchangeId);
+    let rootAddConversationId = null;
+    if (
+      rootAddValue !== null &&
+      Object.prototype.hasOwnProperty.call(rootAddValue, "conversation_id")
+    ) {
+      rootAddConversationId = _pr92Schema29NonEmptyString(
+        rootAddValue.conversation_id
+      );
+    }
+    if (rootAddConversationId) {
+      diagnostics.protocolConversationIdRecordCount += 1;
+      diagnostics.rootAddValueConversationIdRecordCount += 1;
+      conversationIds.add(rootAddConversationId);
+      sourceKinds.add("root-add-v");
     }
   }
 
-  diagnostics.distinctTopLevelConversationIdCount = conversationIds.size;
+  diagnostics.distinctProtocolConversationIdCount = conversationIds.size;
+  diagnostics.protocolConversationIdSourceKinds = Array.from(sourceKinds).sort();
   diagnostics.topLevelConversationIdEventTypes = Array.from(eventTypes).sort().slice(0, 16);
   diagnostics.conflictingConversationIds = conversationIds.size > 1;
   diagnostics.conflictingTurnExchangeIds = turnExchangeIds.size > 1;
@@ -134,7 +167,7 @@ extractSafeStreamMetadata = function _pr92Schema29ExtractSafeStreamMetadata(
 
   // Schema 19 consumes these fields after schema 17 reads Network.getResponseBody
   // for the exact completed protected requestId. Overwrite any older parser result
-  // so only schema-29 consensus can satisfy new-chat identity.
+  // so only schema-29 protocol-slot consensus can satisfy new-chat identity.
   const context = _pr92ActiveRichInputContext;
   if (context !== null) {
     context.schema19CausalConversationId =
@@ -167,7 +200,7 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
       ...result.diagnostics,
       conversationIdentityAuthority: PR92_SCHEMA29_IDENTITY_AUTHORITY,
       routeConversationIdentityAuthoritative: false,
-      requestBoundTopLevelConversationIdConsensus: true
+      requestBoundProtocolConversationIdConsensus: true
     }
   };
 };
@@ -192,11 +225,14 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
         ? `:SCHEMA29:bodyDecoded=${diagnostics.bodyDecoded === true}` +
           `:base64Encoded=${diagnostics.base64Encoded === true}` +
           `:parsedJsonDataRecords=${Number(diagnostics.parsedJsonDataRecords) || 0}` +
+          `:protocolConversationIdRecordCount=${Number(diagnostics.protocolConversationIdRecordCount) || 0}` +
           `:topLevelConversationIdRecordCount=${Number(diagnostics.topLevelConversationIdRecordCount) || 0}` +
-          `:distinctTopLevelConversationIdCount=${Number(diagnostics.distinctTopLevelConversationIdCount) || 0}` +
+          `:rootAddValueConversationIdRecordCount=${Number(diagnostics.rootAddValueConversationIdRecordCount) || 0}` +
+          `:distinctProtocolConversationIdCount=${Number(diagnostics.distinctProtocolConversationIdCount) || 0}` +
           `:streamHandoffCount=${Number(diagnostics.streamHandoffCount) || 0}` +
           `:conflictingConversationIds=${diagnostics.conflictingConversationIds === true}` +
           `:conflictingTurnExchangeIds=${diagnostics.conflictingTurnExchangeIds === true}` +
+          `:protocolConversationIdSourceKinds=${diagnostics.protocolConversationIdSourceKinds.join(",")}` +
           `:topLevelConversationIdEventTypes=${diagnostics.topLevelConversationIdEventTypes.join(",")}`
         : ":SCHEMA29:identityParserNotReached=true";
       throw new Error(`${PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR}${suffix}`);
@@ -209,9 +245,11 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
     ...result,
     richInputSchemaVersion: PR92_SCHEMA29_REPAIR_SCHEMA,
     newChatConversationIdentityAuthority: PR92_SCHEMA29_IDENTITY_AUTHORITY,
-    requestBoundTopLevelConversationIdAuthority: true,
-    requestBoundTopLevelConversationIdConsensusRequired: true,
-    nestedConversationIdCanSatisfyIdentity: false,
+    requestBoundProtocolConversationIdAuthority: true,
+    requestBoundProtocolConversationIdConsensusRequired: true,
+    topLevelConversationIdAuthority: true,
+    rootAddValueConversationIdAuthority: true,
+    unrecognizedNestedConversationIdCanSatisfyIdentity: false,
     streamHandoffRequiredForCausalConversationIdentity: false,
     conflictingRequestBoundConversationIdsFailClosed: true,
     routeConversationIdentityAuthoritative: false,
