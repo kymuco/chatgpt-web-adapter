@@ -65,8 +65,14 @@ def _validate_support(support: dict[str, Any]) -> None:
     if support.get("supported") is not True or support.get("schema") != SCHEMA:
         raise RuntimeError("PR9_2_SCHEMA29_RICH_INPUT_SUPPORT_NOT_PROVEN")
 
+    # Schema 29 intentionally supersedes schema 19's transport-specific authority
+    # name while preserving every older request-binding invariant. Reconstruct the
+    # historical schema-28 view before running the immutable legacy validators.
     legacy = dict(support)
     legacy["schema"] = _v28.SCHEMA
+    legacy["new_chat_conversation_identity_authority"] = (
+        "NETWORK_REQUEST_BOUND_STREAM_HANDOFF"
+    )
     _v28._validate_support(legacy)
 
     if support.get("new_chat_conversation_identity_authority") != (
