@@ -35,7 +35,7 @@ def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
         "ok": False,
         "pr": "PR9.2",
         "schema": SCHEMA,
-        "probe": "SCHEMA29_REQUEST_BOUND_TOP_LEVEL_IDENTITY_CONSENSUS",
+        "probe": "SCHEMA29_REQUEST_BOUND_PROTOCOL_IDENTITY_CONSENSUS",
         "product_write_budget": PRODUCT_WRITE_BUDGET,
         "write_attempts": 0,
         "write_completions": 0,
@@ -87,9 +87,11 @@ def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
         "new_chat_conversation_identity_authority": support.get(
             "new_chat_conversation_identity_authority"
         ),
-        "request_bound_top_level_conversation_id_consensus": True,
+        "request_bound_protocol_conversation_id_consensus": True,
+        "top_level_conversation_id_authority": True,
+        "root_add_value_conversation_id_authority": True,
         "stream_handoff_required_for_causal_conversation_identity": False,
-        "nested_conversation_id_can_satisfy_identity": False,
+        "unrecognized_nested_conversation_id_can_satisfy_identity": False,
         "route_conversation_identity_authoritative": False,
         "automatic_write_retry": False,
         "fallback_transport": None,
@@ -100,7 +102,7 @@ def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "PR9.2 schema-29 one-write authenticated exact-request identity probe"
+            "PR9.2 schema-29 one-write authenticated exact-request protocol identity probe"
         )
     )
     parser.add_argument("--acknowledge-live-write", action="store_true")
