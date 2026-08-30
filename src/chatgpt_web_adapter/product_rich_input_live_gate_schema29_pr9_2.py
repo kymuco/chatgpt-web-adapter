@@ -18,7 +18,7 @@ PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET
 
 
 class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProvider):
-    """PR9.2 schema-29 exact-request top-level conversation-id consensus probe."""
+    """PR9.2 schema-29 exact-request protocol conversation-id consensus probe."""
 
     def rich_input_support(self, *, timeout: float = 5.0) -> dict[str, Any]:
         support = super().rich_input_support(timeout=timeout)
@@ -43,14 +43,20 @@ class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProv
         support["new_chat_conversation_identity_authority"] = response.get(
             "newChatConversationIdentityAuthority"
         )
-        support["request_bound_top_level_conversation_id_authority"] = response.get(
-            "requestBoundTopLevelConversationIdAuthority"
+        support["request_bound_protocol_conversation_id_authority"] = response.get(
+            "requestBoundProtocolConversationIdAuthority"
         )
-        support["request_bound_top_level_conversation_id_consensus_required"] = response.get(
-            "requestBoundTopLevelConversationIdConsensusRequired"
+        support["request_bound_protocol_conversation_id_consensus_required"] = response.get(
+            "requestBoundProtocolConversationIdConsensusRequired"
         )
-        support["nested_conversation_id_can_satisfy_identity"] = response.get(
-            "nestedConversationIdCanSatisfyIdentity"
+        support["top_level_conversation_id_authority"] = response.get(
+            "topLevelConversationIdAuthority"
+        )
+        support["root_add_value_conversation_id_authority"] = response.get(
+            "rootAddValueConversationIdAuthority"
+        )
+        support["unrecognized_nested_conversation_id_can_satisfy_identity"] = response.get(
+            "unrecognizedNestedConversationIdCanSatisfyIdentity"
         )
         support["stream_handoff_required_for_causal_conversation_identity"] = response.get(
             "streamHandoffRequiredForCausalConversationIdentity"
@@ -76,15 +82,19 @@ def _validate_support(support: dict[str, Any]) -> None:
     _v28._validate_support(legacy)
 
     if support.get("new_chat_conversation_identity_authority") != (
-        "NETWORK_REQUEST_BOUND_TOP_LEVEL_CONVERSATION_ID_CONSENSUS"
+        "NETWORK_REQUEST_BOUND_PROTOCOL_CONVERSATION_ID_CONSENSUS"
     ):
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_AUTHORITY_NOT_PROVEN")
-    if support.get("request_bound_top_level_conversation_id_authority") is not True:
+    if support.get("request_bound_protocol_conversation_id_authority") is not True:
+        raise RuntimeError("PR9_2_SCHEMA29_PROTOCOL_ID_AUTHORITY_NOT_PROVEN")
+    if support.get("request_bound_protocol_conversation_id_consensus_required") is not True:
+        raise RuntimeError("PR9_2_SCHEMA29_PROTOCOL_ID_CONSENSUS_NOT_PROVEN")
+    if support.get("top_level_conversation_id_authority") is not True:
         raise RuntimeError("PR9_2_SCHEMA29_TOP_LEVEL_ID_AUTHORITY_NOT_PROVEN")
-    if support.get("request_bound_top_level_conversation_id_consensus_required") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_TOP_LEVEL_ID_CONSENSUS_NOT_PROVEN")
-    if support.get("nested_conversation_id_can_satisfy_identity") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_NESTED_IDENTITY_AUTHORITY_REGRESSED")
+    if support.get("root_add_value_conversation_id_authority") is not True:
+        raise RuntimeError("PR9_2_SCHEMA29_ROOT_ADD_VALUE_ID_AUTHORITY_NOT_PROVEN")
+    if support.get("unrecognized_nested_conversation_id_can_satisfy_identity") is not False:
+        raise RuntimeError("PR9_2_SCHEMA29_UNRECOGNIZED_NESTED_IDENTITY_AUTHORITY_REGRESSED")
     if support.get("stream_handoff_required_for_causal_conversation_identity") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_STREAM_HANDOFF_REQUIREMENT_NOT_REMOVED")
     if support.get("conflicting_request_bound_conversation_ids_fail_closed") is not True:
@@ -202,9 +212,11 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "canonical_finality_after_every_write": True,
         "exact_attachment_count_after_every_write": True,
         "schema_28_and_prior_safety_contract_preserved": True,
-        "request_bound_top_level_conversation_id_consensus": True,
+        "request_bound_protocol_conversation_id_consensus": True,
+        "top_level_conversation_id_authority": True,
+        "root_add_value_conversation_id_authority": True,
         "stream_handoff_required_for_causal_conversation_identity": False,
-        "nested_conversation_id_can_satisfy_identity": False,
+        "unrecognized_nested_conversation_id_can_satisfy_identity": False,
         "conflicting_request_bound_conversation_ids_fail_closed": True,
         "route_conversation_identity_authoritative": False,
         "automatic_write_retry": False,
@@ -215,7 +227,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="PR9.2 schema-29 exact-request top-level identity rich-input live gate"
+        description="PR9.2 schema-29 exact-request protocol identity rich-input live gate"
     )
     parser.add_argument("--acknowledge-live-writes", action="store_true")
     parser.add_argument("--timeout", type=float, default=150.0)
