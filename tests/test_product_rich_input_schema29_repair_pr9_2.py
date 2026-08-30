@@ -149,6 +149,19 @@ def test_schema_29_overwrites_schema_19_authority_name_and_keeps_route_diagnosti
     assert "streamHandoffRequiredForCausalConversationIdentity: false" in text
 
 
+def test_schema_29_committed_error_diagnostics_are_content_safe():
+    text = SCHEMA29.read_text(encoding="utf-8")
+    assert "protocolConversationIdSourceKinds" in text
+    assert "topLevelConversationIdEventTypes" not in text
+    assert "JSON.stringify(payload)" not in text
+    error_start = text.index("const suffix = diagnostics")
+    error_end = text.index(": \"SCHEMA29:identityParserNotReached=true\"", error_start)
+    error_block = text[error_start:error_end]
+    assert "payload.type" not in error_block
+    assert "payloadText" not in error_block
+    assert "conversationId" not in error_block
+
+
 def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contract():
     text = GATE29.read_text(encoding="utf-8")
     assert "SCHEMA = 29" in text
