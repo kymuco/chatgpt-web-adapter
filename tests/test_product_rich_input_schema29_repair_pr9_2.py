@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import subprocess
 
+from chatgpt_web_adapter import product_rich_input_live_gate_schema29_pr9_2 as gate29
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
@@ -133,6 +135,8 @@ def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contr
     assert "SCHEMA = 29" in text
     assert "class ProductRichInputSchema29LiveProvider" in text
     assert 'legacy["schema"] = _v28.SCHEMA' in text
+    assert 'legacy["new_chat_conversation_identity_authority"]' in text
+    assert "NETWORK_REQUEST_BOUND_STREAM_HANDOFF" in text
     assert "_v28._validate_support(legacy)" in text
     assert "NETWORK_REQUEST_BOUND_TOP_LEVEL_CONVERSATION_ID_CONSENSUS" in text
     assert "request_bound_top_level_conversation_id_consensus_required" in text
@@ -140,3 +144,32 @@ def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contr
     assert "stream_handoff_required_for_causal_conversation_identity" in text
     assert "conflicting_request_bound_conversation_ids_fail_closed" in text
     assert "PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET" in text
+
+
+def test_schema_29_validator_reconstructs_historical_schema19_authority(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_validate(legacy: dict[str, object]) -> None:
+        captured.update(legacy)
+
+    monkeypatch.setattr(gate29._v28, "_validate_support", fake_validate)
+    support = {
+        "supported": True,
+        "schema": 29,
+        "new_chat_conversation_identity_authority": (
+            "NETWORK_REQUEST_BOUND_TOP_LEVEL_CONVERSATION_ID_CONSENSUS"
+        ),
+        "request_bound_top_level_conversation_id_authority": True,
+        "request_bound_top_level_conversation_id_consensus_required": True,
+        "nested_conversation_id_can_satisfy_identity": False,
+        "stream_handoff_required_for_causal_conversation_identity": False,
+        "conflicting_request_bound_conversation_ids_fail_closed": True,
+        "route_conversation_identity_authoritative": False,
+        "automatic_write_retry_after_causal_identity_failure": False,
+    }
+
+    gate29._validate_support(support)
+    assert captured["schema"] == 28
+    assert captured["new_chat_conversation_identity_authority"] == (
+        "NETWORK_REQUEST_BOUND_STREAM_HANDOFF"
+    )
