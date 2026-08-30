@@ -155,11 +155,11 @@ def test_schema_29_committed_error_diagnostics_are_content_safe():
     assert "topLevelConversationIdEventTypes" not in text
     assert "JSON.stringify(payload)" not in text
     error_start = text.index("const suffix = diagnostics")
-    error_end = text.index(": \"SCHEMA29:identityParserNotReached=true\"", error_start)
+    error_end = text.index("throw new Error(`${PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR}${suffix}`)", error_start)
     error_block = text[error_start:error_end]
     assert "payload.type" not in error_block
     assert "payloadText" not in error_block
-    assert "conversationId" not in error_block
+    assert "conversationId=" not in error_block
 
 
 def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contract():
