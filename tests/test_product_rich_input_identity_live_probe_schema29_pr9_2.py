@@ -58,9 +58,11 @@ def test_schema29_identity_probe_requires_support_and_nonempty_resolved_identity
     assert 'turn.get("conversation_id")' in text
     assert "PR9_2_SCHEMA29_IDENTITY_PROBE_CONVERSATION_ID_NOT_PROVEN" in text
     assert '"new_chat_conversation_identity_authority"' in text
-    assert '"request_bound_top_level_conversation_id_consensus": True' in text
+    assert '"request_bound_protocol_conversation_id_consensus": True' in text
+    assert '"top_level_conversation_id_authority": True' in text
+    assert '"root_add_value_conversation_id_authority": True' in text
     assert '"stream_handoff_required_for_causal_conversation_identity": False' in text
-    assert '"nested_conversation_id_can_satisfy_identity": False' in text
+    assert '"unrecognized_nested_conversation_id_can_satisfy_identity": False' in text
     assert '"route_conversation_identity_authoritative": False' in text
     assert '"automatic_write_retry": False' in text
     assert '"fallback_transport": None' in text
