@@ -16,8 +16,6 @@ from .product_runtime import assemble_product_runtime
 SCHEMA = 29
 PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET
 _SCHEMA20_PLUS_IDENTITY_AUTHORITY = "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"
-_SCHEMA20_LEGACY_REQUEST_CORRELATION = "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST"
-_SCHEMA29_REQUEST_CORRELATION = "VALIDATED_CLICK_ARMED_FIRST_CONVERSATION_POST"
 
 
 class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProvider):
@@ -67,31 +65,11 @@ class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProv
         support["conflicting_request_bound_conversation_ids_fail_closed"] = response.get(
             "conflictingRequestBoundConversationIdsFailClosed"
         )
-        support["protected_submit_request_correlation"] = response.get(
-            "protectedSubmitRequestCorrelation"
+        support["submit_correlation_failure_diagnostics_available"] = response.get(
+            "submitCorrelationFailureDiagnosticsAvailable"
         )
-        support["first_post_arm_conversation_request_authoritative"] = response.get(
-            "firstPostArmConversationRequestAuthoritative"
-        )
-        support["additional_post_arm_conversation_requests_authoritative"] = response.get(
-            "additionalPostArmConversationRequestsAuthoritative"
-        )
-        support["validated_click_boundary_first_request_selection"] = response.get(
-            "validatedClickBoundaryFirstRequestSelection"
-        )
-        support["exactly_one_post_arm_conversation_request_required"] = response.get(
-            "exactlyOnePostArmConversationRequestRequired"
-        )
-        support["user_gesture_post_arm_request_can_satisfy_protected_submit"] = response.get(
-            "userGesturePostArmRequestCanSatisfyProtectedSubmit"
-        )
-        support[
-            "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete"
-        ] = response.get(
-            "ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete"
-        )
-        support["automatic_write_retry_after_submit_correlation_failure"] = response.get(
-            "automaticWriteRetryAfterSubmitCorrelationFailure"
+        support["submit_correlation_authority_unchanged"] = response.get(
+            "submitCorrelationAuthorityUnchanged"
         )
         return support
 
@@ -100,21 +78,16 @@ def _validate_support(support: dict[str, Any]) -> None:
     if support.get("supported") is not True or support.get("schema") != SCHEMA:
         raise RuntimeError("PR9_2_SCHEMA29_RICH_INPUT_SUPPORT_NOT_PROVEN")
 
-    # Schema 29 supersedes both the final identity authority and schema 20's
-    # post-arm multiplicity rule. Reconstruct the historical schema-20+ view
-    # before entering the immutable schema-28 -> ... -> schema-20 validator chain.
+    # Schema 29 supersedes the final identity-authority name only. The immutable
+    # schema-28 validator chain reaches schema 20 before schema 20 itself
+    # reconstructs schema 19's NETWORK_REQUEST_BOUND_STREAM_HANDOFF view, so the
+    # historical input to schema 28 must retain the schema-20+ protected-submit-
+    # bound authority rather than prematurely downgrading to schema 19 here.
     legacy = dict(support)
     legacy["schema"] = _v28.SCHEMA
     legacy["new_chat_conversation_identity_authority"] = (
         _SCHEMA20_PLUS_IDENTITY_AUTHORITY
     )
-    legacy["protected_submit_request_correlation"] = (
-        _SCHEMA20_LEGACY_REQUEST_CORRELATION
-    )
-    legacy["exactly_one_post_arm_conversation_request_required"] = True
-    legacy[
-        "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete"
-    ] = True
     _v28._validate_support(legacy)
 
     if support.get("new_chat_conversation_identity_authority") != (
@@ -135,29 +108,12 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_SCHEMA29_STREAM_HANDOFF_REQUIREMENT_NOT_REMOVED")
     if support.get("conflicting_request_bound_conversation_ids_fail_closed") is not True:
         raise RuntimeError("PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED")
-    if support.get("protected_submit_request_correlation") != _SCHEMA29_REQUEST_CORRELATION:
-        raise RuntimeError("PR9_2_SCHEMA29_FIRST_REQUEST_CORRELATION_NOT_PROVEN")
-    if support.get("first_post_arm_conversation_request_authoritative") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_FIRST_POST_ARM_REQUEST_AUTHORITY_NOT_PROVEN")
-    if support.get("additional_post_arm_conversation_requests_authoritative") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_LATE_POST_ARM_REQUEST_AUTHORITY_REGRESSED")
-    if support.get("validated_click_boundary_first_request_selection") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_VALIDATED_CLICK_FIRST_REQUEST_SELECTION_NOT_PROVEN")
-    if support.get("exactly_one_post_arm_conversation_request_required") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_OBSOLETE_SINGLE_POST_REQUIREMENT_STILL_ACTIVE")
-    if support.get("user_gesture_post_arm_request_can_satisfy_protected_submit") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_USER_GESTURE_REQUEST_AUTHORITY_REGRESSED")
-    if (
-        support.get(
-            "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete"
-        )
-        is not False
-    ):
-        raise RuntimeError("PR9_2_SCHEMA29_LATE_POSTS_STILL_REWRITE_SELECTED_REQUEST")
     if support.get("route_conversation_identity_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_ROUTE_IDENTITY_AUTHORITY_REGRESSED")
-    if support.get("automatic_write_retry_after_submit_correlation_failure") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_RETRY_REGRESSED")
+    if support.get("submit_correlation_failure_diagnostics_available") is not True:
+        raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE")
+    if support.get("submit_correlation_authority_unchanged") is not True:
+        raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_AUTHORITY_CHANGED")
     if support.get("automatic_write_retry_after_causal_identity_failure") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_RETRY_REGRESSED")
 
@@ -275,11 +231,8 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "stream_handoff_required_for_causal_conversation_identity": False,
         "unrecognized_nested_conversation_id_can_satisfy_identity": False,
         "conflicting_request_bound_conversation_ids_fail_closed": True,
-        "protected_submit_request_correlation": _SCHEMA29_REQUEST_CORRELATION,
-        "first_post_arm_conversation_request_authoritative": True,
-        "additional_post_arm_conversation_requests_authoritative": False,
-        "exactly_one_post_arm_conversation_request_required": False,
         "route_conversation_identity_authoritative": False,
+        "submit_correlation_authority_unchanged": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
     }
