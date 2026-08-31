@@ -48,7 +48,6 @@ def test_schema29_identity_probe_is_image_new_chat_only():
     assert 'attachment_evidence_kind="image_color_band_order"' in text
     assert "_v7._FILE_PROMPT" not in text
     assert "_v7._CONTINUATION_PROMPT" not in text
-    assert "conversation=execution.response.conversation" not in text
 
 
 def test_schema29_identity_probe_requires_support_and_nonempty_resolved_identity():
@@ -59,19 +58,27 @@ def test_schema29_identity_probe_requires_support_and_nonempty_resolved_identity
     assert "PR9_2_SCHEMA29_IDENTITY_PROBE_CONVERSATION_ID_NOT_PROVEN" in text
     assert '"new_chat_conversation_identity_authority"' in text
     assert '"request_bound_protocol_conversation_id_consensus": True' in text
-    assert '"top_level_conversation_id_authority": True' in text
-    assert '"root_add_value_conversation_id_authority": True' in text
     assert '"stream_handoff_required_for_causal_conversation_identity": False' in text
-    assert '"unrecognized_nested_conversation_id_can_satisfy_identity": False' in text
     assert '"route_conversation_identity_authoritative": False' in text
     assert '"automatic_write_retry": False' in text
     assert '"fallback_transport": None' in text
 
 
+def test_schema29_identity_probe_reports_request_body_causal_authority():
+    text = _source()
+    assert '"probe": "SCHEMA29_VALIDATED_CLICK_REQUEST_BODY_AND_RESPONSE_IDENTITY"' in text
+    assert 'label="SCHEMA29_REQUEST_BODY_IMAGE_NEW_CHAT"' in text
+    assert '"validated_click_request_body_correlation": True' in text
+    assert '"exact_user_text_request_binding": True' in text
+    assert '"request_message_id_binding": True' in text
+    assert '"request_attachment_count_binding": True' in text
+    assert '"raw_post_arm_multiplicity_non_authoritative": True' in text
+    assert '"has_user_gesture_non_authoritative": True' in text
+
+
 def test_schema29_identity_probe_reuses_attachment_dependent_canonical_validator():
     text = _source()
     assert "_v7._validate_execution(" in text
-    assert 'label="SCHEMA29_IDENTITY_IMAGE_NEW_CHAT"' in text
     assert '"attachment_dependent_response_proven": True' in text
     assert '"canonical_finality_proven": True' in text
     assert '"conversation_identity_resolved": True' in text
