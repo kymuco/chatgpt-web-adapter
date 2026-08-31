@@ -55,14 +55,18 @@ class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProv
             "protected_submit_request_correlation": "protectedSubmitRequestCorrelation",
             "validated_click_request_body_correlation": "validatedClickRequestBodyCorrelation",
             "request_post_data_required_for_protected_submit_correlation": "requestPostDataRequiredForProtectedSubmitCorrelation",
+            "request_post_data_fallback_supported": "requestPostDataFallbackSupported",
+            "request_post_data_fallback_exact_request_bound": "requestPostDataFallbackExactRequestBound",
+            "unresolved_request_body_fails_closed": "unresolvedRequestBodyFailsClosed",
             "exact_user_text_required_for_protected_submit_correlation": "exactUserTextRequiredForProtectedSubmitCorrelation",
             "request_message_id_required_for_protected_submit_correlation": "requestMessageIdRequiredForProtectedSubmitCorrelation",
             "request_attachment_count_required_for_protected_submit_correlation": "requestAttachmentCountRequiredForProtectedSubmitCorrelation",
             "continuation_conversation_id_required_for_protected_submit_correlation": "continuationConversationIdRequiredForProtectedSubmitCorrelation",
             "new_chat_conversation_id_must_be_absent_for_protected_submit_correlation": "newChatConversationIdMustBeAbsentForProtectedSubmitCorrelation",
+            "additional_service_post_arm_requests_allowed": "additionalServicePostArmRequestsAllowed",
             "additional_post_arm_conversation_requests_authoritative": "additionalPostArmConversationRequestsAuthoritative",
             "duplicate_same_logical_message_request_allowed": "duplicateSameLogicalMessageRequestAllowed",
-            "distinct_matching_logical_messages_fail_closed": "distinctMatchingLogicalMessagesFailClosed",
+            "distinct_post_arm_user_messages_fail_closed": "distinctPostArmUserMessagesFailClosed",
             "has_user_gesture_authoritative": "hasUserGestureAuthoritative",
             "exactly_one_post_arm_conversation_request_required": "exactlyOnePostArmConversationRequestRequired",
             "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete": "ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete",
@@ -78,10 +82,9 @@ def _validate_support(support: dict[str, Any]) -> None:
     if support.get("supported") is not True or support.get("schema") != SCHEMA:
         raise RuntimeError("PR9_2_SCHEMA29_RICH_INPUT_SUPPORT_NOT_PROVEN")
 
-    # Validate the complete immutable schema-28-and-earlier chain under the exact
-    # historical schema-20 contract first. Schema 29 then proves its stronger
-    # request-body-bound replacement for only the schema-20 final multiplicity /
-    # hasUserGesture correlation rule.
+    # Preserve the complete reviewed schema-28-and-earlier contract while
+    # reconstructing schema 20's historical final correlation claims for the
+    # inherited validator. Schema 29 then proves its stronger replacement.
     legacy = dict(support)
     legacy["schema"] = _v28.SCHEMA
     legacy["new_chat_conversation_identity_authority"] = (
@@ -98,20 +101,19 @@ def _validate_support(support: dict[str, Any]) -> None:
         "NETWORK_REQUEST_BOUND_PROTOCOL_CONVERSATION_ID_CONSENSUS"
     ):
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_AUTHORITY_NOT_PROVEN")
-    if support.get("request_bound_protocol_conversation_id_authority") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_PROTOCOL_ID_AUTHORITY_NOT_PROVEN")
-    if support.get("request_bound_protocol_conversation_id_consensus_required") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_PROTOCOL_ID_CONSENSUS_NOT_PROVEN")
-    if support.get("top_level_conversation_id_authority") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_TOP_LEVEL_ID_AUTHORITY_NOT_PROVEN")
-    if support.get("root_add_value_conversation_id_authority") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_ROOT_ADD_VALUE_ID_AUTHORITY_NOT_PROVEN")
+    for key, error in (
+        ("request_bound_protocol_conversation_id_authority", "PR9_2_SCHEMA29_PROTOCOL_ID_AUTHORITY_NOT_PROVEN"),
+        ("request_bound_protocol_conversation_id_consensus_required", "PR9_2_SCHEMA29_PROTOCOL_ID_CONSENSUS_NOT_PROVEN"),
+        ("top_level_conversation_id_authority", "PR9_2_SCHEMA29_TOP_LEVEL_ID_AUTHORITY_NOT_PROVEN"),
+        ("root_add_value_conversation_id_authority", "PR9_2_SCHEMA29_ROOT_ADD_VALUE_ID_AUTHORITY_NOT_PROVEN"),
+        ("conflicting_request_bound_conversation_ids_fail_closed", "PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED"),
+    ):
+        if support.get(key) is not True:
+            raise RuntimeError(error)
     if support.get("unrecognized_nested_conversation_id_can_satisfy_identity") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_UNRECOGNIZED_NESTED_IDENTITY_AUTHORITY_REGRESSED")
     if support.get("stream_handoff_required_for_causal_conversation_identity") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_STREAM_HANDOFF_REQUIREMENT_NOT_REMOVED")
-    if support.get("conflicting_request_bound_conversation_ids_fail_closed") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED")
     if support.get("route_conversation_identity_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_ROUTE_IDENTITY_AUTHORITY_REGRESSED")
 
@@ -120,13 +122,17 @@ def _validate_support(support: dict[str, Any]) -> None:
     for key, error in (
         ("validated_click_request_body_correlation", "PR9_2_SCHEMA29_VALIDATED_CLICK_BODY_BINDING_NOT_PROVEN"),
         ("request_post_data_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_REQUEST_POST_DATA_NOT_REQUIRED"),
+        ("request_post_data_fallback_supported", "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_SUPPORTED"),
+        ("request_post_data_fallback_exact_request_bound", "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_REQUEST_BOUND"),
+        ("unresolved_request_body_fails_closed", "PR9_2_SCHEMA29_UNRESOLVED_REQUEST_BODY_NOT_FAIL_CLOSED"),
         ("exact_user_text_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_EXACT_USER_TEXT_NOT_REQUIRED"),
         ("request_message_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_MESSAGE_ID_NOT_REQUIRED"),
         ("request_attachment_count_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_ATTACHMENT_COUNT_NOT_REQUIRED"),
         ("continuation_conversation_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_CONTINUATION_ID_NOT_REQUIRED"),
         ("new_chat_conversation_id_must_be_absent_for_protected_submit_correlation", "PR9_2_SCHEMA29_NEW_CHAT_ID_ABSENCE_NOT_REQUIRED"),
+        ("additional_service_post_arm_requests_allowed", "PR9_2_SCHEMA29_SERVICE_POST_POLICY_NOT_PROVEN"),
         ("duplicate_same_logical_message_request_allowed", "PR9_2_SCHEMA29_LOGICAL_DUPLICATE_POLICY_NOT_PROVEN"),
-        ("distinct_matching_logical_messages_fail_closed", "PR9_2_SCHEMA29_DISTINCT_LOGICAL_MESSAGE_AMBIGUITY_NOT_FAIL_CLOSED"),
+        ("distinct_post_arm_user_messages_fail_closed", "PR9_2_SCHEMA29_CONCURRENT_USER_TURN_NOT_FAIL_CLOSED"),
         ("submit_correlation_failure_diagnostics_available", "PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE"),
     ):
         if support.get(key) is not True:
@@ -259,10 +265,13 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "exact_attachment_count_after_every_write": True,
         "schema_28_and_prior_safety_contract_preserved": True,
         "validated_click_request_body_correlation": True,
+        "request_post_data_fallback_supported": True,
         "exact_user_text_request_binding": True,
         "request_message_id_binding": True,
         "request_attachment_count_binding": True,
         "continuation_conversation_id_binding": True,
+        "additional_service_post_arm_requests_allowed": True,
+        "distinct_post_arm_user_messages_fail_closed": True,
         "raw_post_arm_multiplicity_non_authoritative": True,
         "has_user_gesture_non_authoritative": True,
         "request_bound_protocol_conversation_id_consensus": True,
