@@ -177,7 +177,7 @@ const multiUserSameText = JSON.stringify({{
   ]
 }});
 const run = (body, count, expectedCid = null) =>
-  _pr92Schema29MatchRequestPostData(body, prompt, count, expectedCid);
+  _pr92Schema29InspectRequestPostData(body, prompt, count, expectedCid);
 console.log(JSON.stringify({{
   image: run(image, 1),
   generalFile: run(generalFile, 1),
@@ -201,43 +201,60 @@ def _run_correlation_cases() -> dict[str, object]:
     return _run_node(
         f"""
 {source}
+const diagnostics = (exact=1) => ({{
+  postDataPresent: true,
+  requestJsonParsed: true,
+  actionNext: true,
+  conversationIdentityMatches: true,
+  userMessageCount: exact ? 1 : 0,
+  userMessageIdCount: exact ? 1 : 0,
+  exactTextUserMessageCount: exact,
+  exactRichUserMessageCount: exact,
+  requestMessageIdPresent: Boolean(exact),
+  pointerPartCount: exact ? 1 : 0,
+  metadataAttachmentCount: 0,
+  attachmentEvidenceChannelCount: exact ? 1 : 0,
+  attachmentCountsMatch: Boolean(exact)
+}});
 const matched = (id, gesture=false) => ({{
   requestId: "r-" + id,
   hasUserGesture: gesture,
   matched: true,
   logicalMessageId: id,
-  diagnostics: {{
-    postDataPresent: true,
-    requestJsonParsed: true,
-    actionNext: true,
-    conversationIdentityMatches: true,
-    exactTextUserMessageCount: 1,
-    exactRichUserMessageCount: 1,
-    requestMessageIdPresent: true,
-    pointerPartCount: 1,
-    metadataAttachmentCount: 0,
-    attachmentEvidenceChannelCount: 1,
-    attachmentCountsMatch: true
-  }}
+  logicalUserMessageIds: [id],
+  diagnostics: diagnostics(1),
+  requestBodyResolved: true,
+  requestBodySource: "request-event-post-data"
 }});
-const miss = {{
-  requestId: "r-miss",
+const service = {{
+  requestId: "r-service",
   hasUserGesture: false,
   matched: false,
   logicalMessageId: null,
-  diagnostics: {{
-    postDataPresent: true,
-    requestJsonParsed: true,
-    actionNext: true,
-    conversationIdentityMatches: true,
-    exactTextUserMessageCount: 0,
-    exactRichUserMessageCount: 0,
-    requestMessageIdPresent: false,
-    pointerPartCount: 0,
-    metadataAttachmentCount: 0,
-    attachmentEvidenceChannelCount: 0,
-    attachmentCountsMatch: false
-  }}
+  logicalUserMessageIds: [],
+  diagnostics: diagnostics(0),
+  requestBodyResolved: true,
+  requestBodySource: "request-event-post-data"
+}};
+const foreignUser = {{
+  requestId: "r-foreign",
+  hasUserGesture: false,
+  matched: false,
+  logicalMessageId: null,
+  logicalUserMessageIds: ["manual-message"],
+  diagnostics: diagnostics(0),
+  requestBodyResolved: true,
+  requestBodySource: "request-event-post-data"
+}};
+const unresolved = {{
+  requestId: "r-unresolved",
+  hasUserGesture: false,
+  matched: false,
+  logicalMessageId: null,
+  logicalUserMessageIds: [],
+  diagnostics: null,
+  requestBodyResolved: false,
+  requestBodySource: "unresolved"
 }};
 const evaluate = (requests, marker=true) => _pr92Schema29EvaluateSubmitCorrelation({{
   schema20ProtectedSubmitMarkerObserved: marker,
@@ -246,12 +263,106 @@ const evaluate = (requests, marker=true) => _pr92Schema29EvaluateSubmitCorrelati
 console.log(JSON.stringify({{
   one: evaluate([matched("m1")]),
   gesture: evaluate([matched("m1", true)]),
-  extraNonMatching: evaluate([matched("m1"), miss, miss]),
+  extraService: evaluate([matched("m1"), service, service]),
   duplicateSameLogical: evaluate([matched("m1"), matched("m1")]),
   distinctMatching: evaluate([matched("m1"), matched("m2")]),
-  firstMissThenMatch: evaluate([miss, matched("m1")]),
+  foreignUser: evaluate([matched("m1"), foreignUser]),
+  firstServiceThenMatch: evaluate([service, matched("m1")]),
+  unresolved: evaluate([matched("m1"), unresolved]),
   noMarker: evaluate([matched("m1")], false)
 }}));
+"""
+    )
+
+
+def _run_postdata_fallback_cases() -> dict[str, object]:
+    source = _request_correlation_source()
+    return _run_node(
+        f"""
+const PR92_SCHEMA19_RPC_RETURN_RESERVE_MS = 500;
+const _pr92Schema20PriorIsConversationWrite = () => true;
+function _pr92Schema28DecodeResponseBody(body, base64Encoded) {{
+  if (typeof body !== "string") return null;
+  return base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body;
+}}
+function _pr92RemainingTurnMsOrZero() {{ return 5000; }}
+function _pr92Schema7RunUntil(_deadline, _stage, operation) {{ return Promise.resolve().then(operation); }}
+const performance = {{ now: () => 1000 }};
+{source}
+const prompt = "inspect this attachment exactly";
+const body = JSON.stringify({{
+  action: "next",
+  messages: [{{
+    id: "msg-fallback",
+    author: {{role: "user"}},
+    content: {{parts: [{{asset_pointer: "sediment://file"}}, prompt]}}
+  }}]
+}});
+async function run() {{
+  const calls = [];
+  global.chrome = {{debugger: {{sendCommand: (_debuggee, method, args) => {{
+    calls.push([method, args.requestId]);
+    return Promise.resolve({{
+      postData: Buffer.from(body, "utf8").toString("base64"),
+      base64Encoded: true
+    }});
+  }}}}}};
+  const context = {{
+    schema20ProtectedSubmitArmed: true,
+    schema20ProtectedSubmitMarkerObserved: true,
+    schema29ExpectedText: prompt,
+    schema29ExpectedAttachmentCount: 1,
+    schema19RequestedConversationId: null,
+    schema29PostArmConversationRequests: [],
+    deadlineAt: 10000
+  }};
+  _pr92Schema29RecordPostArmConversationRequest(
+    {{tabId: 7}},
+    context,
+    {{
+      requestId: "request-1",
+      request: {{url: "https://chatgpt.com/backend-api/f/conversation", method: "POST", hasPostData: true}},
+      hasUserGesture: true
+    }}
+  );
+  await _pr92Schema29AwaitPostDataLookups(context);
+  const entry = context.schema29PostArmConversationRequests[0];
+  const correlation = _pr92Schema29EvaluateSubmitCorrelation(context);
+
+  global.chrome = {{debugger: {{sendCommand: () => Promise.reject(new Error("missing"))}}}};
+  const failedContext = {{
+    schema20ProtectedSubmitArmed: true,
+    schema20ProtectedSubmitMarkerObserved: true,
+    schema29ExpectedText: prompt,
+    schema29ExpectedAttachmentCount: 1,
+    schema19RequestedConversationId: null,
+    schema29PostArmConversationRequests: [],
+    deadlineAt: 10000
+  }};
+  _pr92Schema29RecordPostArmConversationRequest(
+    {{tabId: 7}},
+    failedContext,
+    {{
+      requestId: "request-2",
+      request: {{url: "https://chatgpt.com/backend-api/f/conversation", method: "POST", hasPostData: true}}
+    }}
+  );
+  await _pr92Schema29AwaitPostDataLookups(failedContext);
+  const failedCorrelation = _pr92Schema29EvaluateSubmitCorrelation(failedContext);
+
+  console.log(JSON.stringify({{
+    calls,
+    resolved: {{
+      source: entry.requestBodySource,
+      bodyResolved: entry.requestBodyResolved,
+      matched: entry.matched,
+      logicalUserMessageCount: entry.logicalUserMessageIds.length,
+      correlation
+    }},
+    failed: failedCorrelation
+  }}));
+}}
+run();
 """
     )
 
@@ -292,16 +403,16 @@ def test_schema_29_request_body_matches_image_file_and_continuation_shapes():
     results = _run_request_match_cases()
     assert results["image"]["matched"] is True
     assert results["image"]["logicalMessageId"] == "msg-image"
+    assert results["image"]["logicalUserMessageIds"] == ["msg-image"]
     assert results["image"]["diagnostics"]["pointerPartCount"] == 1
     assert results["generalFile"]["matched"] is True
     assert results["generalFile"]["diagnostics"]["metadataAttachmentCount"] == 1
     assert results["bothChannels"]["matched"] is True
     assert results["bothChannels"]["diagnostics"]["attachmentEvidenceChannelCount"] == 2
     assert results["continuation"]["matched"] is True
-    assert results["continuation"]["logicalMessageId"] == "msg-cont"
 
 
-def test_schema_29_request_body_rejects_wrong_or_ambiguous_user_message_identity():
+def test_schema_29_request_body_rejects_wrong_intended_identity_but_classifies_user_turns():
     results = _run_request_match_cases()
     for key in (
         "continuationWrongId",
@@ -314,30 +425,39 @@ def test_schema_29_request_body_rejects_wrong_or_ambiguous_user_message_identity
         "multiUserSameText",
     ):
         assert results[key]["matched"] is False, key
+    assert results["wrongText"]["logicalUserMessageIds"] == ["msg-wrong-text"]
+    assert results["wrongCount"]["logicalUserMessageIds"] == ["msg-wrong-count"]
+    assert results["multiUserSameText"]["logicalUserMessageIds"] == ["m1", "m2"]
     assert results["missingPostData"]["diagnostics"]["postDataPresent"] is False
     assert results["malformedJson"]["diagnostics"]["requestJsonParsed"] is False
-    assert results["wrongCount"]["diagnostics"]["exactRichUserMessageCount"] == 0
-    assert results["multiUserSameText"]["diagnostics"]["exactRichUserMessageCount"] == 2
 
 
-def test_schema_29_post_arm_multiplicity_is_non_authoritative_after_body_binding():
+def test_schema_29_service_post_multiplicity_and_same_logical_retry_are_safe():
     results = _run_correlation_cases()
     assert results["one"]["ok"] is True
-    assert results["extraNonMatching"]["ok"] is True
-    assert results["extraNonMatching"]["postArmConversationRequestCount"] == 3
-    assert results["extraNonMatching"]["matchingRequestCount"] == 1
+    assert results["extraService"]["ok"] is True
+    assert results["extraService"]["postArmConversationRequestCount"] == 3
+    assert results["extraService"]["distinctPostArmUserMessageCount"] == 1
     assert results["duplicateSameLogical"]["ok"] is True
     assert results["duplicateSameLogical"]["matchingRequestCount"] == 2
-    assert results["duplicateSameLogical"]["distinctMatchingLogicalMessageCount"] == 1
+    assert results["duplicateSameLogical"]["distinctPostArmUserMessageCount"] == 1
 
 
-def test_schema_29_distinct_matching_messages_and_wrong_first_request_fail_closed():
+def test_schema_29_distinct_or_concurrent_user_turns_fail_closed():
     results = _run_correlation_cases()
     assert results["distinctMatching"]["ok"] is False
-    assert results["distinctMatching"]["distinctMatchingLogicalMessageCount"] == 2
-    assert results["firstMissThenMatch"]["ok"] is False
-    assert results["firstMissThenMatch"]["firstRequestMatched"] is False
+    assert results["distinctMatching"]["foreignPostArmUserMessageCount"] == 1
+    assert results["foreignUser"]["ok"] is False
+    assert results["foreignUser"]["foreignPostArmUserMessageCount"] == 1
+    assert results["firstServiceThenMatch"]["ok"] is False
+    assert results["firstServiceThenMatch"]["firstRequestMatched"] is False
     assert results["noMarker"]["ok"] is False
+
+
+def test_schema_29_unresolved_request_body_fails_closed():
+    result = _run_correlation_cases()["unresolved"]
+    assert result["ok"] is False
+    assert result["unresolvedRequestBodyCount"] == 1
 
 
 def test_schema_29_user_gesture_is_diagnostic_not_identity_authority():
@@ -347,26 +467,52 @@ def test_schema_29_user_gesture_is_diagnostic_not_identity_authority():
     assert result["hasUserGestureAuthoritative"] is False
 
 
+def test_schema_29_missing_event_postdata_uses_exact_request_fallback():
+    result = _run_postdata_fallback_cases()
+    assert result["calls"] == [["Network.getRequestPostData", "request-1"]]
+    resolved = result["resolved"]
+    assert resolved["source"] == "network-get-request-post-data"
+    assert resolved["bodyResolved"] is True
+    assert resolved["matched"] is True
+    assert resolved["logicalUserMessageCount"] == 1
+    assert resolved["correlation"]["ok"] is True
+    assert resolved["correlation"]["fallbackRequestBodyCount"] == 1
+
+
+def test_schema_29_failed_postdata_fallback_remains_fail_closed():
+    result = _run_postdata_fallback_cases()["failed"]
+    assert result["ok"] is False
+    assert result["unresolvedRequestBodyCount"] == 1
+
+
 def test_schema_29_replaces_only_schema20_final_gate_and_keeps_validated_arm_boundary():
     text = SCHEMA29.read_text(encoding="utf-8")
     start = text.index("executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn")
     end = text.index("executeNativeTurn = async function", start)
     block = text[start:end]
     assert "_pr92Schema20ObserveArmMarker(context, params)" in block
-    assert "_pr92Schema29RecordPostArmConversationRequest(context, params)" in block
+    assert "_pr92Schema29RecordPostArmConversationRequest(debuggee, context, params)" in block
     assert "chrome.debugger.onEvent.addListener(observer)" in block
     assert "await _pr92Schema20PriorExecuteOfficialPageTurn(args)" in block
-    assert block.index("chrome.debugger.onEvent.addListener(observer)") < block.index(
-        "await _pr92Schema20PriorExecuteOfficialPageTurn(args)"
-    )
+    assert "await _pr92Schema29AwaitPostDataLookups(context)" in block
     assert "context.schema20ProtectedSubmitArmed = false" in block
     assert "_pr92Schema29PriorExecuteOfficialPageTurn(args)" in block
 
 
+def test_schema_29_request_body_fallback_is_exact_request_bound_and_bounded():
+    text = SCHEMA29.read_text(encoding="utf-8")
+    assert '"Network.getRequestPostData"' in text
+    assert "{ requestId }" in text
+    assert "PR92_SCHEMA29_POSTDATA_SETTLE_CAP_MS" in text
+    assert "PR92_SCHEMA19_RPC_RETURN_RESERVE_MS" in text
+    assert '"SCHEMA29_REQUEST_POST_DATA_SETTLE"' in text
+    assert "Promise.allSettled(pending)" in text
+
+
 def test_schema_29_request_matcher_has_no_route_or_response_identity_authority():
     text = SCHEMA29.read_text(encoding="utf-8")
-    start = text.index("function _pr92Schema29MatchRequestPostData")
-    end = text.index("function _pr92Schema29RecordPostArmConversationRequest", start)
+    start = text.index("function _pr92Schema29InspectRequestPostData")
+    end = text.index("function _pr92Schema29ApplyRequestInspection", start)
     block = text[start:end]
     assert 'payload.action === "next"' in block
     assert 'message?.author?.role !== "user"' in block
@@ -385,9 +531,9 @@ def test_schema_29_committed_error_diagnostics_do_not_expose_request_content_or_
     assert "logicalMessageId=" not in block
     assert "expectedText" not in block
     assert "conversationId=" not in block
-    assert "firstRequestPostDataPresent" in block
-    assert "matchingRequestCount" in block
-    assert "distinctMatchingLogicalMessageCount" in block
+    assert "foreignPostArmUserMessageCount" in block
+    assert "unresolvedRequestBodyCount" in block
+    assert "fallbackRequestBodyCount" in block
 
 
 def test_schema_29_support_gate_adapts_legacy_schema20_then_requires_new_authority(monkeypatch):
@@ -430,14 +576,18 @@ def test_schema_29_support_gate_adapts_legacy_schema20_then_requires_new_authori
         ),
         "validated_click_request_body_correlation": True,
         "request_post_data_required_for_protected_submit_correlation": True,
+        "request_post_data_fallback_supported": True,
+        "request_post_data_fallback_exact_request_bound": True,
+        "unresolved_request_body_fails_closed": True,
         "exact_user_text_required_for_protected_submit_correlation": True,
         "request_message_id_required_for_protected_submit_correlation": True,
         "request_attachment_count_required_for_protected_submit_correlation": True,
         "continuation_conversation_id_required_for_protected_submit_correlation": True,
         "new_chat_conversation_id_must_be_absent_for_protected_submit_correlation": True,
+        "additional_service_post_arm_requests_allowed": True,
         "additional_post_arm_conversation_requests_authoritative": False,
         "duplicate_same_logical_message_request_allowed": True,
-        "distinct_matching_logical_messages_fail_closed": True,
+        "distinct_post_arm_user_messages_fail_closed": True,
         "has_user_gesture_authoritative": False,
         "exactly_one_post_arm_conversation_request_required": False,
         "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete": False,
@@ -455,14 +605,15 @@ def test_schema_29_support_source_requires_request_body_causal_contract():
     for needle in (
         "VALIDATED_CLICK_REQUEST_BODY_USER_MESSAGE_IDENTITY",
         "validated_click_request_body_correlation",
-        "request_post_data_required_for_protected_submit_correlation",
+        "request_post_data_fallback_supported",
+        "request_post_data_fallback_exact_request_bound",
+        "unresolved_request_body_fails_closed",
         "exact_user_text_required_for_protected_submit_correlation",
         "request_message_id_required_for_protected_submit_correlation",
         "request_attachment_count_required_for_protected_submit_correlation",
         "continuation_conversation_id_required_for_protected_submit_correlation",
-        "additional_post_arm_conversation_requests_authoritative",
-        "duplicate_same_logical_message_request_allowed",
-        "distinct_matching_logical_messages_fail_closed",
+        "additional_service_post_arm_requests_allowed",
+        "distinct_post_arm_user_messages_fail_closed",
         "has_user_gesture_authoritative",
     ):
         assert needle in text
