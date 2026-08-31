@@ -26,7 +26,9 @@ def _run_parser_cases() -> dict[str, object]:
 
     schema29 = SCHEMA29.read_text(encoding="utf-8")
     helper_start = schema29.index("function _pr92Schema29NonEmptyString")
-    parser_end = schema29.index("function _pr92Schema29EvaluateSubmitCorrelation", helper_start)
+    parser_end = schema29.index(
+        "function _pr92Schema29CaptureSubmitCorrelationDiagnostics", helper_start
+    )
     parser = schema29[helper_start:parser_end]
 
     script = f"""
@@ -66,48 +68,40 @@ console.log(JSON.stringify({{
     return json.loads(completed.stdout)
 
 
-def _run_correlation_cases() -> dict[str, object]:
+def _run_correlation_diagnostic_cases() -> dict[str, object]:
     schema29 = SCHEMA29.read_text(encoding="utf-8")
-    nonempty_start = schema29.index("function _pr92Schema29NonEmptyString")
-    parser_start = schema29.index(
-        "function _pr92Schema29ExtractRequestBoundConversationMetadata", nonempty_start
-    )
-    nonempty = schema29[nonempty_start:parser_start]
-    helper_start = schema29.index("function _pr92Schema29EvaluateSubmitCorrelation")
-    helper_end = schema29.index("extractSafeStreamMetadata = function", helper_start)
-    helper = schema29[helper_start:helper_end]
+    start = schema29.index("function _pr92Schema29CaptureSubmitCorrelationDiagnostics")
+    end = schema29.index("extractSafeStreamMetadata = function", start)
+    helper = schema29[start:end]
     script = f"""
-{nonempty}
 {helper}
-const one = {{
-  schema20ProtectedSubmitMarkerObserved: true,
-  schema20PostArmConversationRequests: [{{requestId: "r1", hasUserGesture: false}}]
+const cases = {{
+  noMarker: {{
+    schema20ProtectedSubmitMarkerObserved: false,
+    schema20PostArmConversationRequests: []
+  }},
+  oneSafe: {{
+    schema20ProtectedSubmitMarkerObserved: true,
+    schema20PostArmConversationRequests: [{{requestId: "r1", hasUserGesture: false}}]
+  }},
+  oneGesture: {{
+    schema20ProtectedSubmitMarkerObserved: true,
+    schema20PostArmConversationRequests: [{{requestId: "r1", hasUserGesture: true}}]
+  }},
+  multiple: {{
+    schema20ProtectedSubmitMarkerObserved: true,
+    schema20PostArmConversationRequests: [
+      {{requestId: "r1", hasUserGesture: false}},
+      {{requestId: "r2", hasUserGesture: true}},
+      {{requestId: "r3", hasUserGesture: false}}
+    ]
+  }}
 }};
-const multiple = {{
-  schema20ProtectedSubmitMarkerObserved: true,
-  schema20PostArmConversationRequests: [
-    {{requestId: "r1", hasUserGesture: false}},
-    {{requestId: "r2", hasUserGesture: false}},
-    {{requestId: "r3", hasUserGesture: true}}
-  ]
-}};
-const firstUserGesture = {{
-  schema20ProtectedSubmitMarkerObserved: true,
-  schema20PostArmConversationRequests: [
-    {{requestId: "manual", hasUserGesture: true}},
-    {{requestId: "protected", hasUserGesture: false}}
-  ]
-}};
-const noMarker = {{
-  schema20ProtectedSubmitMarkerObserved: false,
-  schema20PostArmConversationRequests: [{{requestId: "r1", hasUserGesture: false}}]
-}};
-console.log(JSON.stringify({{
-  one: _pr92Schema29EvaluateSubmitCorrelation(one),
-  multiple: _pr92Schema29EvaluateSubmitCorrelation(multiple),
-  firstUserGesture: _pr92Schema29EvaluateSubmitCorrelation(firstUserGesture),
-  noMarker: _pr92Schema29EvaluateSubmitCorrelation(noMarker)
-}}));
+const out = {{}};
+for (const [name, value] of Object.entries(cases)) {{
+  out[name] = _pr92Schema29CaptureSubmitCorrelationDiagnostics(value);
+}}
+console.log(JSON.stringify(out));
 """
     completed = subprocess.run(
         ["node", "-e", script],
@@ -181,7 +175,7 @@ def test_schema_29_unrecognized_nested_ids_have_zero_authority_and_conflicts_fai
 def test_schema_29_parser_uses_only_recognized_exact_request_protocol_slots():
     text = SCHEMA29.read_text(encoding="utf-8")
     start = text.index("function _pr92Schema29ExtractRequestBoundConversationMetadata")
-    end = text.index("function _pr92Schema29EvaluateSubmitCorrelation", start)
+    end = text.index("function _pr92Schema29CaptureSubmitCorrelationDiagnostics", start)
     block = text[start:end]
     assert 'Object.prototype.hasOwnProperty.call(payload, "conversation_id")' in block
     assert 'payload.p === ""' in block
@@ -192,31 +186,35 @@ def test_schema_29_parser_uses_only_recognized_exact_request_protocol_slots():
     assert "JSON.stringify(payload)" not in block
 
 
-def test_schema_29_multi_post_tail_does_not_invalidate_first_validated_click_request():
-    results = _run_correlation_cases()
-    assert results["one"]["ok"] is True
-    assert results["one"]["firstRequestId"] == "r1"
-    assert results["multiple"]["ok"] is True
-    assert results["multiple"]["firstRequestId"] == "r1"
+def test_schema_29_correlation_diagnostics_preserve_schema20_authority():
+    results = _run_correlation_diagnostic_cases()
+    assert results["noMarker"]["schema20CorrelationWouldPass"] is False
+    assert results["oneSafe"] == {
+        "markerObserved": True,
+        "postArmConversationRequestCount": 1,
+        "postArmUserGestureRequestCount": 0,
+        "postArmNonUserGestureRequestCount": 1,
+        "exactlyOnePostArmRequest": True,
+        "soleRequestHadUserGesture": False,
+        "schema20CorrelationWouldPass": True,
+    }
+    assert results["oneGesture"]["schema20CorrelationWouldPass"] is False
+    assert results["oneGesture"]["postArmUserGestureRequestCount"] == 1
+    assert results["multiple"]["schema20CorrelationWouldPass"] is False
     assert results["multiple"]["postArmConversationRequestCount"] == 3
-    assert results["multiple"]["exactlyOnePostArmConversationRequestRequired"] is False
-    assert results["multiple"]["additionalPostArmConversationRequestsAuthoritative"] is False
-    assert results["firstUserGesture"]["ok"] is False
-    assert results["noMarker"]["ok"] is False
+    assert results["multiple"]["postArmUserGestureRequestCount"] == 1
+    assert results["multiple"]["postArmNonUserGestureRequestCount"] == 2
+    assert results["multiple"]["soleRequestHadUserGesture"] is None
 
 
-def test_schema_29_bypasses_only_schema20_obsolete_single_post_gate():
+def test_schema_29_does_not_bypass_schema20_submit_correlation():
     text = SCHEMA29.read_text(encoding="utf-8")
     start = text.index("executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn")
     end = text.index("executeNativeTurn = async function", start)
     block = text[start:end]
-    assert "_pr92Schema20PriorExecuteOfficialPageTurn(args)" in block
-    assert "_pr92Schema20ObserveArmMarker(context, params)" in block
-    assert "_pr92Schema20RecordPostArmConversationRequest(context, params)" in block
-    assert "firstPostArmConversationRequestAuthoritative: true" in block
-    assert "additionalPostArmConversationRequestsAuthoritative: false" in block
-    assert "exactlyOnePostArmConversationRequestRequired: false" in block
-    assert "observed.length === 1" not in block
+    assert "await _pr92Schema29PriorExecuteOfficialPageTurn(args)" in block
+    assert "_pr92Schema20PriorExecuteOfficialPageTurn(args)" not in block
+    assert "_pr92Schema29CaptureSubmitCorrelationDiagnostics(context)" in block
 
 
 def test_schema_29_overwrites_schema_19_authority_name_and_keeps_route_diagnostic_only():
@@ -227,7 +225,7 @@ def test_schema_29_overwrites_schema_19_authority_name_and_keeps_route_diagnosti
     assert "automaticWriteRetryAfterCausalIdentityFailure: false" in text
     assert "unrecognizedNestedConversationIdCanSatisfyIdentity: false" in text
     assert "streamHandoffRequiredForCausalConversationIdentity: false" in text
-    assert "VALIDATED_CLICK_ARMED_FIRST_CONVERSATION_POST" in text
+    assert "submitCorrelationAuthorityUnchanged: true" in text
 
 
 def test_schema_29_committed_error_diagnostics_are_content_safe():
@@ -235,16 +233,20 @@ def test_schema_29_committed_error_diagnostics_are_content_safe():
     assert "protocolConversationIdSourceKinds" in text
     assert "topLevelConversationIdEventTypes" not in text
     assert "JSON.stringify(payload)" not in text
-    error_start = text.index("const suffix = diagnostics")
-    error_end = text.index("throw new Error(`${PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR}${suffix}`)", error_start)
+    error_start = text.index("const identitySuffix = diagnostics")
+    error_end = text.index(
+        "throw new Error(\n        `${PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR}", error_start
+    )
     error_block = text[error_start:error_end]
     assert "payload.type" not in error_block
     assert "payloadText" not in error_block
     assert "conversationId=" not in error_block
+    assert "requestId" not in error_block
     assert "protectedSubmitMarkerObserved" in error_block
     assert "postArmConversationRequestCount" in error_block
-    assert "firstPostArmRequestHadUserGesture" in error_block
-    assert "firstRequestId" not in error_block
+    assert "postArmUserGestureRequestCount" in error_block
+    assert "postArmNonUserGestureRequestCount" in error_block
+    assert "schema20CorrelationWouldPass" in error_block
 
 
 def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contract():
@@ -254,9 +256,6 @@ def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contr
     assert 'legacy["schema"] = _v28.SCHEMA' in text
     assert 'legacy["new_chat_conversation_identity_authority"]' in text
     assert "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF" in text
-    assert 'legacy["protected_submit_request_correlation"]' in text
-    assert "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST" in text
-    assert 'legacy["exactly_one_post_arm_conversation_request_required"] = True' in text
     assert "_v28._validate_support(legacy)" in text
     assert "NETWORK_REQUEST_BOUND_PROTOCOL_CONVERSATION_ID_CONSENSUS" in text
     assert "request_bound_protocol_conversation_id_consensus_required" in text
@@ -265,8 +264,8 @@ def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contr
     assert "unrecognized_nested_conversation_id_can_satisfy_identity" in text
     assert "stream_handoff_required_for_causal_conversation_identity" in text
     assert "conflicting_request_bound_conversation_ids_fail_closed" in text
-    assert "first_post_arm_conversation_request_authoritative" in text
-    assert "additional_post_arm_conversation_requests_authoritative" in text
+    assert "submit_correlation_failure_diagnostics_available" in text
+    assert "submit_correlation_authority_unchanged" in text
     assert "PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET" in text
 
 
@@ -276,16 +275,6 @@ def test_schema_29_validator_reconstructs_schema20_plus_authority_for_schema28_c
     def fake_validate(legacy: dict[str, object]) -> None:
         assert legacy["new_chat_conversation_identity_authority"] == (
             "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"
-        )
-        assert legacy["protected_submit_request_correlation"] == (
-            "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST"
-        )
-        assert legacy["exactly_one_post_arm_conversation_request_required"] is True
-        assert (
-            legacy[
-                "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete"
-            ]
-            is True
         )
         captured.update(legacy)
 
@@ -303,17 +292,9 @@ def test_schema_29_validator_reconstructs_schema20_plus_authority_for_schema28_c
         "unrecognized_nested_conversation_id_can_satisfy_identity": False,
         "stream_handoff_required_for_causal_conversation_identity": False,
         "conflicting_request_bound_conversation_ids_fail_closed": True,
-        "protected_submit_request_correlation": (
-            "VALIDATED_CLICK_ARMED_FIRST_CONVERSATION_POST"
-        ),
-        "first_post_arm_conversation_request_authoritative": True,
-        "additional_post_arm_conversation_requests_authoritative": False,
-        "validated_click_boundary_first_request_selection": True,
-        "exactly_one_post_arm_conversation_request_required": False,
-        "user_gesture_post_arm_request_can_satisfy_protected_submit": False,
-        "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete": False,
         "route_conversation_identity_authoritative": False,
-        "automatic_write_retry_after_submit_correlation_failure": False,
+        "submit_correlation_failure_diagnostics_available": True,
+        "submit_correlation_authority_unchanged": True,
         "automatic_write_retry_after_causal_identity_failure": False,
     }
 
