@@ -168,7 +168,7 @@ def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contr
     assert "class ProductRichInputSchema29LiveProvider" in text
     assert 'legacy["schema"] = _v28.SCHEMA' in text
     assert 'legacy["new_chat_conversation_identity_authority"]' in text
-    assert "NETWORK_REQUEST_BOUND_STREAM_HANDOFF" in text
+    assert "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF" in text
     assert "_v28._validate_support(legacy)" in text
     assert "NETWORK_REQUEST_BOUND_PROTOCOL_CONVERSATION_ID_CONSENSUS" in text
     assert "request_bound_protocol_conversation_id_consensus_required" in text
@@ -180,10 +180,15 @@ def test_schema_29_support_gate_preserves_schema_28_and_requires_consensus_contr
     assert "PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET" in text
 
 
-def test_schema_29_validator_reconstructs_historical_schema19_authority(monkeypatch):
+def test_schema_29_validator_reconstructs_schema20_plus_authority_for_schema28_chain(monkeypatch):
     captured: dict[str, object] = {}
 
     def fake_validate(legacy: dict[str, object]) -> None:
+        # This is the contract that the real schema-28→...→schema-20 chain
+        # consumes before schema 20 reconstructs schema 19 internally.
+        assert legacy["new_chat_conversation_identity_authority"] == (
+            "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"
+        )
         captured.update(legacy)
 
     monkeypatch.setattr(gate29._v28, "_validate_support", fake_validate)
@@ -207,5 +212,5 @@ def test_schema_29_validator_reconstructs_historical_schema19_authority(monkeypa
     gate29._validate_support(support)
     assert captured["schema"] == 28
     assert captured["new_chat_conversation_identity_authority"] == (
-        "NETWORK_REQUEST_BOUND_STREAM_HANDOFF"
+        "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"
     )
