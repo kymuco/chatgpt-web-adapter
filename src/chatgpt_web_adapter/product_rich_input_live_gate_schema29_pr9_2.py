@@ -15,6 +15,7 @@ from .product_runtime import assemble_product_runtime
 
 SCHEMA = 29
 PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET
+_SCHEMA20_PLUS_IDENTITY_AUTHORITY = "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"
 
 
 class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProvider):
@@ -71,13 +72,15 @@ def _validate_support(support: dict[str, Any]) -> None:
     if support.get("supported") is not True or support.get("schema") != SCHEMA:
         raise RuntimeError("PR9_2_SCHEMA29_RICH_INPUT_SUPPORT_NOT_PROVEN")
 
-    # Schema 29 intentionally supersedes schema 19's transport-specific authority
-    # name while preserving every older request-binding invariant. Reconstruct the
-    # historical schema-28 view before running the immutable legacy validators.
+    # Schema 29 supersedes the final identity-authority name only. The immutable
+    # schema-28 validator chain reaches schema 20 before schema 20 itself
+    # reconstructs schema 19's NETWORK_REQUEST_BOUND_STREAM_HANDOFF view, so the
+    # historical input to schema 28 must retain the schema-20+ protected-submit-
+    # bound authority rather than prematurely downgrading to schema 19 here.
     legacy = dict(support)
     legacy["schema"] = _v28.SCHEMA
     legacy["new_chat_conversation_identity_authority"] = (
-        "NETWORK_REQUEST_BOUND_STREAM_HANDOFF"
+        _SCHEMA20_PLUS_IDENTITY_AUTHORITY
     )
     _v28._validate_support(legacy)
 
