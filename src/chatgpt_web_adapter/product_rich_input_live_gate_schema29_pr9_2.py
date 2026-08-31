@@ -16,10 +16,12 @@ from .product_runtime import assemble_product_runtime
 SCHEMA = 29
 PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET
 _SCHEMA20_PLUS_IDENTITY_AUTHORITY = "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"
+_SCHEMA20_REQUEST_CORRELATION = "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST"
+_EXPECTED_REQUEST_CORRELATION = "VALIDATED_CLICK_REQUEST_BODY_USER_MESSAGE_IDENTITY"
 
 
 class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProvider):
-    """PR9.2 schema-29 exact-request protocol conversation-id consensus probe."""
+    """PR9.2 schema-29 request-body-bound rich-submit identity probe."""
 
     def rich_input_support(self, *, timeout: float = 5.0) -> dict[str, Any]:
         support = super().rich_input_support(timeout=timeout)
@@ -41,36 +43,34 @@ class ProductRichInputSchema29LiveProvider(_v28.ProductRichInputSchema28LiveProv
                 f"PR9_2_SCHEMA29_SUPPORT_FAILED:{response.get('error') or 'unknown'}"
             )
 
-        support["new_chat_conversation_identity_authority"] = response.get(
-            "newChatConversationIdentityAuthority"
-        )
-        support["request_bound_protocol_conversation_id_authority"] = response.get(
-            "requestBoundProtocolConversationIdAuthority"
-        )
-        support["request_bound_protocol_conversation_id_consensus_required"] = response.get(
-            "requestBoundProtocolConversationIdConsensusRequired"
-        )
-        support["top_level_conversation_id_authority"] = response.get(
-            "topLevelConversationIdAuthority"
-        )
-        support["root_add_value_conversation_id_authority"] = response.get(
-            "rootAddValueConversationIdAuthority"
-        )
-        support["unrecognized_nested_conversation_id_can_satisfy_identity"] = response.get(
-            "unrecognizedNestedConversationIdCanSatisfyIdentity"
-        )
-        support["stream_handoff_required_for_causal_conversation_identity"] = response.get(
-            "streamHandoffRequiredForCausalConversationIdentity"
-        )
-        support["conflicting_request_bound_conversation_ids_fail_closed"] = response.get(
-            "conflictingRequestBoundConversationIdsFailClosed"
-        )
-        support["submit_correlation_failure_diagnostics_available"] = response.get(
-            "submitCorrelationFailureDiagnosticsAvailable"
-        )
-        support["submit_correlation_authority_unchanged"] = response.get(
-            "submitCorrelationAuthorityUnchanged"
-        )
+        fields = {
+            "new_chat_conversation_identity_authority": "newChatConversationIdentityAuthority",
+            "request_bound_protocol_conversation_id_authority": "requestBoundProtocolConversationIdAuthority",
+            "request_bound_protocol_conversation_id_consensus_required": "requestBoundProtocolConversationIdConsensusRequired",
+            "top_level_conversation_id_authority": "topLevelConversationIdAuthority",
+            "root_add_value_conversation_id_authority": "rootAddValueConversationIdAuthority",
+            "unrecognized_nested_conversation_id_can_satisfy_identity": "unrecognizedNestedConversationIdCanSatisfyIdentity",
+            "stream_handoff_required_for_causal_conversation_identity": "streamHandoffRequiredForCausalConversationIdentity",
+            "conflicting_request_bound_conversation_ids_fail_closed": "conflictingRequestBoundConversationIdsFailClosed",
+            "protected_submit_request_correlation": "protectedSubmitRequestCorrelation",
+            "validated_click_request_body_correlation": "validatedClickRequestBodyCorrelation",
+            "request_post_data_required_for_protected_submit_correlation": "requestPostDataRequiredForProtectedSubmitCorrelation",
+            "exact_user_text_required_for_protected_submit_correlation": "exactUserTextRequiredForProtectedSubmitCorrelation",
+            "request_message_id_required_for_protected_submit_correlation": "requestMessageIdRequiredForProtectedSubmitCorrelation",
+            "request_attachment_count_required_for_protected_submit_correlation": "requestAttachmentCountRequiredForProtectedSubmitCorrelation",
+            "continuation_conversation_id_required_for_protected_submit_correlation": "continuationConversationIdRequiredForProtectedSubmitCorrelation",
+            "new_chat_conversation_id_must_be_absent_for_protected_submit_correlation": "newChatConversationIdMustBeAbsentForProtectedSubmitCorrelation",
+            "additional_post_arm_conversation_requests_authoritative": "additionalPostArmConversationRequestsAuthoritative",
+            "duplicate_same_logical_message_request_allowed": "duplicateSameLogicalMessageRequestAllowed",
+            "distinct_matching_logical_messages_fail_closed": "distinctMatchingLogicalMessagesFailClosed",
+            "has_user_gesture_authoritative": "hasUserGestureAuthoritative",
+            "exactly_one_post_arm_conversation_request_required": "exactlyOnePostArmConversationRequestRequired",
+            "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete": "ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete",
+            "submit_correlation_failure_diagnostics_available": "submitCorrelationFailureDiagnosticsAvailable",
+            "automatic_write_retry_after_submit_correlation_failure": "automaticWriteRetryAfterSubmitCorrelationFailure",
+        }
+        for key, response_key in fields.items():
+            support[key] = response.get(response_key)
         return support
 
 
@@ -78,16 +78,20 @@ def _validate_support(support: dict[str, Any]) -> None:
     if support.get("supported") is not True or support.get("schema") != SCHEMA:
         raise RuntimeError("PR9_2_SCHEMA29_RICH_INPUT_SUPPORT_NOT_PROVEN")
 
-    # Schema 29 supersedes the final identity-authority name only. The immutable
-    # schema-28 validator chain reaches schema 20 before schema 20 itself
-    # reconstructs schema 19's NETWORK_REQUEST_BOUND_STREAM_HANDOFF view, so the
-    # historical input to schema 28 must retain the schema-20+ protected-submit-
-    # bound authority rather than prematurely downgrading to schema 19 here.
+    # Validate the complete immutable schema-28-and-earlier chain under the exact
+    # historical schema-20 contract first. Schema 29 then proves its stronger
+    # request-body-bound replacement for only the schema-20 final multiplicity /
+    # hasUserGesture correlation rule.
     legacy = dict(support)
     legacy["schema"] = _v28.SCHEMA
     legacy["new_chat_conversation_identity_authority"] = (
         _SCHEMA20_PLUS_IDENTITY_AUTHORITY
     )
+    legacy["protected_submit_request_correlation"] = _SCHEMA20_REQUEST_CORRELATION
+    legacy["exactly_one_post_arm_conversation_request_required"] = True
+    legacy[
+        "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete"
+    ] = True
     _v28._validate_support(legacy)
 
     if support.get("new_chat_conversation_identity_authority") != (
@@ -110,10 +114,39 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED")
     if support.get("route_conversation_identity_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_ROUTE_IDENTITY_AUTHORITY_REGRESSED")
-    if support.get("submit_correlation_failure_diagnostics_available") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE")
-    if support.get("submit_correlation_authority_unchanged") is not True:
-        raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_AUTHORITY_CHANGED")
+
+    if support.get("protected_submit_request_correlation") != _EXPECTED_REQUEST_CORRELATION:
+        raise RuntimeError("PR9_2_SCHEMA29_REQUEST_BODY_CORRELATION_NOT_PROVEN")
+    for key, error in (
+        ("validated_click_request_body_correlation", "PR9_2_SCHEMA29_VALIDATED_CLICK_BODY_BINDING_NOT_PROVEN"),
+        ("request_post_data_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_REQUEST_POST_DATA_NOT_REQUIRED"),
+        ("exact_user_text_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_EXACT_USER_TEXT_NOT_REQUIRED"),
+        ("request_message_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_MESSAGE_ID_NOT_REQUIRED"),
+        ("request_attachment_count_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_ATTACHMENT_COUNT_NOT_REQUIRED"),
+        ("continuation_conversation_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_CONTINUATION_ID_NOT_REQUIRED"),
+        ("new_chat_conversation_id_must_be_absent_for_protected_submit_correlation", "PR9_2_SCHEMA29_NEW_CHAT_ID_ABSENCE_NOT_REQUIRED"),
+        ("duplicate_same_logical_message_request_allowed", "PR9_2_SCHEMA29_LOGICAL_DUPLICATE_POLICY_NOT_PROVEN"),
+        ("distinct_matching_logical_messages_fail_closed", "PR9_2_SCHEMA29_DISTINCT_LOGICAL_MESSAGE_AMBIGUITY_NOT_FAIL_CLOSED"),
+        ("submit_correlation_failure_diagnostics_available", "PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE"),
+    ):
+        if support.get(key) is not True:
+            raise RuntimeError(error)
+
+    if support.get("additional_post_arm_conversation_requests_authoritative") is not False:
+        raise RuntimeError("PR9_2_SCHEMA29_ADDITIONAL_POST_ARM_REQUEST_AUTHORITY_REGRESSED")
+    if support.get("has_user_gesture_authoritative") is not False:
+        raise RuntimeError("PR9_2_SCHEMA29_USER_GESTURE_REMAINS_IDENTITY_AUTHORITY")
+    if support.get("exactly_one_post_arm_conversation_request_required") is not False:
+        raise RuntimeError("PR9_2_SCHEMA29_POST_ARM_MULTIPLICITY_RULE_NOT_REMOVED")
+    if (
+        support.get(
+            "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete"
+        )
+        is not False
+    ):
+        raise RuntimeError("PR9_2_SCHEMA29_RAW_POST_ARM_MULTIPLICITY_STILL_AUTHORITATIVE")
+    if support.get("automatic_write_retry_after_submit_correlation_failure") is not False:
+        raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_RETRY_REGRESSED")
     if support.get("automatic_write_retry_after_causal_identity_failure") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_RETRY_REGRESSED")
 
@@ -225,6 +258,13 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "canonical_finality_after_every_write": True,
         "exact_attachment_count_after_every_write": True,
         "schema_28_and_prior_safety_contract_preserved": True,
+        "validated_click_request_body_correlation": True,
+        "exact_user_text_request_binding": True,
+        "request_message_id_binding": True,
+        "request_attachment_count_binding": True,
+        "continuation_conversation_id_binding": True,
+        "raw_post_arm_multiplicity_non_authoritative": True,
+        "has_user_gesture_non_authoritative": True,
         "request_bound_protocol_conversation_id_consensus": True,
         "top_level_conversation_id_authority": True,
         "root_add_value_conversation_id_authority": True,
@@ -232,7 +272,6 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
         "unrecognized_nested_conversation_id_can_satisfy_identity": False,
         "conflicting_request_bound_conversation_ids_fail_closed": True,
         "route_conversation_identity_authoritative": False,
-        "submit_correlation_authority_unchanged": True,
         "automatic_write_retry": False,
         "fallback_transport": None,
     }
@@ -241,7 +280,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="PR9.2 schema-29 exact-request protocol identity rich-input live gate"
+        description="PR9.2 schema-29 request-body-bound rich-input live gate"
     )
     parser.add_argument("--acknowledge-live-writes", action="store_true")
     parser.add_argument("--timeout", type=float, default=150.0)
