@@ -18,17 +18,14 @@
 // special case, but stream_handoff is no longer required. Route state remains
 // diagnostic only and automatic write retry remains forbidden.
 //
-// Schema 21 moved the page-side arm marker to the validated click boundary:
-// immediately before `button.click()` in the same synchronous renderer task,
-// after every attachment/deadline/Send-button validation has succeeded. That
-// supersedes schema 20's older requirement that exactly one conversation POST may
-// occur during the entire remaining page-turn lifetime. Schema 29 therefore binds
-// request authority to the FIRST conversation POST observed after that validated
-// click-boundary arm. Later post-arm conversation POSTs are diagnostic only and
-// cannot retroactively invalidate the already selected exact request. Pre-arm
-// requests still have zero authority, the selected first request must not carry
-// `hasUserGesture === true`, and the exact selected response body must still yield
-// one conflict-free protocol conversation-id consensus.
+// The first authenticated schema-29 full-gate attempt later proved another useful
+// fact: the exact selected response body carried twelve recognized conversation-id
+// records, all agreeing on one id, yet the inherited schema-20 submit-correlation
+// layer still rejected the committed turn. Do not weaken that causal guard from a
+// single observation. Instead preserve schema-20 authority unchanged and surface
+// content-safe correlation counters on the same committed failure so one bounded
+// live characterization can distinguish marker absence, post-arm multiplicity,
+// and user-gesture rejection without exposing request ids or request content.
 
 const _pr92Schema29PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema29PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
@@ -36,8 +33,6 @@ const _pr92Schema29PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA29_REPAIR_SCHEMA = 29;
 const PR92_SCHEMA29_IDENTITY_AUTHORITY =
   "NETWORK_REQUEST_BOUND_PROTOCOL_CONVERSATION_ID_CONSENSUS";
-const PR92_SCHEMA29_REQUEST_CORRELATION =
-  "VALIDATED_CLICK_ARMED_FIRST_CONVERSATION_POST";
 const PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR =
   "PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED";
 
@@ -158,27 +153,33 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
   };
 }
 
-function _pr92Schema29EvaluateSubmitCorrelation(context) {
+function _pr92Schema29CaptureSubmitCorrelationDiagnostics(context) {
   const observed = Array.isArray(context?.schema20PostArmConversationRequests)
     ? context.schema20PostArmConversationRequests
     : [];
   const markerObserved = context?.schema20ProtectedSubmitMarkerObserved === true;
-  const firstRequest = observed.length > 0 ? observed[0] : null;
-  const firstRequestId = _pr92Schema29NonEmptyString(firstRequest?.requestId);
-  const firstRequestHadUserGesture = firstRequest?.hasUserGesture === true;
-  const ok =
-    markerObserved &&
-    firstRequestId !== null &&
-    firstRequestHadUserGesture === false;
-
+  const userGestureRequestCount = observed.filter(
+    (entry) => entry?.hasUserGesture === true
+  ).length;
+  const nonUserGestureRequestCount = Math.max(
+    0,
+    observed.length - userGestureRequestCount
+  );
+  const exactlyOnePostArmRequest = observed.length === 1;
+  const soleRequestHadUserGesture = exactlyOnePostArmRequest
+    ? observed[0]?.hasUserGesture === true
+    : null;
   return {
-    ok,
     markerObserved,
     postArmConversationRequestCount: observed.length,
-    firstRequestId,
-    firstRequestHadUserGesture,
-    exactlyOnePostArmConversationRequestRequired: false,
-    additionalPostArmConversationRequestsAuthoritative: false
+    postArmUserGestureRequestCount: userGestureRequestCount,
+    postArmNonUserGestureRequestCount: nonUserGestureRequestCount,
+    exactlyOnePostArmRequest,
+    soleRequestHadUserGesture,
+    schema20CorrelationWouldPass:
+      markerObserved &&
+      exactlyOnePostArmRequest &&
+      soleRequestHadUserGesture === false
   };
 }
 
@@ -223,81 +224,41 @@ extractSafeStreamMetadata = function _pr92Schema29ExtractSafeStreamMetadata(
 
 executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(args) {
   const context = _pr92ActiveRichInputContext;
-  if (context === null) return _pr92Schema29PriorExecuteOfficialPageTurn(args);
-
-  const tabId = args?.tabId;
-  const observer = (source, method, params) => {
-    if (source?.tabId !== tabId) return;
-    if (method === "Runtime.consoleAPICalled") {
-      _pr92Schema20ObserveArmMarker(context, params);
-      return;
-    }
-    if (method === "Network.requestWillBeSent") {
-      _pr92Schema20RecordPostArmConversationRequest(context, params);
-    }
-  };
-  chrome.debugger.onEvent.addListener(observer);
-
   try {
-    // Deliberately bypass only schema 20's obsolete post-return exactly-one
-    // request gate. `_pr92Schema20PriorExecuteOfficialPageTurn` is schema 19,
-    // which retains schema 17's request/completion tracking. The global
-    // schema-20 `isConversationWrite` predicate remains active, so schema 17
-    // still cannot select any conversation POST until this observer sees the
-    // schema-21 validated-click-boundary arm marker.
-    const result = await _pr92Schema20PriorExecuteOfficialPageTurn(args);
+    const result = await _pr92Schema29PriorExecuteOfficialPageTurn(args);
+    const isNewChatRichTurn =
+      context !== null && context.schema19RequestedConversationId == null;
     if (
-      result?.diagnostics?.conversationRequestSeen !== true ||
-      result?.diagnostics?.loadingFinished !== true
+      !isNewChatRichTurn ||
+      typeof result?.conversationId !== "string" ||
+      !result.conversationId
     ) {
       return result;
     }
 
-    const correlation = _pr92Schema29EvaluateSubmitCorrelation(context);
-    _pr92Schema29LastSubmitCorrelationDiagnostics = {
-      markerObserved: correlation.markerObserved,
-      postArmConversationRequestCount: correlation.postArmConversationRequestCount,
-      firstRequestHadUserGesture: correlation.firstRequestHadUserGesture
-    };
-    if (!correlation.ok) {
-      throw new Error(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR);
-    }
-
-    const isNewChatRichTurn = context.schema19RequestedConversationId == null;
     return {
       ...result,
       diagnostics: {
         ...result.diagnostics,
-        ...(isNewChatRichTurn
-          ? {
-              conversationIdentityAuthority: PR92_SCHEMA29_IDENTITY_AUTHORITY,
-              routeConversationIdentityAuthoritative: false,
-              requestBoundProtocolConversationIdConsensus: true
-            }
-          : {}),
-        protectedSubmitRequestCorrelation: PR92_SCHEMA29_REQUEST_CORRELATION,
-        protectedSubmitArmMarkerObserved: true,
-        protectedSubmitRequestId: correlation.firstRequestId,
-        postArmConversationRequestCount: correlation.postArmConversationRequestCount,
-        protectedSubmitRequestHadUserGesture: false,
-        preArmConversationRequestsAuthoritative: false,
-        firstPostArmConversationRequestAuthoritative: true,
-        additionalPostArmConversationRequestsAuthoritative: false,
-        exactlyOnePostArmConversationRequestRequired: false
+        conversationIdentityAuthority: PR92_SCHEMA29_IDENTITY_AUTHORITY,
+        routeConversationIdentityAuthoritative: false,
+        requestBoundProtocolConversationIdConsensus: true
       }
     };
-  } finally {
-    chrome.debugger.onEvent.removeListener(observer);
-    context.schema20ProtectedSubmitArmed = false;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR)) {
+      _pr92Schema29LastSubmitCorrelationDiagnostics =
+        _pr92Schema29CaptureSubmitCorrelationDiagnostics(context);
+    }
+    throw error;
   }
 };
 
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(message) {
-  const isPotentialNewChatRichWrite =
-    Array.isArray(message?.attachmentPaths) &&
-    message.attachmentPaths.length > 0 &&
-    !(typeof message?.conversationId === "string" && message.conversationId.trim());
-  if (isPotentialNewChatRichWrite) {
+  const isRichWrite =
+    Array.isArray(message?.attachmentPaths) && message.attachmentPaths.length > 0;
+  if (isRichWrite) {
     _pr92Schema29LastIdentityParseDiagnostics = null;
     _pr92Schema29LastSubmitCorrelationDiagnostics = null;
   }
@@ -310,7 +271,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
     if (detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR)) {
       const diagnostics = _pr92Schema29LastIdentityParseDiagnostics;
       const correlation = _pr92Schema29LastSubmitCorrelationDiagnostics;
-      const suffix = diagnostics
+      const identitySuffix = diagnostics
         ? `:SCHEMA29:bodyDecoded=${diagnostics.bodyDecoded === true}` +
           `:base64Encoded=${diagnostics.base64Encoded === true}` +
           `:parsedJsonDataRecords=${Number(diagnostics.parsedJsonDataRecords) || 0}` +
@@ -321,12 +282,20 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
           `:streamHandoffCount=${Number(diagnostics.streamHandoffCount) || 0}` +
           `:conflictingConversationIds=${diagnostics.conflictingConversationIds === true}` +
           `:conflictingTurnExchangeIds=${diagnostics.conflictingTurnExchangeIds === true}` +
-          `:protocolConversationIdSourceKinds=${diagnostics.protocolConversationIdSourceKinds.join(",")}` +
-          `:protectedSubmitMarkerObserved=${correlation?.markerObserved === true}` +
-          `:postArmConversationRequestCount=${Number(correlation?.postArmConversationRequestCount) || 0}` +
-          `:firstPostArmRequestHadUserGesture=${correlation?.firstRequestHadUserGesture === true}`
+          `:protocolConversationIdSourceKinds=${diagnostics.protocolConversationIdSourceKinds.join(",")}`
         : ":SCHEMA29:identityParserNotReached=true";
-      throw new Error(`${PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR}${suffix}`);
+      const correlationSuffix = correlation
+        ? `:protectedSubmitMarkerObserved=${correlation.markerObserved === true}` +
+          `:postArmConversationRequestCount=${Number(correlation.postArmConversationRequestCount) || 0}` +
+          `:postArmUserGestureRequestCount=${Number(correlation.postArmUserGestureRequestCount) || 0}` +
+          `:postArmNonUserGestureRequestCount=${Number(correlation.postArmNonUserGestureRequestCount) || 0}` +
+          `:exactlyOnePostArmRequest=${correlation.exactlyOnePostArmRequest === true}` +
+          `:soleRequestHadUserGesture=${correlation.soleRequestHadUserGesture === null ? "unknown" : correlation.soleRequestHadUserGesture === true}` +
+          `:schema20CorrelationWouldPass=${correlation.schema20CorrelationWouldPass === true}`
+        : ":submitCorrelationDiagnosticsUnavailable=true";
+      throw new Error(
+        `${PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR}${identitySuffix}${correlationSuffix}`
+      );
     }
     throw error;
   }
@@ -344,14 +313,8 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
     streamHandoffRequiredForCausalConversationIdentity: false,
     conflictingRequestBoundConversationIdsFailClosed: true,
     routeConversationIdentityAuthoritative: false,
-    protectedSubmitRequestCorrelation: PR92_SCHEMA29_REQUEST_CORRELATION,
-    firstPostArmConversationRequestAuthoritative: true,
-    additionalPostArmConversationRequestsAuthoritative: false,
-    validatedClickBoundaryFirstRequestSelection: true,
-    exactlyOnePostArmConversationRequestRequired: false,
-    userGesturePostArmRequestCanSatisfyProtectedSubmit: false,
-    ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: false,
-    automaticWriteRetryAfterSubmitCorrelationFailure: false,
+    submitCorrelationFailureDiagnosticsAvailable: true,
+    submitCorrelationAuthorityUnchanged: true,
     automaticWriteRetryAfterCausalIdentityFailure: false
   };
 };
