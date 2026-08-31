@@ -20,7 +20,7 @@ PRODUCT_WRITE_BUDGET = 1
 
 
 def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
-    """Perform exactly one authenticated rich new-chat write to prove schema-29 identity."""
+    """Perform one rich new-chat write proving request-body and response identity."""
     if timeout <= 0:
         raise ValueError("timeout must be positive")
 
@@ -35,7 +35,7 @@ def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
         "ok": False,
         "pr": "PR9.2",
         "schema": SCHEMA,
-        "probe": "SCHEMA29_REQUEST_BOUND_PROTOCOL_IDENTITY_CONSENSUS",
+        "probe": "SCHEMA29_VALIDATED_CLICK_REQUEST_BODY_AND_RESPONSE_IDENTITY",
         "product_write_budget": PRODUCT_WRITE_BUDGET,
         "write_attempts": 0,
         "write_completions": 0,
@@ -60,7 +60,7 @@ def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
         report["write_completions"] += 1
 
         turn = _v7._validate_execution(
-            label="SCHEMA29_IDENTITY_IMAGE_NEW_CHAT",
+            label="SCHEMA29_REQUEST_BODY_IMAGE_NEW_CHAT",
             execution=execution,
             events=events,
             expected_text=_v7._IMAGE_REPLY,
@@ -84,6 +84,12 @@ def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
         "attachment_dependent_response_proven": True,
         "canonical_finality_proven": True,
         "conversation_identity_resolved": True,
+        "validated_click_request_body_correlation": True,
+        "exact_user_text_request_binding": True,
+        "request_message_id_binding": True,
+        "request_attachment_count_binding": True,
+        "raw_post_arm_multiplicity_non_authoritative": True,
+        "has_user_gesture_non_authoritative": True,
         "new_chat_conversation_identity_authority": support.get(
             "new_chat_conversation_identity_authority"
         ),
@@ -102,7 +108,7 @@ def run_identity_probe(*, timeout: float = 150.0) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "PR9.2 schema-29 one-write authenticated exact-request protocol identity probe"
+            "PR9.2 schema-29 one-write authenticated request-body and response identity probe"
         )
     )
     parser.add_argument("--acknowledge-live-write", action="store_true")
