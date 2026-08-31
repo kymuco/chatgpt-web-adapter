@@ -154,12 +154,17 @@ def test_remote_media_enforces_total_deadline_while_data_keeps_arriving(monkeypa
     monkeypatch.setattr(product_media, "_REMOTE_FETCH_TOTAL_DEADLINE_SECONDS", 1.0)
 
     clock = {"value": 0.0}
+    original_read_step = product_media._read_response_step
 
     def fake_monotonic():
-        clock["value"] += 0.4
         return clock["value"]
 
+    def advancing_read_step(response_obj, read_size):
+        clock["value"] += 0.4
+        return original_read_step(response_obj, read_size)
+
     monkeypatch.setattr(product_media.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(product_media, "_read_response_step", advancing_read_step)
 
     with pytest.raises(ValueError, match="total download deadline"):
         with browser_owned_media_scope([source]):
