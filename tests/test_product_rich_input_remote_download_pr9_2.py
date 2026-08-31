@@ -185,6 +185,39 @@ def test_remote_media_absolute_deadline_interrupts_blocking_body_read(monkeypatc
     assert elapsed < 1.0
 
 
+def test_remote_media_absolute_deadline_includes_response_open(monkeypatch):
+    source = "https://example.test/files/slow-open.bin"
+    response = _StreamingResponse([b"x"], source, content_length=1)
+    open_started = threading.Event()
+    release_open = threading.Event()
+
+    def blocking_urlopen(request, *, timeout):
+        open_started.set()
+        if not release_open.wait(timeout=2.0):
+            raise AssertionError("absolute deadline did not release the response-open caller")
+        return response
+
+    monkeypatch.setattr(product_media, "urlopen", blocking_urlopen)
+    monkeypatch.setattr(product_media, "_REMOTE_FETCH_TOTAL_DEADLINE_SECONDS", 0.05)
+
+    started = time.monotonic()
+    try:
+        with pytest.raises(ValueError, match="total download deadline"):
+            with browser_owned_media_scope([source]):
+                pass
+    finally:
+        release_open.set()
+    elapsed = time.monotonic() - started
+
+    assert open_started.is_set()
+    assert elapsed < 1.0
+
+    cleanup_deadline = time.monotonic() + 1.0
+    while not response.closed and time.monotonic() < cleanup_deadline:
+        time.sleep(0.01)
+    assert response.closed is True
+
+
 def test_remote_media_generic_read_fallback_consumes_one_byte_per_deadline_check(monkeypatch):
     source = "https://example.test/files/fallback.bin"
 
@@ -206,6 +239,9 @@ def test_remote_media_source_code_has_cancellable_absolute_deadline():
     assert "response.read()" not in source
     assert "response.read(read_size)" not in source
     assert "read1(read_size)" in source
+    assert "_open_response_with_absolute_deadline(" in source
+    assert "completed.wait(remaining)" in source
+    assert "daemon=True" in source
     assert "threading.Timer(remaining, abort_at_deadline)" in source
     assert "_abort_response_read(response)" in source
     assert "shutdown(socket.SHUT_RDWR)" in source

@@ -34,6 +34,10 @@ _REMOTE_FETCH_CHUNK_BYTES = 1024 * 1024
 _REMOTE_PREFIX_BYTES = 16
 
 
+class _RemoteFetchDeadlineExceeded(Exception):
+    """Internal marker for an absolute remote-media wall-clock deadline."""
+
+
 @dataclass(frozen=True)
 class BrowserOwnedMediaMaterialization:
     """Local file snapshot supplied to the official browser page.
@@ -171,6 +175,67 @@ def _abort_response_read(response: object) -> None:
             pass
 
 
+def _open_response_with_absolute_deadline(
+    request: Request,
+    *,
+    deadline_at: float,
+) -> object:
+    """Open one urllib response without letting redirects/headers outlive the deadline."""
+
+    remaining = deadline_at - time.monotonic()
+    if remaining <= 0:
+        raise _RemoteFetchDeadlineExceeded
+
+    completed = threading.Event()
+    expired = threading.Event()
+    state_lock = threading.Lock()
+    response_holder: list[object] = []
+    error_holder: list[Exception] = []
+    open_timeout = min(_REMOTE_FETCH_TIMEOUT_SECONDS, max(0.001, remaining))
+
+    def open_response() -> None:
+        try:
+            response = urlopen(request, timeout=open_timeout)
+        except Exception as error:
+            with state_lock:
+                if not expired.is_set():
+                    error_holder.append(error)
+            completed.set()
+            return
+
+        with state_lock:
+            close_late_response = expired.is_set()
+            if not close_late_response:
+                response_holder.append(response)
+        completed.set()
+        if close_late_response:
+            _abort_response_read(response)
+
+    opener_thread = threading.Thread(
+        target=open_response,
+        name="cwa-remote-media-open",
+        daemon=True,
+    )
+    opener_thread.start()
+
+    if not completed.wait(remaining):
+        expired.set()
+        response_to_close = None
+        with state_lock:
+            if response_holder:
+                response_to_close = response_holder.pop()
+        if response_to_close is not None:
+            _abort_response_read(response_to_close)
+        raise _RemoteFetchDeadlineExceeded
+
+    with state_lock:
+        if error_holder:
+            raise error_holder[0]
+        if response_holder:
+            return response_holder.pop()
+    raise RuntimeError("URL response open completed without a response or error")
+
+
 def _read_response_step(response: object, read_size: int) -> bytes:
     """Prefer one underlying read step; generic fallbacks consume one byte only."""
 
@@ -227,7 +292,14 @@ def _download_http_source_to_file(
     deadline_at = started_at + _REMOTE_FETCH_TOTAL_DEADLINE_SECONDS
     try:
         request = Request(source, headers={"User-Agent": "Mozilla/5.0"})
-        response_context = urlopen(request, timeout=_REMOTE_FETCH_TIMEOUT_SECONDS)
+        response_context = _open_response_with_absolute_deadline(
+            request,
+            deadline_at=deadline_at,
+        )
+    except _RemoteFetchDeadlineExceeded as error:
+        raise ValueError(
+            f"media[{index}] URL source exceeded total download deadline"
+        ) from error
     except Exception as error:
         raise ValueError(f"media[{index}] URL source is unavailable") from error
 
