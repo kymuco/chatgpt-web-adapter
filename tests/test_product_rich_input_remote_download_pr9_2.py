@@ -223,6 +223,23 @@ def test_remote_media_absolute_deadline_includes_response_open(monkeypatch):
     assert response.closed is True
 
 
+def test_remote_media_open_completion_at_deadline_fails_closed(monkeypatch):
+    source = "https://example.test/files/deadline-boundary.bin"
+    response = _StreamingResponse([b"x"], source, content_length=1)
+    clock_values = iter((100.0, 130.0))
+
+    monkeypatch.setattr(product_media.time, "monotonic", lambda: next(clock_values))
+    monkeypatch.setattr(product_media, "urlopen", lambda request, *, timeout: response)
+
+    with pytest.raises(product_media._RemoteFetchDeadlineExceeded):
+        product_media._open_response_with_absolute_deadline(
+            product_media.Request(source),
+            deadline_at=130.0,
+        )
+
+    assert response.closed is True
+
+
 def test_remote_media_generic_read_fallback_consumes_one_byte_per_deadline_check(monkeypatch):
     source = "https://example.test/files/fallback.bin"
 

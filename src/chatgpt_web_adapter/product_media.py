@@ -228,12 +228,22 @@ def _open_response_with_absolute_deadline(
             _abort_response_read(response_to_close)
         raise _RemoteFetchDeadlineExceeded
 
+    response_to_close = None
     with state_lock:
-        if error_holder:
+        if time.monotonic() >= deadline_at:
+            expired.set()
+            if response_holder:
+                response_to_close = response_holder.pop()
+        elif error_holder:
             raise error_holder[0]
-        if response_holder:
+        elif response_holder:
             return response_holder.pop()
-    raise RuntimeError("URL response open completed without a response or error")
+        else:
+            raise RuntimeError("URL response open completed without a response or error")
+
+    if response_to_close is not None:
+        _abort_response_read(response_to_close)
+    raise _RemoteFetchDeadlineExceeded
 
 
 def _read_response_step(response: object, read_size: int) -> bytes:
