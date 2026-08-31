@@ -1,36 +1,41 @@
 // PR9.2 schema-29 request-body-bound rich-submit and protocol identity closure.
 //
-// Earlier PR9.2 layers deliberately failed closed while the real ChatGPT rich
-// request/response protocol was still being characterized. Authenticated runs
-// then established two concrete facts:
-//   1. current /backend-api/f/conversation SSE can expose one conflict-free
-//      conversation id through recognized top-level/root-add protocol slots even
-//      when `stream_handoff` is absent;
-//   2. a valid rich turn can produce additional post-arm conversation POSTs, so
-//      schema 20's historical "exactly one POST for the whole remaining turn"
-//      rule is not a stable causal identity primitive.
+// Authenticated rich-input runs established that the product write succeeds even
+// when current ChatGPT emits additional /conversation POSTs after the protected
+// click and emits no `stream_handoff` record. Raw POST multiplicity and CDP's
+// `hasUserGesture` bit are therefore not stable logical-turn identity primitives.
 //
-// Schema 29 therefore closes correlation at the actual request boundary rather
-// than at POST multiplicity. The schema-21 page-side arm marker still occurs
-// immediately before the validated button.click() in the same renderer task.
-// The FIRST conversation POST observed after that arm is still the exact request
-// tracked by schema 17/19, but it is accepted only when its own request JSON proves
-// that it contains exactly one matching user message for this turn: exact inserted
-// text, a non-empty client message id, the expected rich-attachment count through
-// recognized message attachment channels, and (for continuation) the exact
-// requested conversation id. A new-chat request must not carry a conversation id.
+// Schema 29 keeps the reviewed schema-21 protected boundary: a unique page-side
+// arm marker is emitted immediately before the validated `button.click()` in the
+// same synchronous renderer task. Schema 17/19 still select and complete the FIRST
+// conversation POST after that arm and read Network.getResponseBody for that exact
+// requestId. Schema 29 replaces only schema 20's historical final
+// "exactly-one-post + !hasUserGesture" gate with request-body identity.
 //
-// Additional post-arm conversation POSTs are non-authoritative. A duplicate of
-// the same already-matched client message id is the same logical write; a second
-// content-matching request with a different client message id is ambiguous and
-// fails closed. `hasUserGesture` is retained only as diagnostics, never identity.
-// Raw request text, postData, request ids, message ids, and conversation ids are
-// never emitted in diagnostics.
+// The first armed request must prove, from its own JSON body, exactly one intended
+// user message: action=next, exact inserted text, non-empty client message id,
+// expected attachment count in recognized request channels, and the correct
+// conversation-id semantics (absent for new chat; exact for continuation).
 //
-// Response identity remains independently request-bound: Network.getResponseBody
-// is read for the exact completed request id, recognized conversation-id protocol
-// slots must all agree, route state is diagnostic only, and automatic write retry
-// remains forbidden.
+// CDP may omit Request.postData even when hasPostData=true. When that happens,
+// schema 29 immediately dispatches Network.getRequestPostData(requestId) while the
+// same debugger session is still attached. The returned body is parsed directly
+// into safe identity facts and is never retained. Correlation waits only within a
+// short bounded post-write budget that preserves schema 19's RPC-return reserve.
+// An unresolved request body fails closed rather than falling back to POST count,
+// route state, or user-gesture heuristics.
+//
+// Additional armed service POSTs are allowed and non-authoritative. Additional
+// requests carrying no new user-message identity cannot invalidate the selected
+// write. A retry carrying the same client message id is the same logical turn and
+// is allowed. Any distinct post-arm user message id fails closed, preventing a
+// concurrent manual user turn from contaminating canonical assistant readback.
+//
+// Response identity is independently exact-request-bound: recognized top-level
+// and root-add conversation-id slots in the selected request's response body must
+// all agree. Route state remains diagnostic only and automatic write retry remains
+// forbidden. Raw request text, postData, request ids, message ids, and conversation
+// ids are never emitted in diagnostics.
 
 const _pr92Schema29PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema29PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
@@ -42,6 +47,7 @@ const PR92_SCHEMA29_REQUEST_CORRELATION =
   "VALIDATED_CLICK_REQUEST_BODY_USER_MESSAGE_IDENTITY";
 const PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR =
   "PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED";
+const PR92_SCHEMA29_POSTDATA_SETTLE_CAP_MS = 1_000;
 
 let _pr92Schema29LastIdentityParseDiagnostics = null;
 let _pr92Schema29LastSubmitCorrelationDiagnostics = null;
@@ -66,11 +72,7 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
     conflictingTurnExchangeIds: false
   };
   if (typeof decoded !== "string") {
-    return {
-      conversationId: null,
-      turnExchangeId: null,
-      diagnostics
-    };
+    return { conversationId: null, turnExchangeId: null, diagnostics };
   }
 
   const conversationIds = new Set();
@@ -153,11 +155,7 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata(body, base64Encode
     ? Array.from(turnExchangeIds)[0]
     : null;
 
-  return {
-    conversationId,
-    turnExchangeId,
-    diagnostics
-  };
+  return { conversationId, turnExchangeId, diagnostics };
 }
 
 function _pr92Schema29RequestMessageAttachmentChannels(message) {
@@ -181,7 +179,7 @@ function _pr92Schema29RequestMessageAttachmentChannels(message) {
   };
 }
 
-function _pr92Schema29MatchRequestPostData(
+function _pr92Schema29InspectRequestPostData(
   postData,
   expectedText,
   expectedAttachmentCount,
@@ -193,6 +191,7 @@ function _pr92Schema29MatchRequestPostData(
     actionNext: false,
     conversationIdentityMatches: false,
     userMessageCount: 0,
+    userMessageIdCount: 0,
     exactTextUserMessageCount: 0,
     exactRichUserMessageCount: 0,
     requestMessageIdPresent: false,
@@ -202,39 +201,64 @@ function _pr92Schema29MatchRequestPostData(
     attachmentCountsMatch: false
   };
   if (!diagnostics.postDataPresent) {
-    return { matched: false, logicalMessageId: null, diagnostics };
+    return {
+      matched: false,
+      logicalMessageId: null,
+      logicalUserMessageIds: [],
+      diagnostics
+    };
   }
 
   let payload;
   try {
     payload = JSON.parse(postData);
   } catch {
-    return { matched: false, logicalMessageId: null, diagnostics };
+    return {
+      matched: false,
+      logicalMessageId: null,
+      logicalUserMessageIds: [],
+      diagnostics
+    };
   }
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
-    return { matched: false, logicalMessageId: null, diagnostics };
+    return {
+      matched: false,
+      logicalMessageId: null,
+      logicalUserMessageIds: [],
+      diagnostics
+    };
   }
   diagnostics.requestJsonParsed = true;
   diagnostics.actionNext = payload.action === "next";
   if (!diagnostics.actionNext) {
-    return { matched: false, logicalMessageId: null, diagnostics };
+    return {
+      matched: false,
+      logicalMessageId: null,
+      logicalUserMessageIds: [],
+      diagnostics
+    };
   }
 
   const requestConversationId = _pr92Schema29NonEmptyString(payload.conversation_id);
   diagnostics.conversationIdentityMatches = expectedConversationId === null
     ? requestConversationId === null
     : requestConversationId === expectedConversationId;
-  if (!diagnostics.conversationIdentityMatches) {
-    return { matched: false, logicalMessageId: null, diagnostics };
-  }
 
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
   const exactCandidates = [];
+  const logicalUserMessageIds = [];
   for (const message of messages) {
     if (message === null || typeof message !== "object" || Array.isArray(message)) continue;
     if (message?.author?.role !== "user") continue;
     diagnostics.userMessageCount += 1;
 
+    const messageId = _pr92Schema29NonEmptyString(message.id);
+    if (messageId) {
+      diagnostics.userMessageIdCount += 1;
+      logicalUserMessageIds.push(messageId);
+    }
+
+    if (!diagnostics.conversationIdentityMatches) continue;
     const parts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
     const textParts = parts.filter((part) => typeof part === "string");
     if (textParts.join("") !== expectedText) continue;
@@ -245,10 +269,8 @@ function _pr92Schema29MatchRequestPostData(
     const attachmentCountsMatch = expectedAttachmentCount > 0
       ? channels.length > 0 && channels.every((count) => count === expectedAttachmentCount)
       : channels.every((count) => count === 0);
-    if (!attachmentCountsMatch) continue;
+    if (!attachmentCountsMatch || !messageId) continue;
 
-    const messageId = _pr92Schema29NonEmptyString(message.id);
-    if (!messageId) continue;
     exactCandidates.push({
       messageId,
       pointerPartCount: attachment.pointerPartCount,
@@ -259,7 +281,12 @@ function _pr92Schema29MatchRequestPostData(
 
   diagnostics.exactRichUserMessageCount = exactCandidates.length;
   if (exactCandidates.length !== 1) {
-    return { matched: false, logicalMessageId: null, diagnostics };
+    return {
+      matched: false,
+      logicalMessageId: null,
+      logicalUserMessageIds,
+      diagnostics
+    };
   }
 
   const candidate = exactCandidates[0];
@@ -271,11 +298,23 @@ function _pr92Schema29MatchRequestPostData(
   return {
     matched: true,
     logicalMessageId: candidate.messageId,
+    logicalUserMessageIds,
     diagnostics
   };
 }
 
-function _pr92Schema29RecordPostArmConversationRequest(context, params) {
+function _pr92Schema29ApplyRequestInspection(entry, inspected, source) {
+  entry.matched = inspected?.matched === true;
+  entry.logicalMessageId = inspected?.logicalMessageId || null;
+  entry.logicalUserMessageIds = Array.isArray(inspected?.logicalUserMessageIds)
+    ? inspected.logicalUserMessageIds.slice()
+    : [];
+  entry.diagnostics = inspected?.diagnostics || null;
+  entry.requestBodyResolved = true;
+  entry.requestBodySource = source;
+}
+
+function _pr92Schema29RecordPostArmConversationRequest(debuggee, context, params) {
   if (context === null || context.schema20ProtectedSubmitArmed !== true) return;
   const request = params?.request;
   if (
@@ -294,20 +333,114 @@ function _pr92Schema29RecordPostArmConversationRequest(context, params) {
     : [];
   if (observed.some((entry) => entry.requestId === requestId)) return;
 
-  const matched = _pr92Schema29MatchRequestPostData(
-    request?.postData,
-    context.schema29ExpectedText,
-    context.schema29ExpectedAttachmentCount,
-    context.schema19RequestedConversationId
-  );
-  observed.push({
+  const entry = {
     requestId,
     hasUserGesture: params?.hasUserGesture === true,
-    matched: matched.matched === true,
-    logicalMessageId: matched.logicalMessageId,
-    diagnostics: matched.diagnostics
-  });
+    matched: false,
+    logicalMessageId: null,
+    logicalUserMessageIds: [],
+    diagnostics: null,
+    requestBodyResolved: false,
+    requestBodySource: "unresolved",
+    postDataLookupPromise: null
+  };
+  observed.push(entry);
   context.schema29PostArmConversationRequests = observed;
+
+  const eventPostData = typeof request?.postData === "string" && request.postData.length > 0
+    ? request.postData
+    : null;
+  if (eventPostData !== null) {
+    _pr92Schema29ApplyRequestInspection(
+      entry,
+      _pr92Schema29InspectRequestPostData(
+        eventPostData,
+        context.schema29ExpectedText,
+        context.schema29ExpectedAttachmentCount,
+        context.schema19RequestedConversationId
+      ),
+      "request-event-post-data"
+    );
+    return;
+  }
+
+  if (request?.hasPostData === false) {
+    _pr92Schema29ApplyRequestInspection(
+      entry,
+      _pr92Schema29InspectRequestPostData(
+        null,
+        context.schema29ExpectedText,
+        context.schema29ExpectedAttachmentCount,
+        context.schema19RequestedConversationId
+      ),
+      "request-event-no-post-data"
+    );
+    return;
+  }
+
+  // CDP explicitly permits Request.postData to be omitted when the body is too
+  // long. Dispatch the exact-request fallback immediately, while schema 17's
+  // debugger session is still attached. The promise stores only parsed facts.
+  try {
+    const pending = chrome.debugger.sendCommand(
+      debuggee,
+      "Network.getRequestPostData",
+      { requestId }
+    );
+    entry.postDataLookupPromise = Promise.resolve(pending)
+      .then((response) => {
+        const decoded = _pr92Schema28DecodeResponseBody(
+          response?.postData,
+          response?.base64Encoded === true
+        );
+        if (typeof decoded !== "string" || !decoded) return false;
+        _pr92Schema29ApplyRequestInspection(
+          entry,
+          _pr92Schema29InspectRequestPostData(
+            decoded,
+            context.schema29ExpectedText,
+            context.schema29ExpectedAttachmentCount,
+            context.schema19RequestedConversationId
+          ),
+          "network-get-request-post-data"
+        );
+        return true;
+      })
+      .catch(() => false);
+  } catch {
+    entry.postDataLookupPromise = Promise.resolve(false);
+  }
+}
+
+async function _pr92Schema29AwaitPostDataLookups(context) {
+  const observed = Array.isArray(context?.schema29PostArmConversationRequests)
+    ? context.schema29PostArmConversationRequests
+    : [];
+  const pending = observed
+    .map((entry) => entry?.postDataLookupPromise)
+    .filter((value) => value && typeof value.then === "function");
+  if (pending.length === 0) return;
+
+  const remaining = _pr92RemainingTurnMsOrZero(context);
+  const usable = remaining - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS;
+  if (!Number.isFinite(usable) || usable <= 0) return;
+  const localBudget = Math.max(
+    1,
+    Math.min(PR92_SCHEMA29_POSTDATA_SETTLE_CAP_MS, usable)
+  );
+  const localDeadlineAt = Math.min(
+    context.deadlineAt - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS,
+    performance.now() + localBudget
+  );
+  try {
+    await _pr92Schema7RunUntil(
+      localDeadlineAt,
+      "SCHEMA29_REQUEST_POST_DATA_SETTLE",
+      () => Promise.allSettled(pending)
+    );
+  } catch {
+    // Any still-unresolved body remains fail-closed correlation evidence.
+  }
 }
 
 function _pr92Schema29EvaluateSubmitCorrelation(context) {
@@ -316,34 +449,65 @@ function _pr92Schema29EvaluateSubmitCorrelation(context) {
     : [];
   const markerObserved = context?.schema20ProtectedSubmitMarkerObserved === true;
   const first = observed.length > 0 ? observed[0] : null;
-  const matching = observed.filter((entry) => entry?.matched === true);
-  const distinctLogicalMessageIds = new Set(
-    matching
-      .map((entry) => _pr92Schema29NonEmptyString(entry?.logicalMessageId))
-      .filter(Boolean)
-  );
   const firstMatched = first?.matched === true;
+  const firstLogicalMessageId = _pr92Schema29NonEmptyString(first?.logicalMessageId);
   const firstDiagnostics = first?.diagnostics || null;
+
+  const matching = observed.filter((entry) => entry?.matched === true);
+  const unresolvedRequestBodyCount = observed.filter(
+    (entry) => entry?.requestBodyResolved !== true
+  ).length;
+  const fallbackRequestBodyCount = observed.filter(
+    (entry) => entry?.requestBodySource === "network-get-request-post-data"
+  ).length;
+  const eventRequestBodyCount = observed.filter(
+    (entry) => entry?.requestBodySource === "request-event-post-data"
+  ).length;
+  const postArmUserMessageIds = new Set();
+  for (const entry of observed) {
+    const ids = Array.isArray(entry?.logicalUserMessageIds)
+      ? entry.logicalUserMessageIds
+      : [];
+    for (const value of ids) {
+      const normalized = _pr92Schema29NonEmptyString(value);
+      if (normalized) postArmUserMessageIds.add(normalized);
+    }
+  }
+  const distinctPostArmUserMessageCount = postArmUserMessageIds.size;
+  const foreignPostArmUserMessageCount = firstLogicalMessageId === null
+    ? distinctPostArmUserMessageCount
+    : Array.from(postArmUserMessageIds).filter(
+        (value) => value !== firstLogicalMessageId
+      ).length;
   const userGestureRequestCount = observed.filter(
     (entry) => entry?.hasUserGesture === true
   ).length;
+
   const ok =
     markerObserved &&
     firstMatched &&
-    distinctLogicalMessageIds.size === 1;
+    firstLogicalMessageId !== null &&
+    unresolvedRequestBodyCount === 0 &&
+    foreignPostArmUserMessageCount === 0;
 
   return {
     ok,
     markerObserved,
     postArmConversationRequestCount: observed.length,
     matchingRequestCount: matching.length,
-    distinctMatchingLogicalMessageCount: distinctLogicalMessageIds.size,
+    distinctPostArmUserMessageCount,
+    foreignPostArmUserMessageCount,
+    unresolvedRequestBodyCount,
+    fallbackRequestBodyCount,
+    eventRequestBodyCount,
     firstRequestMatched: firstMatched,
     firstRequestPostDataPresent: firstDiagnostics?.postDataPresent === true,
     firstRequestJsonParsed: firstDiagnostics?.requestJsonParsed === true,
     firstRequestActionNext: firstDiagnostics?.actionNext === true,
     firstRequestConversationIdentityMatches:
       firstDiagnostics?.conversationIdentityMatches === true,
+    firstRequestUserMessageIdCount:
+      Number(firstDiagnostics?.userMessageIdCount) || 0,
     firstRequestExactTextUserMessageCount:
       Number(firstDiagnostics?.exactTextUserMessageCount) || 0,
     firstRequestExactRichUserMessageCount:
@@ -356,6 +520,8 @@ function _pr92Schema29EvaluateSubmitCorrelation(context) {
       Number(firstDiagnostics?.attachmentEvidenceChannelCount) || 0,
     firstRequestAttachmentCountsMatch: firstDiagnostics?.attachmentCountsMatch === true,
     postArmUserGestureRequestCount: userGestureRequestCount,
+    additionalServicePostArmRequestsAllowed: true,
+    distinctPostArmUserMessagesFailClosed: true,
     additionalPostArmRequestsAuthoritative: false,
     hasUserGestureAuthoritative: false
   };
@@ -365,12 +531,10 @@ extractSafeStreamMetadata = function _pr92Schema29ExtractSafeStreamMetadata(
   body,
   base64Encoded
 ) {
-  // Preserve schema-28 and earlier response-hint observers. Their returned IDs
-  // are deliberately ignored; schema-29 protocol-slot consensus is authoritative.
   try {
     _pr92Schema29PriorExtractSafeStreamMetadata(body, base64Encoded);
   } catch {
-    // Observability must never perturb the request-bound identity path.
+    // Observability must never perturb exact-request identity.
   }
 
   const parsed = _pr92Schema29ExtractRequestBoundConversationMetadata(
@@ -402,6 +566,7 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
   if (context === null) return _pr92Schema29PriorExecuteOfficialPageTurn(args);
 
   const tabId = args?.tabId;
+  const debuggee = { tabId };
   context.schema29ExpectedText = typeof args?.text === "string" ? args.text : "";
   context.schema29ExpectedAttachmentCount = Array.isArray(context.attachmentPaths)
     ? context.attachmentPaths.length
@@ -415,20 +580,16 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
       return;
     }
     if (method === "Network.requestWillBeSent") {
-      _pr92Schema29RecordPostArmConversationRequest(context, params);
+      _pr92Schema29RecordPostArmConversationRequest(debuggee, context, params);
     }
   };
-  // Register before schema 17 installs its request listener. For each debugger
-  // event this observer therefore records the same first armed conversation POST
-  // that schema 17 subsequently selects as its exact request id.
   chrome.debugger.onEvent.addListener(observer);
 
   try {
-    // Deliberately bypass only schema 20's historical post-return multiplicity /
-    // hasUserGesture gate. `_pr92Schema20PriorExecuteOfficialPageTurn` is schema
-    // 19 and retains schema 17 exact request tracking, completion proof, bounded
-    // response-body read, and request-bound conversation identity. The global
-    // schema-20 isConversationWrite predicate still blocks all pre-arm requests.
+    // Bypass only schema 20's obsolete post-return multiplicity/user-gesture
+    // decision. Schema 19 retains schema 17's selected requestId, completion,
+    // response-body read, and causal conversation identity. The global schema-20
+    // isConversationWrite predicate still denies all pre-arm request authority.
     const result = await _pr92Schema20PriorExecuteOfficialPageTurn(args);
     if (
       result?.diagnostics?.conversationRequestSeen !== true ||
@@ -437,6 +598,7 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
       return result;
     }
 
+    await _pr92Schema29AwaitPostDataLookups(context);
     const correlation = _pr92Schema29EvaluateSubmitCorrelation(context);
     _pr92Schema29LastSubmitCorrelationDiagnostics = { ...correlation };
     if (!correlation.ok) {
@@ -461,6 +623,8 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
         protectedSubmitLogicalMessageIdentityUnique: true,
         postArmConversationRequestCount: correlation.postArmConversationRequestCount,
         matchingPostArmConversationRequestCount: correlation.matchingRequestCount,
+        additionalServicePostArmRequestsAllowed: true,
+        distinctPostArmUserMessagesFailClosed: true,
         additionalPostArmConversationRequestsAuthoritative: false,
         protectedSubmitRequestHadUserGesture: null,
         hasUserGestureAuthoritative: false,
@@ -470,6 +634,7 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR)) {
+      await _pr92Schema29AwaitPostDataLookups(context);
       _pr92Schema29LastSubmitCorrelationDiagnostics =
         _pr92Schema29EvaluateSubmitCorrelation(context);
     }
@@ -515,12 +680,16 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
         ? `:protectedSubmitMarkerObserved=${correlation.markerObserved === true}` +
           `:postArmConversationRequestCount=${Number(correlation.postArmConversationRequestCount) || 0}` +
           `:matchingRequestCount=${Number(correlation.matchingRequestCount) || 0}` +
-          `:distinctMatchingLogicalMessageCount=${Number(correlation.distinctMatchingLogicalMessageCount) || 0}` +
+          `:distinctPostArmUserMessageCount=${Number(correlation.distinctPostArmUserMessageCount) || 0}` +
+          `:foreignPostArmUserMessageCount=${Number(correlation.foreignPostArmUserMessageCount) || 0}` +
+          `:unresolvedRequestBodyCount=${Number(correlation.unresolvedRequestBodyCount) || 0}` +
+          `:fallbackRequestBodyCount=${Number(correlation.fallbackRequestBodyCount) || 0}` +
           `:firstRequestMatched=${correlation.firstRequestMatched === true}` +
           `:firstRequestPostDataPresent=${correlation.firstRequestPostDataPresent === true}` +
           `:firstRequestJsonParsed=${correlation.firstRequestJsonParsed === true}` +
           `:firstRequestActionNext=${correlation.firstRequestActionNext === true}` +
           `:firstRequestConversationIdentityMatches=${correlation.firstRequestConversationIdentityMatches === true}` +
+          `:firstRequestUserMessageIdCount=${Number(correlation.firstRequestUserMessageIdCount) || 0}` +
           `:firstRequestExactTextUserMessageCount=${Number(correlation.firstRequestExactTextUserMessageCount) || 0}` +
           `:firstRequestExactRichUserMessageCount=${Number(correlation.firstRequestExactRichUserMessageCount) || 0}` +
           `:firstRequestMessageIdPresent=${correlation.firstRequestMessageIdPresent === true}` +
@@ -553,14 +722,18 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
     protectedSubmitRequestCorrelation: PR92_SCHEMA29_REQUEST_CORRELATION,
     validatedClickRequestBodyCorrelation: true,
     requestPostDataRequiredForProtectedSubmitCorrelation: true,
+    requestPostDataFallbackSupported: true,
+    requestPostDataFallbackExactRequestBound: true,
+    unresolvedRequestBodyFailsClosed: true,
     exactUserTextRequiredForProtectedSubmitCorrelation: true,
     requestMessageIdRequiredForProtectedSubmitCorrelation: true,
     requestAttachmentCountRequiredForProtectedSubmitCorrelation: true,
     continuationConversationIdRequiredForProtectedSubmitCorrelation: true,
     newChatConversationIdMustBeAbsentForProtectedSubmitCorrelation: true,
+    additionalServicePostArmRequestsAllowed: true,
     additionalPostArmConversationRequestsAuthoritative: false,
     duplicateSameLogicalMessageRequestAllowed: true,
-    distinctMatchingLogicalMessagesFailClosed: true,
+    distinctPostArmUserMessagesFailClosed: true,
     hasUserGestureAuthoritative: false,
     exactlyOnePostArmConversationRequestRequired: false,
     ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: false,
