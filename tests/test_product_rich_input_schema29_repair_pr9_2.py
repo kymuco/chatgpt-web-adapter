@@ -617,3 +617,116 @@ def test_schema_29_support_source_requires_request_body_causal_contract():
         "has_user_gesture_authoritative",
     ):
         assert needle in text
+
+
+
+def test_schema29_unclassified_request_bodies_remain_unresolved() -> None:
+    source = _request_correlation_source()
+    result = _run_node(
+        f"""
+{source}
+const prompt = "inspect this attachment exactly";
+
+function classify(body, sourceName) {{
+  const inspected = _pr92Schema29InspectRequestPostData(
+    body,
+    prompt,
+    1,
+    null
+  );
+  const entry = {{
+    matched: false,
+    logicalMessageId: null,
+    logicalUserMessageIds: [],
+    diagnostics: null,
+    requestBodyResolved: false,
+    requestBodySource: "unresolved"
+  }};
+  _pr92Schema29ApplyRequestInspection(entry, inspected, sourceName);
+  return {{
+    resolved: entry.requestBodyResolved,
+    source: entry.requestBodySource,
+    matched: entry.matched,
+    classified:
+      entry.diagnostics?.userMessageIdentityClassified === true
+  }};
+}}
+
+const missingMessageId = JSON.stringify({{
+  action: "next",
+  messages: [{{
+    author: {{role: "user"}},
+    content: {{
+      parts: [
+        {{asset_pointer: "sediment://file"}},
+        prompt
+      ]
+    }}
+  }}]
+}});
+
+const harmlessService = JSON.stringify({{
+  action: "service",
+  messages: []
+}});
+
+const malformedMessagesShape = JSON.stringify({{
+  action: "next",
+  messages: {{"unexpected": true}}
+}});
+
+console.log(JSON.stringify({{
+  malformedJson:
+    classify("not-json", "request-event-post-data"),
+  missingMessageId:
+    classify(missingMessageId, "request-event-post-data"),
+  malformedMessagesShape:
+    classify(malformedMessagesShape, "request-event-post-data"),
+  harmlessService:
+    classify(harmlessService, "request-event-post-data"),
+  explicitlyBodyless:
+    classify(null, "request-event-no-post-data")
+}}));
+"""
+    )
+
+    assert result["malformedJson"]["resolved"] is False
+    assert result["malformedJson"]["source"] == "unresolved"
+
+    assert result["missingMessageId"]["resolved"] is False
+    assert result["missingMessageId"]["classified"] is False
+    assert result["missingMessageId"]["source"] == "unresolved"
+
+    assert result["malformedMessagesShape"]["resolved"] is False
+    assert result["malformedMessagesShape"]["source"] == "unresolved"
+
+    assert result["harmlessService"]["resolved"] is True
+    assert result["harmlessService"]["classified"] is True
+    assert result["harmlessService"]["matched"] is False
+
+    assert result["explicitlyBodyless"]["resolved"] is True
+
+
+def test_schema29_committed_error_does_not_settle_postdata_twice() -> None:
+    source = SCHEMA29.read_text(encoding="utf-8")
+
+    execute_start = source.index(
+        "executeOfficialPageTurn = async function "
+        "_pr92Schema29ExecuteOfficialPageTurn"
+    )
+    catch_start = source.index("  } catch (error) {", execute_start)
+    finally_start = source.index("  } finally {", catch_start)
+    catch_source = source[catch_start:finally_start]
+
+    assert (
+        "await _pr92Schema29AwaitPostDataLookups(context);"
+        not in catch_source
+    )
+    assert (
+        "_pr92Schema29LastSubmitCorrelationDiagnostics === null"
+        in catch_source
+    )
+    assert (
+        "_pr92Schema29EvaluateSubmitCorrelation(context)"
+        in catch_source
+    )

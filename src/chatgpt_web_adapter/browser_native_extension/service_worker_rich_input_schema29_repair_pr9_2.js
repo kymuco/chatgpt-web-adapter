@@ -192,6 +192,7 @@ function _pr92Schema29InspectRequestPostData(
     conversationIdentityMatches: false,
     userMessageCount: 0,
     userMessageIdCount: 0,
+    userMessageIdentityClassified: false,
     exactTextUserMessageCount: 0,
     exactRichUserMessageCount: 0,
     requestMessageIdPresent: false,
@@ -230,7 +231,17 @@ function _pr92Schema29InspectRequestPostData(
   }
   diagnostics.requestJsonParsed = true;
   diagnostics.actionNext = payload.action === "next";
-  if (!diagnostics.actionNext) {
+
+  const requestConversationId = _pr92Schema29NonEmptyString(payload.conversation_id);
+  diagnostics.conversationIdentityMatches = expectedConversationId === null
+    ? requestConversationId === null
+    : requestConversationId === expectedConversationId;
+
+  const messagesFieldPresent = Object.prototype.hasOwnProperty.call(
+    payload,
+    "messages"
+  );
+  if (messagesFieldPresent && !Array.isArray(payload.messages)) {
     return {
       matched: false,
       logicalMessageId: null,
@@ -238,11 +249,6 @@ function _pr92Schema29InspectRequestPostData(
       diagnostics
     };
   }
-
-  const requestConversationId = _pr92Schema29NonEmptyString(payload.conversation_id);
-  diagnostics.conversationIdentityMatches = expectedConversationId === null
-    ? requestConversationId === null
-    : requestConversationId === expectedConversationId;
 
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
   const exactCandidates = [];
@@ -258,7 +264,12 @@ function _pr92Schema29InspectRequestPostData(
       logicalUserMessageIds.push(messageId);
     }
 
-    if (!diagnostics.conversationIdentityMatches) continue;
+    if (
+      !diagnostics.actionNext ||
+      !diagnostics.conversationIdentityMatches
+    ) {
+      continue;
+    }
     const parts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
     const textParts = parts.filter((part) => typeof part === "string");
     if (textParts.join("") !== expectedText) continue;
@@ -278,6 +289,9 @@ function _pr92Schema29InspectRequestPostData(
       attachmentEvidenceChannelCount: channels.length
     });
   }
+
+  diagnostics.userMessageIdentityClassified =
+    diagnostics.userMessageCount === diagnostics.userMessageIdCount;
 
   diagnostics.exactRichUserMessageCount = exactCandidates.length;
   if (exactCandidates.length !== 1) {
@@ -310,8 +324,17 @@ function _pr92Schema29ApplyRequestInspection(entry, inspected, source) {
     ? inspected.logicalUserMessageIds.slice()
     : [];
   entry.diagnostics = inspected?.diagnostics || null;
-  entry.requestBodyResolved = true;
-  entry.requestBodySource = source;
+
+  const explicitlyBodyless =
+    source === "request-event-no-post-data";
+  const identityClassified =
+    inspected?.diagnostics?.requestJsonParsed === true &&
+    inspected?.diagnostics?.userMessageIdentityClassified === true;
+
+  entry.requestBodyResolved = explicitlyBodyless || identityClassified;
+  entry.requestBodySource = entry.requestBodyResolved
+    ? source
+    : "unresolved";
 }
 
 function _pr92Schema29RecordPostArmConversationRequest(debuggee, context, params) {
@@ -633,8 +656,14 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    if (detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR)) {
-      await _pr92Schema29AwaitPostDataLookups(context);
+    if (
+      detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR) &&
+      _pr92Schema29LastSubmitCorrelationDiagnostics === null
+    ) {
+      // Do not settle Network.getRequestPostData a second time. If the
+      // authoritative correlation path already waited, reuse its diagnostics.
+      // If an inherited committed-state error arrived before that point,
+      // unresolved request bodies remain fail-closed immediately.
       _pr92Schema29LastSubmitCorrelationDiagnostics =
         _pr92Schema29EvaluateSubmitCorrelation(context);
     }
