@@ -344,3 +344,21 @@ executeNativeTurn = async function _executeNativeTurnWithTemporaryRouteReopenPro
   }
   return _pr87ProbeTemporaryRouteReopen(message);
 };
+
+// PR9.2 adds rich-input staging only after the full PR8 worker chain above has
+// been assembled. The manifest entrypoint and historical worker ordering remain
+// unchanged; text-only turns still delegate through the exact prior path.
+importScripts("service_worker_rich_input_pr9_2.js");
+
+// PR9.2 deadline/fence repair layer.
+importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");
+
+// PR9.2 final closure repair: page-owned attachment evidence and page-side
+// deadline-guarded rich submission. Loaded last so raw CDP Input cannot regain
+// protected-write authority for rich turns.
+importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
+
+// PR9.2 schema-7 final authority repair: atomic attachment validation+submit,
+// non-awaited post-click debugger acknowledgement, and session-bound fenced-tab
+// identity before destructive cleanup. Loaded last.
+importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");

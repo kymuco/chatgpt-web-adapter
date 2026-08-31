@@ -1,0 +1,441 @@
+from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from chatgpt_web_adapter.product_provenance import (
+    CompletionSource,
+    ProductCompletionProvenance,
+    ProductExecutionProvenance,
+    ProductIdentityProvenance,
+)
+from chatgpt_web_adapter.product_rich_input_live_gate_pr9_2 import (
+    PRODUCT_WRITE_BUDGET,
+    ProductRichInputLiveProvider,
+    _CONTINUATION_PROMPT,
+    _CONTINUATION_REPLY,
+    _FILE_PROMPT,
+    _FILE_REPLY,
+    _IMAGE_PROMPT,
+    _IMAGE_REPLY,
+    _validate_execution,
+    _validate_support,
+    _write_fixtures,
+)
+
+
+def _support_response(request_id: str) -> dict:
+    return {
+        "request_id": request_id,
+        "ok": True,
+        "richInputSupported": True,
+        "richInputSchemaVersion": 7,
+        "stagingPrimitive": "DOM.setFileInputFiles",
+        "maxAttachmentCount": 32,
+        "nativeMessagingCarriesAttachmentBytes": False,
+        "officialPageOwnsUpload": True,
+        "officialPageOwnsProtectedWrite": True,
+        "recoveryBeforeAttachmentStaging": True,
+        "staleAttachmentFailureFence": True,
+        "staleAttachmentFencePersistentAcrossWorkerRestart": True,
+        "singleTotalTurnDeadline": True,
+        "preSubmitDeadlineGuard": True,
+        "deadlineBoundedPostWriteCleanup": True,
+        "postWriteFenceRetainedUntilNextPrewrite": True,
+        "enterKeyReleaseAffectsSubmittedOutcome": False,
+        "mouseToEnterFallbackAfterReleaseAttempt": False,
+        "mouseReleaseOutcomeAmbiguityFailsClosed": True,
+        "staleAttachmentCleanupProof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
+        "attachmentCountEvidence": "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE",
+        "attachmentEvidenceStablePollCount": 2,
+        "preSubmitAttachmentRevalidation": True,
+        "postSendReadinessAttachmentRevalidation": True,
+        "protectedSubmitPrimitive": "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK",
+        "richInputRawCdpInputSubmitDisabled": True,
+        "richInputEnterFallbackEnabled": False,
+        "lateProtectedSubmitExecutionPreventedByPageDeadline": True,
+        "atomicAttachmentValidationAndSubmit": True,
+        "postClickDebuggerAckRequired": False,
+        "protectedSubmitOutcomeProof": "NETWORK_REQUEST_OBSERVATION",
+        "submitObservationReserveMs": 10_500,
+        "staleAttachmentCleanupRequiresSessionRuntimeIdentity": True,
+        "staleAttachmentIdentityMismatchClosesTab": False,
+        "staleAttachmentIdentityMismatchFailsClosed": True,
+        "staleAttachmentUnprovenIdentityFailsClosed": True,
+        "automaticWriteRetry": False,
+        "fallbackTransport": None,
+        "writePerformed": False,
+    }
+
+
+def _validated_support() -> dict:
+    return {
+        "supported": True,
+        "schema": 7,
+        "staging_primitive": "DOM.setFileInputFiles",
+        "max_attachment_count": 32,
+        "native_messaging_carries_attachment_bytes": False,
+        "official_page_owns_upload": True,
+        "official_page_owns_protected_write": True,
+        "recovery_before_attachment_staging": True,
+        "stale_attachment_failure_fence": True,
+        "stale_attachment_fence_persistent_across_worker_restart": True,
+        "single_total_turn_deadline": True,
+        "pre_submit_deadline_guard": True,
+        "deadline_bounded_post_write_cleanup": True,
+        "post_write_fence_retained_until_next_prewrite": True,
+        "enter_key_release_affects_submitted_outcome": False,
+        "mouse_to_enter_fallback_after_release_attempt": False,
+        "mouse_release_outcome_ambiguity_fails_closed": True,
+        "stale_attachment_cleanup_proof": "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED",
+        "attachment_count_evidence": "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE",
+        "attachment_evidence_stable_poll_count": 2,
+        "pre_submit_attachment_revalidation": True,
+        "post_send_readiness_attachment_revalidation": True,
+        "protected_submit_primitive": "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK",
+        "rich_input_raw_cdp_input_submit_disabled": True,
+        "rich_input_enter_fallback_enabled": False,
+        "late_protected_submit_execution_prevented_by_page_deadline": True,
+        "atomic_attachment_validation_and_submit": True,
+        "post_click_debugger_ack_required": False,
+        "protected_submit_outcome_proof": "NETWORK_REQUEST_OBSERVATION",
+        "submit_observation_reserve_ms": 10_500,
+        "stale_attachment_cleanup_requires_session_runtime_identity": True,
+        "stale_attachment_identity_mismatch_closes_tab": False,
+        "stale_attachment_identity_mismatch_fails_closed": True,
+        "stale_attachment_unproven_identity_fails_closed": True,
+        "automatic_write_retry": False,
+        "fallback_transport": None,
+        "write_performed": False,
+    }
+
+
+def _execution(expected: str):
+    response = SimpleNamespace(
+        text=expected,
+        conversation=SimpleNamespace(
+            conversation_id="conversation-1",
+            message_id="assistant-1",
+        ),
+    )
+    provenance = ProductExecutionProvenance(
+        product_semantics="ordinary-chatgpt",
+        transport="browser-owned",
+        write_plane="BROWSER_NATIVE_PAGE_OWNED_WRITE",
+        readback_plane="BROWSERLESS_CANONICAL_HTTP",
+        session_plane="BROWSERLESS_SESSION_HTTP",
+        completion=ProductCompletionProvenance(
+            completed=True,
+            source=CompletionSource.CANONICAL_READBACK,
+            canonical_completion_proven=True,
+            finish_reason="stop",
+            finish_reason_observed=True,
+        ),
+        identity=ProductIdentityProvenance(
+            conversation_id="conversation-1",
+            message_id="assistant-1",
+            observed_model="test-model",
+        ),
+        transport_metadata={},
+    )
+    return SimpleNamespace(
+        response=response,
+        observation=SimpleNamespace(write_event_observed=True),
+        provenance=provenance,
+    )
+
+
+def test_support_probe_is_no_write_and_requires_pr9_2_overlay(monkeypatch):
+    provider = ProductRichInputLiveProvider()
+    calls = []
+
+    def fake_rpc(payload, *, timeout, on_event=None):
+        calls.append(dict(payload))
+        assert payload["type"] == "turn"
+        assert payload["characterizeRichInputSupport"] is True
+        assert "text" not in payload
+        assert "attachmentPaths" not in payload
+        return _support_response(payload["request_id"])
+
+    monkeypatch.setattr(provider, "_rpc", fake_rpc)
+    support = provider.rich_input_support(timeout=1.0)
+    _validate_support(support)
+
+    assert len(calls) == 1
+    assert support["schema"] == 7
+    assert support["recovery_before_attachment_staging"] is True
+    assert support["stale_attachment_failure_fence"] is True
+    assert support["stale_attachment_fence_persistent_across_worker_restart"] is True
+    assert support["single_total_turn_deadline"] is True
+    assert support["pre_submit_deadline_guard"] is True
+    assert support["deadline_bounded_post_write_cleanup"] is True
+    assert support["post_write_fence_retained_until_next_prewrite"] is True
+    assert support["enter_key_release_affects_submitted_outcome"] is False
+    assert support["mouse_to_enter_fallback_after_release_attempt"] is False
+    assert support["mouse_release_outcome_ambiguity_fails_closed"] is True
+    assert support["attachment_count_evidence"] == "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE"
+    assert support["attachment_evidence_stable_poll_count"] == 2
+    assert support["pre_submit_attachment_revalidation"] is True
+    assert support["post_send_readiness_attachment_revalidation"] is True
+    assert support["atomic_attachment_validation_and_submit"] is True
+    assert support["protected_submit_primitive"] == (
+        "PAGE_DEADLINE_GUARDED_ATOMIC_ATTACHMENT_VALIDATE_AND_CLICK"
+    )
+    assert support["post_click_debugger_ack_required"] is False
+    assert support["protected_submit_outcome_proof"] == "NETWORK_REQUEST_OBSERVATION"
+    assert support["submit_observation_reserve_ms"] >= 10_000
+    assert support["stale_attachment_cleanup_requires_session_runtime_identity"] is True
+    assert support["stale_attachment_identity_mismatch_closes_tab"] is False
+    assert support["stale_attachment_identity_mismatch_fails_closed"] is True
+    assert support["stale_attachment_unproven_identity_fails_closed"] is True
+    assert support["rich_input_raw_cdp_input_submit_disabled"] is True
+    assert support["rich_input_enter_fallback_enabled"] is False
+    assert support["late_protected_submit_execution_prevented_by_page_deadline"] is True
+    assert (
+        support["stale_attachment_cleanup_proof"]
+        == "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
+    )
+    assert support["write_performed"] is False
+    assert support["automatic_write_retry"] is False
+    assert support["fallback_transport"] is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("recovery_before_attachment_staging", False, "RECOVERY_BEFORE_STAGING_NOT_PROVEN"),
+        ("stale_attachment_failure_fence", False, "STALE_ATTACHMENT_FAILURE_FENCE_NOT_PROVEN"),
+        (
+            "stale_attachment_fence_persistent_across_worker_restart",
+            False,
+            "PERSISTENT_STALE_ATTACHMENT_FENCE_NOT_PROVEN",
+        ),
+        ("single_total_turn_deadline", False, "SINGLE_TOTAL_TURN_DEADLINE_NOT_PROVEN"),
+        ("pre_submit_deadline_guard", False, "PRE_SUBMIT_DEADLINE_GUARD_NOT_PROVEN"),
+        (
+            "deadline_bounded_post_write_cleanup",
+            False,
+            "DEADLINE_BOUNDED_POST_WRITE_CLEANUP_NOT_PROVEN",
+        ),
+        (
+            "post_write_fence_retained_until_next_prewrite",
+            False,
+            "POST_WRITE_FENCE_RETENTION_NOT_PROVEN",
+        ),
+        (
+            "mouse_release_outcome_ambiguity_fails_closed",
+            False,
+            "MOUSE_RELEASE_AMBIGUITY_FAIL_CLOSED_NOT_PROVEN",
+        ),
+        (
+            "pre_submit_attachment_revalidation",
+            False,
+            "PRE_SUBMIT_ATTACHMENT_REVALIDATION_NOT_PROVEN",
+        ),
+        (
+            "post_send_readiness_attachment_revalidation",
+            False,
+            "POST_SEND_READINESS_ATTACHMENT_REVALIDATION_NOT_PROVEN",
+        ),
+        (
+            "atomic_attachment_validation_and_submit",
+            False,
+            "ATOMIC_ATTACHMENT_SUBMIT_NOT_PROVEN",
+        ),
+        (
+            "stale_attachment_cleanup_requires_session_runtime_identity",
+            False,
+            "STALE_ATTACHMENT_SESSION_IDENTITY_NOT_PROVEN",
+        ),
+        (
+            "stale_attachment_identity_mismatch_fails_closed",
+            False,
+            "STALE_ATTACHMENT_IDENTITY_MISMATCH_FAIL_CLOSED_NOT_PROVEN",
+        ),
+        (
+            "stale_attachment_unproven_identity_fails_closed",
+            False,
+            "STALE_ATTACHMENT_UNPROVEN_IDENTITY_FAIL_CLOSED_NOT_PROVEN",
+        ),
+        (
+            "rich_input_raw_cdp_input_submit_disabled",
+            False,
+            "RAW_CDP_INPUT_SUBMIT_NOT_DISABLED",
+        ),
+        (
+            "late_protected_submit_execution_prevented_by_page_deadline",
+            False,
+            "LATE_PROTECTED_SUBMIT_GUARD_NOT_PROVEN",
+        ),
+    ],
+)
+def test_support_validation_requires_schema_7_safety_claims(field, value, error):
+    support = _validated_support()
+    support[field] = value
+    with pytest.raises(RuntimeError, match=error):
+        _validate_support(support)
+
+
+def test_support_validation_requires_post_submit_enter_outcome_contract():
+    support = _validated_support()
+    support["enter_key_release_affects_submitted_outcome"] = True
+    with pytest.raises(RuntimeError, match="ENTER_KEY_RELEASE_OUTCOME_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_rejects_mouse_to_enter_retry_after_release_attempt():
+    support = _validated_support()
+    support["mouse_to_enter_fallback_after_release_attempt"] = True
+    with pytest.raises(RuntimeError, match="MOUSE_TO_ENTER_POST_RELEASE_RETRY_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_requires_destructive_stale_cleanup_proof():
+    support = _validated_support()
+    support["stale_attachment_cleanup_proof"] = "FILE_INPUT_CLEARED"
+    with pytest.raises(RuntimeError, match="STALE_ATTACHMENT_CLEANUP_PROOF_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_requires_page_owned_attachment_count_evidence():
+    support = _validated_support()
+    support["attachment_count_evidence"] = "REQUESTED_PATH_COUNT"
+    with pytest.raises(RuntimeError, match="PAGE_ATTACHMENT_COUNT_EVIDENCE_NOT_PROVEN"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["attachment_evidence_stable_poll_count"] = 1
+    with pytest.raises(RuntimeError, match="PAGE_ATTACHMENT_STABILITY_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_requires_atomic_page_submit_and_network_outcome_proof():
+    support = _validated_support()
+    support["protected_submit_primitive"] = "PAGE_DEADLINE_GUARDED_SEND_BUTTON_CLICK"
+    with pytest.raises(RuntimeError, match="PROTECTED_SUBMIT_PRIMITIVE_NOT_PROVEN"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["post_click_debugger_ack_required"] = True
+    with pytest.raises(RuntimeError, match="POST_CLICK_DEBUGGER_ACK_MUST_NOT_BE_REQUIRED"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["protected_submit_outcome_proof"] = "DEBUGGER_COMMAND_ACK"
+    with pytest.raises(RuntimeError, match="PROTECTED_SUBMIT_OUTCOME_PROOF_NOT_PROVEN"):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["submit_observation_reserve_ms"] = 9999
+    with pytest.raises(RuntimeError, match="SUBMIT_OBSERVATION_RESERVE_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_rejects_identity_mismatch_tab_close_and_enter_fallback():
+    support = _validated_support()
+    support["stale_attachment_identity_mismatch_closes_tab"] = True
+    with pytest.raises(
+        RuntimeError, match="STALE_ATTACHMENT_IDENTITY_MISMATCH_MUST_NOT_CLOSE_TAB"
+    ):
+        _validate_support(support)
+
+    support = _validated_support()
+    support["rich_input_enter_fallback_enabled"] = True
+    with pytest.raises(RuntimeError, match="RICH_INPUT_ENTER_FALLBACK_MUST_BE_DISABLED"):
+        _validate_support(support)
+
+
+def test_support_validation_rejects_pre_schema_7_overlay():
+    support = _validated_support()
+    support["schema"] = 6
+    with pytest.raises(RuntimeError, match="RICH_INPUT_SUPPORT_NOT_PROVEN"):
+        _validate_support(support)
+
+
+def test_support_validation_fails_if_probe_claims_a_write():
+    support = _validated_support()
+    support["write_performed"] = True
+    with pytest.raises(RuntimeError, match="SUPPORT_PROBE_MUST_BE_NO_WRITE"):
+        _validate_support(support)
+
+
+def test_execution_validation_requires_exact_attachment_events_and_canonical_finality():
+    expected = "SDK_PR9_2_TEST_OK"
+    events = [
+        {
+            "type": "browser_native_write_completed",
+            "attachment_count": 1,
+            "browser_authority_lease_id": "lease-1",
+        },
+        {
+            "type": "browser_native_readback_completed",
+            "attachment_count": 1,
+        },
+    ]
+    result = _validate_execution(
+        label="TEST",
+        execution=_execution(expected),
+        events=events,
+        expected_text=expected,
+        expected_attachment_count=1,
+        attachment_evidence_kind="test_fixture_marker",
+        expected_conversation_id="conversation-1",
+    )
+    assert result["canonical_completion_proven"] is True
+    assert result["completion_source"] == "CANONICAL_READBACK"
+    assert result["attachment_count"] == 1
+    assert result["attachment_dependent_evidence"] is True
+    assert result["attachment_evidence_kind"] == "test_fixture_marker"
+
+    events[0]["attachment_count"] = 0
+    with pytest.raises(RuntimeError, match="WRITE_ATTACHMENT_COUNT_MISMATCH"):
+        _validate_execution(
+            label="TEST",
+            execution=_execution(expected),
+            events=events,
+            expected_text=expected,
+            expected_attachment_count=1,
+            attachment_evidence_kind="test_fixture_marker",
+        )
+
+
+def test_execution_validation_rejects_wrong_attachment_dependent_response():
+    events = [
+        {"type": "browser_native_write_completed", "attachment_count": 1},
+        {"type": "browser_native_readback_completed", "attachment_count": 1},
+    ]
+    with pytest.raises(RuntimeError, match="ATTACHMENT_DEPENDENT_RESPONSE_MISMATCH"):
+        _validate_execution(
+            label="TEST",
+            execution=_execution("WRONG"),
+            events=events,
+            expected_text="EXPECTED_FROM_ATTACHMENT",
+            expected_attachment_count=1,
+            attachment_evidence_kind="test_fixture_marker",
+        )
+
+
+def test_live_gate_prompts_do_not_disclose_expected_attachment_evidence():
+    assert _IMAGE_REPLY not in _IMAGE_PROMPT
+    assert _FILE_REPLY not in _FILE_PROMPT
+    assert _CONTINUATION_REPLY not in _CONTINUATION_PROMPT
+    assert "attached PNG image" in _IMAGE_PROMPT
+    assert "attached text file" in _FILE_PROMPT
+    assert "newly attached text file" in _CONTINUATION_PROMPT
+
+
+def test_live_gate_has_exact_three_write_budget_and_attachment_dependent_fixtures(tmp_path):
+    assert PRODUCT_WRITE_BUDGET == 3
+    image, text_file, continuation_file = _write_fixtures(Path(tmp_path))
+
+    image_bytes = image.read_bytes()
+    assert image_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    assert len(image_bytes) > 50
+
+    file_text = text_file.read_text(encoding="utf-8")
+    continuation_text = continuation_file.read_text(encoding="utf-8")
+    assert f"EVIDENCE: {_FILE_REPLY}" in file_text
+    assert f"EVIDENCE: {_CONTINUATION_REPLY}" in continuation_text
+    assert _FILE_REPLY != _CONTINUATION_REPLY

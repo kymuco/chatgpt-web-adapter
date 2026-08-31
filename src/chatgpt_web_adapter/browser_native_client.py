@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import inspect
 import time
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any, Callable, Sequence
 
 from .browser_native_provider import BrowserNativeTurnProvider
 from .exceptions import ConversationTimeoutError, RequestError
 from .messages import _chat_message_from_node, _current_branch_nodes
+from .product_media import current_browser_owned_attachment_paths
 from .revision_safe_streaming_pr8_9 import RevisionSafeTextAccumulator
 from .status import _status_from_payload
 from .types import (
@@ -183,7 +185,6 @@ def _emit_revision_safe_event(
         pass
 
 
-
 def _provider_supports_revision_safe_streaming(provider: Any) -> bool:
     if not callable(getattr(provider, "send_text_streaming", None)):
         return False
@@ -200,6 +201,20 @@ def _provider_supports_revision_safe_streaming(provider: Any) -> bool:
     )
 
 
+def _callable_accepts_attachment_paths(value: Any) -> bool:
+    if not callable(value):
+        return False
+    try:
+        parameters = inspect.signature(value).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.name == "attachment_paths"
+        or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
+
 def send_browser_native(
     self: Any,
     prompt: str,
@@ -209,12 +224,15 @@ def send_browser_native(
     poll_interval: float = 0.5,
     on_token: Callable[[str], None] | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
+    attachment_paths: Sequence[str | Path] | None = None,
 ) -> ChatResponse:
-    """Send one ordinary text turn through the persistent ChatGPT browser tab.
+    """Send one ordinary product turn through the persistent ChatGPT browser tab.
 
     PR8.9 exposes revision-safe early assistant text through ``on_event`` while
     keeping canonical readback authoritative. ``on_token`` intentionally remains
-    final-only because it cannot retract revisions.
+    final-only because it cannot retract revisions. PR9.2 carries validated local
+    attachment paths to the official page; attachment bytes are never embedded in
+    Native Messaging JSON and canonical assistant finality is unchanged.
     """
 
     provider = getattr(self, "_browser_native_turn_provider", None)
@@ -227,6 +245,17 @@ def send_browser_native(
         raise ValueError("timeout must be positive")
     if poll_interval <= 0:
         raise ValueError("poll_interval must be positive")
+
+    if attachment_paths is None:
+        scoped_paths = current_browser_owned_attachment_paths()
+        if scoped_paths is not None:
+            attachment_paths = scoped_paths
+    normalized_attachment_paths = tuple(attachment_paths or ())
+    if normalized_attachment_paths and not _callable_accepts_attachment_paths(provider.send_text):
+        raise RequestError(
+            "BROWSER_NATIVE_RICH_INPUT_PROVIDER_UNSUPPORTED",
+            request_stage="browser_native_turn_preflight",
+        )
 
     started = time.monotonic()
     baseline_assistant_ids: set[str] = set()
@@ -258,6 +287,7 @@ def send_browser_native(
         canonical_status_before_turn=canonical_status_before_turn,
         canonical_status_recovery_confirm=canonical_status_recovery_confirm,
         stale_ui_recovery_authorized=recovery_authorized,
+        attachment_count=len(normalized_attachment_paths),
     )
 
     stream_state = RevisionSafeTextAccumulator()
@@ -270,32 +300,82 @@ def send_browser_native(
     streaming_requested = (
         on_event is not None and _provider_supports_revision_safe_streaming(provider)
     )
+    attachment_kwargs = (
+        {"attachment_paths": normalized_attachment_paths}
+        if normalized_attachment_paths
+        else {}
+    )
     if recovery_authorized:
         canonical_completed_at_ms = int(time.time() * 1000)
         if streaming_requested and callable(recovery_stream_send):
+            if normalized_attachment_paths and not _callable_accepts_attachment_paths(recovery_stream_send):
+                raise RequestError(
+                    "BROWSER_NATIVE_RICH_INPUT_RECOVERY_PROVIDER_UNSUPPORTED",
+                    request_stage="browser_native_turn_preflight",
+                )
             turn = recovery_stream_send(
                 prompt,
                 conversation=conversation,
                 timeout=timeout,
                 canonical_completed_at_ms=canonical_completed_at_ms,
                 on_text_event=handle_text_event,
+                **attachment_kwargs,
             )
         else:
+            if normalized_attachment_paths and not _callable_accepts_attachment_paths(recovery_send):
+                raise RequestError(
+                    "BROWSER_NATIVE_RICH_INPUT_RECOVERY_PROVIDER_UNSUPPORTED",
+                    request_stage="browser_native_turn_preflight",
+                )
             turn = recovery_send(
                 prompt,
                 conversation=conversation,
                 timeout=timeout,
                 canonical_completed_at_ms=canonical_completed_at_ms,
+                **attachment_kwargs,
             )
     elif streaming_requested and callable(stream_send):
+        if normalized_attachment_paths and not _callable_accepts_attachment_paths(stream_send):
+            raise RequestError(
+                "BROWSER_NATIVE_RICH_INPUT_STREAM_PROVIDER_UNSUPPORTED",
+                request_stage="browser_native_turn_preflight",
+            )
         turn = stream_send(
             prompt,
             conversation=conversation,
             timeout=timeout,
             on_text_event=handle_text_event,
+            **attachment_kwargs,
         )
     else:
-        turn = provider.send_text(prompt, conversation=conversation, timeout=timeout)
+        turn = provider.send_text(
+            prompt,
+            conversation=conversation,
+            timeout=timeout,
+            **attachment_kwargs,
+        )
+
+    raw_attachment_count = getattr(turn, "attachment_count", None)
+    if normalized_attachment_paths:
+        expected_attachment_count = len(normalized_attachment_paths)
+        if (
+            not isinstance(raw_attachment_count, int)
+            or isinstance(raw_attachment_count, bool)
+            or raw_attachment_count != expected_attachment_count
+        ):
+            raise RequestError(
+                "BROWSER_NATIVE_RICH_INPUT_ATTACHMENT_CONFIRMATION_MISMATCH",
+                request_stage="browser_native_turn_postwrite",
+            )
+        attachment_count = raw_attachment_count
+    elif (
+        isinstance(raw_attachment_count, int)
+        and not isinstance(raw_attachment_count, bool)
+        and raw_attachment_count >= 0
+    ):
+        attachment_count = raw_attachment_count
+    else:
+        attachment_count = 0
 
     self._emit_event(
         on_event,
@@ -313,6 +393,7 @@ def send_browser_native(
         tab_active_after_write=turn.tab_active_after,
         tab_activated_during_turn=turn.tab_activated_during_turn,
         foreground_activation_observed=turn.foreground_activation_observed,
+        attachment_count=attachment_count,
         revision_safe_stream_observation_count=stream_state.observation_count,
     )
 
@@ -383,6 +464,7 @@ def send_browser_native(
         message_id=final_message.message_id,
         model=final_message.model,
         total=total,
+        attachment_count=attachment_count,
         canonical_payload_read_count=canonical_payload_read_count,
         canonical_payload_reused_for_attach=canonical_payload is not None,
         stream_canonical_reconciliation=finalization["reconciliation"],

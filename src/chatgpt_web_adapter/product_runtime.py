@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE
 from .client import ChatGPTWebClient, DEFAULT_TIMEOUT_SECONDS
 from .product_capabilities import ProductCapabilities
+from .product_media import browser_owned_media_scope
 from .product_provenance import (
     CompletionSource,
     ConversationMode,
@@ -35,7 +37,7 @@ from .product_transport import (
     require_canonical_conversation_client,
     require_product_write_transport,
 )
-from .types import ChatMessage, ChatResponse, ConversationStatus
+from .types import ChatMessage, ChatResponse, ConversationStatus, MediaItem
 
 
 _NORMAL_CONVERSATION_MODE = "normal"
@@ -116,6 +118,29 @@ class ProductConversationModeUnavailableError(RuntimeError):
         }
 
 
+class ProductRichInputUnavailableError(RuntimeError):
+    """Fail-closed refusal before write when rich input lacks proven routing."""
+
+    def __init__(self, *, transport: str, conversation_mode: str) -> None:
+        self.transport = transport
+        self.conversation_mode = _normalize_conversation_mode(conversation_mode)
+        super().__init__(
+            "PRODUCT_RICH_INPUT_UNAVAILABLE: "
+            f"transport={transport!r} conversation_mode={self.conversation_mode!r}; "
+            "fallback=none"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": type(self).__name__,
+            "message": str(self),
+            "transport": self.transport,
+            "conversation_mode": self.conversation_mode,
+            "write_may_have_been_submitted": False,
+            "fallback_transport": None,
+        }
+
+
 def _conversation_mode_override_kwargs(
     write_transport: ProductWriteTransport,
     *,
@@ -136,6 +161,55 @@ def _conversation_mode_override_kwargs(
     if governance.get("temporary_chat_product_runtime_selection_supported") is not True:
         raise ProductConversationModeUnavailableError(mode)
     return mode, {"conversation_mode": _TEMPORARY_CONVERSATION_MODE}
+
+
+def _known_browser_owned_rich_input_transport(write_transport: ProductWriteTransport) -> bool:
+    """Return whether the selected writer is the proven PR9.2 implementation.
+
+    ProductWriteTransport intentionally remains a text-oriented protocol. A custom
+    transport may reuse the ``browser-owned`` identity without consuming the
+    execution-local media scope, so transport identity alone is not rich-input
+    authority. Until the generic protocol grows an explicit media capability, only
+    the exact concrete BrowserOwnedProductTransport implementation may opt into
+    PR9.2; subclasses can override the send path and therefore are not authority.
+    """
+
+    if write_transport.transport_id.strip().lower() != BROWSER_OWNED_PRODUCT_TRANSPORT:
+        return False
+    from .browser_owned_product_transport import BrowserOwnedProductTransport
+
+    return type(write_transport) is BrowserOwnedProductTransport
+
+
+def _rich_input_scope(
+    write_transport: ProductWriteTransport,
+    *,
+    media: Sequence[MediaItem] | None,
+    conversation_mode: str,
+):
+    """Resolve PR9.2 media without widening the transport protocol.
+
+    Browser-owned normal turns through the known BrowserOwnedProductTransport are
+    the only implementation target in this milestone. Browserless, Temporary, and
+    injected/custom writers fail before transport dispatch; no fallback to
+    text-only or another transport is permitted. An empty media sequence is
+    ordinary text-only input, matching the historical client contract for
+    dynamically assembled attachment lists.
+    """
+
+    if media is None or len(media) == 0:
+        return nullcontext()
+    mode = _normalize_conversation_mode(conversation_mode)
+    transport_id = write_transport.transport_id.strip().lower()
+    if (
+        mode != _NORMAL_CONVERSATION_MODE
+        or not _known_browser_owned_rich_input_transport(write_transport)
+    ):
+        raise ProductRichInputUnavailableError(
+            transport=transport_id,
+            conversation_mode=mode,
+        )
+    return browser_owned_media_scope(media)
 
 
 def _validate_or_attach_normal_mode_provenance(
@@ -365,8 +439,9 @@ class ChatGPTProductRuntime:
         browser_authority_policy: str | None = None,
         browser_authority_ttl_ms: int | None = None,
         model_profile: str | None = None,
+        media: Sequence[MediaItem] | None = None,
     ) -> ChatResponse:
-        _mode, mode_kwargs = _conversation_mode_override_kwargs(
+        mode, mode_kwargs = _conversation_mode_override_kwargs(
             self.write_transport,
             conversation_mode=conversation_mode,
         )
@@ -382,15 +457,20 @@ class ChatGPTProductRuntime:
             )
         )
         transport_kwargs.update(mode_kwargs)
-        return self.write_transport.send_text(
-            text,
-            conversation=conversation,
-            timeout=timeout,
-            poll_interval=poll_interval,
-            on_token=on_token,
-            on_event=on_event,
-            **transport_kwargs,
-        )
+        with _rich_input_scope(
+            self.write_transport,
+            media=media,
+            conversation_mode=mode,
+        ):
+            return self.write_transport.send_text(
+                text,
+                conversation=conversation,
+                timeout=timeout,
+                poll_interval=poll_interval,
+                on_token=on_token,
+                on_event=on_event,
+                **transport_kwargs,
+            )
 
     def send(
         self,
@@ -405,6 +485,7 @@ class ChatGPTProductRuntime:
         browser_authority_policy: str | None = None,
         browser_authority_ttl_ms: int | None = None,
         model_profile: str | None = None,
+        media: Sequence[MediaItem] | None = None,
     ) -> ChatResponse:
         return self.send_text(
             text,
@@ -417,6 +498,7 @@ class ChatGPTProductRuntime:
             browser_authority_policy=browser_authority_policy,
             browser_authority_ttl_ms=browser_authority_ttl_ms,
             model_profile=model_profile,
+            media=media,
         )
 
     def send_text_observed(
@@ -432,6 +514,7 @@ class ChatGPTProductRuntime:
         browser_authority_policy: str | None = None,
         browser_authority_ttl_ms: int | None = None,
         model_profile: str | None = None,
+        media: Sequence[MediaItem] | None = None,
     ) -> ProductRuntimeExecution:
         mode, mode_kwargs = _conversation_mode_override_kwargs(
             self.write_transport,
@@ -450,15 +533,20 @@ class ChatGPTProductRuntime:
         )
         transport_kwargs.update(mode_kwargs)
 
-        execution = self.write_transport.send_text_observed(
-            text,
-            conversation=conversation,
-            timeout=timeout,
-            poll_interval=poll_interval,
-            on_token=on_token,
-            on_event=on_event,
-            **transport_kwargs,
-        )
+        with _rich_input_scope(
+            self.write_transport,
+            media=media,
+            conversation_mode=mode,
+        ):
+            execution = self.write_transport.send_text_observed(
+                text,
+                conversation=conversation,
+                timeout=timeout,
+                poll_interval=poll_interval,
+                on_token=on_token,
+                on_event=on_event,
+                **transport_kwargs,
+            )
         if execution.transport != self.transport:
             raise RuntimeError(
                 "write transport returned execution for unexpected transport "
@@ -547,6 +635,9 @@ class ChatGPTProductRuntime:
             transport_governance.get("temporary_chat_product_runtime_selection_supported")
             is True
         )
+        rich_input_browser_owned = _known_browser_owned_rich_input_transport(
+            self.write_transport
+        )
         transport_governance.update(
             {
                 "transport": self.transport,
@@ -620,6 +711,19 @@ class ChatGPTProductRuntime:
                 "silent_model_profile_fallback": False,
                 "model_profile_state_scope": "TURN_REQUIREMENT",
                 "model_profile_preservation_scope_proven": False,
+                "rich_input_high_level_surface": True,
+                "rich_input_argument": "media",
+                "rich_input_item_contract": "MediaItem",
+                "rich_input_browser_owned_implementation_present": rich_input_browser_owned,
+                "rich_input_browserless_implementation_present": False,
+                "rich_input_normal_mode_only": True,
+                "rich_input_temporary_mode_supported": False,
+                "rich_input_fallback_transport": None,
+                "rich_input_silent_text_only_fallback": False,
+                "rich_input_bytes_cross_native_messaging": False,
+                "rich_input_official_page_owns_upload": rich_input_browser_owned,
+                "rich_input_official_page_owns_protected_write": rich_input_browser_owned,
+                "rich_input_canonical_finality_unchanged": rich_input_browser_owned,
                 "new_chat_supported": True,
                 "continuation_supported": True,
                 "daily_use_entrypoint": "ChatGPTProductRuntime.send",
