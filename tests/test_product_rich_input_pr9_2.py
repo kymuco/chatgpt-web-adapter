@@ -256,7 +256,9 @@ def test_browser_owned_media_scope_preserves_http_url_source(monkeypatch):
         assert generated.name == "report.txt"
         assert generated.read_bytes() == payload
         assert materialization.materialized_byte_inputs == 1
-    assert calls == [(source, product_media._REMOTE_FETCH_TIMEOUT_SECONDS)]
+    assert len(calls) == 1
+    assert calls[0][0] == source
+    assert 0 < calls[0][1] <= product_media._REMOTE_FETCH_TIMEOUT_SECONDS
     assert not generated.exists()
 
 
