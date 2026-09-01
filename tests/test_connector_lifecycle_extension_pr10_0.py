@@ -36,7 +36,8 @@ def test_connector_overlay_supports_point_evidence_without_inferred_pairing() ->
     assert 'eventType = connector.explicitActivityId' in source
     assert '"product_connector_observed"' in source
     assert "connector-message:${messageId}" in source
-    assert "not enough to fabricate a request/result lifecycle" in source
+    assert "connector?.explicitActivityId || null" in source
+    assert "messageId" in source
 
 
 def test_required_action_requires_both_explicit_id_and_type() -> None:
