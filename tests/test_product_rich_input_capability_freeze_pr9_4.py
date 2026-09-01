@@ -59,6 +59,13 @@ def _assert_rich_input_available(transport: BrowserOwnedProductTransport) -> Non
         assert "PR9.2 schema-29 authenticated live closure" in entry.evidence
 
 
+def _assert_rich_input_conservative(transport: BrowserOwnedProductTransport) -> None:
+    capabilities = transport.capabilities()
+    assert capabilities.state(IMAGES) is CapabilityState.UNIMPLEMENTED
+    assert capabilities.state(FILES) is CapabilityState.UNKNOWN
+    assert capabilities.state(MULTIMODAL_CONTINUATION) is CapabilityState.UNIMPLEMENTED
+
+
 def test_default_browser_owned_provider_freezes_live_proven_rich_input_capabilities() -> None:
     _assert_rich_input_available(BrowserOwnedProductTransport(_Client()))
 
@@ -70,25 +77,31 @@ def test_compatible_provider_subclass_inheriting_write_path_keeps_pr92_capabilit
 
 
 def test_custom_legacy_provider_does_not_inherit_rich_input_capability_authority() -> None:
-    capabilities = BrowserOwnedProductTransport(
-        _Client(),
-        provider=_LegacyProvider(),
-    ).capabilities()
-
-    assert capabilities.state(IMAGES) is CapabilityState.UNIMPLEMENTED
-    assert capabilities.state(FILES) is CapabilityState.UNKNOWN
-    assert capabilities.state(MULTIMODAL_CONTINUATION) is CapabilityState.UNIMPLEMENTED
+    _assert_rich_input_conservative(
+        BrowserOwnedProductTransport(_Client(), provider=_LegacyProvider())
+    )
 
 
 def test_provider_overriding_rpc_does_not_inherit_pr92_live_proof() -> None:
-    capabilities = BrowserOwnedProductTransport(
-        _Client(),
-        provider=_RpcOverrideProvider(),
-    ).capabilities()
+    _assert_rich_input_conservative(
+        BrowserOwnedProductTransport(_Client(), provider=_RpcOverrideProvider())
+    )
 
-    assert capabilities.state(IMAGES) is CapabilityState.UNIMPLEMENTED
-    assert capabilities.state(FILES) is CapabilityState.UNKNOWN
-    assert capabilities.state(MULTIMODAL_CONTINUATION) is CapabilityState.UNIMPLEMENTED
+
+def test_instance_replacing_send_text_does_not_inherit_pr92_live_proof() -> None:
+    provider = _CompatibleProvider()
+    provider.send_text = lambda *args, **kwargs: None
+    _assert_rich_input_conservative(
+        BrowserOwnedProductTransport(_Client(), provider=provider)
+    )
+
+
+def test_instance_replacing_rpc_does_not_inherit_pr92_live_proof() -> None:
+    provider = _CompatibleProvider()
+    provider._rpc = lambda *args, **kwargs: {}
+    _assert_rich_input_conservative(
+        BrowserOwnedProductTransport(_Client(), provider=provider)
+    )
 
 
 def test_pr94_capability_gate_installation_is_idempotent() -> None:

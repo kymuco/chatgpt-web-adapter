@@ -24,6 +24,19 @@ _PR94_RICH_INPUT_LIVE_EVIDENCE = (
     "attachment count, validated-click request-body correlation, CANONICAL_READBACK "
     "finality, no automatic write retry, and no fallback transport"
 )
+_PR94_PROVEN_SEND_TEXT_IMPLEMENTATION = ProductModelProfileProvider.send_text
+_PR94_PROVEN_RPC_IMPLEMENTATION = ProductModelProfileProvider._rpc
+
+
+def _uses_frozen_bound_implementation(
+    provider: Any,
+    name: str,
+    implementation: Callable[..., Any],
+) -> bool:
+    value = getattr(provider, name, None)
+    if not callable(value):
+        return False
+    return getattr(value, "__func__", value) is implementation
 
 
 def _provider_uses_proven_pr92_rich_input_path(provider: Any) -> bool:
@@ -31,15 +44,24 @@ def _provider_uses_proven_pr92_rich_input_path(provider: Any) -> bool:
 
     The PR9.2 live provider subclasses ProductModelProfileProvider only to add
     characterization RPCs; the actual write/RPC implementation is inherited unchanged.
-    A custom provider, or a subclass overriding either send_text or _rpc, must not inherit
-    rich-input capability authority merely because it shares the browser-owned transport.
+    A custom provider, class override, or instance-level replacement of either send_text
+    or _rpc must not inherit rich-input capability authority merely because it shares the
+    browser-owned transport.
     """
 
     if not isinstance(provider, ProductModelProfileProvider):
         return False
     return (
-        getattr(type(provider), "send_text", None) is ProductModelProfileProvider.send_text
-        and getattr(type(provider), "_rpc", None) is ProductModelProfileProvider._rpc
+        _uses_frozen_bound_implementation(
+            provider,
+            "send_text",
+            _PR94_PROVEN_SEND_TEXT_IMPLEMENTATION,
+        )
+        and _uses_frozen_bound_implementation(
+            provider,
+            "_rpc",
+            _PR94_PROVEN_RPC_IMPLEMENTATION,
+        )
     )
 
 
