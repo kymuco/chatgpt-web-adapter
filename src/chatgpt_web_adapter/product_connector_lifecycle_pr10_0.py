@@ -10,17 +10,20 @@ from .product_observations import (
     StructuredProductObservation,
 )
 
+PRODUCT_CONNECTOR_OBSERVED = "product_connector_observed"
 PRODUCT_CONNECTOR_STARTED = "product_connector_started"
 PRODUCT_CONNECTOR_UPDATED = "product_connector_updated"
 PRODUCT_CONNECTOR_COMPLETED = "product_connector_completed"
 PRODUCT_CONNECTOR_FAILED = "product_connector_failed"
 
+PRODUCT_REQUIRED_ACTION_OBSERVED = "product_required_action_observed"
 PRODUCT_REQUIRED_ACTION_STARTED = "product_required_action_started"
 PRODUCT_REQUIRED_ACTION_UPDATED = "product_required_action_updated"
 PRODUCT_REQUIRED_ACTION_COMPLETED = "product_required_action_completed"
 PRODUCT_REQUIRED_ACTION_FAILED = "product_required_action_failed"
 
 _CONNECTOR_PHASE_BY_EVENT = {
+    PRODUCT_CONNECTOR_OBSERVED: ProductObservationPhase.OBSERVED,
     PRODUCT_CONNECTOR_STARTED: ProductObservationPhase.STARTED,
     PRODUCT_CONNECTOR_UPDATED: ProductObservationPhase.UPDATED,
     PRODUCT_CONNECTOR_COMPLETED: ProductObservationPhase.COMPLETED,
@@ -73,11 +76,11 @@ def _merge_identity(
 
 @dataclass(frozen=True)
 class ProductConnectorObservation:
-    """Safe evidence for one explicitly correlated ChatGPT connector activity.
+    """Safe evidence for one explicitly identified ChatGPT app/connector activity.
 
-    This value reports product-visible lifecycle evidence only. It carries no
-    credential material and grants no connector, local, workspace, or Git
-    authority to CWA or its caller.
+    This value reports product-visible evidence only. It carries no credential
+    material and grants no connector, local, workspace, or Git authority to CWA
+    or its caller.
     """
 
     observation_id: str
@@ -134,12 +137,13 @@ PR100StructuredProductObservation: TypeAlias = (
 
 
 class ProductConnectorLifecycleCollector:
-    """Extend PR9.3 observations with fail-closed connector/action correlation.
+    """Extend PR9.3 observations with fail-closed app/action correlation.
 
     PR10.0 accepts lifecycle semantics only when upstream supplies explicit stable
     identifiers. It never infers request/result pairing from labels, ordering,
-    tool names, or payload contents. Unknown event shapes continue through the
-    PR9.3 collector unchanged.
+    tool names, or payload contents. Point connector evidence may use a unique
+    product message id, but remains `OBSERVED` rather than a fabricated lifecycle.
+    Unknown event shapes continue through the PR9.3 collector unchanged.
     """
 
     def __init__(self) -> None:
@@ -178,6 +182,12 @@ class ProductConnectorLifecycleCollector:
         required_action_phase = _REQUIRED_ACTION_PHASE_BY_EVENT.get(event_type)
         if required_action_phase is not None:
             return self._consume_required_action(event, required_action_phase)
+
+        # PR9.3 already owns the compatibility point event. PR10.0 upgrades only
+        # the explicitly correlated form carrying a stable action_id; legacy
+        # events without an action_id continue through the original collector.
+        if event_type == PRODUCT_REQUIRED_ACTION_OBSERVED and _optional_text(event.get("action_id")):
+            return self._consume_required_action(event, ProductObservationPhase.OBSERVED)
 
         before = self._base.dropped_event_count
         observation = self._base.consume(event)
