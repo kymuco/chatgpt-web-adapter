@@ -92,7 +92,7 @@ def test_surface_support_normalizes_exact_no_write_contract(monkeypatch) -> None
 
     monkeypatch.setattr(provider, "_rpc", fake_rpc)
     support, diagnostic = provider.artifact_surface_support(timeout=1.0)
-    assert support == _EXPECTEDED_SURFACE_SUPPORT if False else _EXPECTED_SURFACE_SUPPORT
+    assert support == _EXPECTED_SURFACE_SUPPORT
     assert diagnostic["failure_reason"] is None
     assert diagnostic["surface_support_fields_present"] is True
 
