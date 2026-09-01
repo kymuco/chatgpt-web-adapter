@@ -53,6 +53,11 @@ _VALUE_KINDS = {
 _BUCKETS = {"zero", "one", "two_to_four", "five_to_sixteen", "over_sixteen", "not_applicable", "unknown"}
 _LENGTH_BUCKETS = {"up_to_8", "nine_to_sixteen", "seventeen_to_thirty_two", "thirty_three_to_sixty_four", "over_sixty_four"}
 _OBJECT_KINDS = {"array", "not_object", "null_prototype", "plain_object", "other_object"}
+_KNOWN_STRUCTURAL_KEYS = {
+    "id", "type", "kind", "items", "byId", "allIds", "data", "value", "current", "payload", "state", "metadata",
+    "records", "entities", "nodes", "edges", "list", "map", "attachment", "attachments", "file", "files", "artifact",
+    "artifacts", "asset", "assets", "content",
+}
 
 
 def _safe_name(value: Any) -> str | None:
@@ -72,6 +77,25 @@ def _safe_name_list(value: Any, *, max_items: int = 32) -> list[str]:
     output: list[str] = []
     for item in value:
         name = _safe_name(item)
+        if name is None:
+            continue
+        output.append(name)
+        if len(output) >= max_items:
+            break
+    return sorted(set(output))
+
+
+def _safe_known_structural_name(value: Any) -> str | None:
+    name = _safe_name(value)
+    return name if name in _KNOWN_STRUCTURAL_KEYS else None
+
+
+def _safe_known_structural_list(value: Any, *, max_items: int = 24) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    output: list[str] = []
+    for item in value:
+        name = _safe_known_structural_name(item)
         if name is None:
             continue
         output.append(name)
@@ -102,7 +126,7 @@ def _safe_child(value: Any) -> dict[str, Any] | None:
     return {
         "key_shape": key_shape,
         "key_length_bucket": key_length_bucket,
-        "known_structural_key_name": _safe_name(value.get("knownStructuralKeyName")),
+        "known_structural_key_name": _safe_known_structural_name(value.get("knownStructuralKeyName")),
         "child_value_kind": child_value_kind,
         "child_cardinality_bucket": child_bucket,
         "child_plain_object_kind": child_object_kind,
@@ -144,7 +168,7 @@ def _safe_candidate(value: Any) -> dict[str, Any] | None:
         "root_value_kind": root_value_kind,
         "root_cardinality_bucket": root_bucket,
         "root_plain_object_kind": root_object_kind,
-        "known_structural_child_key_names": _safe_name_list(value.get("knownStructuralChildKeyNames"), max_items=24),
+        "known_structural_child_key_names": _safe_known_structural_list(value.get("knownStructuralChildKeyNames"), max_items=24),
         "key_shape_counts": _safe_fixed_counts(value.get("keyShapeCounts"), _KEY_SHAPES),
         "child_value_kind_counts": _safe_fixed_counts(value.get("childValueKindCounts"), _VALUE_KINDS),
         "traversable_child_count_bucket": traversable_bucket,
