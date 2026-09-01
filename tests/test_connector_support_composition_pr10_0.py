@@ -31,21 +31,27 @@ def test_connector_support_wrapper_loads_after_complete_rich_input_stack() -> No
     assert source.rstrip().endswith(support)
 
 
-def test_outer_support_probe_is_direct_no_write_and_non_probe_delegates() -> None:
+def test_outer_support_probes_are_direct_no_write_and_other_turns_delegate() -> None:
     source = SUPPORT.read_text(encoding="utf-8")
 
-    flag = 'message?.characterizeConnectorObservationSupport !== true'
+    connector_flag = 'message?.characterizeConnectorObservationSupport === true'
+    surface_flag = 'message?.characterizeRequiredActionSurface === true'
     delegation = "return _pr100SupportPriorExecuteNativeTurn(message);"
     contract = "connectorObservationSupported: true"
 
     assert "const _pr100SupportPriorExecuteNativeTurn = executeNativeTurn;" in source
-    assert flag in source and delegation in source and contract in source
-    assert source.index(flag) < source.index(delegation) < source.index(contract)
+    assert connector_flag in source
+    assert surface_flag in source
+    assert contract in source
+    assert source.rstrip().endswith("};")
+    assert source.rfind(delegation) > source.index(surface_flag)
+    assert source.count(delegation) == 1
     assert "message?.text != null" in source
     assert "message?.conversationId != null" in source
     assert "message?.attachmentPaths != null" in source
     assert "message?.browserAuthorityLeaseId != null" in source
     assert "PR10_0_CONNECTOR_SUPPORT_PROBE_MUST_BE_NO_WRITE" in source
+    assert "PR10_0_REQUIRED_ACTION_SURFACE_PROBE_MUST_BE_NO_WRITE" in source
     assert "writePerformed: false" in source
     assert "automaticWriteRetry: false" in source
     assert "fallbackTransport: null" in source
