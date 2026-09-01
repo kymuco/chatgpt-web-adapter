@@ -35,6 +35,15 @@ def _valid_support() -> dict[str, Any]:
     }
 
 
+def _valid_diagnostic() -> dict[str, Any]:
+    return {
+        "request_id_matches": True,
+        "response_ok": True,
+        "support_fields_present": True,
+        "failure_reason": None,
+    }
+
+
 def test_live_gate_safe_event_summary_drops_payload_and_text() -> None:
     gate = _load_gate()
     summary = gate._safe_event(
@@ -86,7 +95,8 @@ def test_live_gate_has_one_write_budget_no_auto_approval_and_explicit_ack() -> N
     assert "PRODUCT_WRITE_BUDGET = 1" in source
     assert source.count("runtime.send_text_observed(") == 1
     assert 'parser.add_argument("--acknowledge-live-write", action="store_true")' in source
-    assert "--expected-head\", required=True" in source
+    assert 'parser.add_argument("--preflight-only", action="store_true")' in source
+    assert 'parser.add_argument("--expected-head", required=True)' in source
     assert "send_and_auto_approve" not in source
     assert "approve_pending_action" not in source
     assert "wait_and_approve" not in source
@@ -132,13 +142,40 @@ def test_connector_support_probe_maps_only_safe_contract_fields() -> None:
                 "rawMetadata": {"private": "value"},
             }
 
-    support = _Provider().connector_observation_support(timeout=1.0)
+    support, diagnostic = _Provider().connector_observation_support(timeout=1.0)
 
     assert support == _valid_support()
+    assert diagnostic == _valid_diagnostic()
     gate._validate_support(support)
-    rendered = repr(support)
+    rendered = repr((support, diagnostic))
     assert "Bearer secret" not in rendered
     assert "rawMetadata" not in rendered
+
+
+def test_support_probe_reports_worker_error_without_exporting_error_text() -> None:
+    gate = _load_gate()
+
+    class _Provider(gate.ProductConnectorLiveProvider):
+        def __init__(self) -> None:
+            pass
+
+        def _rpc(self, payload, *, timeout, on_event=None):
+            return {
+                "request_id": payload["request_id"],
+                "ok": False,
+                "error": "private worker detail must not be exported",
+            }
+
+    support, diagnostic = _Provider().connector_observation_support(timeout=1.0)
+
+    assert support is None
+    assert diagnostic == {
+        "request_id_matches": True,
+        "response_ok": False,
+        "support_fields_present": False,
+        "failure_reason": "WORKER_RETURNED_ERROR",
+    }
+    assert "private worker detail" not in repr(diagnostic)
 
 
 def test_support_contract_rejects_any_authority_or_write_widening() -> None:
@@ -160,7 +197,12 @@ def test_failed_support_probe_returns_before_runtime_assembly_or_write(monkeypat
 
     class _Provider:
         def connector_observation_support(self, *, timeout: float):
-            raise RuntimeError("stale extension")
+            return None, {
+                "request_id_matches": True,
+                "response_ok": False,
+                "support_fields_present": False,
+                "failure_reason": "WORKER_RETURNED_ERROR",
+            }
 
     def _assemble(*args, **kwargs):
         nonlocal assembled
@@ -178,7 +220,40 @@ def test_failed_support_probe_returns_before_runtime_assembly_or_write(monkeypat
     assert report["support_probe_proven"] is False
     assert report["write_attempted"] is False
     assert report["preflight_error"] == "CONNECTOR_OBSERVATION_SUPPORT_NOT_PROVEN"
-    assert report["support_probe_error_type"] == "RuntimeError"
+    assert report["support_probe_diagnostic"]["failure_reason"] == "WORKER_RETURNED_ERROR"
+    assert assembled is False
+
+
+def test_preflight_only_proves_support_without_runtime_assembly_or_write(monkeypatch) -> None:
+    gate = _load_gate()
+    assembled = False
+
+    class _Provider:
+        def connector_observation_support(self, *, timeout: float):
+            return _valid_support(), _valid_diagnostic()
+
+    def _assemble(*args, **kwargs):
+        nonlocal assembled
+        assembled = True
+        raise AssertionError("preflight-only must not assemble the product runtime")
+
+    monkeypatch.setattr(gate, "_git_output", lambda *args: "head-1")
+    monkeypatch.setattr(gate, "_tracked_clean", lambda: True)
+    monkeypatch.setattr(gate, "ProductConnectorLiveProvider", _Provider)
+    monkeypatch.setattr(gate, "assemble_product_runtime", _assemble)
+
+    report = gate.run_gate(
+        prompt="safe",
+        expected_head="head-1",
+        timeout=1.0,
+        preflight_only=True,
+    )
+
+    assert report["ok"] is True
+    assert report["product_write_budget"] == 0
+    assert report["support_probe_proven"] is True
+    assert report["write_attempted"] is False
+    assert report["characterization"] == "SUPPORT_PREFLIGHT_ONLY_PROVEN"
     assert assembled is False
 
 
