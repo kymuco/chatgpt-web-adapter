@@ -4,6 +4,9 @@ from dataclasses import replace
 from functools import wraps
 from typing import Any, Callable
 
+from .product_activity_kind_precedence_pr9_3 import (
+    install_product_activity_kind_precedence,
+)
 from .product_observations import ProductObservationCollector
 from .product_transport import ProductRuntimeExecution
 from .product_web_search_capability_gate_pr9_3 import (
@@ -11,6 +14,11 @@ from .product_web_search_capability_gate_pr9_3 import (
 )
 
 _PR93_PRODUCT_OBSERVATION_GATE_MARKER = "__pr93_product_observation_gate__"
+
+# PR9.3 operation classification prefers explicit normalized product operations
+# over coarse activity kinds derived from tool names. This matters for product
+# operations such as calculator/weather that may travel through ``web.run``.
+install_product_activity_kind_precedence()
 
 # PR9.3 live characterization proved the revision-safe browser-owned search
 # observation path. Install the provider-aware capability declaration alongside
