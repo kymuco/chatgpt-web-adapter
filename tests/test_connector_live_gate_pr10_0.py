@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +16,23 @@ def _load_gate() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _valid_support() -> dict[str, Any]:
+    return {
+        "supported": True,
+        "schema": 1,
+        "explicit_connector_identity_required": True,
+        "explicit_lifecycle_correlation_required": True,
+        "generic_tool_activity_implies_connector": False,
+        "raw_connector_payload_exported": False,
+        "grants_approval_authority": False,
+        "changes_canonical_finality": False,
+        "changes_retry_authority": False,
+        "automatic_write_retry": False,
+        "fallback_transport": None,
+        "write_performed": False,
+    }
 
 
 def test_live_gate_safe_event_summary_drops_payload_and_text() -> None:
@@ -62,11 +80,13 @@ def test_live_gate_detects_private_thought_text_without_printing_it() -> None:
     }
 
 
-def test_live_gate_has_one_write_budget_and_no_auto_approval_path() -> None:
+def test_live_gate_has_one_write_budget_no_auto_approval_and_explicit_ack() -> None:
     source = LIVE_GATE.read_text(encoding="utf-8")
 
     assert "PRODUCT_WRITE_BUDGET = 1" in source
     assert source.count("runtime.send_text_observed(") == 1
+    assert 'parser.add_argument("--acknowledge-live-write", action="store_true")' in source
+    assert "--expected-head\", required=True" in source
     assert "send_and_auto_approve" not in source
     assert "approve_pending_action" not in source
     assert "wait_and_approve" not in source
@@ -83,3 +103,90 @@ def test_live_gate_default_prompt_is_read_only_and_redacts_non_marker_answer() -
         "CONNECTED_APP_READ_ONLY_DONE",
         "NO_CONNECTED_APP_AVAILABLE",
     }
+
+
+def test_connector_support_probe_maps_only_safe_contract_fields() -> None:
+    gate = _load_gate()
+
+    class _Provider(gate.ProductConnectorLiveProvider):
+        def __init__(self) -> None:
+            pass
+
+        def _rpc(self, payload, *, timeout, on_event=None):
+            return {
+                "request_id": payload["request_id"],
+                "ok": True,
+                "connectorObservationSupported": True,
+                "connectorObservationSchemaVersion": 1,
+                "explicitConnectorIdentityRequired": True,
+                "explicitLifecycleCorrelationRequired": True,
+                "genericToolActivityImpliesConnector": False,
+                "rawConnectorPayloadExported": False,
+                "connectorObservationGrantsApprovalAuthority": False,
+                "connectorObservationChangesCanonicalFinality": False,
+                "connectorObservationChangesRetryAuthority": False,
+                "automaticWriteRetry": False,
+                "fallbackTransport": None,
+                "writePerformed": False,
+                "authorization": "Bearer secret",
+                "rawMetadata": {"private": "value"},
+            }
+
+    support = _Provider().connector_observation_support(timeout=1.0)
+
+    assert support == _valid_support()
+    gate._validate_support(support)
+    rendered = repr(support)
+    assert "Bearer secret" not in rendered
+    assert "rawMetadata" not in rendered
+
+
+def test_support_contract_rejects_any_authority_or_write_widening() -> None:
+    gate = _load_gate()
+    support = _valid_support()
+    support["grants_approval_authority"] = True
+
+    try:
+        gate._validate_support(support)
+    except RuntimeError as exc:
+        assert str(exc) == "PR10_0_CONNECTOR_SUPPORT_CONTRACT_NOT_PROVEN"
+    else:
+        raise AssertionError("authority-widening support contract must fail closed")
+
+
+def test_failed_support_probe_returns_before_runtime_assembly_or_write(monkeypatch) -> None:
+    gate = _load_gate()
+    assembled = False
+
+    class _Provider:
+        def connector_observation_support(self, *, timeout: float):
+            raise RuntimeError("stale extension")
+
+    def _assemble(*args, **kwargs):
+        nonlocal assembled
+        assembled = True
+        raise AssertionError("runtime must not be assembled when support is unproven")
+
+    monkeypatch.setattr(gate, "_git_output", lambda *args: "head-1")
+    monkeypatch.setattr(gate, "_tracked_clean", lambda: True)
+    monkeypatch.setattr(gate, "ProductConnectorLiveProvider", _Provider)
+    monkeypatch.setattr(gate, "assemble_product_runtime", _assemble)
+
+    report = gate.run_gate(prompt="safe", expected_head="head-1", timeout=1.0)
+
+    assert report["support_probe_attempted"] is True
+    assert report["support_probe_proven"] is False
+    assert report["write_attempted"] is False
+    assert report["preflight_error"] == "CONNECTOR_OBSERVATION_SUPPORT_NOT_PROVEN"
+    assert report["support_probe_error_type"] == "RuntimeError"
+    assert assembled is False
+
+
+def test_live_gate_orders_support_probe_before_runtime_and_product_write() -> None:
+    source = LIVE_GATE.read_text(encoding="utf-8")
+
+    support_call = source.index("provider.connector_observation_support(")
+    runtime_assembly = source.index("runtime = assemble_product_runtime(")
+    product_write = source.index("execution = runtime.send_text_observed(")
+
+    assert support_call < runtime_assembly < product_write
