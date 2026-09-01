@@ -13,7 +13,27 @@ from chatgpt_web_adapter.product_connector_lifecycle_pr10_0 import (
 from chatgpt_web_adapter.product_model_profile_pr8_10 import ProductModelProfileProvider
 
 
-SCHEMA = "CWA_PR10_0_REQUIRED_ACTION_SURFACE_PROBE_V2"
+SCHEMA = "CWA_PR10_0_REQUIRED_ACTION_SURFACE_PROBE_V3"
+_ALLOWED_IDENTITY_ATTRIBUTE_NAMES = frozenset(
+    {
+        "data-action-id",
+        "data-required-action-id",
+        "data-connector-action-id",
+        "data-connect-action-id",
+        "data-connector-id",
+        "data-app-id",
+        "data-plugin-id",
+        "data-testid",
+    }
+)
+_ALLOWED_ACTION_ID_CANDIDATE_FIELDS = frozenset(
+    {
+        "data-action-id",
+        "data-required-action-id",
+        "data-connector-action-id",
+        "data-connect-action-id",
+    }
+)
 
 
 class RequiredActionSurfaceProvider(ProductModelProfileProvider):
@@ -71,6 +91,25 @@ def _surface_observation_event(surface: dict[str, Any]) -> dict[str, Any] | None
     }
 
 
+def _identity_attribute_names(response: dict[str, Any]) -> list[str]:
+    raw = response.get("identityAttributeNames")
+    if not isinstance(raw, list):
+        return []
+    names = {
+        value
+        for value in raw
+        if isinstance(value, str) and value in _ALLOWED_IDENTITY_ATTRIBUTE_NAMES
+    }
+    return sorted(names)
+
+
+def _stable_action_id_candidate_field(response: dict[str, Any]) -> str | None:
+    value = response.get("stableActionIdCandidateField")
+    if isinstance(value, str) and value in _ALLOWED_ACTION_ID_CANDIDATE_FIELDS:
+        return value
+    return None
+
+
 def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
     head = _git_output("rev-parse", "HEAD")
     tracked_clean = _tracked_clean()
@@ -99,6 +138,8 @@ def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
         report["preflight_error"] = "REQUIRED_ACTION_SURFACE_RPC_FAILED"
         return report
 
+    identity_attribute_names = _identity_attribute_names(response)
+    stable_action_id_candidate_field = _stable_action_id_candidate_field(response)
     surface = {
         "surface_observed": response.get("surfaceObserved") is True,
         "connector_name": response.get("connectorName")
@@ -109,8 +150,14 @@ def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
         else None,
         "connect_control_present": response.get("connectControlPresent") is True,
         "dismiss_control_present": response.get("dismissControlPresent") is True,
+        # Candidate field presence is deliberately weaker than a proven stable id.
         "stable_action_id_present": response.get("stableActionIdPresent") is True,
+        "identity_attribute_names": identity_attribute_names,
+        "stable_action_id_candidate_field": stable_action_id_candidate_field,
         "raw_dom_exported": response.get("rawDomExported") is True,
+        "raw_identity_attribute_values_exported": (
+            response.get("rawIdentityAttributeValuesExported") is True
+        ),
         "click_performed": response.get("clickPerformed") is True,
         "write_performed": response.get("writePerformed") is True,
         "approval_authority_granted": response.get("approvalAuthorityGranted") is True,
@@ -119,6 +166,7 @@ def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
     }
     safety_ok = bool(
         surface["raw_dom_exported"] is False
+        and surface["raw_identity_attribute_values_exported"] is False
         and surface["click_performed"] is False
         and surface["write_performed"] is False
         and surface["approval_authority_granted"] is False
@@ -150,6 +198,8 @@ def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
         and "action_id" not in typed_observation
         and observation_drop_count == 0
     )
+    action_id_value_observed = False
+    lifecycle_correlation_claimed = False
 
     report.update(
         {
@@ -157,7 +207,12 @@ def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
             "typed_observation": typed_observation,
             "point_observation_materialized": point_observation_materialized,
             "observation_drop_count": observation_drop_count,
-            "lifecycle_correlation_claimed": False,
+            "identity_attribute_name_count": len(identity_attribute_names),
+            "stable_action_id_candidate_field_present": (
+                stable_action_id_candidate_field is not None
+            ),
+            "action_id_value_observed": action_id_value_observed,
+            "lifecycle_correlation_claimed": lifecycle_correlation_claimed,
             "safety_ok": safety_ok,
             "characterization": (
                 "REQUIRED_ACTION_SURFACE_OBSERVED"
