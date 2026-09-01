@@ -54,6 +54,8 @@ _PRIVATE_ACTIVITY_CONTENT_TYPES = frozenset({"thoughts"})
 _SENSITIVE_QUERY_KEYS = frozenset(
     {
         "access_token",
+        "refresh_token",
+        "id_token",
         "token",
         "auth",
         "authorization",
@@ -65,6 +67,9 @@ _SENSITIVE_QUERY_KEYS = frozenset(
         "credential",
         "credentials",
         "secret",
+        "client_secret",
+        "client_assertion",
+        "code_verifier",
         "password",
         "passwd",
         "session",
