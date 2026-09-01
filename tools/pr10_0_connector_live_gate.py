@@ -70,12 +70,7 @@ class ProductConnectorLiveProvider(ProductModelProfileProvider):
         *,
         timeout: float = 5.0,
     ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-        """Return support plus bounded diagnostics without exposing worker errors.
-
-        The diagnostics deliberately contain only protocol-shape booleans/reasons.
-        They never include the extension's raw error string or arbitrary response
-        values, because bridge failures may contain product/runtime details.
-        """
+        """Return support plus bounded diagnostics without exposing worker errors."""
 
         if timeout <= 0:
             raise ValueError("timeout must be positive")
@@ -150,6 +145,11 @@ class ProductConnectorLiveProvider(ProductModelProfileProvider):
             return support, diagnostic
         diagnostic["failure_reason"] = None
         return support, diagnostic
+
+
+def _validate_support(support: dict[str, Any]) -> None:
+    if support != _EXPECTED_SUPPORT:
+        raise RuntimeError("PR10_0_CONNECTOR_SUPPORT_CONTRACT_NOT_PROVEN")
 
 
 def _git_output(*args: str) -> str:
@@ -241,7 +241,12 @@ def run_gate(
         return report
 
     report["support_probe_diagnostic"] = support_diagnostic
-    if support != _EXPECTED_SUPPORT:
+    if support is None:
+        report["preflight_error"] = "CONNECTOR_OBSERVATION_SUPPORT_NOT_PROVEN"
+        return report
+    try:
+        _validate_support(support)
+    except RuntimeError:
         report["preflight_error"] = "CONNECTOR_OBSERVATION_SUPPORT_NOT_PROVEN"
         return report
 
@@ -390,7 +395,7 @@ def main() -> int:
         description="Run bounded authenticated PR10.0 app/connector characterization."
     )
     parser.add_argument("--prompt", default=DEFAULT_PROMPT)
-    parser.add_argument("--expected-head")
+    parser.add_argument("--expected-head", required=True)
     parser.add_argument("--timeout", type=float, default=150.0)
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--acknowledge-live-write", action="store_true")
