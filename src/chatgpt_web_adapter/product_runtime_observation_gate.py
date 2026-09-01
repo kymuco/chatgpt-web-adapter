@@ -6,8 +6,17 @@ from typing import Any, Callable
 
 from .product_observations import ProductObservationCollector
 from .product_transport import ProductRuntimeExecution
+from .product_web_search_capability_gate_pr9_3 import (
+    install_browser_owned_web_search_capability_gate,
+)
 
 _PR93_PRODUCT_OBSERVATION_GATE_MARKER = "__pr93_product_observation_gate__"
+
+# PR9.3 live characterization proved the revision-safe browser-owned search
+# observation path. Install the provider-aware capability declaration alongside
+# the observation runtime gate so legacy providers without that channel remain
+# UNKNOWN instead of inheriting the production claim.
+install_browser_owned_web_search_capability_gate()
 
 
 def gate_product_runtime_send_text_observed(
