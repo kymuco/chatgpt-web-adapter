@@ -72,11 +72,7 @@ function _pr100RequiredActionSurfaceExpression() {
           actionType: 'connector_authorization_required',
           connectControlPresent: true,
           dismissControlPresent: true,
-          stableActionIdPresent: false,
-          rawDomExported: false,
-          clickPerformed: false,
-          writePerformed: false,
-          approvalAuthorityGranted: false
+          stableActionIdPresent: false
         };
       }
     }
@@ -87,11 +83,7 @@ function _pr100RequiredActionSurfaceExpression() {
       actionType: null,
       connectControlPresent: false,
       dismissControlPresent: false,
-      stableActionIdPresent: false,
-      rawDomExported: false,
-      clickPerformed: false,
-      writePerformed: false,
-      approvalAuthorityGranted: false
+      stableActionIdPresent: false
     };
   })()`;
 }
@@ -122,6 +114,7 @@ async function _pr100CharacterizeRequiredActionSurface() {
 
   const debuggee = { tabId: runtimeTabId };
   let attached = false;
+  let snapshot = null;
   let debuggerAttachedAfter = null;
   try {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
@@ -136,19 +129,13 @@ async function _pr100CharacterizeRequiredActionSurface() {
     if (!value || typeof value !== 'object') {
       throw new Error('PR10_0_REQUIRED_ACTION_SURFACE_RESULT_MISSING');
     }
-    return {
+    snapshot = {
       surfaceObserved: value.surfaceObserved === true,
       connectorName: typeof value.connectorName === 'string' ? value.connectorName : null,
       actionType: typeof value.actionType === 'string' ? value.actionType : null,
       connectControlPresent: value.connectControlPresent === true,
       dismissControlPresent: value.dismissControlPresent === true,
-      stableActionIdPresent: value.stableActionIdPresent === true,
-      rawDomExported: false,
-      clickPerformed: false,
-      writePerformed: false,
-      approvalAuthorityGranted: false,
-      runtimeTabPresent: true,
-      debuggerAttachedAfter: null
+      stableActionIdPresent: value.stableActionIdPresent === true
     };
   } finally {
     if (attached) {
@@ -162,9 +149,20 @@ async function _pr100CharacterizeRequiredActionSurface() {
     } catch {
       debuggerAttachedAfter = null;
     }
-    // `debuggerAttachedAfter` is intentionally verified after detach; the caller
-    // receives it below through a second bounded snapshot when needed.
   }
+
+  if (!snapshot) {
+    throw new Error('PR10_0_REQUIRED_ACTION_SURFACE_NO_SNAPSHOT');
+  }
+  return {
+    ...snapshot,
+    rawDomExported: false,
+    clickPerformed: false,
+    writePerformed: false,
+    approvalAuthorityGranted: false,
+    runtimeTabPresent: true,
+    debuggerAttachedAfter
+  };
 }
 
 executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportProbe(message) {
