@@ -96,6 +96,25 @@ def test_installed_smoke_normalizes_release_tag_versions() -> None:
     assert installed_wheel_smoke.normalize_expected_version("refs/tags/v0.2.0") == VERSION
 
 
+def test_installed_smoke_can_derive_expected_version_from_source_pyproject(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    assert installed_wheel_smoke.source_project_version(root / "pyproject.toml") == VERSION
+
+
+def test_installed_smoke_source_version_parser_is_project_scoped(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "version = \"9.9.9\"\n\n"
+        "[project]\n"
+        "name = \"chatgpt-web-adapter\"\n"
+        "version = \"0.2.0\"\n\n"
+        "[tool.example]\n"
+        "version = \"8.8.8\"\n",
+        encoding="utf-8",
+    )
+    assert installed_wheel_smoke.source_project_version(pyproject) == VERSION
+
+
 def test_release_gate_accepts_complete_wheel_and_sdist(tmp_path: Path) -> None:
     root = _root(tmp_path)
     dist = _write_dist(root)
@@ -145,7 +164,8 @@ def test_ci_builds_once_then_smokes_exact_wheel_on_linux_and_windows() -> None:
     assert "installed-wheel-smoke:" in text
     assert "ubuntu-latest" in text and "windows-latest" in text
     assert '"3.10"' in text and '"3.14"' in text
-    assert "python tools/installed_wheel_smoke.py --wheel-dir dist --expected-version 0.2.0" in text
+    assert "python tools/installed_wheel_smoke.py --wheel-dir dist" in text
+    assert "--expected-version 0.2.0" not in text
 
 
 def test_publish_workflow_gates_tag_and_exact_wheel_before_upload() -> None:
@@ -154,6 +174,7 @@ def test_publish_workflow_gates_tag_and_exact_wheel_before_upload() -> None:
     wheel_smoke = text.index("python tools/installed_wheel_smoke.py")
     publish = text.index("pypa/gh-action-pypi-publish@release/v1")
     assert "github.event.release.tag_name" in text
+    assert "--expected-version \"${{ github.event.release.tag_name }}\"" in text
     assert tag_gate < wheel_smoke < publish
 
 

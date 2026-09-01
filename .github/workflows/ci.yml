@@ -115,4 +115,4 @@ jobs:
           path: dist
 
       - name: Install and smoke-test exact wheel outside source imports
-        run: python tools/installed_wheel_smoke.py --wheel-dir dist --expected-version 0.2.0
+        run: python tools/installed_wheel_smoke.py --wheel-dir dist

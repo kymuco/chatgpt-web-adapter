@@ -5,6 +5,7 @@ import importlib
 import importlib.metadata
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,8 @@ HELP_COMMANDS = (
     ("cwa", "export", "--help"),
     ("cwa", "send", "--help"),
 )
+_VERSION_RE = re.compile(r'^version\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
+_PROJECT_RE = re.compile(r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE)
 
 
 def normalize_expected_version(value: str) -> str:
@@ -40,6 +43,19 @@ def normalize_expected_version(value: str) -> str:
     if not normalized:
         raise RuntimeError("expected version is empty")
     return normalized
+
+
+def source_project_version(pyproject: Path) -> str:
+    """Read the static project version without requiring TOML support beyond Python 3.10."""
+
+    text = pyproject.read_text(encoding="utf-8")
+    section = _PROJECT_RE.search(text)
+    if section is None:
+        raise RuntimeError("pyproject.toml is missing [project]")
+    match = _VERSION_RE.search(section.group(1))
+    if match is None:
+        raise RuntimeError("[project] must contain a static version")
+    return normalize_expected_version(match.group(1))
 
 
 def _one_wheel(dist_dir: Path) -> Path:
@@ -209,19 +225,34 @@ def run_smoke(*, wheel: Path, expected_version: str) -> dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install and smoke-test a built CWA wheel")
     parser.add_argument("--wheel-dir", type=Path)
-    parser.add_argument("--expected-version", required=True)
+    parser.add_argument(
+        "--expected-version",
+        help=(
+            "expected installed version; defaults to the static [project].version from "
+            "the checkout pyproject.toml"
+        ),
+    )
     parser.add_argument("--inside-installed-venv", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
         if args.inside_installed_venv:
+            if args.expected_version is None:
+                raise RuntimeError("--expected-version is required inside the isolated installed-wheel venv")
             report = _installed_checks(expected_version=args.expected_version)
         else:
             if args.wheel_dir is None:
                 raise RuntimeError("--wheel-dir is required")
+            expected_version = (
+                normalize_expected_version(args.expected_version)
+                if args.expected_version is not None
+                else source_project_version(
+                    Path(__file__).resolve().parents[1] / "pyproject.toml"
+                )
+            )
             report = run_smoke(
                 wheel=_one_wheel(args.wheel_dir),
-                expected_version=args.expected_version,
+                expected_version=expected_version,
             )
     except Exception as error:
         if args.json:
