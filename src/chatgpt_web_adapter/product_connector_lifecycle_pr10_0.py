@@ -17,6 +17,7 @@ PRODUCT_CONNECTOR_COMPLETED = "product_connector_completed"
 PRODUCT_CONNECTOR_FAILED = "product_connector_failed"
 
 PRODUCT_REQUIRED_ACTION_OBSERVED = "product_required_action_observed"
+PRODUCT_REQUIRED_ACTION_SURFACE_OBSERVED = "product_required_action_surface_observed"
 PRODUCT_REQUIRED_ACTION_STARTED = "product_required_action_started"
 PRODUCT_REQUIRED_ACTION_UPDATED = "product_required_action_updated"
 PRODUCT_REQUIRED_ACTION_COMPLETED = "product_required_action_completed"
@@ -129,10 +130,38 @@ class ProductRequiredActionLifecycleObservation:
         return payload
 
 
+@dataclass(frozen=True)
+class ProductRequiredActionSurfaceObservation:
+    """Point evidence for a visible product authorization affordance.
+
+    This type intentionally has no ``action_id``. A visible connect/dismiss surface
+    proves that user action is required, but without an explicit stable product id
+    it cannot be promoted into lifecycle correlation. It also grants no approval
+    or execution authority.
+    """
+
+    observation_id: str
+    action_type: str
+    connector_name: str
+    connect_control_present: bool
+    dismiss_control_present: bool
+    surface_origin: str = "product_surface"
+    stable_action_id_present: bool = False
+    kind: ProductObservationKind = ProductObservationKind.REQUIRED_ACTION
+    phase: ProductObservationPhase = ProductObservationPhase.OBSERVED
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["kind"] = self.kind.value
+        payload["phase"] = self.phase.value
+        return payload
+
+
 PR100StructuredProductObservation: TypeAlias = (
     StructuredProductObservation
     | ProductConnectorObservation
     | ProductRequiredActionLifecycleObservation
+    | ProductRequiredActionSurfaceObservation
 )
 
 
@@ -143,6 +172,8 @@ class ProductConnectorLifecycleCollector:
     identifiers. It never infers request/result pairing from labels, ordering,
     tool names, or payload contents. Point connector evidence may use a unique
     product message id, but remains `OBSERVED` rather than a fabricated lifecycle.
+    A visible required-action surface may also become point evidence only when it
+    proves both connect and dismiss controls while exposing no stable action id.
     Unknown event shapes continue through the PR9.3 collector unchanged.
     """
 
@@ -178,6 +209,9 @@ class ProductConnectorLifecycleCollector:
         connector_phase = _CONNECTOR_PHASE_BY_EVENT.get(event_type)
         if connector_phase is not None:
             return self._consume_connector(event, connector_phase)
+
+        if event_type == PRODUCT_REQUIRED_ACTION_SURFACE_OBSERVED:
+            return self._consume_required_action_surface(event)
 
         required_action_phase = _REQUIRED_ACTION_PHASE_BY_EVENT.get(event_type)
         if required_action_phase is not None:
@@ -243,6 +277,40 @@ class ProductConnectorLifecycleCollector:
                 label=_optional_text(event.get("label")),
                 sequence=_non_negative_int(event.get("sequence")),
                 observed_at_ms=_non_negative_int(event.get("observed_at_ms")),
+            )
+        )
+
+    def _consume_required_action_surface(
+        self,
+        event: dict[str, Any],
+    ) -> ProductRequiredActionSurfaceObservation | None:
+        observation_id = _optional_text(event.get("observation_id"))
+        action_type = _optional_text(event.get("action_type"))
+        connector_name = _optional_text(event.get("connector_name"))
+        connect_present = event.get("connect_control_present") is True
+        dismiss_present = event.get("dismiss_control_present") is True
+        stable_action_id_present = event.get("stable_action_id_present") is True
+        action_id = _optional_text(event.get("action_id"))
+
+        if (
+            observation_id is None
+            or action_type is None
+            or connector_name is None
+            or not connect_present
+            or not dismiss_present
+            or stable_action_id_present
+            or action_id is not None
+        ):
+            self._drop()
+            return None
+
+        return self._append(
+            ProductRequiredActionSurfaceObservation(
+                observation_id=observation_id,
+                action_type=action_type,
+                connector_name=connector_name,
+                connect_control_present=True,
+                dismiss_control_present=True,
             )
         )
 
