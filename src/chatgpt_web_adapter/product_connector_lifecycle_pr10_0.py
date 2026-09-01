@@ -211,14 +211,16 @@ class ProductConnectorLifecycleCollector:
         connector_name = _optional_text(event.get("connector_name"))
         operation = _optional_text(event.get("operation"))
         action_id = _optional_text(event.get("action_id"))
-        identity = (connector_id, connector_name, operation)
+        # Display names can localize or change without changing product identity.
+        # Bind lifecycle correlation only to stable connector id + operation.
+        identity = (connector_id, operation)
         prior_identity = self._connector_identity.get(connector_activity_id)
         if not _compatible_identity(prior_identity, identity):
             self._drop()
             return None
 
         prior_terminal = self._connector_terminal.get(connector_activity_id)
-        if prior_terminal is not None and phase is not prior_terminal:
+        if prior_terminal is not None and phase != prior_terminal:
             self._drop()
             return None
 
@@ -265,7 +267,7 @@ class ProductConnectorLifecycleCollector:
             return None
 
         prior_terminal = self._action_terminal.get(action_id)
-        if prior_terminal is not None and phase is not prior_terminal:
+        if prior_terminal is not None and phase != prior_terminal:
             self._drop()
             return None
 
