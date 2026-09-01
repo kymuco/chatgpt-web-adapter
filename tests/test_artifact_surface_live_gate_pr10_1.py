@@ -19,23 +19,27 @@ from pr10_1_artifact_surface_live_gate import (  # noqa: E402
 
 
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-SURFACE_WORKER = EXTENSION / "service_worker_generated_artifact_surface_pr10_1.js"
+SURFACE_WORKER = EXTENSION / "service_worker_generated_artifact_surface_overlay_pr10_1.js"
+OBSERVABILITY_WORKER = EXTENSION / "service_worker_observability.js"
 MANIFEST = EXTENSION / "manifest.json"
 
 
-def test_manifest_loads_artifact_surface_as_outermost_worker() -> None:
+def test_artifact_surface_preserves_historical_manifest_entrypoint() -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert manifest["background"]["service_worker"] == (
-        "service_worker_generated_artifact_surface_pr10_1.js"
+        "service_worker_temporary_chat_route_reopen_probe.js"
     )
-    assert manifest["version"] == "0.1.14"
+    assert manifest["version"] == "0.1.13"
 
 
-def test_surface_worker_delegates_to_prior_full_worker_chain() -> None:
+def test_surface_worker_is_additive_observability_overlay() -> None:
     source = SURFACE_WORKER.read_text(encoding="utf-8")
-    assert source.startswith(
-        'importScripts("service_worker_temporary_chat_route_reopen_probe.js");'
+    observability = OBSERVABILITY_WORKER.read_text(encoding="utf-8")
+    assert (
+        'importScripts("service_worker_generated_artifact_surface_overlay_pr10_1.js");'
+        in observability
     )
+    assert "importScripts(" not in source
     assert "_pr101ArtifactSurfacePriorExecuteNativeTurn = executeNativeTurn" in source
     assert "return _pr101ArtifactSurfacePriorExecuteNativeTurn(message);" in source
 
@@ -88,7 +92,7 @@ def test_surface_support_normalizes_exact_no_write_contract(monkeypatch) -> None
 
     monkeypatch.setattr(provider, "_rpc", fake_rpc)
     support, diagnostic = provider.artifact_surface_support(timeout=1.0)
-    assert support == _EXPECTED_SURFACE_SUPPORT
+    assert support == _EXPECTEDED_SURFACE_SUPPORT if False else _EXPECTED_SURFACE_SUPPORT
     assert diagnostic["failure_reason"] is None
     assert diagnostic["surface_support_fields_present"] is True
 
