@@ -118,9 +118,10 @@ function _pr93CollectSourceCandidates(reference, options = {}) {
 
   if (!reference || typeof reference !== "object") return output;
 
-  if (footnote && Array.isArray(reference.sources) && reference.sources.length) {
-    for (const source of reference.sources.slice(0, PR93_MAX_SOURCES_PER_REFERENCE)) pushItem(source);
-  } else {
+  const sources = Array.isArray(reference.sources) ? reference.sources : [];
+  for (const source of sources.slice(0, PR93_MAX_SOURCES_PER_REFERENCE)) pushItem(source);
+
+  if (!footnote) {
     const items = Array.isArray(reference.items) ? reference.items : [];
     for (const item of items.slice(0, PR93_MAX_SOURCES_PER_REFERENCE)) pushItem(item);
 
