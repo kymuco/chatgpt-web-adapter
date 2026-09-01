@@ -173,6 +173,17 @@ function _pr100RouterJoin(values) {
   return values && values.length ? values.join(",") : null;
 }
 
+function _pr100RouterStructuralSummary(shape) {
+  const parts = [];
+  const top = _pr100RouterJoin(shape.topLevelKeys);
+  const identity = _pr100RouterJoin(shape.identityKeyPaths);
+  const tools = _pr100RouterJoin(shape.toolKeyPaths);
+  if (top) parts.push(`top:${top}`);
+  if (identity) parts.push(`identity:${identity}`);
+  if (tools) parts.push(`tool:${tools}`);
+  return parts.join(";").slice(0, 1200) || "router_envelope_no_whitelisted_keys";
+}
+
 function _pr100RouterInspect(context, state, message) {
   if (!message || typeof message !== "object") return;
   if (message?.metadata?.is_visually_hidden_from_conversation === true) return;
@@ -191,6 +202,8 @@ function _pr100RouterInspect(context, state, message) {
       type: PR100_CONNECTOR_ROUTER_SHAPE_EVENT,
       observation_id: observationId,
       router_name: PR100_CONNECTOR_ROUTER_NAME,
+      tool_name: PR100_CONNECTOR_ROUTER_NAME,
+      source_event_type: "router_payload_not_json",
       payload_json: false
     });
     return;
@@ -201,6 +214,12 @@ function _pr100RouterInspect(context, state, message) {
     type: PR100_CONNECTOR_ROUTER_SHAPE_EVENT,
     observation_id: observationId,
     router_name: PR100_CONNECTOR_ROUTER_NAME,
+    tool_name: PR100_CONNECTOR_ROUTER_NAME,
+    operation: shape.toolResource || shape.actionName,
+    connector_id: shape.connectorId,
+    connector_name: shape.connectorName,
+    action_type: shape.actionName,
+    source_event_type: _pr100RouterStructuralSummary(shape),
     payload_json: true,
     top_level_keys: _pr100RouterJoin(shape.topLevelKeys),
     envelope_key_paths: _pr100RouterJoin(shape.envelopeKeyPaths),
