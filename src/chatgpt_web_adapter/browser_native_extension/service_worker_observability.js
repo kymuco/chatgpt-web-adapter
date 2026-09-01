@@ -39,6 +39,7 @@ importScripts("service_worker_generated_artifact_noncode_v4_pr10_1.js");
 importScripts("service_worker_generated_artifact_action_v5_pr10_1.js");
 importScripts("service_worker_generated_artifact_fiber_state_v6_pr10_1.js");
 importScripts("service_worker_generated_artifact_subtree_v7_pr10_1.js");
+importScripts("service_worker_generated_artifact_root_shape_v8_pr10_1.js");
 importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
 importScripts("service_worker_answer_channel_pr8_12.js");
 importScripts("service_worker_temporary_chat_production_pr8_13.js");
