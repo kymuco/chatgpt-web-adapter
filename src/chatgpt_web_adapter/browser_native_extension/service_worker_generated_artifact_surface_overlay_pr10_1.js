@@ -1,6 +1,9 @@
 // PR10.1: bounded, read-only frontend surface characterization for a generated
 // artifact that was already created by a prior product turn. This layer does not
 // type, submit, click, download, export DOM/text, or expose locator/attribute values.
+// Exact probe-filename matches count as artifact-surface evidence only when the
+// containing visible turn proves assistant ownership; user/unknown-role matches are
+// counted separately and excluded from evidence.
 
 const PR101_ARTIFACT_SURFACE_SCHEMA = 1;
 const PR101_ARTIFACT_SURFACE_PROBE_FILENAME = "cwa_pr10_1_probe.txt";
@@ -40,6 +43,25 @@ function _pr101ArtifactSurfaceExpression() {
         set.add(name);
       }
     };
+    const turnRole = (turn) => {
+      if (!(turn instanceof Element)) return { role: null, evidence: null };
+      const dataTurn = String(turn.getAttribute('data-turn') || '').trim();
+      if (dataTurn === 'assistant' || dataTurn === 'user') {
+        return { role: dataTurn, evidence: 'data_turn' };
+      }
+      const directAuthor = String(turn.getAttribute('data-message-author-role') || '').trim();
+      if (directAuthor === 'assistant' || directAuthor === 'user') {
+        return { role: directAuthor, evidence: 'direct_message_author_role' };
+      }
+      const roleNode = turn.querySelector(
+        '[data-message-author-role="assistant"],[data-message-author-role="user"]'
+      );
+      const nestedAuthor = String(roleNode?.getAttribute?.('data-message-author-role') || '').trim();
+      if (nestedAuthor === 'assistant' || nestedAuthor === 'user') {
+        return { role: nestedAuthor, evidence: 'nested_message_author_role' };
+      }
+      return { role: null, evidence: null };
+    };
 
     const main = document.querySelector('main');
     if (!main) {
@@ -47,6 +69,10 @@ function _pr101ArtifactSurfaceExpression() {
         surfaceReady: false,
         exactFilenameVisible: false,
         exactFilenameMatchCount: 0,
+        anyExactFilenameMatchCount: 0,
+        userOwnedExactFilenameMatchCount: 0,
+        roleUnprovenExactFilenameMatchCount: 0,
+        assistantRoleEvidenceKinds: [],
         candidateTagNames: [],
         candidateAttributeNames: [],
         ancestorAttributeNames: [],
@@ -62,11 +88,28 @@ function _pr101ArtifactSurfaceExpression() {
 
     const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
     const matches = [];
+    const assistantRoleEvidenceKinds = new Set();
+    let anyExactFilenameMatchCount = 0;
+    let userOwnedExactFilenameMatchCount = 0;
+    let roleUnprovenExactFilenameMatchCount = 0;
     let node = null;
-    while ((node = walker.nextNode()) && matches.length < 16) {
+    while ((node = walker.nextNode()) && anyExactFilenameMatchCount < 32) {
       if (String(node.nodeValue || '').trim() !== probeFilename) continue;
       const parent = node.parentElement;
-      if (parent instanceof Element && visible(parent)) matches.push(parent);
+      if (!(parent instanceof Element) || !visible(parent)) continue;
+      anyExactFilenameMatchCount += 1;
+      const turn = parent.closest('[data-testid^="conversation-turn-"],article');
+      const ownership = turnRole(turn);
+      if (ownership.role === 'user') {
+        userOwnedExactFilenameMatchCount += 1;
+        continue;
+      }
+      if (ownership.role !== 'assistant') {
+        roleUnprovenExactFilenameMatchCount += 1;
+        continue;
+      }
+      if (ownership.evidence) assistantRoleEvidenceKinds.add(ownership.evidence);
+      if (matches.length < 16) matches.push(parent);
     }
 
     const candidateTagNames = new Set();
@@ -123,6 +166,10 @@ function _pr101ArtifactSurfaceExpression() {
       surfaceReady: true,
       exactFilenameVisible: matches.length > 0,
       exactFilenameMatchCount: matches.length,
+      anyExactFilenameMatchCount,
+      userOwnedExactFilenameMatchCount,
+      roleUnprovenExactFilenameMatchCount,
+      assistantRoleEvidenceKinds: Array.from(assistantRoleEvidenceKinds).sort(),
       candidateTagNames: Array.from(candidateTagNames).sort(),
       candidateAttributeNames: Array.from(candidateAttributeNames).sort(),
       ancestorAttributeNames: Array.from(ancestorAttributeNames).sort(),
@@ -148,6 +195,10 @@ function _pr101ArtifactSurfaceSafeNames(value, maxItems = 96) {
   return Array.from(new Set(names)).sort();
 }
 
+function _pr101ArtifactSurfaceSafeCount(value, maxValue) {
+  return Number.isInteger(value) && value >= 0 ? Math.min(value, maxValue) : 0;
+}
+
 async function _pr101CharacterizeGeneratedArtifactSurface() {
   const runtimeTabId = await storedRuntimeTabId();
   if (!Number.isInteger(runtimeTabId)) {
@@ -158,6 +209,10 @@ async function _pr101CharacterizeGeneratedArtifactSurface() {
       surfaceReady: false,
       exactFilenameVisible: false,
       exactFilenameMatchCount: 0,
+      anyExactFilenameMatchCount: 0,
+      userOwnedExactFilenameMatchCount: 0,
+      roleUnprovenExactFilenameMatchCount: 0,
+      assistantRoleEvidenceKinds: [],
       candidateTagNames: [],
       candidateAttributeNames: [],
       ancestorAttributeNames: [],
@@ -221,10 +276,20 @@ async function _pr101CharacterizeGeneratedArtifactSurface() {
     runtimeTabPresent: true,
     surfaceReady: value.surfaceReady === true,
     exactFilenameVisible: value.exactFilenameVisible === true,
-    exactFilenameMatchCount:
-      Number.isInteger(value.exactFilenameMatchCount) && value.exactFilenameMatchCount >= 0
-        ? Math.min(value.exactFilenameMatchCount, 16)
-        : 0,
+    exactFilenameMatchCount: _pr101ArtifactSurfaceSafeCount(value.exactFilenameMatchCount, 16),
+    anyExactFilenameMatchCount: _pr101ArtifactSurfaceSafeCount(value.anyExactFilenameMatchCount, 32),
+    userOwnedExactFilenameMatchCount: _pr101ArtifactSurfaceSafeCount(
+      value.userOwnedExactFilenameMatchCount,
+      32
+    ),
+    roleUnprovenExactFilenameMatchCount: _pr101ArtifactSurfaceSafeCount(
+      value.roleUnprovenExactFilenameMatchCount,
+      32
+    ),
+    assistantRoleEvidenceKinds: _pr101ArtifactSurfaceSafeNames(
+      value.assistantRoleEvidenceKinds,
+      8
+    ),
     candidateTagNames: _pr101ArtifactSurfaceSafeNames(value.candidateTagNames, 32),
     candidateAttributeNames: _pr101ArtifactSurfaceSafeNames(value.candidateAttributeNames),
     ancestorAttributeNames: _pr101ArtifactSurfaceSafeNames(value.ancestorAttributeNames),
@@ -256,6 +321,8 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactSurfacePro
       generatedArtifactSurfaceCharacterizationSupported: true,
       generatedArtifactSurfaceCharacterizationSchemaVersion: PR101_ARTIFACT_SURFACE_SCHEMA,
       fixedProbeFilename: PR101_ARTIFACT_SURFACE_PROBE_FILENAME,
+      assistantOwnershipRequired: true,
+      userTurnMatchesExcluded: true,
       rawDomExported: false,
       rawTextExported: false,
       locatorValuesExported: false,
