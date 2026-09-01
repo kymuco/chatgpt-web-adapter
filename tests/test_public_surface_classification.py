@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import chatgpt_web_adapter as adapter
+from chatgpt_web_adapter import product_observations
 
 
 def test_every_root_public_export_has_exactly_one_surface_tier() -> None:
@@ -30,8 +31,30 @@ def test_primary_product_runtime_is_forward_looking_surface() -> None:
         "ProductRuntimeContract",
         "product_runtime_contract",
         "product_transport_support_tier",
+        "ProductObservationKind",
+        "ProductObservationPhase",
+        "ProductActivityObservation",
+        "ProductSourceObservation",
+        "ProductCitationObservation",
+        "ProductRequiredActionObservation",
+        "StructuredProductObservation",
     ):
         assert adapter.public_surface_tier(symbol) is primary
+
+
+def test_pr93_observation_value_types_are_bound_at_root_without_promoting_collector() -> None:
+    assert adapter.ProductObservationKind is product_observations.ProductObservationKind
+    assert adapter.ProductObservationPhase is product_observations.ProductObservationPhase
+    assert adapter.ProductActivityObservation is product_observations.ProductActivityObservation
+    assert adapter.ProductSourceObservation is product_observations.ProductSourceObservation
+    assert adapter.ProductCitationObservation is product_observations.ProductCitationObservation
+    assert (
+        adapter.ProductRequiredActionObservation
+        is product_observations.ProductRequiredActionObservation
+    )
+    assert adapter.StructuredProductObservation is product_observations.StructuredProductObservation
+    assert "ProductObservationCollector" not in adapter.__all__
+    assert adapter.public_surface_tier("ProductObservationCollector") is None
 
 
 def test_legacy_experimental_and_research_surfaces_are_distinct() -> None:
@@ -50,6 +73,8 @@ def test_shared_types_are_not_misclassified_as_legacy() -> None:
         "ChatConversation",
         "ChatResponse",
         "ConversationRef",
+        "MediaItem",
+        "MediaSource",
         "AuthStatus",
         "DEFAULT_AUTH_FILE",
     ):
