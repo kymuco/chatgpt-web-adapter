@@ -87,18 +87,29 @@ function _pr100RouterSafeKey(value) {
   return _pr812SafeEnum(text);
 }
 
+function _pr100RouterSensitiveIdentifierText(text) {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("token") || lower.includes("secret") ||
+    lower.includes("authorization") || lower.includes("cookie") ||
+    lower.includes("password") || lower.includes("credential")
+  );
+}
+
 function _pr100RouterSafeIdentifier(value) {
   const text = _pr812OptionalString(value);
   if (!text || text.length > 128) return null;
   if (!/^[A-Za-z0-9_.:-]+$/.test(text)) return null;
+  if (_pr100RouterSensitiveIdentifierText(text)) return null;
+  return _pr812SafeEnum(text);
+}
+
+function _pr100RouterSafeDisplayName(value) {
+  const text = _pr812OptionalString(value);
+  if (!text || text.length > 128) return null;
   const lower = text.toLowerCase();
-  if (
-    lower.includes("token") || lower.includes("secret") ||
-    lower.includes("authorization") || lower.includes("cookie") ||
-    lower.includes("password") || lower.includes("credential")
-  ) {
-    return null;
-  }
+  if (_pr100RouterSensitiveIdentifierText(text)) return null;
+  if (lower.includes("://") || lower.startsWith("www.") || text.includes("@")) return null;
   return _pr812SafeEnum(text);
 }
 
@@ -168,7 +179,9 @@ function _pr100RouterCharacterizeEnvelope(root) {
       if (identityKind) {
         identityKeyPaths.add(keyPath);
         if (!nextBlocked) {
-          const candidate = _pr100RouterSafeIdentifier(value[key]);
+          const candidate = identityKind === "connector_name"
+            ? _pr100RouterSafeDisplayName(value[key])
+            : _pr100RouterSafeIdentifier(value[key]);
           if (candidate && identityKind === "connector_id" && !connectorId) connectorId = candidate;
           if (candidate && identityKind === "connector_name" && !connectorName) connectorName = candidate;
         }
