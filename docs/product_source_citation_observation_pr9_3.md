@@ -1,15 +1,15 @@
 # PR9.3 — Product Source and Citation Observation Layer
 
-Status: **second vertical slice implemented; deterministic closure pending CI/review; authenticated live characterization not yet run**
+Status: **implemented, deterministically covered and authenticated-live characterized**.
 
 ## Evidence basis
 
 The browser overlay is based on two inputs:
 
 1. the already-proven PR8.12 streamed message observer in CWA; and
-2. a current public ChatGPT conversation schema independently maintained by `pionxzh/chatgpt-exporter`, inspected at commit `d0f44aae9d5650852b2979bbf830590b41f7b804` dated 2026-08-28.
+2. current independently maintained public ChatGPT conversation-schema evidence inspected during PR9.3.
 
-That current schema describes both modern and legacy source/citation surfaces:
+The implementation recognizes modern and legacy source/citation surfaces including:
 
 - `message.metadata.content_references`
 - `message.metadata.citations`
@@ -22,7 +22,7 @@ The implementation does not claim every future ChatGPT reference shape is covere
 
 ## Normalized events
 
-The extension now emits only two new safe event types:
+The extension emits only bounded safe source/citation event types:
 
 ```text
 product_source_observed
@@ -40,7 +40,7 @@ attribution
 source_origin
 ```
 
-A citation contains the explicit relationship to a previously emitted source:
+A citation contains an explicit relationship to a previously emitted source:
 
 ```text
 citation_id
@@ -63,8 +63,18 @@ The Python collector preserves these fields as immutable `ProductSourceObservati
 - `_cite_metadata.metadata_list` is source evidence only because it does not itself provide a trustworthy inline range relation.
 - `tether_quote` is source evidence only.
 - Repeated stream patches are deduplicated by turn-local source identity and citation relation identity.
+- A source id is pinned to its first accepted sanitized URL; conflicting reuse is dropped instead of making later citation relations ambiguous.
 
-## Privacy and authority boundary
+## URL/privacy boundary
+
+Only `http` / `https` source URLs are accepted.
+
+The worker and Python collector apply defense-in-depth filtering:
+
+- explicit username/password URL userinfo is rejected;
+- common credential-bearing query keys are rejected, including signed URL families such as `X-Amz-*` and `X-Goog-*`;
+- URL fragments are removed before source emission;
+- raw evidence text, quote bodies and matched citation markers are not exported.
 
 The overlay never exports:
 
@@ -78,8 +88,6 @@ The overlay never exports:
 - cookies or credentials;
 - DOM/HTML.
 
-Only `http` / `https` source URLs are accepted. URLs containing explicit username/password userinfo are rejected instead of exported.
-
 Observation remains a separate non-authority plane:
 
 ```text
@@ -90,11 +98,17 @@ source/citation observation defect
     != local/external action authority
 ```
 
-Malformed citation ranges are dropped by the collector. An accepted citation must reference a source already observed by the same collector.
+## Citation range discipline
+
+A citation is emitted only after a complete non-negative `start <= end` range exists.
+
+An incomplete streaming reference may emit source evidence only. If a later patch supplies a valid range, exactly one citation relationship is emitted. Reversed or malformed ranges are ignored by the worker and fail closed again at the Python collector boundary.
+
+An accepted typed citation must reference a source already observed by the same collector.
 
 ## Deterministic gate
 
-The focused second-slice suite covers:
+Coverage includes:
 
 - worker load ordering after the immutable PR9.2 schema-29 chain;
 - modern grouped `content_references`;
@@ -104,13 +118,32 @@ The focused second-slice suite covers:
 - `tether_quote` source-only semantics;
 - hidden-message exclusion;
 - credential-bearing URL rejection;
-- repeated stream-patch deduplication;
+- fragment stripping;
+- incomplete→complete streaming citation evolution;
+- repeated complete-patch deduplication;
+- reversed/malformed ranges;
 - typed collector preservation of source/citation relationships;
-- fail-closed malformed citation ranges;
+- source-id conflicting-URL rejection;
 - absence of raw source/evidence text from emitted events.
 
-Focused local result before commit: **8/8 PASS**.
+## Authenticated live characterization
 
-## Next slice
+A bounded one-write browser-owned web-search gate on PR9.3 observed all of the evidence required for the source/citation vertical slice:
 
-The next step is to integrate `ProductObservationCollector` into `ChatGPTProductRuntime.send_text_observed()` so callers receive the typed turn observation set alongside the canonical response and existing write observation, without changing answer finality or transport authority. After that integration is deterministic, run one bounded authenticated web-search turn to verify current live source/citation shapes before claiming browser-owned availability.
+- typed `SEARCH` activity;
+- at least one canonical `SOURCE` observation;
+- a `CITATION` linked to the observed source;
+- a valid citation answer range;
+- source and citation evidence before `canonical_text_finalized`;
+- canonical assistant completion from `CANONICAL_READBACK`;
+- one write attempt and one write completion;
+- no automatic write retry;
+- no fallback transport;
+- no private-thought text export;
+- zero dropped observation events.
+
+This is the evidence used for provider-aware browser-owned `web_search=AVAILABLE` on the production/default provider. A legacy provider without the revision-safe observation channel does not inherit this proof and remains `UNKNOWN`.
+
+## Closure
+
+The source/citation slice no longer has a pending authenticated-live gate. Further PR9.3 work is limited to overall milestone closure/review/documentation; new source schemas discovered later should be treated as product-drift follow-up rather than silently broadened by inference.
