@@ -76,6 +76,8 @@ def test_router_accepts_only_explicit_envelope_identity_and_tool_shapes() -> Non
     assert "_pr100RouterActionContainers.has(parentKey)" in source
     assert 'normalizedKey === "id"' in source
     assert 'normalizedKey === "name"' in source
+    assert 'identityKind === "connector_name"' in source
+    assert "_pr100RouterSafeDisplayName(value[key])" in source
 
 
 def test_router_exports_only_bounded_structure_and_safe_identifier_candidates() -> None:
@@ -83,6 +85,8 @@ def test_router_exports_only_bounded_structure_and_safe_identifier_candidates() 
 
     assert "_pr100RouterSafeKey" in source
     assert "_pr100RouterSafeIdentifier" in source
+    assert "_pr100RouterSafeDisplayName" in source
+    assert "_pr100RouterSensitiveIdentifierText" in source
     assert "PR100_CONNECTOR_ROUTER_MAX_DEPTH = 4" in source
     assert "PR100_CONNECTOR_ROUTER_MAX_KEYS = 64" in source
     assert 'source_event_type: _pr100RouterStructuralSummary(shape)' in source
