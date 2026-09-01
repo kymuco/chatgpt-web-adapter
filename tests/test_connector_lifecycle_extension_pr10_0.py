@@ -69,6 +69,33 @@ def test_overlay_never_selects_raw_sensitive_payload_fields_for_export() -> None
     assert "_pr812Emit(context, event)" in source
 
 
+def test_connector_overlay_exposes_no_write_support_contract() -> None:
+    source = CONNECTOR_JS.read_text(encoding="utf-8")
+
+    assert "const PR100_CONNECTOR_OBSERVATION_SCHEMA = 1;" in source
+    assert "message?.characterizeConnectorObservationSupport !== true" in source
+    assert "connectorObservationSupported: true" in source
+    assert "connectorObservationSchemaVersion: PR100_CONNECTOR_OBSERVATION_SCHEMA" in source
+    assert "explicitConnectorIdentityRequired: true" in source
+    assert "explicitLifecycleCorrelationRequired: true" in source
+    assert "genericToolActivityImpliesConnector: false" in source
+    assert "rawConnectorPayloadExported: false" in source
+    assert "connectorObservationGrantsApprovalAuthority: false" in source
+    assert "connectorObservationChangesCanonicalFinality: false" in source
+    assert "connectorObservationChangesRetryAuthority: false" in source
+    assert "automaticWriteRetry: false" in source
+    assert "fallbackTransport: null" in source
+    assert "writePerformed: false" in source
+
+
+def test_support_probe_delegates_every_non_probe_turn_to_prior_runtime() -> None:
+    source = CONNECTOR_JS.read_text(encoding="utf-8")
+
+    assert "const _pr100PriorExecuteNativeTurn = executeNativeTurn;" in source
+    assert "return _pr100PriorExecuteNativeTurn(message);" in source
+    assert source.count("characterizeConnectorObservationSupport") == 1
+
+
 def test_overlay_loads_after_normalized_stream_and_before_patch_protocol() -> None:
     source = OBSERVABILITY_JS.read_text(encoding="utf-8")
     activity = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
