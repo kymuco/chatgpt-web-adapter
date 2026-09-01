@@ -66,6 +66,24 @@ def test_pr812_tool_sides_are_point_observations_without_fabricated_lifecycle() 
     assert completed.text is None
 
 
+def test_typed_operation_start_is_point_observation_without_completion_contract() -> None:
+    collector = ProductObservationCollector()
+    observation = collector.consume(
+        {
+            "type": "activity_started",
+            "activity_id": "typed-web:synthetic-3",
+            "activity_kind": "web",
+            "operation": "search_query",
+            "label": "Searching the web…",
+        }
+    )
+
+    assert isinstance(observation, ProductActivityObservation)
+    assert observation.kind is ProductObservationKind.SEARCH
+    assert observation.phase is ProductObservationPhase.OBSERVED
+    assert observation.tool_name is None
+
+
 def test_non_tool_activity_can_keep_real_same_id_lifecycle() -> None:
     collector = ProductObservationCollector()
     started = collector.consume(

@@ -170,16 +170,17 @@ def _uncorrelated_tool_event(
     activity_id: str,
     tool_name: str | None,
 ) -> bool:
-    """Return whether PR8.12 exposes this as a standalone tool-side observation.
+    """Return whether PR8.12 exposes only a standalone operation observation.
 
     PR8.12 starts an assistant tool request under ``tool-...:<assistant-id>`` and
     reports the corresponding tool result under ``tool-result-...:<tool-id>``.
-    Those identifiers are not a proven correlation key, so PR9.3 must not invent
-    one lifecycle by labelling either side STARTED/COMPLETED. Until a real
-    correlation identity is observed, both sides are truthful point observations.
+    It also emits typed operation-only starts under ``typed-...`` without a
+    corresponding completion event. None of those identifiers is a proven
+    lifecycle correlation key, so PR9.3 represents them as truthful point
+    observations until stronger product evidence exists.
     """
 
-    return tool_name is not None or activity_id.startswith("tool-")
+    return tool_name is not None or activity_id.startswith(("tool-", "typed-"))
 
 
 @dataclass(frozen=True)
