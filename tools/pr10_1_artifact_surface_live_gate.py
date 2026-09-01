@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from typing import Any
 import uuid
 
@@ -19,10 +20,13 @@ SURFACE_READ_BUDGET = 1
 DOWNLOAD_BUDGET = 0
 LOCAL_WRITE_BUDGET = 0
 
+_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
 _EXPECTED_SURFACE_SUPPORT = {
     "supported": True,
     "schema": SURFACE_SCHEMA,
     "fixed_probe_filename": PROBE_FILENAME,
+    "assistant_ownership_required": True,
+    "user_turn_matches_excluded": True,
     "raw_dom_exported": False,
     "raw_text_exported": False,
     "locator_values_exported": False,
@@ -33,6 +37,7 @@ _EXPECTED_SURFACE_SUPPORT = {
 }
 
 _NAME_LIST_FIELDS = (
+    "assistantRoleEvidenceKinds",
     "candidateTagNames",
     "candidateAttributeNames",
     "ancestorAttributeNames",
@@ -49,14 +54,18 @@ def _safe_name_list(value: Any, *, max_items: int = 96) -> list[str]:
         if not isinstance(item, str):
             continue
         text = item.strip()
-        if not text or len(text) > 80:
-            continue
-        if not all(ch.isalnum() or ch in "_.:-" for ch in text):
+        if not _SAFE_NAME_RE.fullmatch(text):
             continue
         output.append(text)
         if len(output) >= max_items:
             break
     return sorted(set(output))
+
+
+def _safe_count(value: Any, *, max_value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return min(value, max_value)
 
 
 class ProductArtifactSurfaceProvider(ProductArtifactLiveProvider):
@@ -105,6 +114,8 @@ class ProductArtifactSurfaceProvider(ProductArtifactLiveProvider):
             "generatedArtifactSurfaceCharacterizationSupported",
             "generatedArtifactSurfaceCharacterizationSchemaVersion",
             "fixedProbeFilename",
+            "assistantOwnershipRequired",
+            "userTurnMatchesExcluded",
             "rawDomExported",
             "rawTextExported",
             "locatorValuesExported",
@@ -120,6 +131,8 @@ class ProductArtifactSurfaceProvider(ProductArtifactLiveProvider):
             "supported": response.get("generatedArtifactSurfaceCharacterizationSupported") is True,
             "schema": response.get("generatedArtifactSurfaceCharacterizationSchemaVersion"),
             "fixed_probe_filename": response.get("fixedProbeFilename"),
+            "assistant_ownership_required": response.get("assistantOwnershipRequired"),
+            "user_turn_matches_excluded": response.get("userTurnMatchesExcluded"),
             "raw_dom_exported": response.get("rawDomExported"),
             "raw_text_exported": response.get("rawTextExported"),
             "locator_values_exported": response.get("locatorValuesExported"),
@@ -149,6 +162,9 @@ class ProductArtifactSurfaceProvider(ProductArtifactLiveProvider):
             "surfaceReady",
             "exactFilenameVisible",
             "exactFilenameMatchCount",
+            "anyExactFilenameMatchCount",
+            "userOwnedExactFilenameMatchCount",
+            "roleUnprovenExactFilenameMatchCount",
             *_NAME_LIST_FIELDS,
             "hrefAttributePresent",
             "downloadAttributePresent",
@@ -168,17 +184,27 @@ class ProductArtifactSurfaceProvider(ProductArtifactLiveProvider):
         if diagnostic["failure_reason"] is not None:
             return None, diagnostic
 
-        match_count = response.get("exactFilenameMatchCount")
-        if isinstance(match_count, bool) or not isinstance(match_count, int) or match_count < 0:
-            match_count = 0
-
         snapshot = {
             "schema": response.get("schema"),
             "fixed_probe_filename": response.get("fixedProbeFilename"),
             "runtime_tab_present": response.get("runtimeTabPresent") is True,
             "surface_ready": response.get("surfaceReady") is True,
             "exact_filename_visible": response.get("exactFilenameVisible") is True,
-            "exact_filename_match_count": min(match_count, 16),
+            "exact_filename_match_count": _safe_count(
+                response.get("exactFilenameMatchCount"), max_value=16
+            ),
+            "any_exact_filename_match_count": _safe_count(
+                response.get("anyExactFilenameMatchCount"), max_value=32
+            ),
+            "user_owned_exact_filename_match_count": _safe_count(
+                response.get("userOwnedExactFilenameMatchCount"), max_value=32
+            ),
+            "role_unproven_exact_filename_match_count": _safe_count(
+                response.get("roleUnprovenExactFilenameMatchCount"), max_value=32
+            ),
+            "assistant_role_evidence_kinds": _safe_name_list(
+                response.get("assistantRoleEvidenceKinds"), max_items=8
+            ),
             "candidate_tag_names": _safe_name_list(response.get("candidateTagNames"), max_items=32),
             "candidate_attribute_names": _safe_name_list(response.get("candidateAttributeNames")),
             "ancestor_attribute_names": _safe_name_list(response.get("ancestorAttributeNames")),
@@ -296,6 +322,7 @@ def run_gate(
         and snapshot["surface_ready"]
         and snapshot["exact_filename_visible"]
         and snapshot["exact_filename_match_count"] >= 1
+        and bool(snapshot["assistant_role_evidence_kinds"])
     )
     report["characterization"] = (
         "PROBE_ANCHORED_FRONTEND_ARTIFACT_SURFACE_OBSERVED"
