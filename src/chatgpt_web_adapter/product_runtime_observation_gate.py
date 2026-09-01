@@ -32,6 +32,16 @@ def gate_product_runtime_send_text_observed(
         *args: Any,
         **kwargs: Any,
     ) -> ProductRuntimeExecution:
+        # PR9.3 canonical provenance uses the same already-performed browser-owned
+        # canonical readback payload. The installer only adds observation taps
+        # around that path; it does not add reads, change finality, or acquire
+        # write/retry authority.
+        from .canonical_product_observation_gate_pr9_3 import (
+            install_canonical_product_observation_gate,
+        )
+
+        install_canonical_product_observation_gate()
+
         caller_on_event = kwargs.get("on_event")
         collector = ProductObservationCollector()
 
