@@ -1,43 +1,201 @@
-// PR10.0: outermost no-write connector observation support probe.
+// PR10.0: outermost no-write connector observation support probes.
 //
 // The connector message-observation overlay is intentionally loaded inside the
 // normalized activity stream, but PR9.2 rich-input wrappers are loaded later by
-// the manifest entrypoint. A support characterization must therefore sit outside
-// the complete production stack; otherwise an unknown no-write flag can be
-// mistaken for an ordinary turn and enter rich-input preflight before reaching
-// the connector handler.
+// the manifest entrypoint. Characterization must therefore sit outside the full
+// production stack so no-write flags can never enter rich-input preflight as an
+// ordinary product turn.
 //
-// This wrapper never types, submits, stages attachments, acquires write authority,
-// approves actions, changes canonical finality, retries, or selects a fallback.
+// These probes never type, submit, stage attachments, click controls, acquire
+// write/approval authority, change canonical finality, retry, or select a fallback.
 
 const _pr100SupportPriorExecuteNativeTurn = executeNativeTurn;
 
-executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportProbe(message) {
-  if (message?.characterizeConnectorObservationSupport !== true) {
-    return _pr100SupportPriorExecuteNativeTurn(message);
-  }
-
+function _pr100SupportRejectWriteBearingMessage(message, code) {
   if (
     message?.text != null ||
     message?.conversationId != null ||
     message?.attachmentPaths != null ||
     message?.browserAuthorityLeaseId != null
   ) {
-    throw new Error("PR10_0_CONNECTOR_SUPPORT_PROBE_MUST_BE_NO_WRITE");
+    throw new Error(code);
+  }
+}
+
+function _pr100RequiredActionSurfaceExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    };
+    const norm = (value) => String(value || '').toLowerCase().replace(/\\s+/g, ' ').trim();
+    const label = (element) => norm(
+      element?.getAttribute?.('aria-label') || element?.innerText || element?.textContent || ''
+    );
+    const controls = Array.from(document.querySelectorAll('button,[role="button"]'))
+      .filter(visible)
+      .slice(-256);
+    const isConnect = (value) =>
+      value === 'connect' || value.startsWith('connect ') ||
+      value === 'подключить' || value.startsWith('подключить ');
+    const isDismiss = (value) =>
+      value === 'not now' || value === 'не сейчас' || value === 'cancel' || value === 'отмена';
+    const providers = [
+      ['gmail', ['gmail']],
+      ['google_drive', ['google drive', 'гугл диск']],
+      ['github', ['github']],
+      ['slack', ['slack']],
+      ['notion', ['notion']],
+      ['outlook', ['outlook']],
+      ['dropbox', ['dropbox']],
+      ['onedrive', ['onedrive', 'one drive']],
+      ['sharepoint', ['sharepoint']]
+    ];
+
+    for (const connectControl of controls) {
+      if (!isConnect(label(connectControl))) continue;
+      let root = connectControl;
+      for (let depth = 0; depth < 8 && root; depth += 1, root = root.parentElement) {
+        const rootText = norm(root.innerText || root.textContent || '');
+        if (!rootText || rootText.length > 12000) continue;
+        const provider = providers.find(([, needles]) => needles.some((needle) => rootText.includes(needle)))?.[0] || null;
+        if (!provider) continue;
+        const scopedControls = Array.from(root.querySelectorAll('button,[role="button"]')).filter(visible);
+        const dismissPresent = scopedControls.some((element) => isDismiss(label(element)));
+        if (!dismissPresent) continue;
+        return {
+          surfaceObserved: true,
+          connectorName: provider,
+          actionType: 'connector_authorization_required',
+          connectControlPresent: true,
+          dismissControlPresent: true,
+          stableActionIdPresent: false,
+          rawDomExported: false,
+          clickPerformed: false,
+          writePerformed: false,
+          approvalAuthorityGranted: false
+        };
+      }
+    }
+
+    return {
+      surfaceObserved: false,
+      connectorName: null,
+      actionType: null,
+      connectControlPresent: false,
+      dismissControlPresent: false,
+      stableActionIdPresent: false,
+      rawDomExported: false,
+      clickPerformed: false,
+      writePerformed: false,
+      approvalAuthorityGranted: false
+    };
+  })()`;
+}
+
+async function _pr100CharacterizeRequiredActionSurface() {
+  const runtimeTabId = await storedRuntimeTabId();
+  if (!Number.isInteger(runtimeTabId)) {
+    return {
+      surfaceObserved: false,
+      connectorName: null,
+      actionType: null,
+      connectControlPresent: false,
+      dismissControlPresent: false,
+      stableActionIdPresent: false,
+      rawDomExported: false,
+      clickPerformed: false,
+      writePerformed: false,
+      approvalAuthorityGranted: false,
+      runtimeTabPresent: false,
+      debuggerAttachedAfter: null
+    };
   }
 
-  return {
-    connectorObservationSupported: true,
-    connectorObservationSchemaVersion: PR100_CONNECTOR_OBSERVATION_SCHEMA,
-    explicitConnectorIdentityRequired: true,
-    explicitLifecycleCorrelationRequired: true,
-    genericToolActivityImpliesConnector: false,
-    rawConnectorPayloadExported: false,
-    connectorObservationGrantsApprovalAuthority: false,
-    connectorObservationChangesCanonicalFinality: false,
-    connectorObservationChangesRetryAuthority: false,
-    automaticWriteRetry: false,
-    fallbackTransport: null,
-    writePerformed: false
-  };
+  const tab = await chrome.tabs.get(runtimeTabId);
+  if (!isChatGPTUrl(tab?.url || '')) {
+    throw new Error('PR10_0_REQUIRED_ACTION_SURFACE_RUNTIME_TAB_NOT_CHATGPT');
+  }
+
+  const debuggee = { tabId: runtimeTabId };
+  let attached = false;
+  let debuggerAttachedAfter = null;
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await chrome.debugger.sendCommand(debuggee, 'Runtime.enable');
+    const result = await chrome.debugger.sendCommand(debuggee, 'Runtime.evaluate', {
+      expression: _pr100RequiredActionSurfaceExpression(),
+      returnByValue: true,
+      awaitPromise: true
+    });
+    const value = result?.result?.value;
+    if (!value || typeof value !== 'object') {
+      throw new Error('PR10_0_REQUIRED_ACTION_SURFACE_RESULT_MISSING');
+    }
+    return {
+      surfaceObserved: value.surfaceObserved === true,
+      connectorName: typeof value.connectorName === 'string' ? value.connectorName : null,
+      actionType: typeof value.actionType === 'string' ? value.actionType : null,
+      connectControlPresent: value.connectControlPresent === true,
+      dismissControlPresent: value.dismissControlPresent === true,
+      stableActionIdPresent: value.stableActionIdPresent === true,
+      rawDomExported: false,
+      clickPerformed: false,
+      writePerformed: false,
+      approvalAuthorityGranted: false,
+      runtimeTabPresent: true,
+      debuggerAttachedAfter: null
+    };
+  } finally {
+    if (attached) {
+      try { await chrome.debugger.detach(debuggee); } catch {}
+    }
+    try {
+      const targets = await chrome.debugger.getTargets();
+      debuggerAttachedAfter = Boolean(
+        targets.find((target) => target.tabId === runtimeTabId)?.attached
+      );
+    } catch {
+      debuggerAttachedAfter = null;
+    }
+    // `debuggerAttachedAfter` is intentionally verified after detach; the caller
+    // receives it below through a second bounded snapshot when needed.
+  }
+}
+
+executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportProbe(message) {
+  if (message?.characterizeConnectorObservationSupport === true) {
+    _pr100SupportRejectWriteBearingMessage(
+      message,
+      'PR10_0_CONNECTOR_SUPPORT_PROBE_MUST_BE_NO_WRITE'
+    );
+    return {
+      connectorObservationSupported: true,
+      connectorObservationSchemaVersion: PR100_CONNECTOR_OBSERVATION_SCHEMA,
+      explicitConnectorIdentityRequired: true,
+      explicitLifecycleCorrelationRequired: true,
+      genericToolActivityImpliesConnector: false,
+      rawConnectorPayloadExported: false,
+      connectorObservationGrantsApprovalAuthority: false,
+      connectorObservationChangesCanonicalFinality: false,
+      connectorObservationChangesRetryAuthority: false,
+      automaticWriteRetry: false,
+      fallbackTransport: null,
+      writePerformed: false
+    };
+  }
+
+  if (message?.characterizeRequiredActionSurface === true) {
+    _pr100SupportRejectWriteBearingMessage(
+      message,
+      'PR10_0_REQUIRED_ACTION_SURFACE_PROBE_MUST_BE_NO_WRITE'
+    );
+    return _pr100CharacterizeRequiredActionSurface();
+  }
+
+  return _pr100SupportPriorExecuteNativeTurn(message);
 };
