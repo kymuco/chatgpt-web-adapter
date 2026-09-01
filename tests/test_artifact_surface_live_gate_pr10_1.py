@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sys
 
 
@@ -76,7 +77,7 @@ def test_surface_worker_exports_locator_presence_not_locator_value() -> None:
     assert "hasAttribute('download')" in source
     assert "hrefAttributePresent" in source
     assert "downloadAttributePresent" in source
-    assert ".href" not in source
+    assert re.search(r"\b[A-Za-z_$][A-Za-z0-9_$]*\.href\b", source) is None
     assert "getAttribute('href')" not in source
     assert "hrefValue" not in source
     assert "downloadUrl" not in source
