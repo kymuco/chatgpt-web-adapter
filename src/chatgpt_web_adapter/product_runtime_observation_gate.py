@@ -1,0 +1,62 @@
+from __future__ import annotations
+
+from dataclasses import replace
+from functools import wraps
+from typing import Any, Callable
+
+from .product_observations import ProductObservationCollector
+from .product_transport import ProductRuntimeExecution
+
+_PR93_PRODUCT_OBSERVATION_GATE_MARKER = "__pr93_product_observation_gate__"
+
+
+def gate_product_runtime_send_text_observed(
+    send_text_observed: Callable[..., ProductRuntimeExecution],
+) -> Callable[..., ProductRuntimeExecution]:
+    """Attach runtime-owned typed observations to observed product executions.
+
+    The wrapped runtime remains the sole owner of product write/provenance/finality.
+    This gate only listens to the already-standardized ``on_event`` stream and
+    replaces the returned execution's observation tuple with collector-owned,
+    privacy-filtered values. A transport cannot acquire typed-observation authority
+    by pre-populating ``ProductRuntimeExecution.observations`` itself.
+    """
+
+    if getattr(send_text_observed, _PR93_PRODUCT_OBSERVATION_GATE_MARKER, False):
+        return send_text_observed
+
+    @wraps(send_text_observed)
+    def gated(
+        self: Any,
+        text: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> ProductRuntimeExecution:
+        caller_on_event = kwargs.get("on_event")
+        collector = ProductObservationCollector()
+
+        def collect_and_forward(event: dict[str, Any]) -> None:
+            try:
+                collector.consume(event)
+            except Exception:
+                # Structured observation is explicitly non-authoritative. A
+                # collector defect cannot invalidate or replay a delegated write.
+                collector.dropped_event_count += 1
+            if caller_on_event is not None:
+                caller_on_event(event)
+
+        kwargs["on_event"] = collect_and_forward
+        execution = send_text_observed(self, text, *args, **kwargs)
+        if not isinstance(execution, ProductRuntimeExecution):
+            raise TypeError(
+                "ChatGPTProductRuntime.send_text_observed() must return ProductRuntimeExecution"
+            )
+
+        return replace(
+            execution,
+            observations=collector.observations,
+            dropped_observation_event_count=collector.dropped_event_count,
+        )
+
+    setattr(gated, _PR93_PRODUCT_OBSERVATION_GATE_MARKER, True)
+    return gated

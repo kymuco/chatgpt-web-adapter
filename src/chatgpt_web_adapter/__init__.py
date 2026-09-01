@@ -67,6 +67,9 @@ from .product_runtime import (
     ProductRuntimeHealth,
     assemble_product_runtime,
 )
+from .product_runtime_observation_gate import (
+    gate_product_runtime_send_text_observed as _gate_product_runtime_send_text_observed,
+)
 from .product_support import (
     PRODUCT_RUNTIME_CONTRACT_SCHEMA,
     ProductTransportSupportTier,
@@ -240,6 +243,15 @@ _BrowserlessRequestTransport.health = _gate_browserless_request_health(
 _original_browserless_request_execute = _BrowserlessRequestTransport._execute
 _BrowserlessRequestTransport._execute = _gate_browserless_request_execute(
     _original_browserless_request_execute
+)
+
+# PR9.3 installs structured product observation as a non-authoritative runtime
+# gate. The underlying runtime remains the owner of transport dispatch, canonical
+# finality, and provenance; this wrapper only derives immutable observations from
+# the already-standardized event stream returned during send_text_observed().
+_original_product_runtime_send_text_observed = ChatGPTProductRuntime.send_text_observed
+ChatGPTProductRuntime.send_text_observed = _gate_product_runtime_send_text_observed(
+    _original_product_runtime_send_text_observed
 )
 
 WebChatClient = ChatGPTWebClient
