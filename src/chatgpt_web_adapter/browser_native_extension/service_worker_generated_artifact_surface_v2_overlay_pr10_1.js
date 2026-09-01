@@ -198,13 +198,13 @@ function _pr101ArtifactSurfaceV2Expression() {
     const interactiveKinds = new Set();
     const interactiveAttributeNames = new Set();
     const filenameMatchSurfaces = new Set();
+    const matchedInteractiveElements = new Set();
+    const matchedNonInteractiveElements = new Set();
     const reactState = { reactFiber: false, reactProps: false };
     let hrefAttributePresent = false;
     let downloadAttributePresent = false;
     let conversationTurnAncestorPresent = false;
     let assistantFilenameSubstringMatchCount = 0;
-    let assistantInteractiveFilenameMatchCount = 0;
-    let assistantNonInteractiveFilenameMatchCount = 0;
 
     const inspectCandidate = (candidate, targetTurn) => {
       if (!(candidate instanceof Element) || !visible(candidate)) return;
@@ -214,7 +214,7 @@ function _pr101ArtifactSurfaceV2Expression() {
 
       const interactive = candidate.closest('a,button,[role="button"]');
       if (interactive instanceof Element && targetTurn.contains(interactive)) {
-        assistantInteractiveFilenameMatchCount += 1;
+        matchedInteractiveElements.add(interactive);
         const kind = interactiveKind(interactive);
         if (kind) interactiveKinds.add(kind);
         addNames(interactiveAttributeNames, safeAttributeNames(interactive));
@@ -222,7 +222,7 @@ function _pr101ArtifactSurfaceV2Expression() {
         downloadAttributePresent = downloadAttributePresent || interactive.hasAttribute('download');
         inspectReactOwnership(interactive, reactState);
       } else {
-        assistantNonInteractiveFilenameMatchCount += 1;
+        matchedNonInteractiveElements.add(candidate);
       }
 
       let ancestor = candidate.parentElement;
@@ -268,10 +268,12 @@ function _pr101ArtifactSurfaceV2Expression() {
           for (const attributeName of ['aria-label', 'title', 'download']) {
             if (!valueContainsFilename(interactive, attributeName)) continue;
             matched = true;
-            filenameMatchSurfaces.add(attributeName === 'aria-label' ? 'aria_label' : `${attributeName}_attribute`);
+            filenameMatchSurfaces.add(
+              attributeName === 'aria-label' ? 'aria_label' : attributeName + '_attribute'
+            );
           }
           if (!matched) continue;
-          assistantInteractiveFilenameMatchCount += 1;
+          matchedInteractiveElements.add(interactive);
           const kind = interactiveKind(interactive);
           if (kind) interactiveKinds.add(kind);
           addNames(interactiveAttributeNames, safeAttributeNames(interactive));
@@ -295,8 +297,8 @@ function _pr101ArtifactSurfaceV2Expression() {
       probePlacementProven,
       placementRoleEvidenceKinds: Array.from(placementRoleEvidenceKinds).sort(),
       assistantFilenameSubstringMatchCount,
-      assistantInteractiveFilenameMatchCount,
-      assistantNonInteractiveFilenameMatchCount,
+      assistantInteractiveFilenameMatchCount: matchedInteractiveElements.size,
+      assistantNonInteractiveFilenameMatchCount: matchedNonInteractiveElements.size,
       filenameMatchSurfaces: Array.from(filenameMatchSurfaces).sort(),
       candidateTagNames: Array.from(candidateTagNames).sort(),
       candidateAttributeNames: Array.from(candidateAttributeNames).sort(),
