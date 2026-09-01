@@ -15,8 +15,9 @@ const PR93_MAX_TITLE_CHARS = 512;
 const PR93_MAX_ATTRIBUTION_CHARS = 256;
 const PR93_MAX_REFERENCE_TYPE_CHARS = 96;
 const PR93_SENSITIVE_QUERY_KEYS = new Set([
-  "access_token", "token", "auth", "authorization", "api_key", "apikey", "key",
-  "signature", "sig", "credential", "credentials", "secret", "password", "passwd",
+  "access_token", "refresh_token", "id_token", "token", "auth", "authorization",
+  "api_key", "apikey", "key", "signature", "sig", "credential", "credentials",
+  "secret", "client_secret", "client_assertion", "code_verifier", "password", "passwd",
   "session", "session_id", "sessionid", "code"
 ]);
 
@@ -277,7 +278,8 @@ _pr812InspectMessage = function _pr812InspectMessageWithStructuredSources(contex
   if (message?.metadata?.is_visually_hidden_from_conversation === true) return;
 
   const content = message.content && typeof message.content === "object" ? message.content : {};
-  if (content.content_type === "thoughts") return;
+  const contentType = _pr93BoundedText(content.content_type, PR93_MAX_REFERENCE_TYPE_CHARS);
+  if (contentType && contentType.toLowerCase() === "thoughts") return;
 
   const metadata = message.metadata && typeof message.metadata === "object" ? message.metadata : {};
   const messageId = _pr93BoundedText(message.id, 256) || "message";
