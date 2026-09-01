@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, TypeAlias
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 ACTIVITY_STARTED = "activity_started"
 ACTIVITY_TEXT_SNAPSHOT = "activity_text_snapshot"
@@ -50,6 +51,28 @@ _SEARCH_ACTIVITY_KINDS = frozenset(
 )
 _TOOL_ACTIVITY_KINDS = frozenset({"tool", "code"})
 _PRIVATE_ACTIVITY_CONTENT_TYPES = frozenset({"thoughts"})
+_SENSITIVE_QUERY_KEYS = frozenset(
+    {
+        "access_token",
+        "token",
+        "auth",
+        "authorization",
+        "api_key",
+        "apikey",
+        "key",
+        "signature",
+        "sig",
+        "credential",
+        "credentials",
+        "secret",
+        "password",
+        "passwd",
+        "session",
+        "session_id",
+        "sessionid",
+        "code",
+    }
+)
 
 
 class ProductObservationKind(str, Enum):
@@ -90,13 +113,41 @@ def _non_negative_int(value: Any) -> int | None:
     return value
 
 
-def _citation_range(event: dict[str, Any]) -> tuple[int | None, int | None] | None:
-    raw_start = event.get("start_index")
-    raw_end = event.get("end_index")
-    start = _non_negative_int(raw_start)
-    end = _non_negative_int(raw_end)
-    if raw_start is None and raw_end is None:
-        return None, None
+def _sensitive_query_key(value: str) -> bool:
+    normalized = value.strip().lower().replace("-", "_").replace(".", "_")
+    return (
+        normalized in _SENSITIVE_QUERY_KEYS
+        or normalized.startswith("x_amz_")
+        or normalized.startswith("x_goog_")
+        or normalized.startswith("oauth_")
+    )
+
+
+def _safe_source_url(value: Any) -> str | None:
+    text = _optional_text(value)
+    if text is None:
+        return None
+    try:
+        parsed = urlsplit(text)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        return None
+    if parsed.username is not None or parsed.password is not None:
+        return None
+    try:
+        query_items = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=False)
+    except ValueError:
+        return None
+    if any(_sensitive_query_key(key) for key, _ in query_items):
+        return None
+    # Fragments are not required for source identity and may contain secrets.
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, parsed.query, ""))
+
+
+def _citation_range(event: dict[str, Any]) -> tuple[int, int] | None:
+    start = _non_negative_int(event.get("start_index"))
+    end = _non_negative_int(event.get("end_index"))
     if start is None or end is None or end < start:
         return None
     return start, end
@@ -301,7 +352,11 @@ class ProductObservationCollector:
                 if uncorrelated_tool
                 else ProductObservationPhase.COMPLETED
             )
-            text = self._activity_text.get(activity_id)
+            if source_content_type in _PRIVATE_ACTIVITY_CONTENT_TYPES:
+                self._activity_text.pop(activity_id, None)
+                text = None
+            else:
+                text = self._activity_text.get(activity_id)
         else:
             phase = ProductObservationPhase.UPDATED
             if event_type == ACTIVITY_TEXT_DELTA:
@@ -336,7 +391,7 @@ class ProductObservationCollector:
     def _consume_source(self, event: dict[str, Any]) -> ProductSourceObservation | None:
         observation_id = _optional_text(event.get("observation_id"))
         source_id = _optional_text(event.get("source_id"))
-        url = _optional_text(event.get("url"))
+        url = _safe_source_url(event.get("url"))
         if observation_id is None or source_id is None or url is None:
             self._drop()
             return None

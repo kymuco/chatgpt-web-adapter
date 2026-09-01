@@ -14,6 +14,11 @@ const PR93_MAX_URL_CHARS = 4096;
 const PR93_MAX_TITLE_CHARS = 512;
 const PR93_MAX_ATTRIBUTION_CHARS = 256;
 const PR93_MAX_REFERENCE_TYPE_CHARS = 96;
+const PR93_SENSITIVE_QUERY_KEYS = new Set([
+  "access_token", "token", "auth", "authorization", "api_key", "apikey", "key",
+  "signature", "sig", "credential", "credentials", "secret", "password", "passwd",
+  "session", "session_id", "sessionid", "code"
+]);
 
 const _pr93PriorInspectMessage = _pr812InspectMessage;
 const _pr93StateByStreamContext = new WeakMap();
@@ -49,14 +54,30 @@ function _pr93SafeReferenceType(value) {
   return text.toLowerCase().replace(/[^a-z0-9_.:-]+/g, "_").slice(0, PR93_MAX_REFERENCE_TYPE_CHARS) || null;
 }
 
+function _pr93SensitiveQueryKey(value) {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase().replace(/[-.]/g, "_");
+  return PR93_SENSITIVE_QUERY_KEYS.has(normalized) ||
+    normalized.startsWith("x_amz_") ||
+    normalized.startsWith("x_goog_") ||
+    normalized.startsWith("oauth_");
+}
+
 function _pr93SafeHttpUrl(value) {
   const text = _pr93BoundedText(value, PR93_MAX_URL_CHARS);
   if (!text) return null;
   try {
     const parsed = new URL(text);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-    // Never export URLs containing explicit userinfo credentials.
+    if (!parsed.hostname) return null;
+    // Userinfo and common query credentials are not provenance and never leave
+    // this observation layer. Fragments are stripped unconditionally because
+    // they are unnecessary for source identity and can carry private tokens.
     if (parsed.username || parsed.password) return null;
+    for (const key of parsed.searchParams.keys()) {
+      if (_pr93SensitiveQueryKey(key)) return null;
+    }
+    parsed.hash = "";
     return parsed.href.slice(0, PR93_MAX_URL_CHARS);
   } catch {
     return null;
@@ -154,6 +175,7 @@ function _pr93EmitCitation(context, state, fields) {
   if (typeof sourceId !== "string" || !sourceId) return;
   const startIndex = _pr93OptionalNonNegativeInt(fields.startIndex);
   const endIndex = _pr93OptionalNonNegativeInt(fields.endIndex);
+  if (startIndex === null || endIndex === null || endIndex < startIndex) return;
   const citationIndex = _pr93OptionalNonNegativeInt(fields.citationIndex);
   const referenceType = _pr93SafeReferenceType(fields.referenceType);
   const messageId = _pr93BoundedText(fields.messageId, 256) || "message";
@@ -188,8 +210,6 @@ function _pr93InspectContentReferences(context, state, messageId, metadata) {
     const referenceType = _pr93SafeReferenceType(reference.type);
     const footnote = referenceType === "sources_footnote";
     const candidates = _pr93CollectSourceCandidates(reference, { footnote });
-    const startIndex = _pr93OptionalNonNegativeInt(reference.start_idx);
-    const endIndex = _pr93OptionalNonNegativeInt(reference.end_idx);
 
     for (const candidate of candidates) {
       const sourceId = _pr93EnsureSource(
@@ -203,8 +223,8 @@ function _pr93InspectContentReferences(context, state, messageId, metadata) {
         sourceId,
         messageId,
         citationIndex: referenceIndex,
-        startIndex,
-        endIndex,
+        startIndex: reference.start_idx,
+        endIndex: reference.end_idx,
         referenceType,
         displayText: candidate.attribution || candidate.title
       });

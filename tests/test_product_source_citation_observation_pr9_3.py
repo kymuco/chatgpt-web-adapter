@@ -72,6 +72,9 @@ def test_pr93_source_citation_overlay_exports_only_bounded_provenance_fields() -
         "metadata?._cite_metadata?.metadata_list",
         'content.content_type !== "tether_quote"',
         'content.content_type === "thoughts"',
+        "PR93_SENSITIVE_QUERY_KEYS",
+        'parsed.hash = ""',
+        "endIndex < startIndex",
     ):
         assert required in source
 
@@ -104,7 +107,7 @@ def test_current_content_references_emit_sources_and_inline_relations_but_not_fo
                                 "items": [
                                     {
                                         "title": "Alpha",
-                                        "url": "https://example.com/a",
+                                        "url": "https://example.com/a#private-fragment",
                                         "attribution": "Example",
                                         "supporting_websites": [
                                             {
@@ -147,6 +150,73 @@ def test_current_content_references_emit_sources_and_inline_relations_but_not_fo
     assert all(event["reference_type"] == "grouped_webpages" for event in citations)
     serialized = json.dumps(events)
     assert "PRIVATE_MARKER" not in serialized
+    assert "private-fragment" not in serialized
+
+
+def test_incomplete_stream_reference_is_source_only_until_complete_range_arrives_once() -> None:
+    incomplete = json.dumps(
+        {
+            "id": "assistant-stream",
+            "content": {"content_type": "text"},
+            "metadata": {
+                "content_references": [
+                    {
+                        "type": "webpage",
+                        "items": [{"title": "One", "url": "https://one.example/a"}],
+                    }
+                ]
+            },
+        }
+    )
+    complete = json.dumps(
+        {
+            "id": "assistant-stream",
+            "content": {"content_type": "text"},
+            "metadata": {
+                "content_references": [
+                    {
+                        "type": "webpage",
+                        "start_idx": 4,
+                        "end_idx": 9,
+                        "items": [{"title": "One", "url": "https://one.example/a"}],
+                    }
+                ]
+            },
+        }
+    )
+    events = _run_node_fixture([incomplete, complete, complete])
+    assert [event["type"] for event in events] == [
+        "product_source_observed",
+        "product_citation_observed",
+    ]
+    assert events[1]["start_index"] == 4
+    assert events[1]["end_index"] == 9
+
+
+def test_reversed_reference_range_never_enters_raw_turn_event_stream() -> None:
+    events = _run_node_fixture(
+        [
+            json.dumps(
+                {
+                    "id": "assistant-bad-range",
+                    "content": {"content_type": "text"},
+                    "metadata": {
+                        "content_references": [
+                            {
+                                "type": "webpage",
+                                "start_idx": 9,
+                                "end_idx": 2,
+                                "items": [
+                                    {"title": "One", "url": "https://one.example/a"}
+                                ],
+                            }
+                        ]
+                    },
+                }
+            )
+        ]
+    )
+    assert [event["type"] for event in events] == ["product_source_observed"]
 
 
 def test_legacy_citation_emits_relation_without_exporting_evidence_or_metadata_text() -> None:
@@ -196,7 +266,7 @@ def test_legacy_citation_emits_relation_without_exporting_evidence_or_metadata_t
     assert citations[0]["reference_type"] == "tether_og"
 
 
-def test_tether_quote_is_source_evidence_only_and_hidden_or_credential_urls_are_ignored() -> None:
+def test_tether_quote_is_source_evidence_only_and_credential_urls_are_not_exported() -> None:
     events = _run_node_fixture(
         [
             json.dumps(
@@ -205,7 +275,7 @@ def test_tether_quote_is_source_evidence_only_and_hidden_or_credential_urls_are_
                     "content": {
                         "content_type": "tether_quote",
                         "title": "Quote",
-                        "url": "https://quote.example/q",
+                        "url": "https://quote.example/q#anchor",
                         "text": "RAW_QUOTE_TEXT",
                     },
                     "metadata": {},
@@ -220,6 +290,8 @@ def test_tether_quote_is_source_evidence_only_and_hidden_or_credential_urls_are_
                         "content_references": [
                             {
                                 "type": "webpage",
+                                "start_idx": 1,
+                                "end_idx": 2,
                                 "items": [
                                     {"title": "Hidden", "url": "https://hidden.example/"}
                                 ],
@@ -230,11 +302,33 @@ def test_tether_quote_is_source_evidence_only_and_hidden_or_credential_urls_are_
             ),
             json.dumps(
                 {
-                    "id": "credentials",
+                    "id": "credentials-userinfo",
                     "content": {
                         "content_type": "tether_quote",
                         "title": "Credential URL",
                         "url": "https://user:pass@example.com/private",
+                    },
+                    "metadata": {},
+                }
+            ),
+            json.dumps(
+                {
+                    "id": "credentials-query",
+                    "content": {
+                        "content_type": "tether_quote",
+                        "title": "Signed URL",
+                        "url": "https://example.com/private?access_token=secret",
+                    },
+                    "metadata": {},
+                }
+            ),
+            json.dumps(
+                {
+                    "id": "credentials-aws",
+                    "content": {
+                        "content_type": "tether_quote",
+                        "title": "Signed AWS URL",
+                        "url": "https://example.com/private?X-Amz-Signature=secret",
                     },
                     "metadata": {},
                 }
@@ -244,10 +338,12 @@ def test_tether_quote_is_source_evidence_only_and_hidden_or_credential_urls_are_
     assert len(events) == 1
     assert events[0]["type"] == "product_source_observed"
     assert events[0]["url"] == "https://quote.example/q"
-    assert "RAW_QUOTE_TEXT" not in json.dumps(events)
+    serialized = json.dumps(events)
+    assert "RAW_QUOTE_TEXT" not in serialized
+    assert "secret" not in serialized
 
 
-def test_repeated_stream_message_processing_deduplicates_source_and_citation_events() -> None:
+def test_repeated_complete_stream_message_processing_deduplicates_source_and_citation_events() -> None:
     message = json.dumps(
         {
             "id": "assistant-repeat",
@@ -278,7 +374,7 @@ def test_collector_preserves_safe_source_and_citation_relationship_fields() -> N
             "type": "product_source_observed",
             "observation_id": "source-observation:s1",
             "source_id": "s1",
-            "url": "https://example.com/a",
+            "url": "https://example.com/a#fragment",
             "title": "Example",
             "domain": "example.com",
             "attribution": "Example News",
@@ -287,6 +383,7 @@ def test_collector_preserves_safe_source_and_citation_relationship_fields() -> N
         }
     )
     assert isinstance(source, ProductSourceObservation)
+    assert source.url == "https://example.com/a"
     assert source.attribution == "Example News"
     assert source.source_origin == "content_references"
 
@@ -310,7 +407,7 @@ def test_collector_preserves_safe_source_and_citation_relationship_fields() -> N
     assert citation.reference_type == "webpage"
 
 
-def test_collector_drops_malformed_citation_ranges_without_affecting_source_evidence() -> None:
+def test_collector_drops_missing_or_malformed_citation_ranges_without_affecting_source_evidence() -> None:
     collector = ProductObservationCollector()
     assert collector.consume(
         {
@@ -321,15 +418,29 @@ def test_collector_drops_malformed_citation_ranges_without_affecting_source_evid
         }
     ) is not None
 
-    assert collector.consume(
+    for citation in (
         {
             "type": "product_citation_observed",
-            "observation_id": "citation-observation:c1",
-            "citation_id": "c1",
+            "observation_id": "citation-observation:missing",
+            "citation_id": "missing",
+            "source_id": "s1",
+        },
+        {
+            "type": "product_citation_observed",
+            "observation_id": "citation-observation:partial",
+            "citation_id": "partial",
+            "source_id": "s1",
+            "start_index": 1,
+        },
+        {
+            "type": "product_citation_observed",
+            "observation_id": "citation-observation:reversed",
+            "citation_id": "reversed",
             "source_id": "s1",
             "start_index": 20,
             "end_index": 10,
-        }
-    ) is None
-    assert collector.dropped_event_count == 1
+        },
+    ):
+        assert collector.consume(citation) is None
+    assert collector.dropped_event_count == 3
     assert len(collector.observations) == 1

@@ -164,10 +164,21 @@ def test_private_thought_text_event_is_dropped_even_if_upstream_regresses() -> N
     assert collector.observations == ()
     assert collector.dropped_event_count == 1
 
+    # Even if the same activity id previously held public display text, an
+    # explicit private completion cannot inherit/export that cached text.
+    assert collector.consume(
+        {
+            "type": "activity_text_snapshot",
+            "activity_id": "thinking:mixed",
+            "activity_kind": "reasoning",
+            "source_content_type": "reasoning_recap",
+            "text": "public recap",
+        }
+    ) is not None
     completed = collector.consume(
         {
             "type": "activity_completed",
-            "activity_id": "thinking:private",
+            "activity_id": "thinking:mixed",
             "activity_kind": "reasoning",
             "source_content_type": "thoughts",
             "label": "Thinking complete",
@@ -187,6 +198,8 @@ def test_source_and_citation_relationship_is_explicit_and_fail_closed() -> None:
             "citation_id": "citation:orphan",
             "source_id": "source:missing",
             "citation_index": 0,
+            "start_index": 0,
+            "end_index": 3,
         }
     )
     source = collector.consume(
@@ -194,7 +207,7 @@ def test_source_and_citation_relationship_is_explicit_and_fail_closed() -> None:
             "type": "product_source_observed",
             "observation_id": "source-observation:1",
             "source_id": "source:1",
-            "url": "https://example.test/article",
+            "url": "https://example.test/article#visible-anchor",
             "title": "Example Article",
             "domain": "example.test",
         }
@@ -206,6 +219,8 @@ def test_source_and_citation_relationship_is_explicit_and_fail_closed() -> None:
             "citation_id": "citation:1",
             "source_id": "source:1",
             "citation_index": 0,
+            "start_index": 4,
+            "end_index": 9,
             "display_text": "[1]",
         }
     )
@@ -213,10 +228,68 @@ def test_source_and_citation_relationship_is_explicit_and_fail_closed() -> None:
     assert orphan is None
     assert collector.dropped_event_count == 1
     assert isinstance(source, ProductSourceObservation)
+    assert source.url == "https://example.test/article"
     assert source.kind is ProductObservationKind.SOURCE
     assert isinstance(citation, ProductCitationObservation)
     assert citation.kind is ProductObservationKind.CITATION
     assert citation.source_id == source.source_id
+
+
+def test_source_url_credentials_are_rejected_at_collector_boundary() -> None:
+    collector = ProductObservationCollector()
+    for index, url in enumerate(
+        (
+            "https://user:pass@example.test/private",
+            "https://example.test/file?access_token=secret",
+            "https://example.test/file?X-Amz-Signature=secret",
+        )
+    ):
+        assert collector.consume(
+            {
+                "type": "product_source_observed",
+                "observation_id": f"source-observation:{index}",
+                "source_id": f"source:{index}",
+                "url": url,
+            }
+        ) is None
+    assert collector.dropped_event_count == 3
+
+
+def test_citation_requires_complete_non_reversed_range() -> None:
+    collector = ProductObservationCollector()
+    assert collector.consume(
+        {
+            "type": "product_source_observed",
+            "observation_id": "source-observation:1",
+            "source_id": "source:1",
+            "url": "https://example.test/article",
+        }
+    ) is not None
+    for event in (
+        {
+            "type": "product_citation_observed",
+            "observation_id": "citation:missing",
+            "citation_id": "missing",
+            "source_id": "source:1",
+        },
+        {
+            "type": "product_citation_observed",
+            "observation_id": "citation:partial",
+            "citation_id": "partial",
+            "source_id": "source:1",
+            "start_index": 1,
+        },
+        {
+            "type": "product_citation_observed",
+            "observation_id": "citation:reversed",
+            "citation_id": "reversed",
+            "source_id": "source:1",
+            "start_index": 9,
+            "end_index": 2,
+        },
+    ):
+        assert collector.consume(event) is None
+    assert collector.dropped_event_count == 3
 
 
 def test_conflicting_source_id_reuse_is_dropped_and_original_relation_remains_unambiguous() -> None:
@@ -243,6 +316,8 @@ def test_conflicting_source_id_reuse_is_dropped_and_original_relation_remains_un
             "observation_id": "citation-observation:1",
             "citation_id": "citation:1",
             "source_id": "source:stable",
+            "start_index": 0,
+            "end_index": 1,
         }
     )
 
