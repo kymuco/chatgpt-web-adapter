@@ -2,7 +2,7 @@
 
 Use this checklist before cutting a GitHub release or publishing a package version.
 
-PR8.17 separates two moments:
+CWA keeps two moments separate:
 
 ```text
 release candidate ready
@@ -10,19 +10,14 @@ release candidate ready
 package published
 ```
 
-Merging release-hardening code never grants permission to publish. A tagged PyPI release is a separate action.
+Merging release-hardening code never grants permission to publish. A tagged PyPI release is a separate explicit action.
 
 ## 1. Regression
 
-Run the focused release-hardening tests:
+Run the focused release-surface tests and then the full repository suite:
 
 ```powershell
-python -m pytest tests/test_release_hardening_pr8_17.py -q
-```
-
-Run the relevant packaging/CLI/doctor/artifact tests, then the full repository suite:
-
-```powershell
+python -m pytest tests/test_release_hardening_pr8_17.py tests/test_release_surface_pr9_4.py -q
 python -m pytest -q
 ```
 
@@ -49,16 +44,16 @@ Run:
 python tools/release_gate.py --dist-dir dist --json
 ```
 
-The gate validates:
+The candidate gate validates:
 
 - static package version from `pyproject.toml`;
 - exactly one wheel and one sdist;
 - canonical distribution filenames;
 - wheel `Name` / `Version` metadata;
 - `cwa`, `chatgpt-web-adapter`, and native-host console entry points;
-- required 0.2 modules;
+- frozen product-runtime, transport, capability, provenance, observation and public-surface modules required by the 0.3 SDK;
 - all packaged browser-extension `.json` / `.js` files from the source package-data set;
-- required sdist source/package files.
+- required sdist source/package files, including root `CHANGELOG.md`.
 
 This candidate gate does not require a Git tag.
 
@@ -69,41 +64,51 @@ Test the exact built wheel, not an editable checkout:
 ```powershell
 python tools/installed_wheel_smoke.py `
   --wheel-dir dist `
-  --expected-version 0.2.0 `
   --json
 ```
+
+When `--expected-version` is omitted, candidate smoke derives the expected static `[project].version` from the checkout `pyproject.toml`. The publish workflow passes the release tag explicitly and therefore remains stricter.
 
 The smoke installs the wheel through `pip --no-deps --force-reinstall` and verifies:
 
 - import resolves from `site-packages`, not the repository `src/` tree;
 - installed package metadata reports the expected version;
-- `cli_v02`, `doctor`, and artifact-manifest modules exist;
+- frozen CWA 0.3 product-runtime modules are importable from the installed package;
+- root `PRIMARY_PRODUCTION` observation value types are present;
+- `MediaItem` / `MediaSource` retain `SHARED_SUPPORT` classification;
+- the internal `ProductObservationCollector` does not leak into the root public API;
 - all three console scripts are installed with the frozen targets;
-- `cwa --help` and the stable 0.2 command help surfaces execute successfully;
+- `cwa --help` and the stable command help surfaces execute successfully;
 - the installed browser-extension directory contains the required package data;
 - `cwa doctor` can diagnose a deliberately unconfigured/missing-auth environment as structured unavailable (`exit 1`) rather than crashing;
 - static installed-package doctor checks remain `PASS`.
 
-CI runs this installed-wheel smoke on Linux and Windows with Python 3.10 and 3.14 after the full 3.10-3.14 source-test matrix.
+CI runs this installed-wheel smoke on Linux and Windows with Python 3.10 and 3.14 after the full Python 3.10-3.14 source-test matrix on both operating systems.
 
 ## 5. Live product verification
 
-For a release that contains product-runtime behavior changes, rerun the appropriate live evidence gates.
+A release does not need fresh product writes merely because documentation, packaging or version metadata changed. Live gates are required when the release candidate changes product-facing behavior that is not already covered by bounded evidence on the same implementation path.
 
-For the CWA 0.2 release candidate after PR8.17, the already-proven baseline includes:
+The CWA 0.3 production evidence baseline includes:
 
 ```text
-cwa doctor                PASS
-cwa status                PASS
-cwa capabilities          PASS
-HIGH alias product write  PASS
-messages                  PASS
-snapshot/export manifests PASS
-doctor artifact verify    PASS
-Temporary / streaming / model-selection production gates preserved
+browser-owned text new chat / continuation    PASS
+canonical readback finality                   PASS
+revision-safe streaming                       PASS
+Temporary Chat                                PASS
+model/reasoning selection baseline            PASS
+PR9.2 image new chat                          PASS
+PR9.2 general file new chat                   PASS
+PR9.2 multimodal continuation                 PASS
+PR9.2 exact attachment/request correlation    PASS
+PR9.3 web-search observation                  PASS
+PR9.3 source/citation relationship evidence   PASS
+PR9.3 generic product-tool observation        PASS
+no automatic ambiguous-write retry            PASS
+fallback transport                            NONE
 ```
 
-PR8.17 itself must not add or modify a product write path.
+Capability declarations must remain narrower than the evidence. In particular, `tools_connectors` remains `UNKNOWN`, and `browserless-request` remains `EXPERIMENTAL`.
 
 ## 6. Version and changelog finalization
 
@@ -118,12 +123,12 @@ Before creating `vX.Y.Z`:
 
 3. The GitHub release tag must be exactly `vX.Y.Z` (the checker also accepts a raw `X.Y.Z` input for local verification).
 
-Validate the strict tagged contract locally before publishing:
+Validate the strict tagged contract locally before publishing. For CWA 0.3.0:
 
 ```powershell
 python tools/release_gate.py `
   --dist-dir dist `
-  --tag v0.2.0 `
+  --tag v0.3.0 `
   --json
 ```
 
@@ -135,10 +140,11 @@ Before tagging:
 
 - `git status` is clean;
 - no auth/session files are tracked;
-- no HAR/traffic traces, browser profiles, local artifacts, or private prompts were added;
-- release artifacts came from the intended commit;
+- no HAR/traffic traces, browser profiles, local artifacts, private prompts or credential-bearing source URLs were added;
+- release artifacts came from the intended exact commit;
 - CI is green for that exact commit;
-- the release notes describe user-visible changes and known limitations.
+- release notes describe user-visible changes, support tiers and known limitations;
+- no unresolved release-blocking review thread remains.
 
 ## 8. Publishing
 
@@ -150,7 +156,7 @@ The publish workflow rebuilds the distributions and reruns, in order:
 python -m build
 python -m twine check dist/*
 strict tagged release gate
-installed exact-wheel smoke
+installed exact-wheel smoke with release tag
 PyPI Trusted Publishing upload
 ```
 
@@ -164,23 +170,24 @@ After PyPI reports the version:
 2. install the public artifact from PyPI, not the repository;
 3. verify package version;
 4. run `cwa --help`;
-5. run `cwa doctor --json` before and after normal local setup;
-6. verify the packaged extension directory exists;
-7. perform one controlled product smoke if the release policy calls for it.
+5. import the frozen primary product-runtime/observation surface;
+6. run `cwa doctor --json` before and after normal local setup;
+7. verify the packaged extension directory exists;
+8. perform one controlled product smoke only if the release policy calls for it.
 
-Only then should downstream projects such as CMA pin the released CWA version.
+Only then should downstream projects pin the released CWA version.
 
 ## Exit criteria
 
 ```text
-focused release regression         PASS
-relevant regression                PASS
-full repository regression         PASS
-Linux/Windows Python 3.10-3.14 CI  PASS
-wheel + sdist build                PASS
-twine metadata check               PASS
-candidate release gate             PASS
-installed-wheel smoke              PASS
-tag/version/changelog contract     PASS before publication
-PyPI post-publish install          PASS after publication
+focused release regression          PASS
+full repository regression          PASS
+Linux/Windows Python 3.10-3.14 CI   PASS
+wheel + sdist build                 PASS
+twine metadata check                PASS
+candidate release gate              PASS
+installed-wheel smoke               PASS
+frozen 0.3 public surface           PASS
+tag/version/changelog contract      PASS before publication
+PyPI post-publish install           PASS after publication
 ```

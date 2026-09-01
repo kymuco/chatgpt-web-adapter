@@ -8,6 +8,9 @@ from .product_activity_kind_precedence_pr9_3 import (
     install_product_activity_kind_precedence,
 )
 from .product_observations import ProductObservationCollector
+from .product_rich_input_capability_gate_pr9_4 import (
+    install_browser_owned_rich_input_capability_gate,
+)
 from .product_transport import ProductRuntimeExecution
 from .product_web_search_capability_gate_pr9_3 import (
     install_browser_owned_web_search_capability_gate,
@@ -25,6 +28,12 @@ install_product_activity_kind_precedence()
 # the observation runtime gate so legacy providers without that channel remain
 # UNKNOWN instead of inheriting the production claim.
 install_browser_owned_web_search_capability_gate()
+
+# PR9.4 freezes the already-live-proven PR9.2 rich-input capability claims for the
+# unchanged ProductModelProfileProvider write/RPC path. Custom/legacy providers
+# remain conservative rather than inheriting image/file/multimodal authority from
+# the browser-owned transport identity alone.
+install_browser_owned_rich_input_capability_gate()
 
 
 def gate_product_runtime_send_text_observed(

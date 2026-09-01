@@ -5,6 +5,7 @@ import importlib
 import importlib.metadata
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,38 @@ HELP_COMMANDS = (
     ("cwa", "export", "--help"),
     ("cwa", "send", "--help"),
 )
+REQUIRED_PRODUCT_MODULES = (
+    "chatgpt_web_adapter.product_runtime",
+    "chatgpt_web_adapter.product_transport",
+    "chatgpt_web_adapter.product_contract",
+    "chatgpt_web_adapter.product_support",
+    "chatgpt_web_adapter.product_capabilities",
+    "chatgpt_web_adapter.product_provenance",
+    "chatgpt_web_adapter.product_observations",
+    "chatgpt_web_adapter.public_surface",
+    "chatgpt_web_adapter.product_rich_input_capability_gate_pr9_4",
+    "chatgpt_web_adapter.product_web_search_capability_gate_pr9_3",
+)
+REQUIRED_PRIMARY_ROOT_EXPORTS = (
+    "ChatGPTProductRuntime",
+    "ProductRuntimeExecution",
+    "ProductCapabilities",
+    "ProductExecutionProvenance",
+    "ProductObservationKind",
+    "ProductObservationPhase",
+    "ProductActivityObservation",
+    "ProductSourceObservation",
+    "ProductCitationObservation",
+    "ProductRequiredActionObservation",
+    "StructuredProductObservation",
+    "assemble_product_runtime",
+)
+REQUIRED_SHARED_ROOT_EXPORTS = (
+    "MediaItem",
+    "MediaSource",
+)
+_VERSION_RE = re.compile(r'^version\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
+_PROJECT_RE = re.compile(r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE)
 
 
 def normalize_expected_version(value: str) -> str:
@@ -40,6 +73,19 @@ def normalize_expected_version(value: str) -> str:
     if not normalized:
         raise RuntimeError("expected version is empty")
     return normalized
+
+
+def source_project_version(pyproject: Path) -> str:
+    """Read the static project version without requiring TOML support beyond Python 3.10."""
+
+    text = pyproject.read_text(encoding="utf-8")
+    section = _PROJECT_RE.search(text)
+    if section is None:
+        raise RuntimeError("pyproject.toml is missing [project]")
+    match = _VERSION_RE.search(section.group(1))
+    if match is None:
+        raise RuntimeError("[project] must contain a static version")
+    return normalize_expected_version(match.group(1))
 
 
 def _one_wheel(dist_dir: Path) -> Path:
@@ -83,6 +129,42 @@ def _run_help(command: tuple[str, ...], *, cwd: Path) -> None:
         )
 
 
+def _validate_installed_0_3_surface(package: object) -> dict[str, object]:
+    for module_name in REQUIRED_PRODUCT_MODULES:
+        importlib.import_module(module_name)
+
+    tier = getattr(package, "PublicSurfaceTier", None)
+    primary = getattr(tier, "PRIMARY_PRODUCTION", None)
+    shared = getattr(tier, "SHARED_SUPPORT", None)
+    public_surface_tier = getattr(package, "public_surface_tier", None)
+    if primary is None or shared is None or not callable(public_surface_tier):
+        raise RuntimeError("installed public-surface tier contract is incomplete")
+
+    exported = set(getattr(package, "__all__", ()))
+    for symbol in REQUIRED_PRIMARY_ROOT_EXPORTS:
+        if symbol not in exported or not hasattr(package, symbol):
+            raise RuntimeError(f"installed primary product export is missing: {symbol}")
+        if public_surface_tier(symbol) is not primary:
+            raise RuntimeError(f"installed primary product export has wrong tier: {symbol}")
+
+    for symbol in REQUIRED_SHARED_ROOT_EXPORTS:
+        if symbol not in exported or not hasattr(package, symbol):
+            raise RuntimeError(f"installed shared product type is missing: {symbol}")
+        if public_surface_tier(symbol) is not shared:
+            raise RuntimeError(f"installed shared product type has wrong tier: {symbol}")
+
+    if "ProductObservationCollector" in exported:
+        raise RuntimeError("internal ProductObservationCollector leaked into root public surface")
+    if public_surface_tier("ProductObservationCollector") is not None:
+        raise RuntimeError("internal ProductObservationCollector acquired a public support tier")
+
+    return {
+        "product_modules": len(REQUIRED_PRODUCT_MODULES),
+        "primary_root_exports": len(REQUIRED_PRIMARY_ROOT_EXPORTS),
+        "shared_root_exports": len(REQUIRED_SHARED_ROOT_EXPORTS),
+    }
+
+
 def _installed_checks(*, expected_version: str) -> dict[str, object]:
     expected_version = normalize_expected_version(expected_version)
     version = importlib.metadata.version(PROJECT_NAME)
@@ -103,6 +185,8 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         raise RuntimeError("installed doctor.run_doctor is missing")
     if not hasattr(artifact_manifest, "ARTIFACT_MANIFEST_SCHEMA"):
         raise RuntimeError("installed artifact manifest contract is missing")
+
+    product_surface = _validate_installed_0_3_surface(package)
 
     from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
@@ -161,6 +245,7 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         "entry_points": sorted(entry_points),
         "help_commands": len(HELP_COMMANDS),
         "pre_setup_doctor_exit": 1,
+        "product_surface": product_surface,
     }
 
 
@@ -209,19 +294,34 @@ def run_smoke(*, wheel: Path, expected_version: str) -> dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install and smoke-test a built CWA wheel")
     parser.add_argument("--wheel-dir", type=Path)
-    parser.add_argument("--expected-version", required=True)
+    parser.add_argument(
+        "--expected-version",
+        help=(
+            "expected installed version; defaults to the static [project].version from "
+            "the checkout pyproject.toml"
+        ),
+    )
     parser.add_argument("--inside-installed-venv", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
         if args.inside_installed_venv:
+            if args.expected_version is None:
+                raise RuntimeError("--expected-version is required inside the isolated installed-wheel venv")
             report = _installed_checks(expected_version=args.expected_version)
         else:
             if args.wheel_dir is None:
                 raise RuntimeError("--wheel-dir is required")
+            expected_version = (
+                normalize_expected_version(args.expected_version)
+                if args.expected_version is not None
+                else source_project_version(
+                    Path(__file__).resolve().parents[1] / "pyproject.toml"
+                )
+            )
             report = run_smoke(
                 wheel=_one_wheel(args.wheel_dir),
-                expected_version=args.expected_version,
+                expected_version=expected_version,
             )
     except Exception as error:
         if args.json:

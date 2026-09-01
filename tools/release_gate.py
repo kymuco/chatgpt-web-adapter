@@ -17,18 +17,36 @@ EXPECTED_ENTRY_POINTS = {
     "chatgpt-web-adapter-native-host": "chatgpt_web_adapter.browser_native_host:main",
 }
 REQUIRED_WHEEL_FILES = {
+    # Stable CLI / diagnostics baseline retained from CWA 0.2.
     "chatgpt_web_adapter/cli_v02.py",
     "chatgpt_web_adapter/doctor.py",
     "chatgpt_web_adapter/artifact_manifest.py",
     "chatgpt_web_adapter/conversation_snapshot.py",
     "chatgpt_web_adapter/export.py",
+    # CWA 0.3 product-runtime/public-surface freeze.
+    "chatgpt_web_adapter/product_runtime.py",
+    "chatgpt_web_adapter/product_transport.py",
+    "chatgpt_web_adapter/product_contract.py",
+    "chatgpt_web_adapter/product_support.py",
+    "chatgpt_web_adapter/product_capabilities.py",
+    "chatgpt_web_adapter/product_provenance.py",
+    "chatgpt_web_adapter/product_observations.py",
+    "chatgpt_web_adapter/public_surface.py",
+    "chatgpt_web_adapter/product_rich_input_capability_gate_pr9_4.py",
+    "chatgpt_web_adapter/product_web_search_capability_gate_pr9_3.py",
+    # Browser-owned package entrypoints/assets.
     "chatgpt_web_adapter/browser_native_extension/manifest.json",
     "chatgpt_web_adapter/browser_native_extension/service_worker.js",
 }
 REQUIRED_SDIST_SUFFIXES = {
     "/pyproject.toml",
     "/README.md",
+    "/CHANGELOG.md",
     "/LICENSE",
+    "/src/chatgpt_web_adapter/product_runtime.py",
+    "/src/chatgpt_web_adapter/product_observations.py",
+    "/src/chatgpt_web_adapter/public_surface.py",
+    "/src/chatgpt_web_adapter/product_rich_input_capability_gate_pr9_4.py",
     "/src/chatgpt_web_adapter/browser_native_extension/manifest.json",
     "/src/chatgpt_web_adapter/browser_native_extension/service_worker.js",
 }
@@ -144,6 +162,7 @@ def verify_wheel(wheel: Path, *, root: Path, version: str) -> dict[str, Any]:
     return {
         "path": str(wheel),
         "filename": wheel.name,
+        "required_files": len(REQUIRED_WHEEL_FILES),
         "extension_files": len(source_extension_files),
         "entry_points": sorted(EXPECTED_ENTRY_POINTS),
     }
@@ -162,7 +181,11 @@ def verify_sdist(sdist: Path, *, version: str) -> dict[str, Any]:
     ]
     if missing:
         raise ReleaseGateError(f"sdist is missing required files: {missing}")
-    return {"path": str(sdist), "filename": sdist.name}
+    return {
+        "path": str(sdist),
+        "filename": sdist.name,
+        "required_files": len(REQUIRED_SDIST_SUFFIXES),
+    }
 
 
 def verify_dist(root: Path, dist_dir: Path, version: str) -> dict[str, Any]:

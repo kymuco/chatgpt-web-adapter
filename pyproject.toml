@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatgpt-web-adapter"
-version = "0.2.0"
+version = "0.3.0"
 description = "Python SDK for using an existing ChatGPT web session from Python and terminal tools."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -10,7 +10,7 @@ import pytest
 from tools import installed_wheel_smoke, release_gate
 
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 
 def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") -> Path:
@@ -21,7 +21,7 @@ def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") 
     (extension / "service_worker.js").write_text("// worker\n", encoding="utf-8")
     (extension / "extra.js").write_text("// extra\n", encoding="utf-8")
     (root / "pyproject.toml").write_text(
-        "[project]\nname = \"chatgpt-web-adapter\"\nversion = \"0.2.0\"\n",
+        "[project]\nname = \"chatgpt-web-adapter\"\nversion = \"0.3.0\"\n",
         encoding="utf-8",
     )
     (root / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
@@ -61,7 +61,7 @@ def _write_dist(root: Path, *, broken_entry_points: bool = False, omit_extra_js:
     return dist
 
 
-def test_repository_package_version_is_staged_for_0_2() -> None:
+def test_repository_package_version_is_staged_for_0_3() -> None:
     repo = Path(__file__).resolve().parents[1]
     assert release_gate.project_version(repo / "pyproject.toml") == VERSION
 
@@ -78,22 +78,41 @@ def test_candidate_gate_allows_changelog_finalization_to_remain_separate(tmp_pat
 def test_tagged_gate_requires_dated_changelog(tmp_path: Path) -> None:
     root = _root(tmp_path)
     with pytest.raises(release_gate.ReleaseGateError, match="CHANGELOG"):
-        release_gate.run_release_gate(root=root, tag="v0.2.0")
+        release_gate.run_release_gate(root=root, tag="v0.3.0")
 
 
 def test_tagged_gate_requires_exact_version_match(tmp_path: Path) -> None:
-    root = _root(tmp_path, changelog="# Changelog\n\n## 0.2.0 - 2026-08-22\n")
+    root = _root(tmp_path, changelog="# Changelog\n\n## 0.3.0 - 2026-09-01\n")
     with pytest.raises(release_gate.ReleaseGateError, match="tag/version mismatch"):
-        release_gate.run_release_gate(root=root, tag="v0.2.1")
-    report = release_gate.run_release_gate(root=root, tag="refs/tags/v0.2.0")
+        release_gate.run_release_gate(root=root, tag="v0.3.1")
+    report = release_gate.run_release_gate(root=root, tag="refs/tags/v0.3.0")
     assert report["tag"] == VERSION
-    assert report["changelog_release_date"] == "2026-08-22"
+    assert report["changelog_release_date"] == "2026-09-01"
 
 
 def test_installed_smoke_normalizes_release_tag_versions() -> None:
-    assert installed_wheel_smoke.normalize_expected_version("0.2.0") == VERSION
-    assert installed_wheel_smoke.normalize_expected_version("v0.2.0") == VERSION
-    assert installed_wheel_smoke.normalize_expected_version("refs/tags/v0.2.0") == VERSION
+    assert installed_wheel_smoke.normalize_expected_version("0.3.0") == VERSION
+    assert installed_wheel_smoke.normalize_expected_version("v0.3.0") == VERSION
+    assert installed_wheel_smoke.normalize_expected_version("refs/tags/v0.3.0") == VERSION
+
+
+def test_installed_smoke_can_derive_expected_version_from_source_pyproject(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    assert installed_wheel_smoke.source_project_version(root / "pyproject.toml") == VERSION
+
+
+def test_installed_smoke_source_version_parser_is_project_scoped(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "version = \"9.9.9\"\n\n"
+        "[project]\n"
+        "name = \"chatgpt-web-adapter\"\n"
+        "version = \"0.3.0\"\n\n"
+        "[tool.example]\n"
+        "version = \"8.8.8\"\n",
+        encoding="utf-8",
+    )
+    assert installed_wheel_smoke.source_project_version(pyproject) == VERSION
 
 
 def test_release_gate_accepts_complete_wheel_and_sdist(tmp_path: Path) -> None:
@@ -129,7 +148,7 @@ def test_release_gate_rejects_ambiguous_distribution_set(tmp_path: Path) -> None
 
 def test_pyproject_freezes_console_scripts_and_extension_package_data() -> None:
     text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'version = "0.2.0"' in text
+    assert 'version = "0.3.0"' in text
     assert 'cwa = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'chatgpt-web-adapter = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'chatgpt-web-adapter-native-host = "chatgpt_web_adapter.browser_native_host:main"' in text
@@ -145,7 +164,9 @@ def test_ci_builds_once_then_smokes_exact_wheel_on_linux_and_windows() -> None:
     assert "installed-wheel-smoke:" in text
     assert "ubuntu-latest" in text and "windows-latest" in text
     assert '"3.10"' in text and '"3.14"' in text
-    assert "python tools/installed_wheel_smoke.py --wheel-dir dist --expected-version 0.2.0" in text
+    assert "python tools/installed_wheel_smoke.py --wheel-dir dist" in text
+    assert "--expected-version 0.2.0" not in text
+    assert "--expected-version 0.3.0" not in text
 
 
 def test_publish_workflow_gates_tag_and_exact_wheel_before_upload() -> None:
@@ -154,10 +175,11 @@ def test_publish_workflow_gates_tag_and_exact_wheel_before_upload() -> None:
     wheel_smoke = text.index("python tools/installed_wheel_smoke.py")
     publish = text.index("pypa/gh-action-pypi-publish@release/v1")
     assert "github.event.release.tag_name" in text
+    assert "--expected-version \"${{ github.event.release.tag_name }}\"" in text
     assert tag_gate < wheel_smoke < publish
 
 
-def test_readme_and_release_checklist_present_0_2_user_and_release_contracts() -> None:
+def test_readme_and_release_checklist_present_0_3_user_and_release_contracts() -> None:
     root = Path(__file__).resolve().parents[1]
     readme = (root / "README.md").read_text(encoding="utf-8")
     checklist = (root / "docs" / "release_checklist.md").read_text(encoding="utf-8")
@@ -166,3 +188,4 @@ def test_readme_and_release_checklist_present_0_2_user_and_release_contracts() -
     assert "GitHub tag version == pyproject package version == dated CHANGELOG release heading" in readme
     assert "installed-wheel smoke" in checklist
     assert "Post-publish verification" in checklist
+    assert "v0.3.0" in checklist

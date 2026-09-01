@@ -18,7 +18,9 @@ REQUIRED_WARNING_LINES = [
 
 def test_readme_starts_with_product_runtime_positioning() -> None:
     text = README.read_text(encoding="utf-8")
-    intro = text[:1200]
+    # CWA 0.3 adds the rich-input/observation production summary before the
+    # compatibility sentence; keep the regression bounded to the actual intro.
+    intro = text[:1800]
 
     assert TAGLINE in intro
     assert "ChatGPTProductRuntime" in intro
