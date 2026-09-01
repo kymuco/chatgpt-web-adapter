@@ -362,3 +362,8 @@ importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
 // non-awaited post-click debugger acknowledgement, and session-bound fenced-tab
 // identity before destructive cleanup. Loaded last.
 importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");
+
+// PR10.0 no-write characterization must be the outermost turn wrapper. The full
+// PR9.2 stack above is assembled first so the connector support flag can never
+// enter rich-input preflight as an ordinary product turn.
+importScripts("service_worker_connector_support_pr10_0.js");
