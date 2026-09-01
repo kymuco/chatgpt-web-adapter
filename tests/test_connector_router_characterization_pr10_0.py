@@ -35,7 +35,7 @@ def test_router_characterization_is_scoped_to_explicit_api_tool_router() -> None
     assert "generic tool" not in source.lower()
 
 
-def test_router_identity_values_are_never_taken_from_payload_argument_scopes() -> None:
+def test_router_never_descends_into_payload_argument_or_result_scopes() -> None:
     source = ROUTER.read_text(encoding="utf-8")
 
     for blocked in (
@@ -52,10 +52,30 @@ def test_router_identity_values_are_never_taken_from_payload_argument_scopes() -
         assert blocked in source
 
     assert "const nextBlocked = valueScopeBlocked || _pr100RouterBlockedValueScopes.has(normalizedKey);" in source
-    assert "if (!nextBlocked)" in source
-    assert "candidate_connector_id" in source
-    assert "candidate_connector_name" in source
+    assert "_pr100RouterTraversableEnvelopeKeys.has(normalizedKey)" in source
+    assert "!nextBlocked &&" in source
+    assert "visit(child, [...path, safeKey], depth + 1, false);" in source
     assert "raw arguments/results/content" in source
+
+
+def test_router_accepts_only_explicit_envelope_identity_and_tool_shapes() -> None:
+    source = ROUTER.read_text(encoding="utf-8")
+
+    for explicit_identity in (
+        '["connector", "connector_name"]',
+        '["app", "connector_name"]',
+        '["plugin", "connector_name"]',
+        '["connector_id", "connector_id"]',
+        '["app_id", "connector_id"]',
+        '["plugin_id", "connector_id"]',
+    ):
+        assert explicit_identity in source
+
+    assert "_pr100RouterIdentityContainers.has(parentKey)" in source
+    assert "_pr100RouterToolContainers.has(parentKey)" in source
+    assert "_pr100RouterActionContainers.has(parentKey)" in source
+    assert 'normalizedKey === "id"' in source
+    assert 'normalizedKey === "name"' in source
 
 
 def test_router_exports_only_bounded_structure_and_safe_identifier_candidates() -> None:
@@ -66,6 +86,7 @@ def test_router_exports_only_bounded_structure_and_safe_identifier_candidates() 
     assert "PR100_CONNECTOR_ROUTER_MAX_DEPTH = 4" in source
     assert "PR100_CONNECTOR_ROUTER_MAX_KEYS = 64" in source
     assert 'source_event_type: _pr100RouterStructuralSummary(shape)' in source
+    assert 'tool_name: PR100_CONNECTOR_ROUTER_NAME' in source
     assert "topLevelKeys" in source
     assert "identityKeyPaths" in source
     assert "toolKeyPaths" in source
