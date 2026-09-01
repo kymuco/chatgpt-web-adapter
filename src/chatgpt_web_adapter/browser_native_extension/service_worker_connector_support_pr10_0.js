@@ -54,6 +54,37 @@ function _pr100RequiredActionSurfaceExpression() {
       ['onedrive', ['onedrive', 'one drive']],
       ['sharepoint', ['sharepoint']]
     ];
+    const identityAttributeWhitelist = [
+      'data-action-id',
+      'data-required-action-id',
+      'data-connector-action-id',
+      'data-connect-action-id',
+      'data-connector-id',
+      'data-app-id',
+      'data-plugin-id',
+      'data-testid'
+    ];
+    const actionIdAttributeNames = new Set([
+      'data-action-id',
+      'data-required-action-id',
+      'data-connector-action-id',
+      'data-connect-action-id'
+    ]);
+    const presentIdentityAttributeNames = (root, connectControl, dismissControl) => {
+      const names = new Set();
+      const elements = [root, connectControl, dismissControl];
+      const selector = identityAttributeWhitelist.map((name) => '[' + name + ']').join(',');
+      if (root instanceof Element && selector) {
+        elements.push(...Array.from(root.querySelectorAll(selector)).slice(0, 256));
+      }
+      for (const element of elements) {
+        if (!(element instanceof Element)) continue;
+        for (const name of identityAttributeWhitelist) {
+          if (element.hasAttribute(name)) names.add(name);
+        }
+      }
+      return Array.from(names).sort();
+    };
 
     for (const connectControl of controls) {
       if (!isConnect(label(connectControl))) continue;
@@ -64,15 +95,24 @@ function _pr100RequiredActionSurfaceExpression() {
         const provider = providers.find(([, needles]) => needles.some((needle) => rootText.includes(needle)))?.[0] || null;
         if (!provider) continue;
         const scopedControls = Array.from(root.querySelectorAll('button,[role="button"]')).filter(visible);
-        const dismissPresent = scopedControls.some((element) => isDismiss(label(element)));
-        if (!dismissPresent) continue;
+        const dismissControl = scopedControls.find((element) => isDismiss(label(element))) || null;
+        if (!dismissControl) continue;
+        const identityAttributeNames = presentIdentityAttributeNames(
+          root,
+          connectControl,
+          dismissControl
+        );
+        const stableActionIdCandidateField =
+          identityAttributeNames.find((name) => actionIdAttributeNames.has(name)) || null;
         return {
           surfaceObserved: true,
           connectorName: provider,
           actionType: 'connector_authorization_required',
           connectControlPresent: true,
           dismissControlPresent: true,
-          stableActionIdPresent: false
+          stableActionIdPresent: false,
+          identityAttributeNames,
+          stableActionIdCandidateField
         };
       }
     }
@@ -83,7 +123,9 @@ function _pr100RequiredActionSurfaceExpression() {
       actionType: null,
       connectControlPresent: false,
       dismissControlPresent: false,
-      stableActionIdPresent: false
+      stableActionIdPresent: false,
+      identityAttributeNames: [],
+      stableActionIdCandidateField: null
     };
   })()`;
 }
@@ -98,7 +140,10 @@ async function _pr100CharacterizeRequiredActionSurface() {
       connectControlPresent: false,
       dismissControlPresent: false,
       stableActionIdPresent: false,
+      identityAttributeNames: [],
+      stableActionIdCandidateField: null,
       rawDomExported: false,
+      rawIdentityAttributeValuesExported: false,
       clickPerformed: false,
       writePerformed: false,
       approvalAuthorityGranted: false,
@@ -129,13 +174,41 @@ async function _pr100CharacterizeRequiredActionSurface() {
     if (!value || typeof value !== 'object') {
       throw new Error('PR10_0_REQUIRED_ACTION_SURFACE_RESULT_MISSING');
     }
+    const identityAttributeWhitelist = new Set([
+      'data-action-id',
+      'data-required-action-id',
+      'data-connector-action-id',
+      'data-connect-action-id',
+      'data-connector-id',
+      'data-app-id',
+      'data-plugin-id',
+      'data-testid'
+    ]);
+    const actionIdAttributeNames = new Set([
+      'data-action-id',
+      'data-required-action-id',
+      'data-connector-action-id',
+      'data-connect-action-id'
+    ]);
+    const identityAttributeNames = Array.isArray(value.identityAttributeNames)
+      ? value.identityAttributeNames
+          .filter((name) => typeof name === 'string' && identityAttributeWhitelist.has(name))
+          .slice(0, identityAttributeWhitelist.size)
+      : [];
+    const stableActionIdCandidateField =
+      typeof value.stableActionIdCandidateField === 'string' &&
+      actionIdAttributeNames.has(value.stableActionIdCandidateField)
+        ? value.stableActionIdCandidateField
+        : null;
     snapshot = {
       surfaceObserved: value.surfaceObserved === true,
       connectorName: typeof value.connectorName === 'string' ? value.connectorName : null,
       actionType: typeof value.actionType === 'string' ? value.actionType : null,
       connectControlPresent: value.connectControlPresent === true,
       dismissControlPresent: value.dismissControlPresent === true,
-      stableActionIdPresent: value.stableActionIdPresent === true
+      stableActionIdPresent: false,
+      identityAttributeNames,
+      stableActionIdCandidateField
     };
   } finally {
     if (attached) {
@@ -157,6 +230,7 @@ async function _pr100CharacterizeRequiredActionSurface() {
   return {
     ...snapshot,
     rawDomExported: false,
+    rawIdentityAttributeValuesExported: false,
     clickPerformed: false,
     writePerformed: false,
     approvalAuthorityGranted: false,
