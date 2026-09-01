@@ -13,6 +13,7 @@ from .product_connector_router_characterization_pr10_0 import (
 from .product_observations import ProductObservationPhase
 
 PRODUCT_ARTIFACT_OBSERVED = "product_artifact_observed"
+PRODUCT_ARTIFACT_SHAPE_OBSERVED = "product_artifact_shape_observed"
 
 _ALLOWED_ORIGINS = frozenset({"product_message_metadata", "product_content_part"})
 _SENSITIVE_LOCATOR_KEYS = frozenset(
@@ -123,7 +124,13 @@ PR101StructuredProductObservation: TypeAlias = (
 
 
 class ProductArtifactObservationCollector(ProductConnectorRouterCharacterizationCollector):
-    """Extend PR10.0 observations with fail-closed generated-artifact point evidence."""
+    """Extend PR10.0 observations with fail-closed generated-artifact point evidence.
+
+    ``product_artifact_shape_observed`` is a bounded live-characterization diagnostic.
+    It is deliberately recognized but not materialized as a public observation: a
+    probe-anchored structural fingerprint is not artifact identity or download
+    authority.
+    """
 
     @property
     def observations(self) -> tuple[PR101StructuredProductObservation, ...]:
@@ -132,6 +139,8 @@ class ProductArtifactObservationCollector(ProductConnectorRouterCharacterization
     def consume(self, event: dict[str, Any]) -> PR101StructuredProductObservation | None:
         if not isinstance(event, dict):
             return super().consume(event)
+        if event.get("type") == PRODUCT_ARTIFACT_SHAPE_OBSERVED:
+            return None
         if event.get("type") != PRODUCT_ARTIFACT_OBSERVED:
             return super().consume(event)
         return self._consume_artifact(event)
