@@ -107,16 +107,17 @@ def test_python_collector_rejects_compound_oauth_credential_query_keys() -> None
     assert collector.dropped_event_count == len(keys)
 
 
-def test_python_activity_privacy_check_already_trims_content_type() -> None:
+def test_python_activity_privacy_check_trims_and_casefolds_content_type() -> None:
     collector = ProductObservationCollector()
-    assert collector.consume(
-        {
-            "type": "activity_text_snapshot",
-            "activity_id": "thinking:trimmed-private",
-            "activity_kind": "reasoning",
-            "source_content_type": " thoughts ",
-            "text": "private text",
-        }
-    ) is None
+    for index, content_type in enumerate((" thoughts ", "Thoughts", " THOUGHTS ")):
+        assert collector.consume(
+            {
+                "type": "activity_text_snapshot",
+                "activity_id": f"thinking:private:{index}",
+                "activity_kind": "reasoning",
+                "source_content_type": content_type,
+                "text": "private text",
+            }
+        ) is None
     assert collector.observations == ()
-    assert collector.dropped_event_count == 1
+    assert collector.dropped_event_count == 3
