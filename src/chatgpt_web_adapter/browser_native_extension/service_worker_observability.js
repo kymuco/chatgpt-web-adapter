@@ -34,6 +34,7 @@ importScripts("service_worker_generated_artifact_pr10_1.js");
 importScripts("service_worker_generated_artifact_shape_pr10_1.js");
 importScripts("service_worker_generated_artifact_surface_overlay_pr10_1.js");
 importScripts("service_worker_generated_artifact_surface_v2_overlay_pr10_1.js");
+importScripts("service_worker_generated_artifact_topology_v3_pr10_1.js");
 importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
 importScripts("service_worker_answer_channel_pr8_12.js");
 importScripts("service_worker_temporary_chat_production_pr8_13.js");
