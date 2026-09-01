@@ -6,10 +6,14 @@ import subprocess
 from typing import Any
 import uuid
 
+from chatgpt_web_adapter.product_connector_lifecycle_pr10_0 import (
+    PRODUCT_REQUIRED_ACTION_SURFACE_OBSERVED,
+    ProductConnectorLifecycleCollector,
+)
 from chatgpt_web_adapter.product_model_profile_pr8_10 import ProductModelProfileProvider
 
 
-SCHEMA = "CWA_PR10_0_REQUIRED_ACTION_SURFACE_PROBE_V1"
+SCHEMA = "CWA_PR10_0_REQUIRED_ACTION_SURFACE_PROBE_V2"
 
 
 class RequiredActionSurfaceProvider(ProductModelProfileProvider):
@@ -49,6 +53,22 @@ def _git_output(*args: str) -> str:
 
 def _tracked_clean() -> bool:
     return _git_output("status", "--porcelain", "--untracked-files=no") == ""
+
+
+def _surface_observation_event(surface: dict[str, Any]) -> dict[str, Any] | None:
+    connector_name = surface.get("connector_name")
+    action_type = surface.get("action_type")
+    if not isinstance(connector_name, str) or not isinstance(action_type, str):
+        return None
+    return {
+        "type": PRODUCT_REQUIRED_ACTION_SURFACE_OBSERVED,
+        "observation_id": f"required-action-surface:{connector_name}:{action_type}",
+        "connector_name": connector_name,
+        "action_type": action_type,
+        "connect_control_present": surface.get("connect_control_present") is True,
+        "dismiss_control_present": surface.get("dismiss_control_present") is True,
+        "stable_action_id_present": surface.get("stable_action_id_present") is True,
+    }
 
 
 def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
@@ -111,16 +131,40 @@ def run_probe(*, expected_head: str, timeout: float) -> dict[str, Any]:
         and surface["connect_control_present"]
         and surface["dismiss_control_present"]
     )
+
+    typed_observation = None
+    observation_drop_count = 0
+    if observed:
+        event = _surface_observation_event(surface)
+        if event is not None:
+            collector = ProductConnectorLifecycleCollector()
+            observation = collector.consume(event)
+            observation_drop_count = collector.dropped_event_count
+            if observation is not None:
+                typed_observation = observation.to_dict()
+
+    point_observation_materialized = bool(
+        typed_observation is not None
+        and typed_observation.get("kind") == "REQUIRED_ACTION"
+        and typed_observation.get("phase") == "OBSERVED"
+        and "action_id" not in typed_observation
+        and observation_drop_count == 0
+    )
+
     report.update(
         {
             "surface": surface,
+            "typed_observation": typed_observation,
+            "point_observation_materialized": point_observation_materialized,
+            "observation_drop_count": observation_drop_count,
+            "lifecycle_correlation_claimed": False,
             "safety_ok": safety_ok,
             "characterization": (
                 "REQUIRED_ACTION_SURFACE_OBSERVED"
                 if observed
                 else "NO_REQUIRED_ACTION_SURFACE_OBSERVED"
             ),
-            "ok": safety_ok and observed,
+            "ok": safety_ok and observed and point_observation_materialized,
         }
     )
     return report
