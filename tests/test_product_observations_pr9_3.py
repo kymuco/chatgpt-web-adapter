@@ -11,13 +11,13 @@ from chatgpt_web_adapter.product_observations import (
 )
 
 
-def test_search_activity_lifecycle_is_typed_without_raw_payloads() -> None:
+def test_pr812_tool_sides_are_point_observations_without_fabricated_lifecycle() -> None:
     collector = ProductObservationCollector()
 
     started = collector.consume(
         {
             "type": "activity_started",
-            "activity_id": "tool-web:1",
+            "activity_id": "tool-web:assistant-message-1",
             "activity_kind": "web",
             "operation": "search_query",
             "tool_name": "web.run",
@@ -31,7 +31,7 @@ def test_search_activity_lifecycle_is_typed_without_raw_payloads() -> None:
     completed = collector.consume(
         {
             "type": "activity_completed",
-            "activity_id": "tool-web:1",
+            "activity_id": "tool-result-web:tool-message-9",
             "activity_kind": "web",
             "operation": "search_query",
             "tool_name": "web.run",
@@ -43,12 +43,12 @@ def test_search_activity_lifecycle_is_typed_without_raw_payloads() -> None:
 
     assert isinstance(started, ProductActivityObservation)
     assert started.kind is ProductObservationKind.SEARCH
-    assert started.phase is ProductObservationPhase.STARTED
+    assert started.phase is ProductObservationPhase.OBSERVED
     assert started.operation == "search_query"
     assert started.to_dict() == {
-        "observation_id": "tool-web:1",
+        "observation_id": "tool-web:assistant-message-1",
         "kind": "SEARCH",
-        "phase": "STARTED",
+        "phase": "OBSERVED",
         "activity_kind": "web",
         "operation": "search_query",
         "tool_name": "web.run",
@@ -61,16 +61,41 @@ def test_search_activity_lifecycle_is_typed_without_raw_payloads() -> None:
 
     assert isinstance(completed, ProductActivityObservation)
     assert completed.kind is ProductObservationKind.SEARCH
-    assert completed.phase is ProductObservationPhase.COMPLETED
+    assert completed.phase is ProductObservationPhase.OBSERVED
+    assert completed.observation_id != started.observation_id
     assert completed.text is None
 
 
-def test_tool_activity_is_separate_from_search() -> None:
+def test_non_tool_activity_can_keep_real_same_id_lifecycle() -> None:
+    collector = ProductObservationCollector()
+    started = collector.consume(
+        {
+            "type": "activity_started",
+            "activity_id": "reasoning:1",
+            "activity_kind": "reasoning",
+            "label": "Reasoning summary",
+        }
+    )
+    completed = collector.consume(
+        {
+            "type": "activity_completed",
+            "activity_id": "reasoning:1",
+            "activity_kind": "reasoning",
+            "label": "Reasoning summary complete",
+        }
+    )
+    assert isinstance(started, ProductActivityObservation)
+    assert started.phase is ProductObservationPhase.STARTED
+    assert isinstance(completed, ProductActivityObservation)
+    assert completed.phase is ProductObservationPhase.COMPLETED
+
+
+def test_tool_activity_is_separate_from_search_and_not_fake_lifecycle() -> None:
     collector = ProductObservationCollector()
     observation = collector.consume(
         {
             "type": "activity_started",
-            "activity_id": "tool:calculator",
+            "activity_id": "tool-code:calculator-request",
             "activity_kind": "tool",
             "operation": "calculator",
             "tool_name": "calculator",
@@ -80,7 +105,7 @@ def test_tool_activity_is_separate_from_search() -> None:
 
     assert isinstance(observation, ProductActivityObservation)
     assert observation.kind is ProductObservationKind.TOOL
-    assert observation.phase is ProductObservationPhase.STARTED
+    assert observation.phase is ProductObservationPhase.OBSERVED
 
 
 def test_activity_text_deltas_and_revisions_materialize_current_visible_text() -> None:
@@ -123,6 +148,35 @@ def test_activity_text_deltas_and_revisions_materialize_current_visible_text() -
     assert all(item.kind is ProductObservationKind.SEARCH for item in collector.observations)
 
 
+def test_private_thought_text_event_is_dropped_even_if_upstream_regresses() -> None:
+    collector = ProductObservationCollector()
+    leaked = collector.consume(
+        {
+            "type": "activity_text_snapshot",
+            "activity_id": "thinking:private",
+            "activity_kind": "reasoning",
+            "source_content_type": "thoughts",
+            "label": "Thinking…",
+            "text": "private chain text must never escape",
+        }
+    )
+    assert leaked is None
+    assert collector.observations == ()
+    assert collector.dropped_event_count == 1
+
+    completed = collector.consume(
+        {
+            "type": "activity_completed",
+            "activity_id": "thinking:private",
+            "activity_kind": "reasoning",
+            "source_content_type": "thoughts",
+            "label": "Thinking complete",
+        }
+    )
+    assert isinstance(completed, ProductActivityObservation)
+    assert completed.text is None
+
+
 def test_source_and_citation_relationship_is_explicit_and_fail_closed() -> None:
     collector = ProductObservationCollector()
 
@@ -163,6 +217,64 @@ def test_source_and_citation_relationship_is_explicit_and_fail_closed() -> None:
     assert isinstance(citation, ProductCitationObservation)
     assert citation.kind is ProductObservationKind.CITATION
     assert citation.source_id == source.source_id
+
+
+def test_conflicting_source_id_reuse_is_dropped_and_original_relation_remains_unambiguous() -> None:
+    collector = ProductObservationCollector()
+    first = collector.consume(
+        {
+            "type": "product_source_observed",
+            "observation_id": "source-observation:1",
+            "source_id": "source:stable",
+            "url": "https://one.example/article",
+        }
+    )
+    conflict = collector.consume(
+        {
+            "type": "product_source_observed",
+            "observation_id": "source-observation:2",
+            "source_id": "source:stable",
+            "url": "https://two.example/different",
+        }
+    )
+    citation = collector.consume(
+        {
+            "type": "product_citation_observed",
+            "observation_id": "citation-observation:1",
+            "citation_id": "citation:1",
+            "source_id": "source:stable",
+        }
+    )
+
+    assert isinstance(first, ProductSourceObservation)
+    assert conflict is None
+    assert collector.dropped_event_count == 1
+    assert isinstance(citation, ProductCitationObservation)
+    assert [
+        item.url for item in collector.observations if isinstance(item, ProductSourceObservation)
+    ] == ["https://one.example/article"]
+
+
+def test_same_source_id_and_url_can_repeat_without_becoming_ambiguous() -> None:
+    collector = ProductObservationCollector()
+    assert collector.consume(
+        {
+            "type": "product_source_observed",
+            "observation_id": "source-observation:1",
+            "source_id": "source:stable",
+            "url": "https://one.example/article",
+        }
+    ) is not None
+    assert collector.consume(
+        {
+            "type": "product_source_observed",
+            "observation_id": "source-observation:2",
+            "source_id": "source:stable",
+            "url": "https://one.example/article",
+            "title": "Updated visible title",
+        }
+    ) is not None
+    assert collector.dropped_event_count == 0
 
 
 def test_required_action_is_observation_not_execution_authority() -> None:

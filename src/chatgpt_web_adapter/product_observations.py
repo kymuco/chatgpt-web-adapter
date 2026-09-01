@@ -49,6 +49,7 @@ _SEARCH_ACTIVITY_KINDS = frozenset(
     }
 )
 _TOOL_ACTIVITY_KINDS = frozenset({"tool", "code"})
+_PRIVATE_ACTIVITY_CONTENT_TYPES = frozenset({"thoughts"})
 
 
 class ProductObservationKind(str, Enum):
@@ -111,6 +112,23 @@ def _activity_observation_kind(
     if activity_kind in _TOOL_ACTIVITY_KINDS or operation is not None:
         return ProductObservationKind.TOOL
     return ProductObservationKind.ACTIVITY
+
+
+def _uncorrelated_tool_event(
+    *,
+    activity_id: str,
+    tool_name: str | None,
+) -> bool:
+    """Return whether PR8.12 exposes this as a standalone tool-side observation.
+
+    PR8.12 starts an assistant tool request under ``tool-...:<assistant-id>`` and
+    reports the corresponding tool result under ``tool-result-...:<tool-id>``.
+    Those identifiers are not a proven correlation key, so PR9.3 must not invent
+    one lifecycle by labelling either side STARTED/COMPLETED. Until a real
+    correlation identity is observed, both sides are truthful point observations.
+    """
+
+    return tool_name is not None or activity_id.startswith("tool-")
 
 
 @dataclass(frozen=True)
@@ -208,7 +226,7 @@ class ProductObservationCollector:
     def __init__(self) -> None:
         self._observations: list[StructuredProductObservation] = []
         self._activity_text: dict[str, str] = {}
-        self._source_ids: set[str] = set()
+        self._source_url_by_id: dict[str, str] = {}
         self.dropped_event_count = 0
 
     @property
@@ -251,16 +269,38 @@ class ProductObservationCollector:
 
         activity_kind = _optional_text(event.get("activity_kind"))
         operation = _optional_text(event.get("operation"))
+        tool_name = _optional_text(event.get("tool_name"))
+        source_content_type = _optional_text(event.get("source_content_type"))
         kind = _activity_observation_kind(
             activity_kind=activity_kind,
             operation=operation,
         )
+        uncorrelated_tool = _uncorrelated_tool_event(
+            activity_id=activity_id,
+            tool_name=tool_name,
+        )
+
+        if (
+            event_type
+            in {ACTIVITY_TEXT_SNAPSHOT, ACTIVITY_TEXT_DELTA, ACTIVITY_TEXT_REVISION}
+            and source_content_type in _PRIVATE_ACTIVITY_CONTENT_TYPES
+        ):
+            self._drop()
+            return None
 
         if event_type == ACTIVITY_STARTED:
-            phase = ProductObservationPhase.STARTED
+            phase = (
+                ProductObservationPhase.OBSERVED
+                if uncorrelated_tool
+                else ProductObservationPhase.STARTED
+            )
             text = None
         elif event_type == ACTIVITY_COMPLETED:
-            phase = ProductObservationPhase.COMPLETED
+            phase = (
+                ProductObservationPhase.OBSERVED
+                if uncorrelated_tool
+                else ProductObservationPhase.COMPLETED
+            )
             text = self._activity_text.get(activity_id)
         else:
             phase = ProductObservationPhase.UPDATED
@@ -284,10 +324,10 @@ class ProductObservationCollector:
                 phase=phase,
                 activity_kind=activity_kind,
                 operation=operation,
-                tool_name=_optional_text(event.get("tool_name")),
+                tool_name=tool_name,
                 label=_optional_text(event.get("label")),
                 text=text,
-                source_content_type=_optional_text(event.get("source_content_type")),
+                source_content_type=source_content_type,
                 sequence=_non_negative_int(event.get("sequence")),
                 observed_at_ms=_non_negative_int(event.get("observed_at_ms")),
             )
@@ -298,6 +338,11 @@ class ProductObservationCollector:
         source_id = _optional_text(event.get("source_id"))
         url = _optional_text(event.get("url"))
         if observation_id is None or source_id is None or url is None:
+            self._drop()
+            return None
+
+        prior_url = self._source_url_by_id.get(source_id)
+        if prior_url is not None and prior_url != url:
             self._drop()
             return None
 
@@ -312,7 +357,7 @@ class ProductObservationCollector:
             sequence=_non_negative_int(event.get("sequence")),
             observed_at_ms=_non_negative_int(event.get("observed_at_ms")),
         )
-        self._source_ids.add(source_id)
+        self._source_url_by_id[source_id] = url
         return self._append(observation)
 
     def _consume_citation(self, event: dict[str, Any]) -> ProductCitationObservation | None:
@@ -324,7 +369,7 @@ class ProductObservationCollector:
             observation_id is None
             or citation_id is None
             or source_id is None
-            or source_id not in self._source_ids
+            or source_id not in self._source_url_by_id
             or citation_range is None
         ):
             self._drop()
