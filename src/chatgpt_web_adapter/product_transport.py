@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
 from .product_capabilities import ProductCapabilities
-from .product_observations import StructuredProductObservation
+from .product_connector_lifecycle_pr10_0 import PR100StructuredProductObservation
 from .product_provenance import ProductExecutionProvenance
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
 
@@ -65,7 +65,7 @@ class ProductRuntimeExecution:
     response: ChatResponse
     observation: Any
     provenance: ProductExecutionProvenance | None = None
-    observations: tuple[StructuredProductObservation, ...] = ()
+    observations: tuple[PR100StructuredProductObservation, ...] = ()
     dropped_observation_event_count: int = 0
 
 
@@ -140,6 +140,13 @@ def require_canonical_conversation_client(client: Any) -> CanonicalConversationC
                 "and attach_conversation()"
             )
     return client
+
+
+@runtime_checkable
+class CanonicalSessionClient(Protocol):
+    """Optional canonical session/auth lifecycle surface."""
+
+    def refresh_auth(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
 def require_product_write_transport(transport: Any) -> ProductWriteTransport:
