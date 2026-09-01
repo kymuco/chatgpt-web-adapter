@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
 from .product_capabilities import ProductCapabilities
+from .product_observations import StructuredProductObservation
 from .product_provenance import ProductExecutionProvenance
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
 
@@ -64,6 +65,8 @@ class ProductRuntimeExecution:
     response: ChatResponse
     observation: Any
     provenance: ProductExecutionProvenance | None = None
+    observations: tuple[StructuredProductObservation, ...] = ()
+    dropped_observation_event_count: int = 0
 
 
 @runtime_checkable

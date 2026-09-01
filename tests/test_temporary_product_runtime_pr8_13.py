@@ -364,13 +364,13 @@ def test_product_runtime_dispatches_temporary_only_to_explicit_mode_aware_transp
     assert result.provenance is not None
     assert result.provenance.conversation_mode is not None
     assert result.provenance.conversation_mode.observed_conversation_mode is ConversationMode.TEMPORARY
-    assert transport.calls == [
-        {
-            "conversation": None,
-            "timeout": 150.0,
-            "poll_interval": 0.5,
-            "on_token": None,
-            "on_event": None,
-            "conversation_mode": "temporary",
-        }
-    ]
+    assert len(transport.calls) == 1
+    call = transport.calls[0]
+    assert callable(call["on_event"])
+    assert {key: value for key, value in call.items() if key != "on_event"} == {
+        "conversation": None,
+        "timeout": 150.0,
+        "poll_interval": 0.5,
+        "on_token": None,
+        "conversation_mode": "temporary",
+    }
