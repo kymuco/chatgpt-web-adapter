@@ -328,6 +328,9 @@ class ProductObservationCollector:
         operation = _optional_text(event.get("operation"))
         tool_name = _optional_text(event.get("tool_name"))
         source_content_type = _optional_text(event.get("source_content_type"))
+        private_source_content_type = (
+            source_content_type.casefold() if source_content_type is not None else None
+        )
         kind = _activity_observation_kind(
             activity_kind=activity_kind,
             operation=operation,
@@ -340,7 +343,7 @@ class ProductObservationCollector:
         if (
             event_type
             in {ACTIVITY_TEXT_SNAPSHOT, ACTIVITY_TEXT_DELTA, ACTIVITY_TEXT_REVISION}
-            and source_content_type in _PRIVATE_ACTIVITY_CONTENT_TYPES
+            and private_source_content_type in _PRIVATE_ACTIVITY_CONTENT_TYPES
         ):
             self._drop()
             return None
@@ -358,7 +361,7 @@ class ProductObservationCollector:
                 if uncorrelated_tool
                 else ProductObservationPhase.COMPLETED
             )
-            if source_content_type in _PRIVATE_ACTIVITY_CONTENT_TYPES:
+            if private_source_content_type in _PRIVATE_ACTIVITY_CONTENT_TYPES:
                 self._activity_text.pop(activity_id, None)
                 text = None
             else:
