@@ -52,6 +52,15 @@ from .product_capabilities import (
     ProductCapability,
 )
 from .product_contract import ProductRuntimeContract, product_runtime_contract
+from .product_observations import (
+    ProductActivityObservation,
+    ProductCitationObservation,
+    ProductObservationKind,
+    ProductObservationPhase,
+    ProductRequiredActionObservation,
+    ProductSourceObservation,
+    StructuredProductObservation,
+)
 from .product_provenance import (
     CompletionSource,
     ProductCompletionProvenance,
