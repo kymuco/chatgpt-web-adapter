@@ -72,6 +72,7 @@ def test_required_action_surface_rpc_rejects_write_bearing_fields() -> None:
 def test_required_action_surface_cli_has_no_product_write_path() -> None:
     source = PROBE.read_text(encoding="utf-8")
 
+    assert 'SCHEMA = "CWA_PR10_0_REQUIRED_ACTION_SURFACE_PROBE_V2"' in source
     assert '"product_write_budget": 0' in source
     assert '"write_attempted": False' in source
     assert '"click_attempted": False' in source
@@ -80,3 +81,14 @@ def test_required_action_surface_cli_has_no_product_write_path() -> None:
     assert "assemble_product_runtime" not in source
     assert "send_text" not in source
     assert "send_text_observed" not in source
+
+
+def test_required_action_surface_cli_materializes_only_uncorrelated_point_evidence() -> None:
+    source = PROBE.read_text(encoding="utf-8")
+
+    assert "PRODUCT_REQUIRED_ACTION_SURFACE_OBSERVED" in source
+    assert "ProductConnectorLifecycleCollector" in source
+    assert '"point_observation_materialized": point_observation_materialized' in source
+    assert '"lifecycle_correlation_claimed": False' in source
+    assert '"action_id" not in typed_observation' in source
+    assert "stable_action_id_present" in source
