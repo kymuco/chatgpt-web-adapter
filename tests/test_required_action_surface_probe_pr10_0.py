@@ -31,10 +31,11 @@ def test_required_action_surface_probe_is_read_only_dom_characterization() -> No
     assert "chrome.tabs.remove" not in source
 
 
-def test_required_action_surface_probe_never_exports_raw_dom_text() -> None:
+def test_required_action_surface_probe_never_exports_raw_dom_text_or_identity_values() -> None:
     source = SUPPORT.read_text(encoding="utf-8")
 
     assert "rawDomExported: false" in source
+    assert "rawIdentityAttributeValuesExported: false" in source
     assert "clickPerformed: false" in source
     assert "writePerformed: false" in source
     assert "approvalAuthorityGranted: false" in source
@@ -47,15 +48,41 @@ def test_required_action_surface_probe_never_exports_raw_dom_text() -> None:
     assert "innerText" not in outer_result
     assert "textContent" not in outer_result
 
+    # Identity characterization reports only fixed attribute NAMES. It does not
+    # read/export their values in this slice, so candidate presence cannot become
+    # fabricated lifecycle correlation.
+    assert "element.hasAttribute(name)" in source
+    assert "getAttribute(name)" not in source
+    for name in (
+        "data-action-id",
+        "data-required-action-id",
+        "data-connector-action-id",
+        "data-connect-action-id",
+        "data-connector-id",
+        "data-app-id",
+        "data-plugin-id",
+        "data-testid",
+    ):
+        assert name in source
+
 
 def test_required_action_surface_requires_connect_and_dismiss_affordance() -> None:
     source = SUPPORT.read_text(encoding="utf-8")
 
     assert "isConnect(label(connectControl))" in source
     assert "isDismiss(label(element))" in source
-    assert "if (!dismissPresent) continue;" in source
+    assert "if (!dismissControl) continue;" in source
     assert "['gmail', ['gmail']]" in source
     assert "stableActionIdPresent: false" in source
+
+
+def test_required_action_surface_identity_field_is_candidate_only() -> None:
+    source = SUPPORT.read_text(encoding="utf-8")
+
+    assert "stableActionIdCandidateField" in source
+    assert "actionIdAttributeNames" in source
+    assert "stableActionIdPresent: false" in source
+    assert "rawIdentityAttributeValuesExported: false" in source
 
 
 def test_required_action_surface_rpc_rejects_write_bearing_fields() -> None:
@@ -72,7 +99,7 @@ def test_required_action_surface_rpc_rejects_write_bearing_fields() -> None:
 def test_required_action_surface_cli_has_no_product_write_path() -> None:
     source = PROBE.read_text(encoding="utf-8")
 
-    assert 'SCHEMA = "CWA_PR10_0_REQUIRED_ACTION_SURFACE_PROBE_V2"' in source
+    assert 'SCHEMA = "CWA_PR10_0_REQUIRED_ACTION_SURFACE_PROBE_V3"' in source
     assert '"product_write_budget": 0' in source
     assert '"write_attempted": False' in source
     assert '"click_attempted": False' in source
@@ -89,6 +116,19 @@ def test_required_action_surface_cli_materializes_only_uncorrelated_point_eviden
     assert "PRODUCT_REQUIRED_ACTION_SURFACE_OBSERVED" in source
     assert "ProductConnectorLifecycleCollector" in source
     assert '"point_observation_materialized": point_observation_materialized' in source
-    assert '"lifecycle_correlation_claimed": False' in source
+    assert '"lifecycle_correlation_claimed": lifecycle_correlation_claimed' in source
+    assert "lifecycle_correlation_claimed = False" in source
+    assert "action_id_value_observed = False" in source
     assert '"action_id" not in typed_observation' in source
     assert "stable_action_id_present" in source
+
+
+def test_required_action_surface_cli_whitelists_identity_names_without_values() -> None:
+    source = PROBE.read_text(encoding="utf-8")
+
+    assert "_ALLOWED_IDENTITY_ATTRIBUTE_NAMES" in source
+    assert "_ALLOWED_ACTION_ID_CANDIDATE_FIELDS" in source
+    assert '"identity_attribute_names": identity_attribute_names' in source
+    assert '"stable_action_id_candidate_field": stable_action_id_candidate_field' in source
+    assert '"raw_identity_attribute_values_exported"' in source
+    assert '"action_id_value_observed": action_id_value_observed' in source
