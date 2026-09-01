@@ -30,6 +30,36 @@ HELP_COMMANDS = (
     ("cwa", "export", "--help"),
     ("cwa", "send", "--help"),
 )
+REQUIRED_PRODUCT_MODULES = (
+    "chatgpt_web_adapter.product_runtime",
+    "chatgpt_web_adapter.product_transport",
+    "chatgpt_web_adapter.product_contract",
+    "chatgpt_web_adapter.product_support",
+    "chatgpt_web_adapter.product_capabilities",
+    "chatgpt_web_adapter.product_provenance",
+    "chatgpt_web_adapter.product_observations",
+    "chatgpt_web_adapter.public_surface",
+    "chatgpt_web_adapter.product_rich_input_capability_gate_pr9_4",
+    "chatgpt_web_adapter.product_web_search_capability_gate_pr9_3",
+)
+REQUIRED_PRIMARY_ROOT_EXPORTS = (
+    "ChatGPTProductRuntime",
+    "ProductRuntimeExecution",
+    "ProductCapabilities",
+    "ProductExecutionProvenance",
+    "ProductObservationKind",
+    "ProductObservationPhase",
+    "ProductActivityObservation",
+    "ProductSourceObservation",
+    "ProductCitationObservation",
+    "ProductRequiredActionObservation",
+    "StructuredProductObservation",
+    "assemble_product_runtime",
+)
+REQUIRED_SHARED_ROOT_EXPORTS = (
+    "MediaItem",
+    "MediaSource",
+)
 _VERSION_RE = re.compile(r'^version\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
 _PROJECT_RE = re.compile(r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE)
 
@@ -99,6 +129,42 @@ def _run_help(command: tuple[str, ...], *, cwd: Path) -> None:
         )
 
 
+def _validate_installed_0_3_surface(package: object) -> dict[str, object]:
+    for module_name in REQUIRED_PRODUCT_MODULES:
+        importlib.import_module(module_name)
+
+    tier = getattr(package, "PublicSurfaceTier", None)
+    primary = getattr(tier, "PRIMARY_PRODUCTION", None)
+    shared = getattr(tier, "SHARED_SUPPORT", None)
+    public_surface_tier = getattr(package, "public_surface_tier", None)
+    if primary is None or shared is None or not callable(public_surface_tier):
+        raise RuntimeError("installed public-surface tier contract is incomplete")
+
+    exported = set(getattr(package, "__all__", ()))
+    for symbol in REQUIRED_PRIMARY_ROOT_EXPORTS:
+        if symbol not in exported or not hasattr(package, symbol):
+            raise RuntimeError(f"installed primary product export is missing: {symbol}")
+        if public_surface_tier(symbol) is not primary:
+            raise RuntimeError(f"installed primary product export has wrong tier: {symbol}")
+
+    for symbol in REQUIRED_SHARED_ROOT_EXPORTS:
+        if symbol not in exported or not hasattr(package, symbol):
+            raise RuntimeError(f"installed shared product type is missing: {symbol}")
+        if public_surface_tier(symbol) is not shared:
+            raise RuntimeError(f"installed shared product type has wrong tier: {symbol}")
+
+    if "ProductObservationCollector" in exported:
+        raise RuntimeError("internal ProductObservationCollector leaked into root public surface")
+    if public_surface_tier("ProductObservationCollector") is not None:
+        raise RuntimeError("internal ProductObservationCollector acquired a public support tier")
+
+    return {
+        "product_modules": len(REQUIRED_PRODUCT_MODULES),
+        "primary_root_exports": len(REQUIRED_PRIMARY_ROOT_EXPORTS),
+        "shared_root_exports": len(REQUIRED_SHARED_ROOT_EXPORTS),
+    }
+
+
 def _installed_checks(*, expected_version: str) -> dict[str, object]:
     expected_version = normalize_expected_version(expected_version)
     version = importlib.metadata.version(PROJECT_NAME)
@@ -119,6 +185,8 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         raise RuntimeError("installed doctor.run_doctor is missing")
     if not hasattr(artifact_manifest, "ARTIFACT_MANIFEST_SCHEMA"):
         raise RuntimeError("installed artifact manifest contract is missing")
+
+    product_surface = _validate_installed_0_3_surface(package)
 
     from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
@@ -177,6 +245,7 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         "entry_points": sorted(entry_points),
         "help_commands": len(HELP_COMMANDS),
         "pre_setup_doctor_exit": 1,
+        "product_surface": product_surface,
     }
 
 
