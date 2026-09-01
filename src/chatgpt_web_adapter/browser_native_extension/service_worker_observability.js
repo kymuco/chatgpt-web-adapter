@@ -41,6 +41,7 @@ importScripts("service_worker_generated_artifact_fiber_state_v6_pr10_1.js");
 importScripts("service_worker_generated_artifact_subtree_v7_pr10_1.js");
 importScripts("service_worker_generated_artifact_root_shape_v8_pr10_1.js");
 importScripts("service_worker_generated_artifact_root_key_shape_v9_pr10_1.js");
+importScripts("service_worker_generated_artifact_array_element_shape_v10_pr10_1.js");
 importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
 importScripts("service_worker_answer_channel_pr8_12.js");
 importScripts("service_worker_temporary_chat_production_pr8_13.js");
