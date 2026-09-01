@@ -142,13 +142,6 @@ def require_canonical_conversation_client(client: Any) -> CanonicalConversationC
     return client
 
 
-@runtime_checkable
-class CanonicalSessionClient(Protocol):
-    """Optional canonical session/auth lifecycle surface."""
-
-    def refresh_auth(self, *args: Any, **kwargs: Any) -> Any: ...
-
-
 def require_product_write_transport(transport: Any) -> ProductWriteTransport:
     transport_id = getattr(transport, "transport_id", None)
     if not isinstance(transport_id, str) or not transport_id.strip():
