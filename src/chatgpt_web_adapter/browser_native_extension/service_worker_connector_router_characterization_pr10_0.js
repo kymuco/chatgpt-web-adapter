@@ -19,7 +19,24 @@ const _pr100RouterBlockedValueScopes = new Set([
   "result", "response", "content"
 ]);
 
+const _pr100RouterTraversableEnvelopeKeys = new Set([
+  "connector", "app", "plugin", "server", "mcp_server",
+  "tool", "resource", "action", "function", "routing", "route", "target"
+]);
+
+const _pr100RouterIdentityContainers = new Set([
+  "connector", "app", "plugin", "server", "mcp_server"
+]);
+
+const _pr100RouterToolContainers = new Set(["tool", "resource"]);
+const _pr100RouterActionContainers = new Set(["action", "function"]);
+
 const _pr100RouterIdentityKeyKinds = new Map([
+  ["connector", "connector_name"],
+  ["app", "connector_name"],
+  ["plugin", "connector_name"],
+  ["server", "connector_name"],
+  ["mcp_server", "connector_name"],
   ["connector_id", "connector_id"],
   ["connectorid", "connector_id"],
   ["app_id", "connector_id"],
@@ -43,6 +60,10 @@ const _pr100RouterIdentityKeyKinds = new Map([
 ]);
 
 const _pr100RouterToolKeyKinds = new Map([
+  ["tool", "tool_resource"],
+  ["resource", "tool_resource"],
+  ["action", "action_name"],
+  ["function", "action_name"],
   ["tool_name", "tool_resource"],
   ["toolname", "tool_resource"],
   ["tool_resource", "tool_resource"],
@@ -128,9 +149,21 @@ function _pr100RouterCharacterizeEnvelope(root) {
       envelopeKeyPaths.add(keyPath);
 
       const normalizedKey = _pr100RouterNormalizedKey(key);
+      const parentKey = path.length ? path[path.length - 1] : null;
       const nextBlocked = valueScopeBlocked || _pr100RouterBlockedValueScopes.has(normalizedKey);
-      const identityKind = _pr100RouterIdentityKeyKinds.get(normalizedKey);
-      const toolKind = _pr100RouterToolKeyKinds.get(normalizedKey);
+      let identityKind = _pr100RouterIdentityKeyKinds.get(normalizedKey);
+      let toolKind = _pr100RouterToolKeyKinds.get(normalizedKey);
+
+      if (!identityKind && _pr100RouterIdentityContainers.has(parentKey)) {
+        if (normalizedKey === "id") identityKind = "connector_id";
+        if (normalizedKey === "name") identityKind = "connector_name";
+      }
+      if (!toolKind && _pr100RouterToolContainers.has(parentKey)) {
+        if (normalizedKey === "id" || normalizedKey === "name") toolKind = "tool_resource";
+      }
+      if (!toolKind && _pr100RouterActionContainers.has(parentKey)) {
+        if (normalizedKey === "id" || normalizedKey === "name") toolKind = "action_name";
+      }
 
       if (identityKind) {
         identityKeyPaths.add(keyPath);
@@ -150,8 +183,12 @@ function _pr100RouterCharacterizeEnvelope(root) {
       }
 
       const child = value[key];
-      if (child && typeof child === "object") {
-        visit(child, [...path, safeKey], depth + 1, nextBlocked);
+      if (
+        !nextBlocked &&
+        _pr100RouterTraversableEnvelopeKeys.has(normalizedKey) &&
+        child && typeof child === "object"
+      ) {
+        visit(child, [...path, safeKey], depth + 1, false);
       }
     }
   }
