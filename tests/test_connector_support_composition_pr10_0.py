@@ -56,6 +56,8 @@ def test_outer_support_probe_is_direct_no_write_and_non_probe_delegates() -> Non
         "DOM.setFileInputFiles",
         "Input.dispatchKeyEvent",
         "Input.insertText",
-        "approve",
+        "approve_pending_action",
+        "send_and_auto_approve",
+        "wait_and_approve",
     ):
         assert forbidden not in source
