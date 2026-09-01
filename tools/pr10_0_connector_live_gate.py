@@ -46,12 +46,37 @@ _SAFE_EVENT_KEYS = (
     "action_id",
     "action_type",
 )
+_EXPECTED_SUPPORT = {
+    "supported": True,
+    "schema": CONNECTOR_OBSERVATION_SCHEMA,
+    "explicit_connector_identity_required": True,
+    "explicit_lifecycle_correlation_required": True,
+    "generic_tool_activity_implies_connector": False,
+    "raw_connector_payload_exported": False,
+    "grants_approval_authority": False,
+    "changes_canonical_finality": False,
+    "changes_retry_authority": False,
+    "automatic_write_retry": False,
+    "fallback_transport": None,
+    "write_performed": False,
+}
 
 
 class ProductConnectorLiveProvider(ProductModelProfileProvider):
     """Production provider plus a PR10.0 no-write observation-support probe."""
 
-    def connector_observation_support(self, *, timeout: float = 5.0) -> dict[str, Any]:
+    def connector_observation_support(
+        self,
+        *,
+        timeout: float = 5.0,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+        """Return support plus bounded diagnostics without exposing worker errors.
+
+        The diagnostics deliberately contain only protocol-shape booleans/reasons.
+        They never include the extension's raw error string or arbitrary response
+        values, because bridge failures may contain product/runtime details.
+        """
+
         if timeout <= 0:
             raise ValueError("timeout must be positive")
         request_id = str(uuid.uuid4())
@@ -64,13 +89,37 @@ class ProductConnectorLiveProvider(ProductModelProfileProvider):
             },
             timeout=timeout,
         )
-        if response.get("request_id") != request_id:
-            raise RuntimeError("PR10_0_CONNECTOR_SUPPORT_RESPONSE_MISMATCH")
-        if response.get("ok") is not True:
-            raise RuntimeError(
-                f"PR10_0_CONNECTOR_SUPPORT_FAILED:{response.get('error') or 'unknown'}"
-            )
-        return {
+        request_id_matches = response.get("request_id") == request_id
+        response_ok = response.get("ok") is True
+        diagnostic = {
+            "request_id_matches": request_id_matches,
+            "response_ok": response_ok,
+            "support_fields_present": all(
+                key in response
+                for key in (
+                    "connectorObservationSupported",
+                    "connectorObservationSchemaVersion",
+                    "explicitConnectorIdentityRequired",
+                    "explicitLifecycleCorrelationRequired",
+                    "genericToolActivityImpliesConnector",
+                    "rawConnectorPayloadExported",
+                    "connectorObservationGrantsApprovalAuthority",
+                    "connectorObservationChangesCanonicalFinality",
+                    "connectorObservationChangesRetryAuthority",
+                    "automaticWriteRetry",
+                    "fallbackTransport",
+                    "writePerformed",
+                )
+            ),
+        }
+        if not request_id_matches:
+            diagnostic["failure_reason"] = "REQUEST_ID_MISMATCH"
+            return None, diagnostic
+        if not response_ok:
+            diagnostic["failure_reason"] = "WORKER_RETURNED_ERROR"
+            return None, diagnostic
+
+        support = {
             "supported": response.get("connectorObservationSupported") is True,
             "schema": response.get("connectorObservationSchemaVersion"),
             "explicit_connector_identity_required": response.get(
@@ -96,25 +145,11 @@ class ProductConnectorLiveProvider(ProductModelProfileProvider):
             "fallback_transport": response.get("fallbackTransport"),
             "write_performed": response.get("writePerformed"),
         }
-
-
-def _validate_support(support: dict[str, Any]) -> None:
-    expected = {
-        "supported": True,
-        "schema": CONNECTOR_OBSERVATION_SCHEMA,
-        "explicit_connector_identity_required": True,
-        "explicit_lifecycle_correlation_required": True,
-        "generic_tool_activity_implies_connector": False,
-        "raw_connector_payload_exported": False,
-        "grants_approval_authority": False,
-        "changes_canonical_finality": False,
-        "changes_retry_authority": False,
-        "automatic_write_retry": False,
-        "fallback_transport": None,
-        "write_performed": False,
-    }
-    if support != expected:
-        raise RuntimeError("PR10_0_CONNECTOR_SUPPORT_CONTRACT_NOT_PROVEN")
+        if support != _EXPECTED_SUPPORT:
+            diagnostic["failure_reason"] = "CONTRACT_MISMATCH"
+            return support, diagnostic
+        diagnostic["failure_reason"] = None
+        return support, diagnostic
 
 
 def _git_output(*args: str) -> str:
@@ -154,13 +189,17 @@ def _private_thought_text_exported(events: list[dict[str, Any]]) -> bool:
 
 def _observation_payload(value: Any) -> dict[str, Any]:
     payload = value.to_dict()
-    # Emitter-produced PR10 observations do not carry labels. Keep the live report
-    # bounded even if a custom provider constructs one with a product-visible label.
     payload.pop("label", None)
     return payload
 
 
-def run_gate(*, prompt: str, expected_head: str | None, timeout: float) -> dict[str, Any]:
+def run_gate(
+    *,
+    prompt: str,
+    expected_head: str | None,
+    timeout: float,
+    preflight_only: bool = False,
+) -> dict[str, Any]:
     if timeout <= 0:
         raise ValueError("timeout must be positive")
 
@@ -169,9 +208,10 @@ def run_gate(*, prompt: str, expected_head: str | None, timeout: float) -> dict[
     head_matches = expected_head is None or head == expected_head
 
     report: dict[str, Any] = {
-        "schema": "CWA_PR10_0_CONNECTOR_LIVE_GATE_V2",
+        "schema": "CWA_PR10_0_CONNECTOR_LIVE_GATE_V3",
         "connector_observation_schema": CONNECTOR_OBSERVATION_SCHEMA,
-        "product_write_budget": PRODUCT_WRITE_BUDGET,
+        "product_write_budget": 0 if preflight_only else PRODUCT_WRITE_BUDGET,
+        "preflight_only": preflight_only,
         "head": head,
         "expected_head": expected_head,
         "head_matches": head_matches,
@@ -188,21 +228,29 @@ def run_gate(*, prompt: str, expected_head: str | None, timeout: float) -> dict[
     provider = ProductConnectorLiveProvider()
     report["support_probe_attempted"] = True
     try:
-        support = provider.connector_observation_support(timeout=min(10.0, timeout))
-        _validate_support(support)
+        support, support_diagnostic = provider.connector_observation_support(
+            timeout=min(10.0, timeout)
+        )
     except Exception as exc:
-        # This path is deliberately before runtime assembly and before any product
-        # write. Exception text is withheld because bridge errors can carry details.
         report.update(
             {
                 "support_probe_error_type": type(exc).__name__,
-                "preflight_error": "CONNECTOR_OBSERVATION_SUPPORT_NOT_PROVEN",
+                "preflight_error": "CONNECTOR_OBSERVATION_SUPPORT_RPC_FAILED",
             }
         )
         return report
 
+    report["support_probe_diagnostic"] = support_diagnostic
+    if support != _EXPECTED_SUPPORT:
+        report["preflight_error"] = "CONNECTOR_OBSERVATION_SUPPORT_NOT_PROVEN"
+        return report
+
     report["support"] = support
     report["support_probe_proven"] = True
+    if preflight_only:
+        report["ok"] = True
+        report["characterization"] = "SUPPORT_PREFLIGHT_ONLY_PROVEN"
+        return report
 
     client = ChatGPTWebClient(auto_login=False, auto_sentinel=False)
     runtime = assemble_product_runtime(client=client, provider=provider)
@@ -218,8 +266,6 @@ def run_gate(*, prompt: str, expected_head: str | None, timeout: float) -> dict[
             on_event=events.append,
         )
     except Exception as exc:
-        # No retry is performed. The exception class is useful; exception text may
-        # contain product details, so keep it out of the shareable report.
         report.update(
             {
                 "error_type": type(exc).__name__,
@@ -341,24 +387,26 @@ def run_gate(*, prompt: str, expected_head: str | None, timeout: float) -> dict[
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run one bounded authenticated PR10.0 app/connector characterization turn."
+        description="Run bounded authenticated PR10.0 app/connector characterization."
     )
-    parser.add_argument("--acknowledge-live-write", action="store_true")
     parser.add_argument("--prompt", default=DEFAULT_PROMPT)
-    parser.add_argument("--expected-head", required=True)
+    parser.add_argument("--expected-head")
     parser.add_argument("--timeout", type=float, default=150.0)
+    parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--acknowledge-live-write", action="store_true")
     args = parser.parse_args()
-    if not args.acknowledge_live_write:
+
+    if not args.preflight_only and not args.acknowledge_live_write:
         parser.error(
-            "--acknowledge-live-write is required; this gate performs exactly one product write"
+            "--acknowledge-live-write is required unless --preflight-only is used; "
+            "the live gate performs exactly one product write"
         )
-    if args.timeout <= 0:
-        parser.error("--timeout must be positive")
 
     report = run_gate(
         prompt=args.prompt,
         expected_head=args.expected_head,
         timeout=args.timeout,
+        preflight_only=args.preflight_only,
     )
     print(json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False))
     return 0 if report.get("ok") else 1
