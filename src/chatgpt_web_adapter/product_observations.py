@@ -89,6 +89,18 @@ def _non_negative_int(value: Any) -> int | None:
     return value
 
 
+def _citation_range(event: dict[str, Any]) -> tuple[int | None, int | None] | None:
+    raw_start = event.get("start_index")
+    raw_end = event.get("end_index")
+    start = _non_negative_int(raw_start)
+    end = _non_negative_int(raw_end)
+    if raw_start is None and raw_end is None:
+        return None, None
+    if start is None or end is None or end < start:
+        return None
+    return start, end
+
+
 def _activity_observation_kind(
     *,
     activity_kind: str | None,
@@ -129,6 +141,8 @@ class ProductSourceObservation:
     url: str
     title: str | None = None
     domain: str | None = None
+    attribution: str | None = None
+    source_origin: str | None = None
     sequence: int | None = None
     observed_at_ms: int | None = None
     kind: ProductObservationKind = ProductObservationKind.SOURCE
@@ -147,6 +161,9 @@ class ProductCitationObservation:
     citation_id: str
     source_id: str
     citation_index: int | None = None
+    start_index: int | None = None
+    end_index: int | None = None
+    reference_type: str | None = None
     display_text: str | None = None
     sequence: int | None = None
     observed_at_ms: int | None = None
@@ -290,6 +307,8 @@ class ProductObservationCollector:
             url=url,
             title=_optional_text(event.get("title")),
             domain=_optional_text(event.get("domain")),
+            attribution=_optional_text(event.get("attribution")),
+            source_origin=_optional_text(event.get("source_origin")),
             sequence=_non_negative_int(event.get("sequence")),
             observed_at_ms=_non_negative_int(event.get("observed_at_ms")),
         )
@@ -300,14 +319,17 @@ class ProductObservationCollector:
         observation_id = _optional_text(event.get("observation_id"))
         citation_id = _optional_text(event.get("citation_id"))
         source_id = _optional_text(event.get("source_id"))
+        citation_range = _citation_range(event)
         if (
             observation_id is None
             or citation_id is None
             or source_id is None
             or source_id not in self._source_ids
+            or citation_range is None
         ):
             self._drop()
             return None
+        start_index, end_index = citation_range
 
         return self._append(
             ProductCitationObservation(
@@ -315,6 +337,9 @@ class ProductObservationCollector:
                 citation_id=citation_id,
                 source_id=source_id,
                 citation_index=_non_negative_int(event.get("citation_index")),
+                start_index=start_index,
+                end_index=end_index,
+                reference_type=_optional_text(event.get("reference_type")),
                 display_text=_optional_text(event.get("display_text")),
                 sequence=_non_negative_int(event.get("sequence")),
                 observed_at_ms=_non_negative_int(event.get("observed_at_ms")),
