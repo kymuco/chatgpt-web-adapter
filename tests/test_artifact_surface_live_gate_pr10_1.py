@@ -44,10 +44,23 @@ def test_surface_worker_is_additive_observability_overlay() -> None:
     assert "return _pr101ArtifactSurfacePriorExecuteNativeTurn(message);" in source
 
 
-def test_surface_worker_is_probe_anchored_and_no_write_no_click_no_download() -> None:
+def test_surface_worker_requires_assistant_owned_filename_match() -> None:
     source = SURFACE_WORKER.read_text(encoding="utf-8")
     assert PROBE_FILENAME in source
     assert "String(node.nodeValue || '').trim() !== probeFilename" in source
+    assert "ownership.role === 'user'" in source
+    assert "ownership.role !== 'assistant'" in source
+    assert "userOwnedExactFilenameMatchCount" in source
+    assert "roleUnprovenExactFilenameMatchCount" in source
+    assert "assistantRoleEvidenceKinds" in source
+    assert "assistantOwnershipRequired: true" in source
+    assert "userTurnMatchesExcluded: true" in source
+    assert "data-message-author-role" in source
+    assert "data-turn" in source
+
+
+def test_surface_worker_is_no_write_no_click_no_download() -> None:
+    source = SURFACE_WORKER.read_text(encoding="utf-8")
     assert "clickPerformed: false" in source
     assert "downloadAttempted: false" in source
     assert "writePerformed: false" in source
@@ -81,6 +94,8 @@ def test_surface_support_normalizes_exact_no_write_contract(monkeypatch) -> None
             "generatedArtifactSurfaceCharacterizationSupported": True,
             "generatedArtifactSurfaceCharacterizationSchemaVersion": 1,
             "fixedProbeFilename": PROBE_FILENAME,
+            "assistantOwnershipRequired": True,
+            "userTurnMatchesExcluded": True,
             "rawDomExported": False,
             "rawTextExported": False,
             "locatorValuesExported": False,
@@ -93,11 +108,13 @@ def test_surface_support_normalizes_exact_no_write_contract(monkeypatch) -> None
     monkeypatch.setattr(provider, "_rpc", fake_rpc)
     support, diagnostic = provider.artifact_surface_support(timeout=1.0)
     assert support == _EXPECTED_SURFACE_SUPPORT
+    assert support["assistant_ownership_required"] is True
+    assert support["user_turn_matches_excluded"] is True
     assert diagnostic["failure_reason"] is None
     assert diagnostic["surface_support_fields_present"] is True
 
 
-def test_surface_snapshot_exposes_names_and_presence_only(monkeypatch) -> None:
+def test_surface_snapshot_exposes_role_counts_names_and_presence_only(monkeypatch) -> None:
     provider = ProductArtifactSurfaceProvider()
 
     def fake_rpc(_message, *, timeout):
@@ -111,6 +128,10 @@ def test_surface_snapshot_exposes_names_and_presence_only(monkeypatch) -> None:
             "surfaceReady": True,
             "exactFilenameVisible": True,
             "exactFilenameMatchCount": 1,
+            "anyExactFilenameMatchCount": 3,
+            "userOwnedExactFilenameMatchCount": 1,
+            "roleUnprovenExactFilenameMatchCount": 1,
+            "assistantRoleEvidenceKinds": ["data_turn"],
             "candidateTagNames": ["span"],
             "candidateAttributeNames": ["data-testid", "bad value"],
             "ancestorAttributeNames": ["class", "data-testid"],
@@ -137,6 +158,11 @@ def test_surface_snapshot_exposes_names_and_presence_only(monkeypatch) -> None:
     assert diagnostic["failure_reason"] is None
     assert snapshot is not None
     assert snapshot["exact_filename_visible"] is True
+    assert snapshot["exact_filename_match_count"] == 1
+    assert snapshot["any_exact_filename_match_count"] == 3
+    assert snapshot["user_owned_exact_filename_match_count"] == 1
+    assert snapshot["role_unproven_exact_filename_match_count"] == 1
+    assert snapshot["assistant_role_evidence_kinds"] == ["data_turn"]
     assert snapshot["candidate_attribute_names"] == ["data-testid"]
     assert snapshot["interactive_attribute_names"] == ["download", "href"]
     assert snapshot["href_attribute_present"] is True
@@ -144,7 +170,7 @@ def test_surface_snapshot_exposes_names_and_presence_only(monkeypatch) -> None:
     assert "raw_dom" not in snapshot
 
 
-def test_safe_name_list_rejects_values_that_could_smuggle_content() -> None:
+def test_safe_name_list_is_ascii_bounded_and_rejects_smuggled_content() -> None:
     assert _safe_name_list(
-        ["data-testid", "href", "hello world", "a/b", "token=value", 7]
+        ["data-testid", "href", "hello world", "a/b", "token=value", "друг", 7]
     ) == ["data-testid", "href"]
