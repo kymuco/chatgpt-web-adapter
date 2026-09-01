@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
+from .product_artifact_observation_pr10_1 import PR101StructuredProductObservation
 from .product_capabilities import ProductCapabilities
-from .product_connector_lifecycle_pr10_0 import PR100StructuredProductObservation
 from .product_provenance import ProductExecutionProvenance
 from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
 
@@ -65,7 +65,7 @@ class ProductRuntimeExecution:
     response: ChatResponse
     observation: Any
     provenance: ProductExecutionProvenance | None = None
-    observations: tuple[PR100StructuredProductObservation, ...] = ()
+    observations: tuple[PR101StructuredProductObservation, ...] = ()
     dropped_observation_event_count: int = 0
 
 
