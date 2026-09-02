@@ -16,7 +16,7 @@ def test_liveness_worker_wraps_native_messages_without_wrapping_turn_dispatch() 
     assert 'message?.type !== "ui_liveness"' in source
     assert "onNativeMessage = async function" in source
     assert "executeNativeTurn =" not in source
-    assert "queryComposerReadiness(debuggee)" in source
+    assert "_pr117QueryComposerReadiness(debuggee)" in source
 
 
 def test_liveness_worker_requires_positive_generating_evidence() -> None:
