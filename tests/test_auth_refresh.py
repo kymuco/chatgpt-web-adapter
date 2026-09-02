@@ -35,7 +35,9 @@ class RefreshClient:
         self.response_headers = None
 
     def _json_request(self, *args, **kwargs):
-        raise AssertionError("session refresh must not use generic curl JSON transport")
+        raise AssertionError(
+            "session refresh must not use generic curl JSON transport"
+        )
 
     def _update_cookies_from_text(self, header_text):
         self.response_headers = header_text
@@ -44,7 +46,8 @@ class RefreshClient:
 
 
 def test_refresh_auth_uses_bounded_worker_and_atomically_persists(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ) -> None:
     captured = {}
 
@@ -130,7 +133,8 @@ def test_refresh_auth_uses_bounded_worker_and_atomically_persists(
 
 
 def test_refresh_auth_preserves_reduced_worker_http_status(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ) -> None:
     monkeypatch.setattr(
         auth_refresh.subprocess,
@@ -146,7 +150,10 @@ def test_refresh_auth_preserves_reduced_worker_http_status(
         refresh_auth_session(client, persist=False)
 
 
-def test_refresh_auth_enforces_total_worker_deadline(tmp_path, monkeypatch) -> None:
+def test_refresh_auth_enforces_total_worker_deadline(
+    tmp_path,
+    monkeypatch,
+) -> None:
     def time_out(command, **kwargs):
         raise subprocess.TimeoutExpired(command, kwargs["timeout"])
 
@@ -160,7 +167,10 @@ def test_refresh_auth_enforces_total_worker_deadline(tmp_path, monkeypatch) -> N
         refresh_auth_session(client, persist=False)
 
 
-def test_refresh_auth_rejects_oversized_worker_output(tmp_path, monkeypatch) -> None:
+def test_refresh_auth_rejects_oversized_worker_output(
+    tmp_path,
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         auth_refresh.subprocess,
         "run",
@@ -175,7 +185,10 @@ def test_refresh_auth_rejects_oversized_worker_output(tmp_path, monkeypatch) -> 
         refresh_auth_session(client, persist=False)
 
 
-def test_refresh_auth_requires_session_cookie_before_worker(tmp_path, monkeypatch) -> None:
+def test_refresh_auth_requires_session_cookie_before_worker(
+    tmp_path,
+    monkeypatch,
+) -> None:
     called = False
 
     def forbidden_worker(*args, **kwargs):
@@ -196,7 +209,8 @@ def test_refresh_auth_requires_session_cookie_before_worker(tmp_path, monkeypatc
 
 
 def test_refresh_auth_validates_complete_response_before_cookie_mutation(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ) -> None:
     monkeypatch.setattr(
         auth_refresh.subprocess,
