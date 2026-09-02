@@ -74,15 +74,20 @@ def _is_session_cookie_name(value: Any) -> bool:
 
 
 def _session_cookie_header(cookies: dict[str, Any]) -> str:
-    pairs: list[str] = []
-    for name, value in cookies.items():
-        if _is_session_cookie_name(name) and isinstance(value, str) and value:
-            pairs.append(f"{name}={value}")
+    session_pairs = [
+        f"{name}={value}"
+        for name, value in cookies.items()
+        if _is_session_cookie_name(name)
+        and isinstance(value, str)
+        and bool(value)
+    ]
+    if not session_pairs:
+        raise AuthError("Session refresh requires a ChatGPT session cookie")
+
+    pairs = list(session_pairs)
     device_id = cookies.get("oai-did")
     if isinstance(device_id, str) and device_id.strip():
         pairs.append(f"oai-did={device_id.strip()}")
-    if not pairs:
-        raise AuthError("Session refresh requires a ChatGPT session cookie")
     return "; ".join(pairs)
 
 
@@ -140,11 +145,17 @@ def _worker_timeout(client: Any) -> float:
 
 
 def _validated_session_set_cookie_headers(value: Any) -> list[str]:
-    if not isinstance(value, list) or len(value) > AUTH_REFRESH_MAX_SET_COOKIE_HEADERS:
+    if (
+        not isinstance(value, list)
+        or len(value) > AUTH_REFRESH_MAX_SET_COOKIE_HEADERS
+    ):
         raise AuthError("ChatGPT session refresh returned invalid cookie metadata")
     accepted: list[str] = []
     for item in value:
-        if not isinstance(item, str) or len(item) > AUTH_REFRESH_MAX_SET_COOKIE_CHARS:
+        if (
+            not isinstance(item, str)
+            or len(item) > AUTH_REFRESH_MAX_SET_COOKIE_CHARS
+        ):
             raise AuthError("ChatGPT session refresh returned invalid cookie metadata")
         name = item.split("=", 1)[0].strip()
         if _is_session_cookie_name(name):
@@ -165,7 +176,9 @@ def _request_session_json(
         separators=(",", ":"),
     ).encode("utf-8")
     if len(request_bytes) > AUTH_REFRESH_MAX_REQUEST_BYTES:
-        raise AuthError("ChatGPT session refresh request exceeded the bounded transport size")
+        raise AuthError(
+            "ChatGPT session refresh request exceeded the bounded transport size"
+        )
 
     command = [sys.executable, "-m", AUTH_REFRESH_WORKER_MODULE]
     try:
@@ -252,7 +265,11 @@ def refresh_auth_session(
         "sessionToken": session_token,
         "expires": expires,
     }
-    target = Path(auth_file) if auth_file is not None else getattr(client, "auth_file", None)
+    target = (
+        Path(auth_file)
+        if auth_file is not None
+        else getattr(client, "auth_file", None)
+    )
     persisted = bool(persist and isinstance(target, Path))
     if persisted:
         _persist_refreshed_auth(client, target, response)
