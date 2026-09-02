@@ -163,10 +163,15 @@ part of the milestone:
    result is **inconclusive**, not negative, and is not used as evidence that the
    arrays lack artifact data.
 
-The v6–v10 probes remain in-tree as bounded characterization evidence. PR10.1 does not
-continue deeper into minified React/update-queue implementation details because such a
-path would be unstable product reverse-engineering rather than a defensible SDK
-contract.
+The v1–v10 characterization overlays remain in-tree as bounded research evidence, but
+their startup chain is disabled by default after milestone closure. Ordinary runtime
+startup loads the narrow artifact observation overlay only; it does not install the
+historical DOM/CDP/React characterization RPCs. Re-entry therefore requires an explicit
+source-level research opt-in before any of those probes become reachable again.
+
+PR10.1 does not continue deeper into minified React/update-queue implementation details
+because such a path would be unstable product reverse-engineering rather than a
+defensible SDK contract.
 
 ## Frozen download handoff boundary
 
@@ -215,6 +220,8 @@ PR10.1 is bounded complete when all of the following hold:
 7. the unsupported handoff status is explicit and separate from point evidence;
 8. authenticated characterization is recorded without upgrading inconclusive probes
    into negative evidence;
-9. no deeper minified-React reverse-engineering is required for milestone closure;
-10. full supported CI, release build, and installed-wheel smoke are green on the exact
+9. closed v1–v10 characterization overlays are not installed in ordinary runtime
+   startup and require explicit source-level research opt-in;
+10. no deeper minified-React reverse-engineering is required for milestone closure;
+11. full supported CI, release build, and installed-wheel smoke are green on the exact
     branch head.
