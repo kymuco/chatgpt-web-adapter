@@ -202,6 +202,14 @@ def _observe_browser_provider(
             extension_connected=False,
             runtime_tab_present=None,
         )
+    except Exception:
+        return _unknown(
+            transport=transport,
+            reason_code="OBSERVATION_PROVIDER_FAILED",
+            bridge_available=None,
+            extension_connected=None,
+            runtime_tab_present=None,
+        )
     if not isinstance(response, dict):
         return _unknown(
             transport=transport,
@@ -238,7 +246,7 @@ def _runtime_observe_ui_liveness(
 
     writer = self.write_transport
     provider = getattr(writer, "provider", None)
-    if provider is None:
+    if not callable(getattr(provider, "_rpc", None)):
         return _unavailable(
             transport=transport,
             reason_code="PROVIDER_OBSERVATION_UNSUPPORTED",
@@ -260,7 +268,11 @@ def install_product_ui_liveness_runtime_surface(runtime_class: type[Any]) -> Non
 
     def governance(self: Any) -> dict[str, Any]:
         payload = dict(original_governance(self))
-        supported = self.transport == BROWSER_OWNED_PRODUCT_TRANSPORT
+        provider = getattr(self.write_transport, "provider", None)
+        supported = bool(
+            self.transport == BROWSER_OWNED_PRODUCT_TRANSPORT
+            and callable(getattr(provider, "_rpc", None))
+        )
         payload.update(
             {
                 "browser_ui_liveness_observation_supported": supported,
