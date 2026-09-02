@@ -27,6 +27,7 @@ def _runtime(*, transport: str, provider=None):
     runtime = object.__new__(adapter.ChatGPTProductRuntime)
     runtime.transport = transport
     runtime.write_transport = SimpleNamespace(
+        transport_id=transport,
         provider=provider,
         governance=lambda: {},
     )
