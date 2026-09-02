@@ -88,6 +88,12 @@ function _cwaUiLivenessFromComposerReadiness(readiness) {
 }
 
 async function _cwaObserveUiLiveness() {
+  const tab = await _cwaUiLivenessExistingRuntimeTab();
+  if (!tab) {
+    return _cwaUiLivenessBase("UNAVAILABLE", "RUNTIME_TAB_ABSENT", {
+      runtimeTabPresent: false
+    });
+  }
   if (activeRequestId !== null) {
     return _cwaUiLivenessBase("UNKNOWN", "ACTIVE_REQUEST_IN_PROGRESS", {
       runtimeTabPresent: true
@@ -96,13 +102,6 @@ async function _cwaObserveUiLiveness() {
   if (_cwaUiLivenessProbeActive) {
     return _cwaUiLivenessBase("UNKNOWN", "OBSERVATION_ALREADY_RUNNING", {
       runtimeTabPresent: true
-    });
-  }
-
-  const tab = await _cwaUiLivenessExistingRuntimeTab();
-  if (!tab) {
-    return _cwaUiLivenessBase("UNAVAILABLE", "RUNTIME_TAB_ABSENT", {
-      runtimeTabPresent: false
     });
   }
   if (tab.status !== "complete") {
