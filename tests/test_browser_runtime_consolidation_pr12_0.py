@@ -9,10 +9,11 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 MANIFEST = EXT / "manifest.json"
 RUNTIME = EXT / "service_worker_runtime.js"
 LEGACY = EXT / "service_worker_runtime_legacy.js"
+LEGACY_IMPL = EXT / "service_worker_runtime_legacy_impl.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 READ = EXT / "service_worker_runtime_read.js"
 OBSERVATION = EXT / "service_worker_runtime_observation.js"
-ROUTE_REOPEN = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
+BOOTSTRAP = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
 RICH_SCHEMAS = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 CONNECTOR_SUPPORT = EXT / "service_worker_connector_support_pr10_0.js"
 
@@ -21,11 +22,16 @@ def _source(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_manifest_uses_stable_pr12_runtime_entrypoint() -> None:
+def test_manifest_identity_is_preserved_as_thin_pr12_bootstrap() -> None:
     manifest = json.loads(_source(MANIFEST))
 
-    assert manifest["version"] == "0.1.14"
-    assert manifest["background"]["service_worker"] == "service_worker_runtime.js"
+    assert manifest["version"] == "0.1.13"
+    assert manifest["background"]["service_worker"] == (
+        "service_worker_temporary_chat_route_reopen_probe.js"
+    )
+    bootstrap = _source(BOOTSTRAP)
+    assert bootstrap.count("importScripts(") == 1
+    assert 'importScripts("service_worker_runtime.js");' in bootstrap
 
 
 def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> None:
@@ -58,9 +64,10 @@ def test_legacy_domain_quarantines_historical_runtime_chain() -> None:
     source = _source(LEGACY)
 
     assert source.count("importScripts(") == 1
-    assert 'importScripts("service_worker_temporary_chat_route_reopen_probe.js");' in source
+    assert 'importScripts("service_worker_runtime_legacy_impl.js");' in source
 
-    route = _source(ROUTE_REOPEN)
+    legacy_impl = _source(LEGACY_IMPL)
+    assert "_executeNativeTurnWithTemporaryRouteReopenProbe" in legacy_impl
     for cross_domain_import in (
         "service_worker_rich_input_pr9_2.js",
         "service_worker_rich_input_deadline_repair_pr9_2.js",
@@ -68,7 +75,7 @@ def test_legacy_domain_quarantines_historical_runtime_chain() -> None:
         "service_worker_rich_input_schema7_repair_pr9_2.js",
         "service_worker_connector_support_pr10_0.js",
     ):
-        assert cross_domain_import not in route
+        assert cross_domain_import not in legacy_impl
 
 
 def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
