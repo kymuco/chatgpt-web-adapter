@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatGPT Web Adapter</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="shell" aria-labelledby="product-name">
+    <header class="product-header">
+      <img class="product-mark" src="icon48.png" width="44" height="44" alt="">
+      <div>
+        <h1 id="product-name">ChatGPT Web Adapter</h1>
+        <p class="subtitle">Connects your local runtime to this browser session.</p>
+      </div>
+    </header>
+
+    <section class="hero-status" aria-live="polite">
+      <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+      <div>
+        <div id="status-title" class="status-title">Checking…</div>
+        <div id="status-detail" class="status-detail">Reading local status.</div>
+      </div>
+    </section>
+
+    <section class="summary-card" aria-label="Connection summary">
+      <div class="summary-row">
+        <div>
+          <div class="summary-label">Local runtime</div>
+          <div class="summary-note">CWA on this computer</div>
+        </div>
+        <span id="runtime-summary" class="summary-value">Checking</span>
+      </div>
+      <div class="summary-row">
+        <div>
+          <div class="summary-label">ChatGPT</div>
+          <div class="summary-note">Browser session</div>
+        </div>
+        <span id="chatgpt-summary" class="summary-value">Opens when needed</span>
+      </div>
+    </section>
+
+    <section class="actions" aria-label="Extension actions">
+      <button id="open-chatgpt" class="button button-primary" type="button">Open ChatGPT</button>
+      <button id="copy-status" class="button button-secondary" type="button">Copy diagnostics</button>
+    </section>
+
+    <div id="copy-feedback" class="feedback" role="status" aria-live="polite"></div>
+
+    <details class="details-panel">
+      <summary>Details</summary>
+      <dl class="details-grid">
+        <div><dt>Native host</dt><dd id="native-host">Checking</dd></div>
+        <div><dt>Runtime tab</dt><dd id="runtime-tab">Checking</dd></div>
+        <div><dt>Transport</dt><dd>Browser-owned</dd></div>
+        <div><dt>Activity</dt><dd id="activity">Checking</dd></div>
+        <div><dt>Protocol</dt><dd id="protocol">—</dd></div>
+        <div><dt>Extension</dt><dd id="version-detail">—</dd></div>
+      </dl>
+    </details>
+
+    <footer class="footer">
+      <span>Local connection</span>
+      <span id="version" class="version">v—</span>
+    </footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
