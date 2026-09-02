@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter import product_observations
+from chatgpt_web_adapter import product_observations, product_submission
 
 
 def test_every_root_public_export_has_exactly_one_surface_tier() -> None:
@@ -26,6 +26,9 @@ def test_primary_product_runtime_is_forward_looking_surface() -> None:
         "CanonicalConversationClient",
         "ProductCapabilities",
         "ProductExecutionProvenance",
+        "SubmissionEvidenceSource",
+        "ProductSubmissionProvenance",
+        "ProductSubmissionAck",
         "PRODUCT_RUNTIME_CONTRACT_SCHEMA",
         "ProductTransportSupportTier",
         "ProductRuntimeContract",
@@ -40,6 +43,12 @@ def test_primary_product_runtime_is_forward_looking_surface() -> None:
         "StructuredProductObservation",
     ):
         assert adapter.public_surface_tier(symbol) is primary
+
+
+def test_pr114_submission_value_types_are_bound_at_root() -> None:
+    assert adapter.SubmissionEvidenceSource is product_submission.SubmissionEvidenceSource
+    assert adapter.ProductSubmissionProvenance is product_submission.ProductSubmissionProvenance
+    assert adapter.ProductSubmissionAck is product_submission.ProductSubmissionAck
 
 
 def test_pr93_observation_value_types_are_bound_at_root_without_promoting_collector() -> None:
