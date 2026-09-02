@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -28,6 +28,7 @@ def test_text_submit_hardening_declares_exact_protected_boundaries() -> None:
     text = OVERLAY.read_text(encoding="utf-8")
 
     assert 'PR11_3_TEXT_MOUSE_RELEASE_OUTCOME_UNCONFIRMED' in text
+    assert 'PR11_3_TEXT_ENTER_KEYDOWN_OUTCOME_UNCONFIRMED' in text
     assert 'type: "mouseReleased"' in text
     assert 'type: "keyDown"' in text
     assert 'type: "keyUp"' in text
@@ -172,11 +173,11 @@ def test_enter_keyup_failure_is_post_commit_cleanup_only(tmp_path: Path) -> None
     assert len(_enter_keydowns(result["log"])) == 1
 
 
-def test_enter_keydown_failure_propagates_without_second_submit(tmp_path: Path) -> None:
+def test_enter_keydown_ack_loss_is_ambiguous_and_never_retries(tmp_path: Path) -> None:
     result = _run_node_scenario(tmp_path, "enter_keydown_fail")
 
     assert result["ok"] is False
-    assert result["error"] == "enter-keydown-failed"
+    assert result["error"] == "PR11_3_TEXT_ENTER_KEYDOWN_OUTCOME_UNCONFIRMED"
     assert len(_enter_keydowns(result["log"])) == 1
 
 
