@@ -6,11 +6,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SCHEMA7 = EXT / "service_worker_rich_input_schema7_core_pr9_2.js"
-ENTRYPOINT = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
+WRITE = EXT / "service_worker_runtime_write.js"
 
 
 def test_schema_7_overlay_is_loaded_after_all_prior_pr9_2_layers():
-    text = ENTRYPOINT.read_text(encoding="utf-8")
+    text = WRITE.read_text(encoding="utf-8")
     primary = 'importScripts("service_worker_rich_input_pr9_2.js");'
     deadline = 'importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");'
     closure = 'importScripts("service_worker_rich_input_closure_repair_pr9_2.js");'
