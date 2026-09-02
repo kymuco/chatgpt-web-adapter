@@ -48,6 +48,11 @@ class ProductRuntimeHealth:
     write_plane: str
     automatic_write_retry: bool = False
     fallback_transport: str | None = None
+    # Canonical-read diagnostics are bounded metadata only. They intentionally do
+    # not include response bodies, browser cookies, challenge HTML, or headers.
+    canonical_read_reason_code: str | None = None
+    canonical_read_status_code: int | None = None
+    canonical_read_content_type: str | None = None
     # Browser-owned compatibility metadata. Future non-browser transports are not
     # required to synthesize these fields.
     bridge_available: bool | None = None
