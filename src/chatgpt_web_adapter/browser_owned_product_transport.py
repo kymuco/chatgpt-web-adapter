@@ -7,6 +7,10 @@ from .browser_authority_lease import (
     BrowserAuthorityPolicy,
     resolve_browser_authority_policy,
 )
+from .browser_context_canonical import (
+    BROWSER_CONTEXT_CANONICAL_READ_PLANE,
+    BrowserContextCanonicalClient,
+)
 from .browser_native_provider import BrowserNativeTurnProvider
 from .browser_owned_write_runtime import (
     BrowserOwnedProductWriteRuntime,
@@ -60,6 +64,7 @@ from .types import ChatResponse
 
 _NORMAL_CONVERSATION_MODE = "normal"
 _TEMPORARY_CONVERSATION_MODE = "temporary"
+_LEGACY_CANONICAL_READ_PLANE = "BROWSERLESS_CANONICAL_HTTP"
 
 _BROWSER_OWNED_CAPABILITY_STATES: dict[str, CapabilityState] = {
     TEXT_TURNS: CapabilityState.AVAILABLE,
@@ -97,10 +102,10 @@ _BROWSER_OWNED_CAPABILITY_EVIDENCE: dict[str, str] = {
     TEXT_TURNS: "PR8.3 live ordinary-product text turns",
     NEW_CHAT: "PR8.3 live new-chat production gate",
     CONTINUATION: "PR8.3 live continuation production gate",
-    CANONICAL_READBACK: "browser-owned durable writer requires canonical final assistant readback",
-    CONVERSATION_ATTACH: "canonical ChatGPTWebClient attach surface",
-    CONVERSATION_READ: "canonical ChatGPTWebClient message-read surface",
-    CONVERSATION_STATUS: "canonical ChatGPTWebClient status surface",
+    CANONICAL_READBACK: "exact canonical payload fetched in authenticated Chrome and interpreted in Python",
+    CONVERSATION_ATTACH: "browser-context canonical payload with Python attach semantics",
+    CONVERSATION_READ: "browser-context canonical payload with Python current-branch semantics",
+    CONVERSATION_STATUS: "browser-context canonical payload with Python status semantics",
     STREAMING: (
         "PR8.9.3 production live gate: revision-safe visible assistant text reached "
         "ChatGPTProductRuntime.on_event before browser write completion with EXACT_MATCH "
@@ -200,12 +205,22 @@ class BrowserOwnedProductTransport:
         browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
         browser_authority_ttl_ms: int | None = None,
     ) -> None:
-        self.canonical_client = require_canonical_conversation_client(canonical_client)
+        source_canonical = require_canonical_conversation_client(canonical_client)
         if provider is None:
             from .product_model_profile_pr8_10 import ProductModelProfileProvider
 
             provider = ProductModelProfileProvider()
         self.provider = provider
+        self._browser_context_canonical_enabled = isinstance(
+            self.provider,
+            BrowserNativeTurnProvider,
+        )
+        self.canonical_client = (
+            source_canonical
+            if isinstance(source_canonical, BrowserContextCanonicalClient)
+            or not self._browser_context_canonical_enabled
+            else BrowserContextCanonicalClient(source_canonical, self.provider)
+        )
         self._model_profile_selection_supported = callable(
             getattr(self.provider, "require_profile", None)
         )
@@ -241,6 +256,9 @@ class BrowserOwnedProductTransport:
             canonical_status=health.canonical_status,
             canonical_read_checked=health.canonical_read_checked,
             read_plane=health.read_plane,
+            canonical_read_reason_code=health.canonical_read_reason_code,
+            canonical_read_status_code=health.canonical_read_status_code,
+            canonical_read_content_type=health.canonical_read_content_type,
             session_plane=health.session_plane,
             write_plane=health.write_plane,
             automatic_write_retry=health.automatic_write_retry,
@@ -475,7 +493,11 @@ class BrowserOwnedProductTransport:
                 ],
                 "streaming_source": "CDP_NETWORK_STREAM_RESOURCE_CONTENT",
                 "streaming_delivery": "REVISION_SAFE_EVENT_STREAM",
-                "streaming_canonical_finality": "BROWSERLESS_CANONICAL_HTTP",
+                "streaming_canonical_finality": (
+                    BROWSER_CONTEXT_CANONICAL_READ_PLANE
+                    if self._browser_context_canonical_enabled
+                    else _LEGACY_CANONICAL_READ_PLANE
+                ),
                 "streaming_canonical_finality_authoritative": True,
                 "incremental_observation_is_canonical_finality": False,
                 "streaming_reconciliation_states": [
