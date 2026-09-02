@@ -1,5 +1,6 @@
 const _cwaUiLivenessPriorOnNativeMessage = onNativeMessage;
 let _cwaUiLivenessProbeActive = false;
+let _cwaUiLivenessProbePromise = null;
 
 function _cwaUiLivenessBase(state, reasonCode, extra = {}) {
   return {
@@ -158,6 +159,10 @@ onNativeMessage = async function _cwaOnNativeMessageWithUiLiveness(message, port
     message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
     message?.type !== "ui_liveness"
   ) {
+    const activeProbe = _cwaUiLivenessProbePromise;
+    if (activeProbe) {
+      try { await activeProbe; } catch {}
+    }
     return _cwaUiLivenessPriorOnNativeMessage(message, port);
   }
 
@@ -175,12 +180,18 @@ onNativeMessage = async function _cwaOnNativeMessageWithUiLiveness(message, port
   }
 
   let observation;
+  const probe = _cwaObserveUiLiveness();
+  _cwaUiLivenessProbePromise = probe;
   try {
-    observation = await _cwaObserveUiLiveness();
+    observation = await probe;
   } catch {
     observation = _cwaUiLivenessBase("UNKNOWN", "OBSERVATION_PROBE_FAILED", {
       runtimeTabPresent: null
     });
+  } finally {
+    if (_cwaUiLivenessProbePromise === probe) {
+      _cwaUiLivenessProbePromise = null;
+    }
   }
   safePortPost(port, {
     protocol: BRIDGE_PROTOCOL_VERSION,
