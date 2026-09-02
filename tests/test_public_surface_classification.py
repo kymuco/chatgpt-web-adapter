@@ -76,6 +76,8 @@ def test_shared_types_are_not_misclassified_as_legacy() -> None:
         "MediaItem",
         "MediaSource",
         "AuthStatus",
+        "CurrentChromeLoginResult",
+        "browser_login_current_tab",
         "DEFAULT_AUTH_FILE",
     ):
         assert adapter.public_surface_tier(symbol) is shared

@@ -73,6 +73,7 @@ Primary areas:
 
 - conversation attach/read/status;
 - auth/session loading and refresh;
+- explicit current-Chrome authorization through the browser-native authority lane;
 - canonical conversation/message identity;
 - final assistant readback.
 
@@ -89,6 +90,14 @@ incremental stream
 A successful protected turn ultimately requires canonical product evidence, not merely a DOM change, provisional SSE text, tool completion, or structured activity event.
 
 Where supported, canonical reads and session renewal remain browserless even though production protected writes are browser-owned.
+
+`browser_login_current_tab()` is an explicit credential-capture boundary, not
+an ordinary product-runtime observation. The extension creates one active
+additional `chatgpt.com` tab in the already-running Chrome, obtains the session
+through page/CDP APIs, filters it to bounded ChatGPT credentials, and returns it
+over the authenticated loopback bridge. Python validates the payload again and
+atomically replaces the selected auth file. No component reads Chrome's profile
+cookie database, imports browser cookies, or restarts Chrome.
 
 ## 3. Product Mutation Plane
 

@@ -210,6 +210,52 @@ class BrowserNativeTurnProvider:
             runtime_tab_id=response.get("runtimeTabId") if isinstance(response.get("runtimeTabId"), int) else None,
         )
 
+    def capture_current_chrome_auth(
+        self,
+        *,
+        timeout: float = 300.0,
+    ) -> dict[str, Any]:
+        """Capture bounded auth material from a new tab in the connected Chrome."""
+
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
+        request_id = str(uuid.uuid4())
+        response = self._rpc(
+            {
+                "type": "current_chrome_auth",
+                "request_id": request_id,
+                "timeoutMs": int(timeout * 1000),
+            },
+            timeout=timeout + 5.0,
+        )
+        if response.get("request_id") != request_id:
+            raise RequestError(
+                "CURRENT_CHROME_AUTH_RESPONSE_MISMATCH",
+                request_stage="browser_native_auth",
+            )
+        if response.get("ok") is not True:
+            error = response.get("error")
+            allowed = {
+                "BROWSER_NATIVE_EXTENSION_BUSY",
+                "CURRENT_CHROME_AUTH_TAB_CREATE_FAILED",
+                "CURRENT_CHROME_AUTH_DEBUGGER_ATTACH_FAILED",
+                "CURRENT_CHROME_AUTH_TIMEOUT",
+                "CURRENT_CHROME_AUTH_PAYLOAD_INVALID",
+                "CURRENT_CHROME_AUTH_DEBUGGER_ATTACHMENT_LEAK",
+            }
+            code = (
+                error
+                if isinstance(error, str) and error in allowed
+                else "CURRENT_CHROME_AUTH_FAILED"
+            )
+            raise RequestError(code, request_stage="browser_native_auth")
+        if response.get("type") != "current_chrome_auth_result":
+            raise RequestError(
+                "CURRENT_CHROME_AUTH_RESPONSE_INVALID",
+                request_stage="browser_native_auth",
+            )
+        return response
+
     @staticmethod
     def _optional_bool(response: dict[str, Any], key: str) -> bool | None:
         value = response.get(key)

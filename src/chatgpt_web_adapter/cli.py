@@ -251,6 +251,8 @@ def _run_auth(args: argparse.Namespace) -> int:
                     "browser_cookie_count": status.browser_cookie_count,
                     "browser_profile_dir": str(status.browser_profile_dir),
                     "browser_profile_exists": status.browser_profile_exists,
+                    "auth_source": status.auth_source,
+                    "current_chrome_auth": status.current_chrome_auth,
                 },
                 indent=2,
             )

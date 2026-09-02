@@ -305,6 +305,7 @@ async def _browser_login_async(
                 auth_file,
                 session_token=session["sessionToken"].strip(),
                 session_expires_at=session.get("expires"),
+                auth_source="sdk-browser-profile",
             )
         return BrowserLoginResult(
             auth=auth,

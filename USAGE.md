@@ -56,6 +56,17 @@ chatgpt-web-adapter browser-native extension-dir
 
 Load that directory through `chrome://extensions` → Developer mode → Load unpacked.
 
+To authorize through the account already signed into that running Chrome:
+
+```python
+from chatgpt_web_adapter import browser_login_current_tab
+
+browser_login_current_tab("auth_data.json", fresh=True)
+```
+
+The call opens one active additional tab and never clears the browser session.
+See [`docs/current_chrome_auth.md`](docs/current_chrome_auth.md).
+
 Verify the bridge:
 
 ```powershell

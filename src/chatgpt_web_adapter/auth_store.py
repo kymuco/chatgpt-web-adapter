@@ -56,13 +56,21 @@ def persist_auth_data(
     *,
     session_token: str | None = None,
     session_expires_at: Any = None,
+    replace: bool = False,
+    auth_source: str | None = None,
 ) -> Path:
     """Atomically persist reusable auth state while preserving unknown fields."""
 
     path = Path(auth_file)
     with _AUTH_FILE_LOCK:
         try:
-            current = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+            current = (
+                {}
+                if replace
+                else json.loads(path.read_text(encoding="utf-8"))
+                if path.is_file()
+                else {}
+            )
         except (OSError, ValueError) as error:
             raise AuthError(f"Failed to read auth data before saving: {error}") from error
         if not isinstance(current, dict):
@@ -98,6 +106,8 @@ def persist_auth_data(
         current["cookies"] = cookies
         current["browserCookies"] = browser_cookies
         current["headers"] = headers
+        if isinstance(auth_source, str) and auth_source.strip():
+            current["authSource"] = auth_source.strip()
         current.pop("proof_token", None)
         current.pop("turnstile_token", None)
         _atomic_write_json(path, current)

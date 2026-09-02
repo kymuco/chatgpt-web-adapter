@@ -81,7 +81,14 @@ The popup performs no ChatGPT product write and does not create the runtime-owne
 
 Chrome Web Store distribution remains deferred; the current installation path is still Developer mode → Load unpacked.
 
-See [`docs/browser_bridge_product_surface_pr11_0.md`](docs/browser_bridge_product_surface_pr11_0.md).
+Current `main` also exposes `browser_login_current_tab()` for consumers that
+must authorize through the account in an already-running Chrome. It opens one
+active additional tab, uses the installed extension/Native Messaging bridge,
+replaces saved CWA credentials atomically, and does not read browser profile
+databases. Deterministic contract coverage is present; bounded signed-in live
+evidence is still required before a release claim.
+
+See [`docs/browser_bridge_product_surface_pr11_0.md`](docs/browser_bridge_product_surface_pr11_0.md) and [`docs/current_chrome_auth.md`](docs/current_chrome_auth.md).
 
 ## Conservative / incomplete product boundaries
 

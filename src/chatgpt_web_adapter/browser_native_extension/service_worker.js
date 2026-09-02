@@ -591,13 +591,17 @@ function postNative(message) {
 
 async function onNativeMessage(message, port) {
   if (message?.protocol !== BRIDGE_PROTOCOL_VERSION) return;
-  if (message?.type !== "turn") return;
+  const operation = message?.type;
+  if (operation !== "turn" && operation !== "current_chrome_auth") return;
+  const resultType = operation === "current_chrome_auth"
+    ? "current_chrome_auth_result"
+    : "turn_result";
   const requestId = message.request_id;
   if (typeof requestId !== "string" || !requestId) return;
   if (activeRequestId !== null) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "turn_result",
+      type: resultType,
       request_id: requestId,
       ok: false,
       error: "BROWSER_NATIVE_EXTENSION_BUSY"
@@ -607,10 +611,12 @@ async function onNativeMessage(message, port) {
 
   activeRequestId = requestId;
   try {
-    const result = await executeNativeTurn(message);
+    const result = operation === "current_chrome_auth"
+      ? await executeCurrentChromeAuth(message)
+      : await executeNativeTurn(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "turn_result",
+      type: resultType,
       request_id: requestId,
       ok: true,
       ...result
@@ -618,7 +624,7 @@ async function onNativeMessage(message, port) {
   } catch (error) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "turn_result",
+      type: resultType,
       request_id: requestId,
       ok: false,
       error: error instanceof Error ? error.message : String(error)

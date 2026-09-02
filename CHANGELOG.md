@@ -6,6 +6,8 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- auth: add public `browser_login_current_tab()` through the installed Chrome extension and Native Messaging bridge; it opens one active additional `chatgpt.com` tab in the already-running Chrome, captures only bounded ChatGPT session material, atomically replaces the selected auth file, and never reads or clears the Chrome profile cookie database
+- auth security: serialize current-Chrome capture with browser writes/reads/tab disposal, validate ChatGPT cookie domains and payload bounds in both extension and Python, sanitize bridge failures, and never retry after a response is lost following delegation
 - connectors / required actions: add post-0.3 typed connector and required-action lifecycle observations that require explicit stable product identity/correlation; authenticated product evidence proves required-action point observation while the combined `tools_connectors` capability remains `UNKNOWN`
 - connector authority boundary: keep product observation separate from approval, connector authorization, canonical finality, retry authority, and downstream filesystem/Git/workspace authority; generic router/tool activity, display names, DOM adjacency and generated ids are not treated as connector lifecycle identity
 - generated artifacts: add a bounded `ProductArtifactObservation` boundary and fail closed around locator-bearing evidence; current generated-artifact download/materialization status is `ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY`

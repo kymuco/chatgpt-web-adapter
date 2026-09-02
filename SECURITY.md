@@ -44,7 +44,9 @@ The browser-native extension has Chrome's high-trust `debugger` permission. Load
 
 The local broker binds to loopback and authenticates SDK-facing requests with a random per-process token stored in local state. That token is not sent to `chatgpt.com`.
 
-The extension/native bridge is designed not to return cookies, authorization headers, Sentinel credentials, Turnstile state, raw conversation SSE, or arbitrary page state through its ordinary SDK-facing contract.
+The extension/native bridge is designed not to return cookies, authorization headers, Sentinel credentials, Turnstile state, raw conversation SSE, or arbitrary page state through its ordinary SDK-facing runtime contract.
+
+The explicit `browser_login_current_tab()` operation is a narrow credential-capture exception. It may return only the current `chatgpt.com` access/session material needed to atomically replace the caller-selected local auth file. The extension filters cookie domains and payload size before crossing Native Messaging; Python validates the same boundaries again. The operation is authenticated by the loopback descriptor token, shares the browser-authority lane, never logs credential values, and never reads Chrome profile databases. Treat invocation of this operation as authorization to export the current signed-in ChatGPT session into the selected local auth file.
 
 ## Product observation privacy
 
