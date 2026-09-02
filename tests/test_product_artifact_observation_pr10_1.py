@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from chatgpt_web_adapter.product_artifact_observation_pr10_1 import (
+    PRODUCT_ARTIFACT_DOWNLOAD_HANDOFF_STATUS,
     PRODUCT_ARTIFACT_OBSERVED,
+    ProductArtifactDownloadHandoffStatus,
     ProductArtifactObservation,
     ProductArtifactObservationCollector,
 )
@@ -42,6 +44,29 @@ def test_artifact_point_observation_materializes_without_locator():
     assert "url" not in value.to_dict()
     assert "download_url" not in value.to_dict()
     assert collector.dropped_event_count == 0
+
+
+def test_artifact_download_handoff_boundary_is_explicit_and_separate_from_observation():
+    assert (
+        PRODUCT_ARTIFACT_DOWNLOAD_HANDOFF_STATUS
+        is ProductArtifactDownloadHandoffStatus.UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
+    )
+    assert (
+        PRODUCT_ARTIFACT_DOWNLOAD_HANDOFF_STATUS.value
+        == "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY"
+    )
+
+    collector = ProductArtifactObservationCollector()
+    value = collector.consume(_artifact_event())
+    assert isinstance(value, ProductArtifactObservation)
+
+    payload = value.to_dict()
+    assert "download_handoff_status" not in payload
+    assert "download_authorized" not in payload
+    assert "destination" not in payload
+    assert "overwrite" not in payload
+    assert "url" not in payload
+    assert "download_url" not in payload
 
 
 def test_artifact_observation_requires_explicit_product_owned_id():
