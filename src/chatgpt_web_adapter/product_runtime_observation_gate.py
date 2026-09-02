@@ -11,6 +11,8 @@ from .product_artifact_observation_pr10_1 import ProductArtifactObservationColle
 from .product_rich_input_capability_gate_pr9_4 import (
     install_browser_owned_rich_input_capability_gate,
 )
+from .product_runtime import ChatGPTProductRuntime
+from .product_submission_runtime_gate import install_product_submission_runtime_surface
 from .product_transport import ProductRuntimeExecution
 from .product_web_search_capability_gate_pr9_3 import (
     install_browser_owned_web_search_capability_gate,
@@ -34,6 +36,13 @@ install_browser_owned_web_search_capability_gate()
 # remain conservative rather than inheriting image/file/multimodal authority from
 # the browser-owned transport identity alone.
 install_browser_owned_rich_input_capability_gate()
+
+# PR11.4 is an optional extension above the frozen ProductWriteTransport schema-1
+# protocol. Install its high-level methods deterministically whenever the product
+# runtime gate is imported, independent of which concrete transport is assembled
+# first. Unsupported transports then fail closed from the method rather than
+# changing the presence of the public runtime method with import order.
+install_product_submission_runtime_surface(ChatGPTProductRuntime)
 
 
 def gate_product_runtime_send_text_observed(
