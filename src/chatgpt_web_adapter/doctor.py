@@ -292,6 +292,8 @@ def _auth_checks(
             else None
         ),
         "browser_profile_exists": status.browser_profile_exists,
+        "auth_source": getattr(status, "auth_source", None),
+        "current_chrome_auth": bool(getattr(status, "current_chrome_auth", False)),
     }
     checks: list[DoctorCheck] = []
     if status.file_exists:
@@ -377,7 +379,20 @@ def _auth_checks(
             )
         )
 
-    if status.browser_profile_exists:
+    if bool(getattr(status, "current_chrome_auth", False)):
+        checks.append(
+            _pass(
+                "auth.browser_profile",
+                "auth",
+                "Current-Chrome authorization does not require an SDK browser profile",
+                required=False,
+                evidence={
+                    "auth_source": evidence["auth_source"],
+                    "current_chrome_auth": True,
+                },
+            )
+        )
+    elif status.browser_profile_exists:
         checks.append(
             _pass(
                 "auth.browser_profile",

@@ -41,3 +41,8 @@ importScripts("service_worker_product_source_citations_pr9_3.js");
 // the final rich-input authority generation and PR9.3 observation layer, while
 // leaving the historical manifest and PR10.0 outer executeNativeTurn wrapper intact.
 importScripts("service_worker_canonical_read.js");
+
+// Current-Chrome authorization is a credential-capture overlay. It runs in the
+// same serialized Native Messaging authority lane and never reads browser
+// profile databases or mutates the browser-owned cookie jar.
+importScripts("service_worker_current_chrome_auth.js");

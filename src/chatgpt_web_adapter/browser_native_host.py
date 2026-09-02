@@ -246,6 +246,7 @@ class BrowserNativeBroker:
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
+            "current_chrome_auth",
         }:
             return {**base, "ok": False, "error": "BROWSER_NATIVE_UNKNOWN_OPERATION"}
         if not isinstance(request_id, str) or not request_id:
@@ -270,6 +271,7 @@ class BrowserNativeBroker:
                 "turn": 120_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,
+                "current_chrome_auth": 300_000,
             }[operation]
             timeout = max(
                 1.0,

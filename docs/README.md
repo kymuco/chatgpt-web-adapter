@@ -27,6 +27,7 @@ The PR8-named capability/public-surface documents are still referenced because t
 ### Authentication and browser-owned setup
 
 - [`authentication.md`](authentication.md) — reusable web-session lifecycle.
+- [`current_chrome_auth.md`](current_chrome_auth.md) — current-Chrome credential-capture contract and evidence boundary.
 - [`browser_bridge_product_surface_pr11_0.md`](browser_bridge_product_surface_pr11_0.md) — current Chrome extension product chrome, local status semantics and no-write boundary.
 - [`browser_native_runtime.md`](browser_native_runtime.md) — low-level browser-native setup/implementation history.
 - [`troubleshooting.md`](troubleshooting.md) — operational failure guide.

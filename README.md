@@ -126,6 +126,19 @@ cwa doctor --json
 
 A healthy bridge reports the extension connected and the runtime ready.
 
+Applications that must authorize through the account already signed into the
+current Chrome can then call:
+
+```python
+from chatgpt_web_adapter import browser_login_current_tab
+
+browser_login_current_tab("auth_data.json", fresh=True)
+```
+
+This opens an active additional ChatGPT tab in the current Chrome instance. It
+does not launch a separate browser profile or read Chrome's cookie database.
+See [current-Chrome authorization](docs/current_chrome_auth.md).
+
 The Chrome extension also exposes a small local popup with Native Messaging connection state, runtime-tab presence, activity state, version and sanitized copyable diagnostics. Opening the popup performs **no ChatGPT product write** and does not provision the hidden runtime tab. See [docs/browser_bridge_product_surface_pr11_0.md](docs/browser_bridge_product_surface_pr11_0.md).
 
 Because the current installation path is still **Load unpacked**, Chrome may continue to label it as a developer extension. Chrome Web Store distribution is intentionally deferred until external adoption makes the extra store/privacy/update lifecycle worthwhile.

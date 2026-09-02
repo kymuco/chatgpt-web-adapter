@@ -25,6 +25,7 @@ REQUIRED_WHEEL_FILES = {
     "chatgpt_web_adapter/artifact_manifest.py",
     "chatgpt_web_adapter/conversation_snapshot.py",
     "chatgpt_web_adapter/export.py",
+    "chatgpt_web_adapter/auth_current_chrome.py",
     # CWA 0.3 product-runtime/public-surface freeze.
     "chatgpt_web_adapter/product_runtime.py",
     "chatgpt_web_adapter/product_transport.py",
@@ -39,6 +40,7 @@ REQUIRED_WHEEL_FILES = {
     # Browser-owned package entrypoints/assets.
     "chatgpt_web_adapter/browser_native_extension/manifest.json",
     "chatgpt_web_adapter/browser_native_extension/service_worker.js",
+    "chatgpt_web_adapter/browser_native_extension/service_worker_current_chrome_auth.js",
     "chatgpt_web_adapter/browser_native_extension/service_worker_product_surface_pr11_0.js",
     "chatgpt_web_adapter/browser_native_extension/popup.html",
     "chatgpt_web_adapter/browser_native_extension/popup.css",
@@ -56,9 +58,11 @@ REQUIRED_SDIST_SUFFIXES = {
     "/src/chatgpt_web_adapter/product_runtime.py",
     "/src/chatgpt_web_adapter/product_observations.py",
     "/src/chatgpt_web_adapter/public_surface.py",
+    "/src/chatgpt_web_adapter/auth_current_chrome.py",
     "/src/chatgpt_web_adapter/product_rich_input_capability_gate_pr9_4.py",
     "/src/chatgpt_web_adapter/browser_native_extension/manifest.json",
     "/src/chatgpt_web_adapter/browser_native_extension/service_worker.js",
+    "/src/chatgpt_web_adapter/browser_native_extension/service_worker_current_chrome_auth.js",
     "/src/chatgpt_web_adapter/browser_native_extension/service_worker_product_surface_pr11_0.js",
     "/src/chatgpt_web_adapter/browser_native_extension/popup.html",
     "/src/chatgpt_web_adapter/browser_native_extension/popup.css",

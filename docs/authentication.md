@@ -6,7 +6,7 @@ use an OpenAI API key and does not implement an alternative login protocol.
 ## Install the Browser Extra
 
 ```bash
-python -m pip install "chatgpt-web-adapter[browser]==0.1.7"
+python -m pip install "chatgpt-web-adapter[browser]"
 ```
 
 The core HTTP transport has no Python runtime dependencies, but current
@@ -31,6 +31,34 @@ Default profile locations:
 
 Set `CHATGPT_WEB_ADAPTER_PROFILE_DIR` or pass `--profile-dir` to override it.
 
+## Authorize Through the Current Chrome
+
+Consumers that must use the operator's already-running Chrome and its signed-in
+account can use the browser-native bridge instead of the SDK profile:
+
+```python
+from chatgpt_web_adapter import browser_login_current_tab
+
+browser_login_current_tab("auth_data.json", timeout=300, persist=True, fresh=True)
+```
+
+Install the Native Messaging host and load the packaged extension first, as
+described in the root README. The call creates one active additional
+`chatgpt.com` tab in the current Chrome instance. If that profile is already
+signed in, authorization is captured from that account. Otherwise, complete
+the normal ChatGPT login in the new tab before the timeout.
+
+The operation does not stop or restart Chrome, create another browser profile,
+copy a Chrome cookie database, or delete/import browser cookies. `fresh=True`
+means saved CWA credentials are replaced after a successful capture; it never
+clears the browser session. The operation closes only its own tab after success
+and leaves a timed-out tab visible for account recovery or inspection.
+
+Current-Chrome capture is serialized with browser-owned writes, canonical
+reads, and runtime-tab disposal in the existing browser-authority lane. A lost
+response after delegation is reported as an error and is not automatically
+retried.
+
 ## What Is Stored
 
 The login command creates two related pieces of reusable state:
@@ -38,8 +66,10 @@ The login command creates two related pieces of reusable state:
 1. `auth_data.json` contains the current access token, flat cookies used by the
    HTTP transport, structured `browserCookies`, request headers, and expiry
    metadata.
-2. The persistent Chromium profile contains the browser-side session needed to
-   run the official ChatGPT page and obtain current one-shot Sentinel evidence.
+2. Legacy SDK-profile login also maintains a persistent Chromium profile.
+   Current-Chrome login instead keeps the browser-side session in the
+   operator's existing Chrome profile and stores `authSource=current-chrome-tab`
+   as non-secret provenance in `auth_data.json`.
 
 `browserCookies` preserves cookie domain, path, expiry, SameSite, priority, and
 source metadata. The flat `cookies` mapping remains for HTTP compatibility.
@@ -96,9 +126,9 @@ or with `client.refresh_auth()`.
 chatgpt-web-adapter auth status --auth-file auth_data.json
 ```
 
-The command reports token/session expiry, structured cookie count, persistent
-profile location, and whether the profile exists. It does not print credential
-values.
+The command reports token/session expiry, structured cookie count, auth source,
+current-Chrome provenance, persistent-profile location, and whether that legacy
+profile exists. It does not print credential values.
 
 ## Forced Reauthentication
 
