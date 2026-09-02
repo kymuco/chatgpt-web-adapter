@@ -1,22 +1,29 @@
-// PR11.3 text-only protected-submit hardening.
+// PR11.3 ordinary-text protected-submit hardening.
 //
-// Rich-input turns already have their own deadline/commit-point authority chain.
-// This layer delegates those turns unchanged and fixes only the ordinary text
-// path: Enter fallback is permitted only before the click commit boundary is
-// attempted. Once mouseReleased is delegated, the outcome is ambiguous on ACK
-// loss and a second submit is forbidden.
+// Rich-input and Temporary Chat turns already have specialized submit authority
+// chains. This layer delegates those contexts unchanged and fixes only ordinary
+// browser-owned text submission: Enter fallback is permitted only before the
+// click commit boundary is attempted. Once mouseReleased is delegated, the
+// outcome is ambiguous on ACK loss and a second submit is forbidden.
 
 const _pr113PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
-const PR113_TEXT_SUBMIT_SCHEMA = 1;
+const PR113_TEXT_SUBMIT_SCHEMA = 2;
 const PR113_MOUSE_RELEASE_UNCONFIRMED = "PR11_3_TEXT_MOUSE_RELEASE_OUTCOME_UNCONFIRMED";
 
-function _pr113RichInputContextActive() {
+function _pr113SpecialSubmitContextActive() {
   try {
-    return (
+    const richInputActive = (
       typeof _pr92ActiveRichInputContext !== "undefined" &&
       _pr92ActiveRichInputContext !== null
     );
+    const temporaryChatActive = (
+      typeof _pr813TemporaryTurnContext !== "undefined" &&
+      _pr813TemporaryTurnContext !== null
+    );
+    return richInputActive || temporaryChatActive;
   } catch {
+    // Missing historical context markers mean this is not one of those specialized
+    // paths. The ordinary text path remains eligible for PR11.3 hardening.
     return false;
   }
 }
@@ -101,7 +108,7 @@ submitOfficialPageTurn = async function _pr113SubmitOfficialTextWithoutPostCommi
   debuggee,
   timeoutMs
 ) {
-  if (_pr113RichInputContextActive()) {
+  if (_pr113SpecialSubmitContextActive()) {
     return _pr113PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
   }
 
