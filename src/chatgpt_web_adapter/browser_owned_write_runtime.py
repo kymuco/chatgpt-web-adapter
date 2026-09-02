@@ -14,6 +14,7 @@ from .browser_authority_lease import (
     TurnLifecycleState,
     resolve_browser_authority_policy,
 )
+from .browser_context_canonical import BROWSER_CONTEXT_CANONICAL_READ_PLANE
 from .browser_native_client import send_browser_native, set_browser_native_turn_provider
 from .browser_native_provider import BrowserNativeBridgeStatus, BrowserNativeTurnProvider
 from .exceptions import ConversationTimeoutError, RequestError, WebChatAdapterError
@@ -29,7 +30,7 @@ WRITE_ACCEPTED_READBACK_INCOMPLETE = "BROWSER_OWNED_WRITE_ACCEPTED_READBACK_INCO
 BROWSER_AUTHORITY_RELEASE_UNSUPPORTED = "BROWSER_AUTHORITY_RELEASE_UNSUPPORTED"
 BROWSER_AUTHORITY_NOT_FRESH = "BROWSER_AUTHORITY_NOT_FRESH"
 
-READ_PLANE = "BROWSERLESS_CANONICAL_HTTP"
+READ_PLANE = BROWSER_CONTEXT_CANONICAL_READ_PLANE
 SESSION_PLANE = "BROWSERLESS_SESSION_HTTP"
 WRITE_PLANE = "BROWSER_NATIVE_PAGE_OWNED_WRITE"
 
@@ -51,6 +52,9 @@ class BrowserOwnedWriteRuntimeHealth:
     conversation_id: str | None
     canonical_status: str | None
     canonical_read_checked: bool
+    canonical_read_reason_code: str | None = None
+    canonical_read_status_code: int | None = None
+    canonical_read_content_type: str | None = None
     read_plane: str = READ_PLANE
     session_plane: str = SESSION_PLANE
     write_plane: str = WRITE_PLANE
@@ -159,6 +163,10 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         reconciliation_required: bool,
         cause: BaseException | None = None,
         request_stage: str,
+        conversation_id: str | None = None,
+        reason_code: str | None = None,
+        status_code: int | None = None,
+        content_type: str | None = None,
         browser_authority_lease: BrowserAuthorityLease | None = None,
         turn_lifecycle: TurnLifecycle | None = None,
     ) -> None:
@@ -168,9 +176,17 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         self.write_may_have_been_submitted = bool(write_may_have_been_submitted)
         self.reconciliation_required = bool(reconciliation_required)
         self.cause = cause
+        self.conversation_id = conversation_id
+        self.reason_code = reason_code
+        self.content_type = content_type
         self.browser_authority_lease = browser_authority_lease
         self.turn_lifecycle = turn_lifecycle
-        super().__init__(message, request_stage=request_stage)
+        super().__init__(
+            message,
+            status_code=status_code,
+            endpoint="conversation" if request_stage == "browser_owned_write_readback" else None,
+            request_stage=request_stage,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         payload = super().to_dict()
@@ -181,6 +197,9 @@ class BrowserOwnedWriteRuntimeError(RequestError):
                 "manual_retry_safe_after_repair": self.manual_retry_safe_after_repair,
                 "write_may_have_been_submitted": self.write_may_have_been_submitted,
                 "reconciliation_required": self.reconciliation_required,
+                "conversation_id": self.conversation_id,
+                "reason_code": self.reason_code,
+                "content_type": self.content_type,
                 "browser_authority_lease": (
                     self.browser_authority_lease.to_dict()
                     if self.browser_authority_lease is not None
@@ -295,7 +314,7 @@ class BrowserOwnedProductWriteRuntime:
 
         try:
             canonical_status = _canonical_status_value(self.client, conversation)
-        except Exception:
+        except Exception as error:
             return BrowserOwnedWriteRuntimeHealth(
                 ready=False,
                 reason=CANONICAL_READ_UNAVAILABLE,
@@ -306,6 +325,9 @@ class BrowserOwnedProductWriteRuntime:
                 conversation_id=conversation_id,
                 canonical_status=None,
                 canonical_read_checked=True,
+                canonical_read_reason_code=getattr(error, "reason_code", type(error).__name__),
+                canonical_read_status_code=getattr(error, "status_code", None),
+                canonical_read_content_type=getattr(error, "content_type", None),
             )
 
         if canonical_status != "completed":
@@ -471,24 +493,22 @@ class BrowserOwnedProductWriteRuntime:
             self._pending_disposal_timer = timer
         timer.start()
 
-    def _release_authority_from_write_event(
+    def _record_write_completion(
         self,
         lease: BrowserAuthorityLease,
         turn: TurnLifecycle,
         event: dict[str, Any],
     ) -> tuple[BrowserAuthorityLease, TurnLifecycle, dict[str, Any]]:
+        """Record accepted write identity while retaining authority for readback."""
+
         with self._authority_lock:
             current = self._last_browser_authority_lease
             current_turn = self._last_turn_lifecycle
             if current is None or current.lease_id != lease.lease_id:
                 return lease, turn, dict(event)
-            if current.state is BrowserAuthorityLeaseState.ACTIVE:
-                released_at = _monotonic_ms()
-                current = current.release(
-                    released_at_ms=released_at,
-                    runtime_tab_id=_optional_int(event.get("runtime_tab_id")),
-                )
-                self._last_browser_authority_lease = current
+
+            # Keep browser ownership active until canonical readback reaches a
+            # terminal result; disposable tabs must not race their own read.
             if (
                 current_turn is not None
                 and current_turn.lifecycle_id == turn.lifecycle_id
@@ -497,9 +517,7 @@ class BrowserOwnedProductWriteRuntime:
                     TurnLifecycleState.DISPATCHED,
                 }
             ):
-                current_turn = current_turn.write_completed(
-                    at_ms=current.released_at_ms or _monotonic_ms()
-                )
+                current_turn = current_turn.write_completed(at_ms=_monotonic_ms())
                 self._last_turn_lifecycle = current_turn
 
             enriched = dict(event)
@@ -510,12 +528,10 @@ class BrowserOwnedProductWriteRuntime:
                     "browser_authority_policy": current.policy.value,
                     "browser_authority_ttl_ms": current.ttl_ms,
                     "browser_authority_issued_at_ms": current.issued_at_ms,
-                    "browser_authority_released_at_ms": current.released_at_ms,
-                    "browser_authority_disposal_due_at_ms": current.disposal_due_at_ms,
-                    "browser_authority_release_proven": current.authority_release_proven,
-                    "browser_authority_disposal_action": (
-                        "CLOSE" if current.disposal_allowed else "KEEP"
-                    ),
+                    "browser_authority_released_at_ms": None,
+                    "browser_authority_disposal_due_at_ms": None,
+                    "browser_authority_release_proven": False,
+                    "browser_authority_disposal_action": "PENDING_CANONICAL_READBACK",
                     "turn_lifecycle_id": current_turn.lifecycle_id
                     if current_turn is not None
                     else turn.lifecycle_id,
@@ -524,9 +540,28 @@ class BrowserOwnedProductWriteRuntime:
                     else turn.state.value,
                 }
             )
-
-        self._schedule_disposal(current)
         return current, current_turn or turn, enriched
+
+    def _release_authority_after_readback(
+        self,
+        lease: BrowserAuthorityLease,
+        *,
+        runtime_tab_id: int | None,
+    ) -> BrowserAuthorityLease:
+        """Release and schedule disposal only after canonical read terminality."""
+
+        with self._authority_lock:
+            current = self._last_browser_authority_lease
+            if current is None or current.lease_id != lease.lease_id:
+                return lease
+            if current.state is BrowserAuthorityLeaseState.ACTIVE:
+                current = current.release(
+                    released_at_ms=_monotonic_ms(),
+                    runtime_tab_id=runtime_tab_id,
+                )
+                self._last_browser_authority_lease = current
+        self._schedule_disposal(current)
+        return current
 
     def _finalize_turn(
         self,
@@ -588,6 +623,7 @@ class BrowserOwnedProductWriteRuntime:
             browser_authority_ttl_ms=browser_authority_ttl_ms,
         )
         set_lease = getattr(self.provider, "set_browser_authority_lease", None)
+        complete_readback = getattr(self.provider, "complete_canonical_readback", None)
         clear_lease = getattr(self.provider, "clear_browser_authority_lease", None)
         if resolution.policy is not BrowserAuthorityPolicy.PERSISTENT and (
             not callable(getattr(self.provider, "release_runtime_tab", None))
@@ -653,32 +689,71 @@ class BrowserOwnedProductWriteRuntime:
 
         lease_ref = lease
         turn_ref = turn
+        write_event_observed = False
+        delegated_conversation_id = _conversation_id(conversation)
+        runtime_tab_id: int | None = None
+        readback_ack_attempted = False
+        readback_acknowledged = False
+
+        def acknowledge_readback() -> bool:
+            nonlocal readback_ack_attempted, readback_acknowledged
+            if readback_ack_attempted:
+                return readback_acknowledged
+            readback_ack_attempted = True
+            readback_acknowledged = (
+                callable(complete_readback) and complete_readback() is True
+            )
+            return readback_acknowledged
 
         def runtime_event(event: dict[str, Any]) -> None:
-            nonlocal lease_ref, turn_ref
+            nonlocal lease_ref, turn_ref, write_event_observed, delegated_conversation_id, runtime_tab_id
             forwarded = event
             if isinstance(event, dict) and event.get("type") == "browser_native_write_completed":
-                lease_ref, turn_ref, forwarded = self._release_authority_from_write_event(
+                write_event_observed = True
+                delegated_conversation_id = _optional_text(event.get("conversation_id")) or delegated_conversation_id
+                runtime_tab_id = _optional_int(event.get("runtime_tab_id"))
+                lease_ref, turn_ref, forwarded = self._record_write_completion(
                     lease_ref,
                     turn_ref,
                     event,
                 )
-            elif isinstance(event, dict) and event.get("type") == "browser_native_readback_completed":
+            elif (
+                isinstance(event, dict)
+                and event.get("type") == "browser_native_readback_completed"
+                and write_event_observed
+            ):
+                if not acknowledge_readback():
+                    raise RequestError(
+                        "BROWSER_NATIVE_READBACK_ACKNOWLEDGEMENT_FAILED",
+                        request_stage="browser_native_canonical_read",
+                    )
+                lease_ref = self._release_authority_after_readback(
+                    lease_ref,
+                    runtime_tab_id=runtime_tab_id,
+                )
                 turn_ref = self._finalize_turn(turn_ref)
                 forwarded = dict(event)
                 forwarded.update(
                     {
                         "browser_authority_lease_id": lease_ref.lease_id,
+                        "browser_authority_released_at_ms": lease_ref.released_at_ms,
+                        "browser_authority_disposal_due_at_ms": lease_ref.disposal_due_at_ms,
                         "browser_authority_release_proven": lease_ref.authority_release_proven,
+                        "browser_authority_disposal_action": (
+                            "CLOSE" if lease_ref.disposal_allowed else "KEEP"
+                        ),
                         "turn_lifecycle_id": turn_ref.lifecycle_id,
                         "turn_lifecycle_state": turn_ref.state.value,
                     }
                 )
             if on_event is not None:
-                on_event(forwarded)
+                try:
+                    on_event(forwarded)
+                except Exception:
+                    # Observers cannot interrupt canonical readback, authority
+                    # release, or reconciliation after browser delegation.
+                    pass
 
-        if callable(set_lease):
-            set_lease(lease.lease_id)
         try:
             response = send_browser_native(
                 self.client,
@@ -688,6 +763,7 @@ class BrowserOwnedProductWriteRuntime:
                 poll_interval=poll_interval,
                 on_token=on_token,
                 on_event=runtime_event,
+                browser_authority_lease_id=lease.lease_id,
             )
             turn_ref = self._finalize_turn(turn_ref)
             if lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
@@ -700,7 +776,12 @@ class BrowserOwnedProductWriteRuntime:
                 turn_ref,
                 state=TurnLifecycleState.READBACK_INCOMPLETE,
             )
-            if lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
+            if write_event_observed and acknowledge_readback():
+                lease_ref = self._release_authority_after_readback(
+                    lease_ref,
+                    runtime_tab_id=runtime_tab_id,
+                )
+            elif lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
                 lease_ref = self._mark_release_unknown(lease_ref)
             raise BrowserOwnedWriteRuntimeError(
                 str(error),
@@ -711,31 +792,63 @@ class BrowserOwnedProductWriteRuntime:
                 reconciliation_required=True,
                 cause=error,
                 request_stage="browser_owned_write_readback",
+                conversation_id=delegated_conversation_id,
+                reason_code="CANONICAL_READ_TIMEOUT",
                 browser_authority_lease=lease_ref,
                 turn_lifecycle=turn_ref,
             ) from error
         except WebChatAdapterError as error:
+            readback_failure = write_event_observed
             turn_ref = self._fail_turn(
                 turn_ref,
-                state=TurnLifecycleState.AMBIGUOUS,
+                state=(
+                    TurnLifecycleState.READBACK_INCOMPLETE
+                    if readback_failure
+                    else TurnLifecycleState.AMBIGUOUS
+                ),
             )
-            if lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
+            if readback_failure and acknowledge_readback():
+                lease_ref = self._release_authority_after_readback(
+                    lease_ref,
+                    runtime_tab_id=runtime_tab_id,
+                )
+            elif lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
                 lease_ref = self._mark_release_unknown(lease_ref)
             raise BrowserOwnedWriteRuntimeError(
                 str(error),
-                failure_kind=WRITE_OUTCOME_UNKNOWN,
+                failure_kind=(
+                    WRITE_ACCEPTED_READBACK_INCOMPLETE
+                    if readback_failure
+                    else WRITE_OUTCOME_UNKNOWN
+                ),
                 automatic_retry_allowed=False,
                 manual_retry_safe_after_repair=False,
                 write_may_have_been_submitted=True,
                 reconciliation_required=True,
                 cause=error,
-                request_stage="browser_owned_write",
+                request_stage=(
+                    "browser_owned_write_readback"
+                    if readback_failure
+                    else "browser_owned_write"
+                ),
+                conversation_id=(
+                    getattr(error, "conversation_id", None)
+                    or delegated_conversation_id
+                ),
+                reason_code=getattr(error, "reason_code", None),
+                status_code=getattr(error, "status_code", None),
+                content_type=getattr(error, "content_type", None),
                 browser_authority_lease=lease_ref,
                 turn_lifecycle=turn_ref,
             ) from error
         finally:
-            if callable(clear_lease):
-                clear_lease()
+            # Python owns canonical terminality, so release the host reservation
+            # only after success or terminal failure has been classified here.
+            try:
+                acknowledge_readback()
+            finally:
+                if callable(clear_lease):
+                    clear_lease()
 
     def send_text_observed(
         self,
@@ -755,6 +868,21 @@ class BrowserOwnedProductWriteRuntime:
             nonlocal write_event
             if isinstance(event, dict) and event.get("type") == "browser_native_write_completed":
                 write_event = dict(event)
+            elif (
+                isinstance(event, dict)
+                and event.get("type") == "browser_native_readback_completed"
+                and write_event is not None
+            ):
+                # Keep write identity while upgrading lease/finality evidence to
+                # the terminal canonical readback boundary.
+                for key in (
+                    "browser_authority_released_at_ms",
+                    "browser_authority_disposal_due_at_ms",
+                    "browser_authority_release_proven",
+                    "browser_authority_disposal_action",
+                ):
+                    if key in event:
+                        write_event[key] = event[key]
             if on_event is not None:
                 on_event(event)
 
@@ -817,7 +945,7 @@ class BrowserOwnedProductWriteRuntime:
             "browser_authority_lease_model": "BrowserAuthorityLease",
             "turn_lifecycle_model": "TurnLifecycle",
             "browser_authority_lease_distinct_from_turn_lifecycle": True,
-            "browser_authority_release_event": "browser_native_write_completed",
+            "browser_authority_release_event": "browser_native_readback_completed",
             "turn_finality_event": "browser_native_readback_completed",
             "browser_authority_default_policy": (
                 TRANSPORT_DEFAULT_BROWSER_AUTHORITY_POLICY.value
