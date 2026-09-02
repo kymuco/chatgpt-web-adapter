@@ -121,6 +121,14 @@ def _observation_from_response(
             extension_connected=True,
             runtime_tab_present=_optional_bool(response, "runtimeTabPresent"),
         )
+    if response.get("debuggerAttachedAfter") is True:
+        return _unknown(
+            transport=transport,
+            reason_code="OBSERVATION_DEBUGGER_STILL_ATTACHED",
+            bridge_available=True,
+            extension_connected=True,
+            runtime_tab_present=_optional_bool(response, "runtimeTabPresent"),
+        )
 
     state_value = response.get("state")
     try:
