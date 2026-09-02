@@ -38,9 +38,29 @@ _MEDIA_TYPE_RE = re.compile(r"^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$")
 
 
 class ProductArtifactObservationKind(str, Enum):
-    """Provisional PR10.1 kind pending authenticated artifact-shape proof."""
+    """PR10.1-internal kind; public promotion remains deliberately deferred."""
 
     ARTIFACT = "ARTIFACT"
+
+
+class ProductArtifactDownloadHandoffStatus(str, Enum):
+    """Bounded PR10.1 result for generated-artifact materialization.
+
+    Authenticated characterization did not prove a stable product-owned artifact
+    identity plus a browser-owned resolution path suitable for a public download
+    primitive. This status is deliberately separate from point observations: a
+    syntactically valid ``ProductArtifactObservation`` never grants download,
+    destination, overwrite, retry, or locator authority.
+    """
+
+    UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY = (
+        "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY"
+    )
+
+
+PRODUCT_ARTIFACT_DOWNLOAD_HANDOFF_STATUS = (
+    ProductArtifactDownloadHandoffStatus.UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
+)
 
 
 def _optional_text(value: Any) -> str | None:
@@ -95,8 +115,9 @@ class ProductArtifactObservation:
 
     The observation intentionally contains no URL, signed locator, token, bytes, or
     local destination. Seeing an artifact is distinct from authorizing a download or
-    filesystem write. PR10.1 keeps the kind provisional until authenticated product
-    evidence proves the real generated-artifact shape.
+    filesystem write. PR10.1 keeps this model as an evidence contract even though
+    authenticated live characterization did not prove a stable product-owned
+    identity/resolution surface suitable for an actual download handoff.
     """
 
     observation_id: str
