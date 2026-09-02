@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security-sensitive report
+    url: https://github.com/kymuco/chatgpt-web-adapter/blob/main/SECURITY.md
+    about: Read the private-reporting guidance before sharing sensitive session, browser, connector, or locator material.

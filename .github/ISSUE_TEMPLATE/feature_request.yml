@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a CWA product-runtime, tooling, documentation, or compatibility improvement.
+title: "feature: "
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / consumer need
+      description: What real workflow or downstream integration is blocked or unnecessarily difficult?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed surface
+      description: Describe the smallest useful public/runtime change rather than an internal implementation guess.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Public product runtime
+        - Canonical read/status/session
+        - Rich input / multimodal
+        - Structured product observations
+        - Connector / required-action evidence
+        - Generated artifacts
+        - CLI / local artifacts / diagnostics
+        - Compatibility API
+        - Experimental transport
+        - Documentation / packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Product evidence / assumptions
+      description: If the request depends on ChatGPT product behavior, distinguish what is actually observed from what is assumed. Do not include private account/session data.
+  - type: textarea
+    id: authority
+    attributes:
+      label: Authority and safety boundary
+      description: Could this change affect product writes, retry/fallback, canonical finality, approvals, connectors, filesystem/Git/workspace authority, or credential/locator handling?
+    validations:
+      required: true
+  - type: checkboxes
+    id: fit
+    attributes:
+      label: Project fit
+      options:
+        - label: This request belongs in the ChatGPT product bridge rather than downstream project cognition/policy.
+          required: true

@@ -1,1073 +1,426 @@
 # `chatgpt-web-adapter` Usage Guide
 
-Detailed usage guide for the dependency-free Python SDK that talks to the `chatgpt.com` web backend through a local `curl` transport.
+This guide documents the **current `ChatGPTProductRuntime`-first usage path** for `chatgpt-web-adapter` (CWA).
 
-This document covers the public API exposed by the package today and only describes behavior that is present in the codebase.
+For repository positioning and capability status, start with [`README.md`](README.md) and [`STATUS.md`](STATUS.md). The historical `ChatGPTWebClient` remains available for compatibility and is covered separately below.
 
-## Contents
+> [!WARNING]
+> CWA is not the official OpenAI API. It uses an existing ordinary ChatGPT web session and depends on undocumented web-product behavior that may change.
 
-- [What This SDK Does](#what-this-sdk-does)
-- [Stable vs Experimental](#stable-vs-experimental)
-- [Compatibility Policy](#compatibility-policy)
-- [Requirements](#requirements)
-- [Install](#install)
-- [Authentication](#authentication)
-- [Runtime Modes](#runtime-modes)
-- [Create a Client](#create-a-client)
-- [Basic Chat Request](#basic-chat-request)
-- [Read the Response Object](#read-the-response-object)
-- [Stream Tokens with `on_token`](#stream-tokens-with-on_token)
-- [Warm Up the Session](#warm-up-the-session)
-- [Use a System Prompt](#use-a-system-prompt)
-- [Choose a Model](#choose-a-model)
-- [Enable Web Search](#enable-web-search)
-- [Use Temporary Chats](#use-temporary-chats)
-- [Control Reasoning Effort](#control-reasoning-effort)
-- [Continue a Conversation](#continue-a-conversation)
-- [Choose the Right Approval Method](#choose-the-right-approval-method)
-- [Approve a Pending Tool Action](#approve-a-pending-tool-action)
-- [Wait for and Approve Multiple Tool Actions](#wait-for-and-approve-multiple-tool-actions)
-- [Send a Prompt and Auto-Approve Pending Tool Actions](#send-a-prompt-and-auto-approve-pending-tool-actions)
-- [Verify Results with GitHub CLI](#verify-results-with-github-cli)
-- [Send Images](#send-images)
-- [Media Input Formats](#media-input-formats)
-- [Handle Errors](#handle-errors)
-- [Public Exports](#public-exports)
-- [End-to-End Example](#end-to-end-example)
-- [Known Failure Modes](#known-failure-modes)
-- [Behavior Notes and Gotchas](#behavior-notes-and-gotchas)
+## 1. Install
 
-## What This SDK Does
-
-`chatgpt-web-adapter` is a small sync SDK for working with an existing `chatgpt.com` web session from Python. It is intentionally focused on transport and request formatting.
-
-Current capabilities:
-
-- sync text generation through the web backend
-- token streaming via a callback
-- conversation continuation
-- optional web-search hinting
-- optional temporary chats
-- optional reasoning-effort control
-- image uploads for multimodal prompts
-- auth loading from `auth_data.json` and/or `.env`
-- zero runtime Python dependencies
-
-Non-goals of this package:
-
-- no full terminal chat application; the included CLI only manages auth
-- no mandatory browser runtime for read-only/legacy paths; current protected writes should use the optional browser Sentinel provider
-- no browser-challenge bypass or synthetic Turnstile solver
-- no local chat-history storage
-- no async client
-
-## Stable vs Experimental
-
-The SDK has two support levels.
-
-Stable core:
-
-- `ChatGPTWebClient.send()`
-- `send_to_conversation()`
-- `attach_conversation()`
-- `get_messages()`
-- `get_status()`
-- `wait_until_completed()`
-- image upload for multimodal prompts
-
-Experimental features:
-
-- `approve_pending_action()`
-- `wait_and_approve_pending_actions()`
-- `send_and_auto_approve()`
-- `PayloadBuilder`
-- `validate_payload()`
-- `send_payload()`
-
-The stable core is the main surface intended for tools and applications that want a reusable ChatGPT web-session transport layer. Experimental features are exposed because they are useful, but they rely more directly on changing web-client behavior and should be adopted more cautiously.
-
-## Compatibility Policy
-
-- Stable core APIs are the main compatibility target of the package.
-- Experimental APIs may need faster iteration when the ChatGPT web client changes.
-- A package release does not guarantee that undocumented web behavior on `chatgpt.com` has remained unchanged.
-- When the site changes, experimental flows are expected to break before the stable core send/continue/read flows.
-
-## Requirements
-
-- Python `3.10+`
-- system `curl` available in `PATH`
-- a valid `chatgpt.com` web session token
-
-## Install
-
-From PyPI:
+Production browser-owned runtime:
 
 ```bash
-python -m pip install "chatgpt-web-adapter[browser]==0.1.7"
+python -m pip install "chatgpt-web-adapter[browser]"
 ```
 
-For local development:
+Development checkout:
 
 ```bash
-python -m pip install -e .
+python -m pip install -e ".[test,browser]"
+python -m pytest -q
 ```
 
-For tests:
+Requirements:
+
+- Python 3.10-3.14;
+- system `curl` in `PATH` for canonical web-session reads;
+- an authenticated ChatGPT web session;
+- Chrome/Chromium for the current production protected-write transport.
+
+## 2. Authenticate
+
+Create or refresh the reusable session:
 
 ```bash
-python -m pip install -e .[test]
-pytest -q
-```
-
-## Authentication
-
-The SDK can create the initial authenticated session with its optional browser
-extra. After that, client construction refreshes missing or near-expiry access
-tokens through `/api/auth/session`, preserves browser-issued cookies, and
-atomically updates `auth_data.json`.
-
-```bash
-pip install "chatgpt-web-adapter[browser]"
 chatgpt-web-adapter auth login --auth-file auth_data.json
 chatgpt-web-adapter auth status --auth-file auth_data.json
 ```
 
-If the saved browser session is inconsistent or revoked, run
-`chatgpt-web-adapter auth login --force --auth-file auth_data.json` and complete
-the fresh login in the SDK browser profile.
+Treat `auth_data.json` and any related persistent browser profile as sensitive account material. See [`SECURITY.md`](SECURITY.md) and [`docs/authentication.md`](docs/authentication.md).
 
-The first login is interactive. After it succeeds, write-capable applications
-can use `sentinel_headless=True` so Chromium runs without a visible window.
-Chromium is still required: "headless" here means no GUI, not browserless.
+## 3. Install the browser-owned bridge
 
-You can authenticate in five main ways:
+Register the Native Messaging host:
 
-1. Run `chatgpt-web-adapter auth login` once.
-2. Let the client load and refresh `auth_data.json`.
-3. Let the client load `accessToken` from `.env` as an optional fallback.
-4. Pass an `AuthData` object directly.
-5. Call `client.refresh_auth()` when an immediate refresh is required.
-
-### `auth_data.json`
-
-The recommended path is to let the SDK create this file with `auth login`.
-
-Legacy minimal shape (accepted for compatibility, but insufficient to recreate
-the full browser session by itself):
-
-```json
-{
-  "accessToken": "eyJhbGciOi..."
-}
+```powershell
+chatgpt-web-adapter browser-native install
 ```
 
-Recommended captured shape:
+Print the packaged extension directory:
 
-```json
-{
-  "accessToken": "eyJhbGciOi...",
-  "cookies": {
-    "__Secure-next-auth.session-token": "..."
-  },
-  "browserCookies": [
-    {
-      "name": "__Secure-next-auth.session-token.0",
-      "value": "...",
-      "domain": ".chatgpt.com",
-      "path": "/",
-      "secure": true
-    }
-  ],
-  "headers": {
-    "user-agent": "Mozilla/5.0 ..."
-  }
-}
+```powershell
+chatgpt-web-adapter browser-native extension-dir
 ```
 
-- `accessToken` is the ChatGPT web access token from your browser session. It is not an official OpenAI API key.
-- `cookies` and `headers` should come from the same account/session as the token.
-- `browserCookies` is written by `auth login` and preserves domain-scoped browser cookie metadata. It is optional for backward compatibility but preferred for portable browser-session restoration.
-- Persisted `proof_token` and `turnstile_token` values are discarded when auth is saved; current Sentinel credentials are one-shot data acquired separately.
-- Older files that still use `api_key` are accepted for backward compatibility, but new files should use `accessToken`.
+Load that directory through `chrome://extensions` → Developer mode → Load unpacked.
 
-Do not hand-edit or share this file. It contains reusable account credentials.
-The persistent browser profile and `auth_data.json` should be treated as one
-session: JSON handles HTTP auth/refresh, while the profile supplies the official
-page environment for protected-write Sentinel capture.
+Verify the bridge:
 
-### `.env`
-
-`.env` is optional. If `auth_data.json` is missing or its token is expired, the loader can fall back to `.env`.
-
-```dotenv
-accessToken=eyJhbGciOi...
+```powershell
+chatgpt-web-adapter browser-native status
 ```
 
-The loader looks for `.env` in the current working directory and a few nearby project/module locations. If you already have a good `auth_data.json`, you do not need `.env`.
+Then run the read-only diagnostic surface:
 
-### Loading Auth Manually
+```powershell
+cwa doctor --json
+```
+
+`doctor` does not send a ChatGPT product turn or repair the installation automatically.
+
+## 4. Stable CLI
+
+### Inspect runtime state
+
+```powershell
+cwa status --json
+cwa capabilities --json
+```
+
+Existing conversation:
+
+```powershell
+cwa status --conversation <conversation-id> --json
+cwa messages <conversation-id> --json
+```
+
+### Send a normal turn
+
+```powershell
+cwa send "Give me a short project summary." --profile HIGH
+```
+
+Accepted CLI profile names:
+
+```text
+INSTANT <-> FAST
+MEDIUM  <-> BALANCED
+HIGH    <-> DEEP
+```
+
+### Temporary Chat
+
+```powershell
+cwa send "Answer briefly." --temporary --profile INSTANT
+```
+
+Temporary authority is session-local. CWA does not reinterpret an internal Temporary routing id as durable public continuation authority.
+
+### Snapshot and export
+
+```powershell
+cwa snapshot <conversation-id> --name project --output-dir ./artifacts --json
+cwa export <conversation-id> --format jsonl --name project --output-dir ./artifacts --json
+```
+
+These are **local conversation artifacts** produced by CWA. They are different from files generated by ChatGPT inside a product turn.
+
+```text
+messages
+!= snapshot
+!= export
+!= ChatGPT-generated artifact download
+```
+
+CWA-generated snapshot/export bundles have deterministic manifest metadata including exact byte size and SHA-256. ChatGPT-generated artifact download remains unsupported on current `main` without a proven stable product-owned artifact identity and safe resolution path.
+
+## 5. Production Python Runtime
 
 ```python
-from chatgpt_web_adapter import load_auth_data
+from chatgpt_web_adapter import assemble_product_runtime
 
-auth = load_auth_data("auth_data.json")
-
-print(auth.accessTokenSource)
-print(bool(auth.accessToken))
-print(bool(auth.cookies))
-```
-
-### Auth Resolution Rules
-
-- If `auth_data.json` contains a valid `accessToken`, it is used first.
-- If that token is missing or expired, `.env:accessToken` can be used instead.
-- If every discovered token is expired, `AuthError` is raised.
-- If no token is found at all, `AuthError` is raised.
-
-## Runtime Modes
-
-The SDK has three operational paths:
-
-1. Read-only/session HTTP operations such as attach, messages, and status use
-   `auth_data.json` and do not launch Chromium.
-2. Access-token refresh calls `/api/auth/session` with the saved cookies and does
-   not launch Chromium.
-3. Current protected writes (`send`, continuation, and media) use a fresh
-   one-shot Sentinel bundle observed through the persistent Chromium profile.
-
-Recommended write-capable client:
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(
+runtime = assemble_product_runtime(
+    transport="browser-owned",
     auth_file="auth_data.json",
-    auto_login=True,
-    auto_sentinel=True,
-    sentinel_headless=True,
+)
+
+health = runtime.health()
+if not health.ready:
+    raise RuntimeError(health.reason)
+
+print(runtime.capabilities().to_dict())
+
+execution = runtime.send_text_observed("Give me a short project summary.")
+print(execution.response.text)
+print(execution.provenance.to_dict())
+print(execution.observations)
+```
+
+For a compact response without the full execution wrapper:
+
+```python
+response = runtime.send("Hello from CWA")
+print(response.text)
+```
+
+## 6. Continue an existing conversation
+
+```python
+execution = runtime.send_text_observed(
+    "Continue from the previous answer.",
+    conversation="<conversation-id>",
 )
 ```
 
-`auto_login=True` reopens the profile interactively only when saved auth cannot
-be refreshed. It does not make every client construction open a browser.
+Read canonical state independently:
 
-## Create a Client
+```python
+status = runtime.get_status("<conversation-id>")
+messages = runtime.get_messages("<conversation-id>")
+attached = runtime.attach_conversation("<conversation-id>")
+```
 
-### Default File-Based Client
+Canonical reads and product writes are separate planes. The runtime does not treat a streaming event or browser UI change as final durable completion.
+
+## 7. Streaming
+
+Use `on_token` / `on_event` on the runtime send methods when incremental output is needed:
+
+```python
+def on_token(token: str) -> None:
+    print(token, end="", flush=True)
+
+response = runtime.send(
+    "Explain the architecture briefly.",
+    on_token=on_token,
+)
+```
+
+Incremental delivery is provisional. Canonical assistant readback remains final authority.
+
+## 8. Model profiles
+
+The Python runtime accepts the semantic model-profile contract:
+
+```python
+execution = runtime.send_text_observed(
+    "Reason carefully about this design.",
+    model_profile="DEEP",
+)
+```
+
+The live-proven compatibility aliases are:
+
+```text
+FAST     <-> INSTANT
+BALANCED <-> MEDIUM
+DEEP     <-> HIGH
+```
+
+`MAX` remains intentionally unmapped unless a separate product state is proven.
+
+## 9. Temporary mode from Python
+
+```python
+response = runtime.send(
+    "Answer briefly.",
+    conversation_mode="temporary",
+)
+```
+
+Temporary mode is available only when the selected transport explicitly supports the governed Temporary route. It fails before product write on unsupported transports.
+
+Rich input and Temporary mode are intentionally not assumed to compose: current PR9.2 rich-input authority is for normal turns on the known default browser-owned provider path.
+
+## 10. Images and general files
+
+On the proven default browser-owned provider path:
+
+```python
+execution = runtime.send_text_observed(
+    "Describe the image and summarize the notes.",
+    media=["./diagram.png", "./notes.txt"],
+)
+```
+
+Supported media inputs are normalized through the shared `MediaSource` / `MediaItem` types. Local/path-like and other supported values are staged through the governed rich-input path.
+
+Important boundary:
+
+- the official ChatGPT page owns upload and protected submit;
+- CWA validates the requested attachment set;
+- request-bound message/conversation identity is checked;
+- rich input does not fall back silently to text-only;
+- ambiguous rich writes are not automatically retried.
+
+Custom/injected providers do not inherit rich-input `AVAILABLE` state from the string `browser-owned` alone.
+
+## 11. Structured product observations
+
+`send_text_observed()` returns a `ProductRuntimeExecution` that may contain immutable product observations.
+
+Current root production observation values cover:
+
+- search activity;
+- generic tool/activity points;
+- source identity;
+- citation-to-source relationships;
+- required-action evidence.
+
+Example inspection:
+
+```python
+execution = runtime.send_text_observed("Search the web and cite the sources.")
+
+for observation in execution.observations:
+    print(observation)
+```
+
+Observation is evidence, not authority:
+
+```text
+product observation
+!= product approval
+!= connector authorization
+!= retry authority
+!= canonical finality
+!= local/Git/filesystem authority
+```
+
+### Connector / required-action boundary
+
+Post-0.3 PR10.0 adds stronger typed connector/required-action lifecycle models when the product provides stable explicit ids.
+
+Current authenticated evidence proves required-action point observation but does not justify a general caller-selectable connector execution contract. The combined `tools_connectors` capability therefore remains `UNKNOWN`.
+
+### Generated artifacts
+
+PR10.1 establishes a bounded generated-artifact observation boundary but does not implement download/materialization.
+
+Current status:
+
+```text
+ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
+```
+
+Do not derive artifact identity from filename, message order, assistant prose, DOM position, URL similarity, or minified React state. See [`docs/generated_artifact_handoff_pr10_1.md`](docs/generated_artifact_handoff_pr10_1.md).
+
+## 12. Provenance and completion
+
+`send_text_observed()` returns structured provenance describing the transport and completion evidence actually observed.
+
+A successful execution can have canonical completion even if optional metadata such as `finish_reason` is absent:
+
+```text
+completion.completed = true
+completion.source = CANONICAL_READBACK
+completion.canonical_completion_proven = true
+finish_reason = null
+```
+
+CWA does not synthesize a fake `stop` merely to make fields look familiar.
+
+## 13. Capability states
+
+Runtime capabilities distinguish:
+
+- `AVAILABLE` — implemented and evidence-backed for this runtime/provider path;
+- `UNSUPPORTED` — known outside the contract;
+- `UNKNOWN` — insufficiently characterized;
+- `UNIMPLEMENTED` — plausible/product-present but not implemented on this surface.
+
+Support tier is a separate axis from capability state.
+
+For example:
+
+```text
+browser-owned
+    support = PRODUCTION
+
+browserless-request
+    support = EXPERIMENTAL
+```
+
+An experimental transport may still implement individual capability entries without becoming a production transport.
+
+## 14. Compatibility: `ChatGPTWebClient`
+
+The historical client remains available for existing integrations:
 
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
 client = ChatGPTWebClient(auth_file="auth_data.json")
+messages = client.get_messages("<conversation-id>")
 ```
 
-To make missing or server-revoked auth reopen the persistent browser profile:
+CWA does not silently redirect `ChatGPTWebClient.send()` into `ChatGPTProductRuntime`, and the product runtime does not silently fall back into the compatibility client.
 
-```python
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_login=True)
-```
+Historical compatibility features include direct/backend-specific controls, image/upload paths, and Sentinel-era options such as `auto_sentinel=True`. They remain useful for existing callers and regression research but are not the recommended starting point for new product-turn integrations.
 
-For protected new-chat, continuation, and media writes, enable automatic use of
-the persistent browser profile:
+## 15. Experimental backend helpers
 
-```python
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
-```
+Experimental surfaces include:
 
-### Pass a Preloaded `AuthData`
+- `approve_pending_action()`;
+- `wait_and_approve_pending_actions()`;
+- `send_and_auto_approve()`;
+- `PayloadBuilder`;
+- `validate_payload`;
+- `send_payload`;
+- prepared/raw backend helpers;
+- `browserless-request`.
 
-```python
-from chatgpt_web_adapter import AuthData, ChatGPTWebClient
+These rely more directly on undocumented web behavior and may evolve faster than the primary runtime.
 
-auth = AuthData(
-    accessToken="eyJhbGciOi...",
-    cookies={"__Secure-next-auth.session-token": "..."},
-)
+See [`docs/raw_payload.md`](docs/raw_payload.md) and [`docs/browserless_request_transport_pr9_1.md`](docs/browserless_request_transport_pr9_1.md).
 
-client = ChatGPTWebClient(auth=auth)
-```
+## 16. Research / diagnostic surfaces
 
-### Custom Timeout and `curl` Binary
+Direct `BrowserNativeTurnProvider`, Sentinel internals, low-level Native Messaging helpers, characterization probes, and feasibility experiments are retained for regression diagnosis and transport research.
 
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
+Their existence in the package does not make them production application APIs.
 
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    timeout=120,
-    curl_bin="curl",
-)
-```
+Start with [`examples/product_runtime.py`](examples/product_runtime.py) for ordinary integrations. [`examples/diagnose_latency.py`](examples/diagnose_latency.py) is a diagnostic example, not a quick start.
 
-Constructor arguments:
+## 17. Failure model
 
-- `auth`: optional prebuilt `AuthData`
-- `auth_file`: path to `auth_data.json` if `auth` is not passed
-- `timeout`: request timeout in seconds, minimum effective value is `10`
-- `curl_bin`: override the detected `curl` executable
-- `debug_trace_dir`: optional local directory for sanitized debug trace JSON files
-- `debug_trace_sanitize`: redact auth/session headers in debug traces, defaults to `True`
-- `auto_refresh_auth`: refresh a missing/near-expiry access token from the session endpoint, defaults to `True`
-- `persist_refreshed_auth`: atomically update `auth_data.json` after automatic refresh, defaults to `True`
-- `auto_login`: open the persistent browser profile when auth is missing or refresh fails, defaults to `False`
-- `browser_profile_dir`: override the per-user persistent browser profile directory
-- `browser_login_timeout`: seconds to wait for interactive login, defaults to `300`
-- `auto_sentinel`: configure the official-page Sentinel provider against the persistent profile, defaults to `False`
-- `sentinel_timeout`: timeout for each browser capture attempt, defaults to `60`
-- `sentinel_max_attempts`: retry count for transient browser capture failures, defaults to `2`
-- `sentinel_headless`: run post-login Sentinel capture without a visible browser window, defaults to `False`
+Common failures include:
 
-### Optional Sanitized Debug Traces
+- reusable session auth expires or is revoked;
+- Native Messaging host or extension is not connected;
+- the reusable runtime tab must be recreated/reconciled;
+- ChatGPT page/request/canonical schemas drift;
+- rich-input correlation changes;
+- source/citation metadata shapes change;
+- browserless admission reaches a challenge boundary;
+- an ambiguous delegated write requires reconciliation.
 
-If you need to compare live `chatgpt.com` behavior against the SDK, you can ask the client to write sanitized local trace files.
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    debug_trace_dir="traffic-scan/client-traces",
-)
-```
-
-This is intended for local diagnostics and live smoke work. When enabled, the client writes JSON trace files for normal HTTP requests and streaming backend requests. Sensitive request and response headers such as auth, cookies, and sentinel tokens are redacted by default.
-
-## Basic Chat Request
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
-
-response = client.send(
-    "Give me a short summary of this project.",
-)
-
-print(response.text)
-```
-
-Install the provider with `pip install "chatgpt-web-adapter[browser]"`. It opens
-the SDK's persistent profile, obtains one unused official-page Sentinel bundle,
-blocks the browser's own conversation write, and keeps one-shot credentials in
-memory only. The ChatGPT web contract is undocumented, so this capture layer can
-require compatibility updates when the site changes.
-
-## Read the Response Object
-
-`send()` returns a `ChatResponse` object:
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-response = client.send("Say hello in one sentence.")
-
-print("text:", response.text)
-print("title:", response.title)
-print("conversation_id:", response.conversation.conversation_id)
-print("message_id:", response.conversation.message_id)
-print("finish_reason:", response.conversation.finish_reason)
-print("first_token:", response.metrics.first_token)
-print("last_token:", response.metrics.last_token)
-print("total:", response.metrics.total)
-```
-
-Fields returned by the SDK:
-
-- `response.text`: full assistant text
-- `response.title`: title generated by the backend when available
-- `response.conversation`: continuation metadata
-- `response.metrics`: timing metrics in seconds
-
-## Stream Tokens with `on_token`
-
-Use `on_token` if you want to print or process chunks as they arrive.
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Write a four-line poem.",
-    on_token=lambda token: print(token, end="", flush=True),
-)
-
-print("\n---")
-print("Final text length:", len(response.text))
-```
-
-The callback is optional. The SDK still returns the full concatenated text in `response.text`.
-
-## Warm Up the Session
-
-`warmup()` prefetches the legacy backend requirements/proof information. It does
-not replace the current one-shot Sentinel capture used by protected writes.
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-if client.warmup():
-    print("Warmup succeeded")
-else:
-    print("Warmup failed")
-
-response = client.send("Continue after warmup.")
-```
-
-Notes:
-
-- `warmup()` returns `True` or `False`
-- the prefetched data is short-lived
-- protected writes still acquire a fresh Sentinel bundle through the configured provider
-
-## Use a System Prompt
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Explain decorators with a tiny example.",
-    system="You are a concise Python tutor.",
-)
-```
-
-Important behavior: the SDK only sends `system` on the first turn of a conversation. If you continue an existing conversation, the new `system` value is ignored by design.
-
-## Choose a Model
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "List three possible names for a logging package.",
-    model="instant",
-)
-```
-
-The package defaults are:
-
-```python
-from chatgpt_web_adapter import DEFAULT_MODEL, DEFAULT_THINKING_MODEL
-
-print(DEFAULT_MODEL)           # gpt-5-3-mini
-print(DEFAULT_THINKING_MODEL)  # gpt-5-6-thinking
-```
-
-The client normalizes convenience aliases, including:
-
-- `instant` -> `gpt-5-3-mini`
-- `thinking` / `gpt-5.6` -> `gpt-5-6-thinking`
-- `gpt-5.1`
-- `gpt-4.1`
-- `gpt-4.1-mini`
-- `gpt-4.5`
-
-## Enable Web Search
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Find recent information about Python packaging trends.",
-    web_search=True,
-)
-```
-
-This sends the backend search hint used by the web client. Availability still depends on the account/session behind your auth data.
-
-## Use Temporary Chats
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Draft a private brainstorming list.",
-    temporary=True,
-)
-```
-
-This sets the web payload flag that disables history/training for the request.
-
-## Control Reasoning Effort
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Solve this step by step: 144 * 37",
-    reasoning_effort="extended",
-)
-```
-
-Accepted values:
-
-- `"standard"`
-- `"extended"`
-- `"medium"`
-- `"high"`
-- `"off"`
-- `"none"`
-- `"-"`
-
-Behavior:
-
-- `"medium"` maps to `"standard"`; `"high"` maps to `"extended"`
-- `"off"`, `"none"`, and `"-"` are normalized to no reasoning flag
-- any other value raises `ValueError`
-
-## Continue a Conversation
-
-All conversation-taking methods in this SDK accept either:
-
-- a `ChatConversation` instance
-- a plain dictionary with the same fields
-
-In the examples below, quick low-friction snippets may use a plain dict, while more structured multi-step examples prefer `ChatConversation`.
-
-### Use the Returned `ChatConversation`
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-first = client.send("Start a short conversation about databases.")
-second = client.send(
-    "Now compare SQLite and PostgreSQL.",
-    conversation=first.conversation,
-)
-
-print(second.text)
-```
-
-### Pass a Plain Dictionary
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-conversation = {
-    "conversation_id": "conv_123",
-    "message_id": "msg_456",
-    "parent_message_id": "msg_456",
-    "user_id": "user_789",
-}
-
-response = client.send(
-    "Continue from this existing thread.",
-    conversation=conversation,
-)
-```
-
-The SDK uses `conversation_id` plus the previous message identifiers to continue the thread.
-
-## Choose the Right Approval Method
-
-There are now three approval-related entry points. Use the narrowest one that matches your workflow.
-
-All approval helpers in this section are experimental. They are best-effort wrappers around reverse-engineered ChatGPT web approval flows and should not be treated as a stable compatibility contract of the SDK.
-
-- `approve_pending_action()`
-  - low-level
-  - approve one currently pending tool action in an existing conversation
-- `wait_and_approve_pending_actions()`
-  - mid-level
-  - attach to an existing conversation and keep approving new cards as they appear
-- `send_and_auto_approve()`
-  - high-level
-  - send a prompt first, then wait for and approve follow-up tool actions
-
-For most GitHub connector automation flows, start with experimental `send_and_auto_approve()`.
-
-All three approval helpers are quiet by default. If you want terminal-visible progress, use:
-
-- `on_token` to receive visible assistant text tokens
-- `on_event` to receive structured progress events such as approval detection and approval completion
-
-Example style used in this guide:
-
-- `approve_pending_action()` uses a plain dict because it only needs a minimal `conversation_id`
-- `wait_and_approve_pending_actions()` and `send_and_auto_approve()` use `ChatConversation` because they are longer-lived workflow examples
-
-## Approve a Pending Tool Action
-
-Some ChatGPT web-agent/tool flows can pause on an approval card in the web UI, for example before a connected GitHub action writes a file. `approve_pending_action()` mirrors the web client's confirmation path without browser automation.
-
-The method fetches the conversation, finds the newest pending `confirm_action` tool leaf, synthesizes the same client-side `allow` message that the web UI sends, posts it through the conversation backend, and then polls `GET /backend-api/conversation/{conversation_id}` until a newer assistant message appears.
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-# This should point at a conversation that currently contains a pending tool
-# approval card somewhere in its latest turn chain.
-conversation = {
-    "conversation_id": "conv_123",
-}
-
-response = client.approve_pending_action(
-    conversation,
-    model="thinking",
-    reasoning_effort="extended",
-    poll_timeout=90,
-    on_token=lambda token: print(token, end="", flush=True),
-    on_event=lambda event: print(event),
-)
-
-print(response.text)
-print(response.conversation.message_id)
-```
-
-Use this only when you have already decided that the pending action is allowed. The SDK does not inspect the approval card text, repository name, file path, or action type. If you need allowlist checks such as "only approve this GitHub repository", implement those checks before calling this method.
-
-Arguments:
-
-- `conversation`: `ChatConversation` or a plain dict containing `conversation_id`
-- `model`: model slug to send in the prepare payload
-- `reasoning_effort`: `"standard"`, `"extended"`, `"off"`, `"none"`, or `"-"`
-- `poll`: when `True`, wait for the next assistant message; when `False`, return after the prepare request succeeds
-- `poll_timeout`: max seconds to wait for a newer assistant message
-- `poll_interval`: seconds between conversation polling attempts
-- `timezone` and `timezone_offset_min`: optional web-payload metadata if you need to match the browser client more closely
-- `on_token`: optional callback for visible assistant text produced during the approval-resume turn
-- `on_event`: optional callback receiving structured progress events
-
-Behavior:
-
-- the SDK first inspects the conversation payload and picks the latest pending `confirm_action`
-- on successful prepare, the backend returns an internal conduit token; the SDK does not expose it
-- the SDK then sends an experimental HTTP-only `allow` turn through the same conversation backend; the initial protected send still uses the Sentinel provider
-- with `poll=True`, the returned `ChatResponse.text` is the newest assistant message found in the conversation
-- with `poll=False`, `ChatResponse.text` is empty and `response.conversation.message_id` is the pending tool message id that was approved
-- if polling times out before a newer assistant message appears, `RequestError` is raised
-- this is a best-effort web-backend flow and can change if the ChatGPT web client changes its approval protocol
-
-Common `on_event` types:
-
-- `pending_approval_detected`
-- `approval_prepare_succeeded`
-- `approval_sent`
-- `approval_completed`
-- `assistant_token`
-
-## Wait for and Approve Multiple Tool Actions
-
-Some tool workflows emit more than one approval card in sequence. `wait_and_approve_pending_actions()` keeps watching the conversation and approves each new pending action as it appears.
-
-By default, `max_rounds=0`, which means no limit.
-
-```python
-from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-result = client.wait_and_approve_pending_actions(
-    ChatConversation(conversation_id="conv_123"),
-    model="thinking",
-    reasoning_effort="extended",
-    pending_poll_interval=3.0,
-    settle_delay=2.0,
-    max_rounds=0,
-    verify=lambda response: response.text != "",
-    on_event=lambda event: print(event),
-)
-
-print(result.text)
-print(result.conversation.message_id)
-```
-
-Arguments:
-
-- `conversation`: `ChatConversation` or a plain dict containing `conversation_id`
-- `pending_poll_interval`: seconds between checks while waiting for the next approval card to appear
-- `settle_delay`: pause between successful approvals
-- `max_rounds`: max approvals to process; `0` means unlimited
-- `verify`: optional callback receiving the final `ChatResponse`; return `True` to confirm the external side effect after the conversation becomes idle
-- `on_token`: optional callback for visible assistant text during each approval-resume turn
-- `on_event`: optional callback receiving loop and approval progress events
-
-## Send a Prompt and Auto-Approve Pending Tool Actions
-
-If you want one call that sends a prompt and then waits for approval cards, use `send_and_auto_approve()`.
-
-This works for both:
-
-- a brand-new chat when `conversation` is omitted
-- an existing chat when `conversation` is passed
-
-```python
-from chatgpt_web_adapter import ChatConversation, ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-result = client.send_and_auto_approve(
-    "Use the GitHub connector to create one text file named project-outline.txt with exact content: project outline draft.",
-    model="thinking",
-    reasoning_effort="extended",
-    on_token=lambda token: print(token, end="", flush=True),
-    on_event=lambda event: print(event),
-)
-
-print(result.text)
-print(result.conversation.conversation_id)
-```
-
-Continue an existing chat:
-
-```python
-result = client.send_and_auto_approve(
-    "Create the next file.",
-    conversation=ChatConversation(conversation_id="conv_123"),
-    model="thinking",
-)
-```
-
-Behavior notes:
-
-- for a new chat, the SDK may have to discover the new `conversation_id` through the recent-conversations endpoint
-- if the first approval card appears late, `pending_poll_interval` controls how often the SDK checks for it
-- `new_chat_timeout` only applies to discovering the brand-new conversation shell; after that, the approval loop can run indefinitely when `max_rounds=0`
-- the loop now stops on its own when no pending approvals remain and the conversation becomes idle
-- `on_event` can emit high-level progress such as `prompt_sent`, `new_conversation_resolved`, `waiting_for_pending_approval`, `approval_round_started`, `approval_round_finished`, and `conversation_idle`
-
-## Verify Results with GitHub CLI
-
-For connector flows that are supposed to create or update files in GitHub, verify the repository state independently instead of trusting only the assistant text.
-
-Example:
-
-```bash
-gh api repos/your-user-or-org/your-repo/contents/project-outline.txt --jq '{sha:.sha,content:.content}'
-```
-
-The `content` field is Base64-encoded. For the example file above, `project outline draft` appears as:
+Important behavior:
 
 ```text
-cHJvamVjdCBvdXRsaW5lIGRyYWZ0
+ambiguous write
+-> reconcile
+-> do not automatically retry
 ```
 
-This verify step is especially useful when you pass a `verify=` callback and want a second source of truth for the final side effect.
-
-## Send Images
-
-The current media helper is image-focused. Supported formats are:
-
-- PNG
-- JPEG/JPG
-- GIF
-- WebP
-
-For current protected ChatGPT writes, use the same `auto_sentinel=True` client
-configuration shown in Basic Chat Request; it also protects the file-backed
-multimodal final write.
-
-### Local Image from `Path`
-
-```python
-from pathlib import Path
-
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Describe what is shown in this image.",
-    media=["examples/cat.png"],
-)
-```
-
-### Remote Image by URL
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Summarize the chart in this image.",
-    media=["https://example.com/chart.png"],
-)
-```
-
-The SDK follows redirects when downloading remote media before upload.
-
-### Data URI
-
-```python
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
-
-response = client.send(
-    "Extract the important visual details.",
-    media=[data_uri],
-)
-```
-
-### Raw Bytes with an Explicit Filename
-
-```python
-from pathlib import Path
-
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-image_bytes = Path("examples/diagram.webp").read_bytes()
-
-response = client.send(
-    "What kind of diagram is this?",
-    media=[(image_bytes, "diagram.webp")],
-)
-```
-
-### Multiple Images
-
-```python
-from pathlib import Path
-
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(auth_file="auth_data.json", auto_sentinel=True)
-
-response = client.send(
-    "Compare these two images.",
-    media=[
-        Path("examples/before.png"),
-        Path("examples/after.png"),
-    ],
-)
-```
-
-## Media Input Formats
-
-Accepted media sources:
-
-- `bytes`
-- `bytearray`
-- local file path strings like `"examples/photo.jpg"`
-- `pathlib.Path`
-- any `os.PathLike`
-- remote URL strings like `https://...`
-- data URI strings like `data:image/png;base64,...`
-
-Optional named item format:
-
-```python
-media = [
-    (Path("examples/photo.jpg"), "photo.jpg"),
-]
-```
-
-## Handle Errors
-
-Main exception types:
-
-- `AuthError`: auth loading or token problems
-- `RequestError`: HTTP/curl/backend failures
-- `MediaError`: invalid media input, download issues, unsupported format
-
-Example:
-
-```python
-from pathlib import Path
-
-from chatgpt_web_adapter import AuthError, ChatGPTWebClient, MediaError, RequestError
-
-try:
-    client = ChatGPTWebClient(
-        auth_file="auth_data.json",
-        auto_sentinel=True,
-        sentinel_headless=True,
-    )
-    response = client.send(
-        "Describe this image.",
-        media=[Path("examples/photo.png")],
-    )
-    print(response.text)
-except AuthError as error:
-    print("Authentication failed:", error)
-except MediaError as error:
-    print("Media problem:", error)
-except RequestError as error:
-    print("Request failed:", error)
-```
-
-## Public Exports
-
-The package exports its public surface directly from `chatgpt_web_adapter`.
-
-Stable core:
-
-- `ChatGPTWebClient`
-- `WebChatClient`
-- `ChatConversation`
-- `AttachedConversation`
-- `ChatMessage`
-- `ConversationStatus`
-- `PendingApproval`
-- `ChatResponse`
-- `ChatMetrics`
-- `AuthData`
-- `errors`
-
-Stable direct error exports:
-
-- `WebChatAdapterError`
-- `AuthError`
-- `ConversationTimeoutError`
-- `MediaError`
-- `PayloadValidationError`
-- `RequestError`
-
-Advanced helpers:
-
-- `ConversationRef`
-- `WaitResult`
-- `MediaItem`
-- `MediaSource`
-
-Experimental exports:
-
-- `ApprovalDecision`
-- `ApprovalDeniedError`
-- `ApprovalEvent`
-- `ApprovalPolicy`
-- `ApprovalResult`
-- `ApprovalRound`
-- `PayloadBuilder`
-- `validate_payload`
-
-Support exports:
-
-- `DEFAULT_AUTH_FILE`
-- `DEFAULT_MODEL`
-- `load_auth_data`
-
-Example import:
-
-```python
-from chatgpt_web_adapter import (
-    AuthData,
-    AuthError,
-    ChatConversation,
-    ChatGPTWebClient,
-    ChatMetrics,
-    ChatResponse,
-    DEFAULT_AUTH_FILE,
-    DEFAULT_MODEL,
-    MediaError,
-    RequestError,
-    WebChatAdapterError,
-    WebChatClient,
-    load_auth_data,
-)
-```
-
-`WebChatClient` is an alias of `ChatGPTWebClient`.
-
-## End-to-End Example
-
-```python
-from pathlib import Path
-
-from chatgpt_web_adapter import ChatGPTWebClient
-
-client = ChatGPTWebClient(
-    auth_file="auth_data.json",
-    timeout=120,
-    auto_sentinel=True,
-    sentinel_headless=True,
-)
-
-client.warmup()
-
-first = client.send(
-    "Analyze this image and then suggest a concise alt text.",
-    system="You are a precise accessibility reviewer.",
-    web_search=False,
-    temporary=True,
-    reasoning_effort="standard",
-    media=[Path("examples/ui-screenshot.png")],
-    on_token=lambda token: print(token, end="", flush=True),
-)
-
-print("\n---")
-print("Title:", first.title)
-print("Conversation:", first.conversation.conversation_id)
-print("Total latency:", first.metrics.total)
-
-follow_up = client.send(
-    "Now give me a shorter alt text under 100 characters.",
-    conversation=first.conversation,
-)
-
-print(follow_up.text)
-```
-
-## Known Failure Modes
-
-- expired or mismatched session auth
-  - `accessToken`, cookies, and headers can drift out of sync
-- changed anti-abuse requirements
-  - `chat-requirements`, proof-of-work, or Turnstile expectations can change
-- changed backend payload schema
-  - send/continue flows can fail if required request fields move or change meaning
-- changed SSE response shape
-  - token streaming, finish-reason parsing, or conversation-id extraction can break
-- changed conversation payload schema
-  - attach, status, model detection, and message extraction depend on unstable fields
-- changed upload flow
-  - file creation, upload, or attachment metadata contracts can shift
-- changed approval protocol
-  - approval helpers are especially sensitive to connector and web-client changes
-
-## Behavior Notes and Gotchas
-
-- The SDK is synchronous. There is no async API in this package.
-- The transport relies on a local `curl` executable, not Python HTTP dependencies.
-- Response cookies from ChatGPT requests are persisted into `client.auth.cookies`.
-- Remote media downloads do not merge their cookies into your ChatGPT auth cookies.
-- Re-uploading the exact same image bytes within the same client instance can reuse cached upload metadata.
-- Image dimensions are detected automatically for PNG, JPEG, GIF, and WebP when possible.
-- `response.metrics` values are measured in seconds.
-- Current protected writes acquire one-shot Sentinel/Turnstile evidence in memory;
-  persisted `turnstile_token` values are not a supported authorization path.
-- Only one process at a time can use the same persistent Chromium profile; a
-  second process waits for the profile lock and fails clearly if it stays busy.
-- If `debug_trace_dir` is enabled, the client writes local trace JSON files for transport diagnostics.
-- Initial auth capture and token refresh are built in through the optional browser extra and `chatgpt-web-adapter auth` commands.
-
-For operational verification and release hygiene, see:
-
-- [docs/live_smoke_checklist.md](docs/live_smoke_checklist.md)
-- [docs/authentication.md](docs/authentication.md)
-- [docs/troubleshooting.md](docs/troubleshooting.md)
-- [docs/release_checklist.md](docs/release_checklist.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/building_on_top.md](docs/building_on_top.md)
+See [`docs/troubleshooting.md`](docs/troubleshooting.md).
+
+## 18. Security
+
+Never commit or publish:
+
+- `auth_data.json`;
+- session cookies/tokens;
+- persistent signed-in browser profiles;
+- raw network captures;
+- browser-native runtime tokens/descriptors;
+- raw connector payloads or retrieved private content;
+- unsanitized traces.
+
+See [`SECURITY.md`](SECURITY.md).
+
+## 19. Where to read next
+
+- [`README.md`](README.md) — repository landing page;
+- [`STATUS.md`](STATUS.md) — current state;
+- [`ROADMAP.md`](ROADMAP.md) — current development direction;
+- [`docs/README.md`](docs/README.md) — documentation map;
+- [`docs/architecture.md`](docs/architecture.md) — architecture;
+- [`docs/browser_owned_v1_contract.md`](docs/browser_owned_v1_contract.md) — production write contract;
+- [`docs/product_rich_input_pr9_2.md`](docs/product_rich_input_pr9_2.md) — rich-input boundary;
+- [`docs/product_runtime_observation_integration_pr9_3.md`](docs/product_runtime_observation_integration_pr9_3.md) — product observations;
+- [`docs/generated_artifact_handoff_pr10_1.md`](docs/generated_artifact_handoff_pr10_1.md) — generated-artifact closure;
+- [`docs/release_checklist.md`](docs/release_checklist.md) — release gates.

@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible CWA defect without exposing session or private product data.
+title: "bug: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include auth files, cookies/tokens, signed URLs, raw connector payloads, private retrieved content, persistent browser profiles, or unsanitized network traces.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CWA version / commit
+      description: Package version or exact Git commit SHA.
+      placeholder: "0.3.0 or <sha>"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - ChatGPTProductRuntime / browser-owned
+        - ChatGPTProductRuntime / browserless-request
+        - Canonical read/status/session
+        - Rich input / attachments
+        - Structured product observations
+        - CLI / doctor / artifacts
+        - ChatGPTWebClient compatibility
+        - Packaging / installation
+        - Research / diagnostic
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest safe reproduction. Redact all session/private/capability-bearing values.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Safe diagnostics
+      description: Include sanitized errors/status/capability output if useful. Do not paste raw network/browser/private connector data.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, cookies, auth/session material, signed URLs and private connector/product content.
+          required: true
