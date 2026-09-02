@@ -214,6 +214,111 @@ class BrowserNativeBroker:
         if had_reservation and release_lane:
             self.turn_lock.release()
 
+    @staticmethod
+    def _ui_liveness_base(
+        base: dict[str, Any],
+        *,
+        state: str,
+        reason_code: str,
+        extension_connected: bool,
+        runtime_tab_present: bool | None,
+    ) -> dict[str, Any]:
+        return {
+            **base,
+            "type": "ui_liveness_result",
+            "ok": True,
+            "state": state,
+            "reasonCode": reason_code,
+            "observedAtMs": max(1, int(time.time() * 1000)),
+            "bridgeAvailable": True,
+            "extensionConnected": extension_connected,
+            "runtimeTabPresent": runtime_tab_present,
+            "composerVisible": None,
+            "generationControlVisible": None,
+            "composerBusy": None,
+            "rawDomExported": False,
+            "navigationPerformed": False,
+            "runtimeTabCreated": False,
+            "writePerformed": False,
+            "canonicalReadPerformed": False,
+            "canonicalFinalityProven": False,
+            "grantsWriteAuthority": False,
+            "grantsRetryAuthority": False,
+        }
+
+    def _handle_ui_liveness_request(
+        self,
+        request: dict[str, Any],
+        base: dict[str, Any],
+    ) -> dict[str, Any]:
+        request_id = request.get("request_id")
+        for key in (
+            "text",
+            "conversationId",
+            "attachmentPaths",
+            "browserAuthorityLeaseId",
+        ):
+            if request.get(key) is not None:
+                return {
+                    **base,
+                    "type": "ui_liveness_result",
+                    "ok": False,
+                    "error": "UI_LIVENESS_WRITE_BEARING_FIELDS_FORBIDDEN",
+                }
+        if not self.extension_connected:
+            return self._ui_liveness_base(
+                base,
+                state="UNAVAILABLE",
+                reason_code="EXTENSION_DISCONNECTED",
+                extension_connected=False,
+                runtime_tab_present=None,
+            )
+        if self.runtime_tab_id is None:
+            return self._ui_liveness_base(
+                base,
+                state="UNAVAILABLE",
+                reason_code="RUNTIME_TAB_ABSENT",
+                extension_connected=True,
+                runtime_tab_present=False,
+            )
+        if self.turn_lock.locked():
+            # Observation never competes with an authoritative write/read for CDP.
+            # Return immediately rather than forwarding a debugger probe.
+            return self._ui_liveness_base(
+                base,
+                state="UNKNOWN",
+                reason_code="AUTHORITY_LANE_ACTIVE",
+                extension_connected=True,
+                runtime_tab_present=True,
+            )
+
+        timeout_ms = request.get("timeoutMs")
+        timeout = max(0.25, min(float(timeout_ms or 3_000) / 1000.0, 10.0))
+        waiter: queue.Queue[dict[str, Any]] = queue.Queue()
+        with self.pending_lock:
+            self.pending[request_id] = waiter
+        forwarded = {
+            key: value
+            for key, value in request.items()
+            if key != "token"
+        }
+        try:
+            with self.write_lock:
+                write_native_message(sys.stdout.buffer, forwarded)
+            try:
+                return waiter.get(timeout=timeout + 1.0)
+            except queue.Empty:
+                return self._ui_liveness_base(
+                    base,
+                    state="UNKNOWN",
+                    reason_code="OBSERVATION_EXTENSION_TIMEOUT",
+                    extension_connected=True,
+                    runtime_tab_present=True,
+                )
+        finally:
+            with self.pending_lock:
+                self.pending.pop(request_id, None)
+
     def handle_local_request(
         self,
         request: dict[str, Any],
@@ -241,6 +346,13 @@ class BrowserNativeBroker:
                 "runtimeTabId": self.runtime_tab_id,
             }
 
+        if not isinstance(request_id, str) or not request_id:
+            return {**base, "ok": False, "error": "BROWSER_NATIVE_REQUEST_ID_REQUIRED"}
+        if operation == "ui_liveness":
+            # PR11.5 does not acquire turn_lock. If the authority lane is active,
+            # the handler returns UNKNOWN before touching the extension/debugger.
+            return self._handle_ui_liveness_request(request, base)
+
         if operation not in {
             "turn",
             "canonical_read",
@@ -248,8 +360,6 @@ class BrowserNativeBroker:
             "release_runtime_tab",
         }:
             return {**base, "ok": False, "error": "BROWSER_NATIVE_UNKNOWN_OPERATION"}
-        if not isinstance(request_id, str) or not request_id:
-            return {**base, "ok": False, "error": "BROWSER_NATIVE_REQUEST_ID_REQUIRED"}
         lease_id = self._request_lease_id(request)
         if operation == "canonical_read_complete":
             if lease_id is None:

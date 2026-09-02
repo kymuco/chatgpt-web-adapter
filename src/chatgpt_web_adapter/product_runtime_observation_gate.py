@@ -14,6 +14,9 @@ from .product_rich_input_capability_gate_pr9_4 import (
 from .product_runtime import ChatGPTProductRuntime
 from .product_submission_runtime_gate import install_product_submission_runtime_surface
 from .product_transport import ProductRuntimeExecution
+from .product_ui_liveness_runtime_gate import (
+    install_product_ui_liveness_runtime_surface,
+)
 from .product_web_search_capability_gate_pr9_3 import (
     install_browser_owned_web_search_capability_gate,
 )
@@ -43,6 +46,11 @@ install_browser_owned_rich_input_capability_gate()
 # first. Unsupported transports then fail closed from the method rather than
 # changing the presence of the public runtime method with import order.
 install_product_submission_runtime_surface(ChatGPTProductRuntime)
+
+# PR11.5 adds a browser-UI observation extension without widening the frozen
+# ProductWriteTransport operation set. It is deliberately observation-only:
+# no Browser Authority lane, canonical read, navigation, write, or retry authority.
+install_product_ui_liveness_runtime_surface(ChatGPTProductRuntime)
 
 
 def gate_product_runtime_send_text_observed(

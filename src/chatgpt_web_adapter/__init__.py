@@ -90,6 +90,10 @@ from .product_support import (
     product_transport_support_tier,
 )
 from .product_transport import CanonicalConversationClient, ProductWriteTransport
+from .product_ui_liveness import (
+    BrowserUILivenessObservation,
+    BrowserUILivenessState,
+)
 from .public_surface import (
     PUBLIC_SURFACE_CLASSIFICATION,
     PUBLIC_SURFACE_TIERS,

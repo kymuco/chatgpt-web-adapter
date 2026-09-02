@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter import product_observations, product_submission
+from chatgpt_web_adapter import (
+    product_observations,
+    product_submission,
+    product_ui_liveness,
+)
 
 
 def test_every_root_public_export_has_exactly_one_surface_tier() -> None:
@@ -29,6 +33,8 @@ def test_primary_product_runtime_is_forward_looking_surface() -> None:
         "SubmissionEvidenceSource",
         "ProductSubmissionProvenance",
         "ProductSubmissionAck",
+        "BrowserUILivenessState",
+        "BrowserUILivenessObservation",
         "PRODUCT_RUNTIME_CONTRACT_SCHEMA",
         "ProductTransportSupportTier",
         "ProductRuntimeContract",
@@ -54,6 +60,15 @@ def test_pr114_submission_value_types_are_bound_at_root() -> None:
     assert callable(
         getattr(adapter.ChatGPTProductRuntime, "submission_lifecycle_snapshot", None)
     )
+
+
+def test_pr115_ui_liveness_value_types_and_runtime_method_are_bound_at_root() -> None:
+    assert adapter.BrowserUILivenessState is product_ui_liveness.BrowserUILivenessState
+    assert (
+        adapter.BrowserUILivenessObservation
+        is product_ui_liveness.BrowserUILivenessObservation
+    )
+    assert callable(getattr(adapter.ChatGPTProductRuntime, "observe_ui_liveness", None))
 
 
 def test_pr93_observation_value_types_are_bound_at_root_without_promoting_collector() -> None:
