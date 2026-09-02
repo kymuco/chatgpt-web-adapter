@@ -32,6 +32,10 @@ importScripts("service_worker_rich_input_schema28_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");
 
+// PR11.7 provides shared, bounded UI-drift discovery only. It owns no write
+// dispatch; PR11.3 remains the ordinary-text protected-submit authority layer.
+importScripts("service_worker_ui_compat_pr11_7.js");
+
 // PR11.3 text-only write-boundary hardening. This layer delegates active rich
 // contexts to the complete PR9.2 chain above and only removes post-mouse-release
 // fallback/retry authority from ordinary text submission.
