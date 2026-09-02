@@ -116,11 +116,15 @@ def test_canonical_error_exports_only_sanitized_metadata() -> None:
     assert payload["body_preview"] is None
 
 
-def test_current_provider_exposes_read_and_terminal_ack_contract() -> None:
-    assert callable(getattr(BrowserNativeTurnProvider, "read_conversation", None))
-    assert callable(getattr(BrowserNativeTurnProvider, "complete_canonical_readback", None))
-    assert callable(getattr(BrowserNativeTurnProvider, "set_browser_authority_lease", None))
-    assert callable(getattr(BrowserNativeTurnProvider, "clear_browser_authority_lease", None))
+def test_browser_context_client_owns_terminal_ack_contract(tmp_path) -> None:
+    provider = BrowserNativeTurnProvider(state_dir=tmp_path)
+    client = BrowserContextCanonicalClient(object(), provider)
+
+    assert callable(client.complete_canonical_readback)
+    assert callable(getattr(provider, "set_browser_authority_lease", None))
+    assert callable(getattr(provider, "clear_browser_authority_lease", None))
+    assert not callable(getattr(provider, "read_conversation", None))
+    assert not callable(getattr(provider, "complete_canonical_readback", None))
 
 
 def test_browser_context_client_keeps_python_status_interpreter(tmp_path, monkeypatch) -> None:
@@ -156,23 +160,44 @@ def test_default_browser_owned_transport_assembles_browser_context_read_plane() 
     )
 
 
-def test_custom_provider_without_readback_contract_fails_before_write() -> None:
+def test_custom_provider_preserves_legacy_canonical_client_contract() -> None:
     class _CustomProvider:
         def status(self):
-            raise AssertionError("not used")
+            raise AssertionError("not used during construction")
 
         def send_text(self, *args, **kwargs):
-            raise AssertionError("write must not occur")
+            raise AssertionError("not used during construction")
 
-    with pytest.raises(TypeError, match="browser-read and lease-fencing provider methods"):
-        BrowserOwnedProductTransport(_Canonical(), provider=_CustomProvider())
+    canonical = _Canonical()
+    transport = BrowserOwnedProductTransport(canonical, provider=_CustomProvider())
+
+    assert transport.canonical_client is canonical
+    assert transport.governance()["read_plane"] == "BROWSERLESS_CANONICAL_HTTP"
+    assert (
+        transport.governance()["browser_authority_release_event"]
+        == "browser_native_write_completed"
+    )
 
 
-def test_extension_fetches_exact_bytes_without_exporting_browser_protection_state() -> None:
+def test_extension_layers_canonical_read_without_replacing_historical_entrypoint() -> None:
     source = (EXTENSION / "service_worker_canonical_read.js").read_text(encoding="utf-8")
+    connector = (EXTENSION / "service_worker_connector_support_pr10_0.js").read_text(
+        encoding="utf-8"
+    )
+    historical = (
+        EXTENSION / "service_worker_temporary_chat_route_reopen_probe.js"
+    ).read_text(encoding="utf-8")
     manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
 
-    assert manifest["background"]["service_worker"] == "service_worker_canonical_read.js"
+    assert manifest["version"] == "0.1.13"
+    assert (
+        manifest["background"]["service_worker"]
+        == "service_worker_temporary_chat_route_reopen_probe.js"
+    )
+    assert 'importScripts("service_worker_connector_support_pr10_0.js")' in historical
+    assert 'importScripts("service_worker_canonical_read.js")' in connector
+    assert 'importScripts("service_worker_temporary_chat_route_reopen_probe.js")' not in source
+
     assert 'credentials: "include"' in source
     assert "response.arrayBuffer()" in source
     assert 'crypto.subtle.digest("SHA-256", bytes)' in source
