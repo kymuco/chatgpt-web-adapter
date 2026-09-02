@@ -12,6 +12,7 @@ from .browser_context_canonical import (
     BrowserContextCanonicalClient,
 )
 from .browser_native_provider import BrowserNativeTurnProvider
+from .browser_owned_submission_lifecycle import BrowserOwnedSubmissionLifecycle
 from .browser_owned_write_runtime import (
     BrowserOwnedProductWriteRuntime,
     BrowserOwnedWriteExecution,
@@ -45,6 +46,11 @@ from .product_capabilities import (
     CapabilityState,
     ProductCapabilities,
     ProductCapability,
+)
+from .product_submission import (
+    ProductSubmissionAck,
+    ProductSubmissionProvenance,
+    SubmissionEvidenceSource,
 )
 from .product_transport import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
@@ -242,6 +248,7 @@ class BrowserOwnedProductTransport:
             self.canonical_client,
             **runtime_kwargs,
         )
+        self._submission_lifecycle = BrowserOwnedSubmissionLifecycle(self._runtime)
         self._temporary_runtime = TemporaryProductWriteRuntime(self.provider)
 
     @staticmethod
@@ -352,6 +359,7 @@ class BrowserOwnedProductTransport:
         model_profile: str | None = None,
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ChatResponse:
+        self._submission_lifecycle.ensure_no_pending_submission()
         mode = _normalize_mode(conversation_mode)
         with self._model_profile_context(model_profile):
             if mode == _TEMPORARY_CONVERSATION_MODE:
@@ -385,6 +393,72 @@ class BrowserOwnedProductTransport:
                 **authority_kwargs,
             )
 
+    def submit_text(
+        self,
+        text: str,
+        *,
+        conversation: ConversationInput = None,
+        timeout: float = 150.0,
+        poll_interval: float = 0.5,
+        on_token: TokenCallback = None,
+        on_event: EventCallback = None,
+        browser_authority_policy: BrowserAuthorityPolicy | str | None = None,
+        browser_authority_ttl_ms: int | None = None,
+        model_profile: str | None = None,
+        conversation_mode: str = _NORMAL_CONVERSATION_MODE,
+    ) -> ProductSubmissionAck:
+        mode = _normalize_mode(conversation_mode)
+        if mode != _NORMAL_CONVERSATION_MODE:
+            raise ValueError(
+                "first-class submit/await_final is currently available only for normal browser-owned turns"
+            )
+        authority_kwargs = _authority_override_kwargs(
+            browser_authority_policy=browser_authority_policy,
+            browser_authority_ttl_ms=browser_authority_ttl_ms,
+        )
+        with self._model_profile_context(model_profile):
+            ack = self._submission_lifecycle.submit_text(
+                text,
+                conversation=conversation,
+                timeout=timeout,
+                poll_interval=poll_interval,
+                on_token=on_token,
+                on_event=on_event,
+                **authority_kwargs,
+            )
+        provenance = ProductSubmissionProvenance(
+            product_semantics=ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+            transport=self.transport_id,
+            write_plane=self._runtime.governance()["write_plane"],
+            evidence_source=SubmissionEvidenceSource.BROWSER_NATIVE_WRITE_COMPLETED,
+            write_acknowledged=True,
+            canonical_finality_proven=False,
+            automatic_write_retry=False,
+            fallback_transport=None,
+        )
+        return ProductSubmissionAck(
+            submission_id=ack.submission_id,
+            transport=self.transport_id,
+            conversation_id=ack.conversation_id,
+            turn_exchange_id=ack.turn_exchange_id,
+            accepted_at_ms=ack.accepted_at_ms,
+            turn_lifecycle_id=ack.observation.turn_lifecycle_id,
+            write_may_have_committed=True,
+            automatic_retry_allowed=False,
+            canonical_finality_proven=False,
+            provenance=provenance,
+        )
+
+    def await_final(self, submission: ProductSubmissionAck) -> ChatResponse:
+        if not isinstance(submission, ProductSubmissionAck):
+            raise TypeError("submission must be ProductSubmissionAck")
+        if submission.transport != self.transport_id:
+            raise ValueError("submission transport does not match browser-owned transport")
+        return self._submission_lifecycle.await_final(submission.submission_id)
+
+    def submission_lifecycle_snapshot(self) -> dict[str, Any]:
+        return self._submission_lifecycle.snapshot()
+
     def send_text_observed(
         self,
         text: str,
@@ -399,6 +473,7 @@ class BrowserOwnedProductTransport:
         model_profile: str | None = None,
         conversation_mode: str = _NORMAL_CONVERSATION_MODE,
     ) -> ProductRuntimeExecution:
+        self._submission_lifecycle.ensure_no_pending_submission()
         mode = _normalize_mode(conversation_mode)
         with self._model_profile_context(model_profile):
             if mode == _TEMPORARY_CONVERSATION_MODE:
@@ -438,6 +513,7 @@ class BrowserOwnedProductTransport:
         )
 
     def end_temporary_lifecycle(self) -> bool:
+        self._submission_lifecycle.ensure_no_pending_submission()
         return self._temporary_runtime.close()
 
     def temporary_lifecycle_snapshot(self) -> dict[str, Any]:
@@ -536,6 +612,20 @@ class BrowserOwnedProductTransport:
                 "temporary_chat_explicit_conversation_argument_fail_closed_before_write": True,
                 "temporary_chat_internal_routing_identity_is_public_authority": False,
                 "temporary_chat_new_session_after_explicit_end": True,
+                "submission_lifecycle_supported": True,
+                "submission_lifecycle_normal_mode_only": True,
+                "submission_ack_model": "ProductSubmissionAck",
+                "submission_acceptance_evidence": (
+                    SubmissionEvidenceSource.BROWSER_NATIVE_WRITE_COMPLETED.value
+                ),
+                "submission_ack_is_canonical_finality": False,
+                "submission_pending_limit": 1,
+                "submission_pending_blocks_new_write": True,
+                "submission_await_required_for_canonical_finality": True,
+                "submission_handle_runtime_bound": True,
+                "submission_automatic_write_retry": False,
+                "submission_fallback_transport": None,
+                "browser_native_send_composes_submit_and_await_final": True,
             }
         )
         return governance
