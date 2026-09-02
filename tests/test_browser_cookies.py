@@ -46,6 +46,35 @@ def test_browser_cookie_round_trip_preserves_scope() -> None:
     assert flatten_browser_cookies(records) == {"session.0": "chunk"}
 
 
+def test_browser_cookie_domain_validation_rejects_lookalikes() -> None:
+    records = serialize_browser_cookies(
+        [
+            SimpleNamespace(name="exact", value="ok", domain="chatgpt.com"),
+            SimpleNamespace(name="subdomain", value="ok", domain=".auth.chatgpt.com"),
+            SimpleNamespace(name="prefix-lookalike", value="bad", domain="evilchatgpt.com"),
+            SimpleNamespace(
+                name="suffix-lookalike",
+                value="bad",
+                domain="chatgpt.com.evil.example",
+            ),
+        ]
+    )
+
+    assert [record["name"] for record in records] == ["exact", "subdomain"]
+    assert flatten_browser_cookies(
+        [
+            {"name": "exact", "value": "ok", "domain": "chatgpt.com"},
+            {"name": "subdomain", "value": "ok", "domain": ".auth.chatgpt.com"},
+            {"name": "prefix-lookalike", "value": "bad", "domain": "evilchatgpt.com"},
+            {
+                "name": "suffix-lookalike",
+                "value": "bad",
+                "domain": "chatgpt.com.evil.example",
+            },
+        ]
+    ) == {"exact": "ok", "subdomain": "ok"}
+
+
 def test_cookie_params_prefer_structured_records() -> None:
     network = SimpleNamespace(
         CookieParam=lambda **kwargs: kwargs,
@@ -78,6 +107,43 @@ def test_cookie_params_prefer_structured_records() -> None:
             "secure": True,
             "http_only": True,
             "expires": 1234.0,
+        }
+    ]
+
+
+def test_cookie_params_reject_lookalike_structured_domains() -> None:
+    network = SimpleNamespace(
+        CookieParam=lambda **kwargs: kwargs,
+        TimeSinceEpoch=float,
+    )
+    cdp = SimpleNamespace(network=network)
+
+    params = browser_cookie_params(
+        cdp,
+        [
+            {
+                "name": "poisoned",
+                "value": "bad",
+                "domain": "evilchatgpt.com",
+                "path": "/",
+            },
+            {
+                "name": "also-poisoned",
+                "value": "bad",
+                "domain": "chatgpt.com.evil.example",
+                "path": "/",
+            },
+        ],
+        {"safe-fallback": "value"},
+    )
+
+    assert params == [
+        {
+            "name": "safe-fallback",
+            "value": "value",
+            "url": "https://chatgpt.com/",
+            "secure": True,
+            "expires": None,
         }
     ]
 
