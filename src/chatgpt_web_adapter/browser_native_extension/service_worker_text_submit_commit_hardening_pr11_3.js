@@ -7,8 +7,9 @@
 // outcome is ambiguous on ACK loss and a second submit is forbidden.
 
 const _pr113PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
-const PR113_TEXT_SUBMIT_SCHEMA = 2;
+const PR113_TEXT_SUBMIT_SCHEMA = 3;
 const PR113_MOUSE_RELEASE_UNCONFIRMED = "PR11_3_TEXT_MOUSE_RELEASE_OUTCOME_UNCONFIRMED";
+const PR113_ENTER_KEYDOWN_UNCONFIRMED = "PR11_3_TEXT_ENTER_KEYDOWN_OUTCOME_UNCONFIRMED";
 
 function _pr113SpecialSubmitContextActive() {
   try {
@@ -38,18 +39,26 @@ function _pr113IsMouseReleaseOutcomeUnconfirmed(error) {
 async function _pr113SubmitTextWithEnterOnce(debuggee) {
   await locateAndFocusComposer(debuggee);
 
-  // Enter keyDown is the keyboard protected-write boundary. Once it succeeds,
-  // keyUp is cleanup only and must not turn a possibly committed write into a
-  // local failure that callers could misinterpret as permission to retry.
-  await sendCommand(debuggee, "Input.dispatchKeyEvent", {
-    type: "keyDown",
-    key: "Enter",
-    code: "Enter",
-    text: "\r",
-    unmodifiedText: "\r",
-    windowsVirtualKeyCode: 13,
-    nativeVirtualKeyCode: 13
-  });
+  // Enter keyDown is the keyboard protected-write boundary. A rejected/lost CDP
+  // ACK can coexist with a real keyDown, so the attempt itself is ambiguous and
+  // must never look like proof that no write happened.
+  try {
+    await sendCommand(debuggee, "Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Enter",
+      code: "Enter",
+      text: "\r",
+      unmodifiedText: "\r",
+      windowsVirtualKeyCode: 13,
+      nativeVirtualKeyCode: 13
+    });
+  } catch {
+    throw new Error(PR113_ENTER_KEYDOWN_UNCONFIRMED);
+  }
+
+  // Once keyDown is acknowledged, keyUp is cleanup only and must not turn a
+  // possibly committed write into a local failure that callers could interpret
+  // as permission to retry.
   try {
     Promise.resolve(sendCommand(debuggee, "Input.dispatchKeyEvent", {
       type: "keyUp",
