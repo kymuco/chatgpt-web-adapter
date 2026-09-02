@@ -127,7 +127,7 @@ async function _cwaObserveUiLiveness() {
     }
     await chrome.debugger.sendCommand(debuggee, "Runtime.enable");
     try {
-      const readiness = await queryComposerReadiness(debuggee);
+      const readiness = await _pr117QueryComposerReadiness(debuggee);
       observation = _cwaUiLivenessFromComposerReadiness(readiness);
     } catch {
       observation = _cwaUiLivenessBase("UNKNOWN", "READINESS_PROBE_FAILED", {
