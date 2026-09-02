@@ -152,7 +152,10 @@ def _validated_session_set_cookie_headers(value: Any) -> list[str]:
     return accepted
 
 
-def _request_session_json(client: Any, headers: dict[str, str]) -> tuple[int, Any]:
+def _request_session_json(
+    client: Any,
+    headers: dict[str, str],
+) -> tuple[int, Any, list[str]]:
     """Run the auth-only HTTPS worker under one cancellable wall-clock deadline."""
 
     timeout = _worker_timeout(client)
@@ -195,12 +198,7 @@ def _request_session_json(client: Any, headers: dict[str, str]) -> tuple[int, An
     set_cookie_headers = _validated_session_set_cookie_headers(
         result.get("set_cookie_headers", [])
     )
-    update_cookies = getattr(client, "_update_cookies_from_text", None)
-    if callable(update_cookies) and set_cookie_headers:
-        update_cookies(
-            "\n".join(f"set-cookie: {header}" for header in set_cookie_headers)
-        )
-    return status, result.get("data")
+    return status, result.get("data"), set_cookie_headers
 
 
 def _required_token(value: Any, *, label: str) -> str:
@@ -227,7 +225,7 @@ def refresh_auth_session(
     headers = _session_refresh_headers(client, cookies)
     previous_session = cookies.get(CHATGPT_SESSION_COOKIE)
 
-    status, data = _request_session_json(client, headers)
+    status, data, set_cookie_headers = _request_session_json(client, headers)
     if int(status) != 200 or not isinstance(data, dict):
         raise AuthError(f"ChatGPT session refresh failed: status={status}")
 
@@ -239,6 +237,11 @@ def refresh_auth_session(
     ):
         raise AuthError("ChatGPT session refresh response has invalid expires metadata")
 
+    update_cookies = getattr(client, "_update_cookies_from_text", None)
+    if callable(update_cookies) and set_cookie_headers:
+        update_cookies(
+            "\n".join(f"set-cookie: {header}" for header in set_cookie_headers)
+        )
     client.auth.accessToken = access_token
     client.auth.accessTokenSource = "session-refresh:accessToken"
     client.auth.expires = expires
