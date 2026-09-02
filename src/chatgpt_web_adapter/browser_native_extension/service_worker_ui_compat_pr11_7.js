@@ -3,8 +3,8 @@
 // This module owns no turn dispatch, submit action, Browser Authority, retry,
 // navigation, or canonical-finality semantics. It only broadens bounded DOM
 // discovery used by already-governed consumers when historical selectors fail.
-// Generic contenteditable elements are accepted only with structural textbox /
-// composer evidence; an arbitrary visible editor is never enough.
+// Generic contenteditable elements are accepted only with structural composer
+// evidence; an arbitrary visible editor is never enough.
 
 const PR117_UI_COMPAT_SCHEMA = 1;
 
@@ -28,12 +28,16 @@ function _pr117ComposerResolverSource() {
       return true;
     };
     const structuralGenericEvidence = (element) => {
-      if (element.getAttribute('role') === 'textbox') return true;
-      if (element.getAttribute('aria-multiline') === 'true') return true;
-      if (element.closest('form')) return true;
       if (element.closest('[data-testid*="composer"]')) return true;
       const testId = String(element.getAttribute('data-testid') || '').toLowerCase();
-      return testId.includes('composer') || testId.includes('prompt');
+      if (testId.includes('composer') || testId.includes('prompt')) return true;
+
+      const form = element.closest('form');
+      if (!form) return false;
+      const scopedSubmitControls = form.querySelectorAll(
+        'button[type="submit"],button[data-testid*="send"],button[data-testid*="submit"]'
+      );
+      return scopedSubmitControls.length > 0;
     };
     const score = (element) => {
       let value = 0;
@@ -185,6 +189,7 @@ function _pr117StructuralSubmitPointExpression() {
       const testId = String(button.getAttribute('data-testid') || '').toLowerCase();
       return testId.includes('send') || testId.includes('submit');
     });
+    if (semantic.length > 1) return null;
     const candidates = semantic.length === 1
       ? semantic
       : all.filter((button) => button.getAttribute('type') === 'submit');
