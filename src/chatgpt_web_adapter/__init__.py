@@ -79,6 +79,11 @@ from .product_runtime import (
 from .product_runtime_observation_gate import (
     gate_product_runtime_send_text_observed as _gate_product_runtime_send_text_observed,
 )
+from .product_submission import (
+    ProductSubmissionAck,
+    ProductSubmissionProvenance,
+    SubmissionEvidenceSource,
+)
 from .product_support import (
     PRODUCT_RUNTIME_CONTRACT_SCHEMA,
     ProductTransportSupportTier,
