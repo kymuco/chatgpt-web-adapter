@@ -49,6 +49,11 @@ def test_pr114_submission_value_types_are_bound_at_root() -> None:
     assert adapter.SubmissionEvidenceSource is product_submission.SubmissionEvidenceSource
     assert adapter.ProductSubmissionProvenance is product_submission.ProductSubmissionProvenance
     assert adapter.ProductSubmissionAck is product_submission.ProductSubmissionAck
+    assert callable(getattr(adapter.ChatGPTProductRuntime, "submit", None))
+    assert callable(getattr(adapter.ChatGPTProductRuntime, "await_final", None))
+    assert callable(
+        getattr(adapter.ChatGPTProductRuntime, "submission_lifecycle_snapshot", None)
+    )
 
 
 def test_pr93_observation_value_types_are_bound_at_root_without_promoting_collector() -> None:
