@@ -28,13 +28,16 @@ def test_authentication_and_troubleshooting_guides_preserve_session_and_diagnost
 
 def test_primary_usage_positioning_is_product_runtime_first() -> None:
     readme = _read("README.md")
+    usage = _read("USAGE.md")
     architecture = _read("docs/architecture.md")
     classification = _read("docs/public_surface_pr8_6.md")
 
     assert "ChatGPTProductRuntime" in readme
     assert "assemble_product_runtime" in readme
     assert "PRIMARY_PRODUCTION" in readme
-    assert "USAGE.md` remains a detailed compatibility-client guide" in readme
+    assert "current runtime-first user guide" in readme
+    assert "ChatGPTProductRuntime" in usage
+    assert "Compatibility: `ChatGPTWebClient`" in usage
     assert "ProductWriteTransport" in architecture
     assert "CanonicalConversationClient" in architecture
     assert "ChatGPTWebClient" in classification
@@ -42,13 +45,14 @@ def test_primary_usage_positioning_is_product_runtime_first() -> None:
     assert "RESEARCH_DIAGNOSTIC" in classification
 
 
-def test_legacy_usage_guide_remains_available_for_compatibility_feature_set() -> None:
+def test_current_usage_guide_keeps_compatibility_without_stale_model_defaults() -> None:
     usage = _read("USAGE.md")
 
-    assert "gpt-5-3-mini" in usage
-    assert "gpt-5-6-thinking" in usage
-    assert "Current protected writes" in usage
-    assert "no auth capture flow" not in usage
+    assert "ChatGPTProductRuntime" in usage
+    assert "browser-owned" in usage
+    assert "Compatibility: `ChatGPTWebClient`" in usage
+    assert "Historical compatibility features" in usage
+    assert "gpt-5-3-mini" not in usage
     assert "gpt-4o-mini" not in usage
     assert "gpt-5-5-thinking" not in usage
 

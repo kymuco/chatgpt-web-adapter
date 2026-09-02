@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chatgpt-web-adapter"
 version = "0.3.0"
-description = "Python SDK for using an existing ChatGPT web session from Python and terminal tools."
+description = "Local Python SDK and CLI bridge for an existing ordinary ChatGPT web session."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -13,7 +13,16 @@ license-files = ["LICENSE"]
 authors = [
   { name = "kymuco" }
 ]
-keywords = ["chatgpt", "adapter", "sdk", "webchat"]
+keywords = [
+  "chatgpt",
+  "chatgpt-web",
+  "product-runtime",
+  "python-sdk",
+  "cli",
+  "multimodal",
+  "streaming",
+  "web-session",
+]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
@@ -29,9 +38,13 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/kymuco/chatgpt-web-adapter"
+Documentation = "https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/README.md"
 Repository = "https://github.com/kymuco/chatgpt-web-adapter"
 Issues = "https://github.com/kymuco/chatgpt-web-adapter/issues"
 Changelog = "https://github.com/kymuco/chatgpt-web-adapter/blob/main/CHANGELOG.md"
+Roadmap = "https://github.com/kymuco/chatgpt-web-adapter/blob/main/ROADMAP.md"
+Security = "https://github.com/kymuco/chatgpt-web-adapter/blob/main/SECURITY.md"
+Releases = "https://github.com/kymuco/chatgpt-web-adapter/releases"
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
