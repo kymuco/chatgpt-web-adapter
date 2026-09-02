@@ -32,39 +32,18 @@ def test_disconnected_extension_returns_non_authoritative_unavailable(tmp_path) 
     assert broker.turn_lock.locked() is False
 
 
-def test_liveness_bypasses_busy_authority_lane(monkeypatch, tmp_path) -> None:
+def test_active_authority_lane_returns_unknown_without_extension_probe(
+    monkeypatch,
+    tmp_path,
+) -> None:
     broker = subject.BrowserNativeBroker(state_dir=tmp_path)
     broker.extension_connected = True
     broker.runtime_tab_id = 77
-    forwarded: list[dict] = []
+    forwarded = False
 
     def fake_write(stream, payload):
-        forwarded.append(dict(payload))
-        broker.route_native_message(
-            {
-                "protocol": subject.PROTOCOL_VERSION,
-                "type": "ui_liveness_result",
-                "request_id": payload["request_id"],
-                "ok": True,
-                "state": "UNKNOWN",
-                "reasonCode": "ACTIVE_REQUEST_IN_PROGRESS",
-                "observedAtMs": 1,
-                "bridgeAvailable": True,
-                "extensionConnected": True,
-                "runtimeTabPresent": True,
-                "composerVisible": None,
-                "generationControlVisible": None,
-                "composerBusy": None,
-                "rawDomExported": False,
-                "navigationPerformed": False,
-                "runtimeTabCreated": False,
-                "writePerformed": False,
-                "canonicalReadPerformed": False,
-                "canonicalFinalityProven": False,
-                "grantsWriteAuthority": False,
-                "grantsRetryAuthority": False,
-            }
-        )
+        nonlocal forwarded
+        forwarded = True
 
     monkeypatch.setattr(subject, "write_native_message", fake_write)
     broker.turn_lock.acquire()
@@ -77,8 +56,10 @@ def test_liveness_bypasses_busy_authority_lane(monkeypatch, tmp_path) -> None:
 
     assert result["ok"] is True
     assert result["state"] == "UNKNOWN"
-    assert forwarded[0]["type"] == "ui_liveness"
-    assert "browserAuthorityLeaseId" not in forwarded[0]
+    assert result["reasonCode"] == "AUTHORITY_LANE_ACTIVE"
+    assert result["grantsWriteAuthority"] is False
+    assert result["canonicalFinalityProven"] is False
+    assert forwarded is False
 
 
 def test_write_bearing_liveness_request_is_rejected_before_forward(
