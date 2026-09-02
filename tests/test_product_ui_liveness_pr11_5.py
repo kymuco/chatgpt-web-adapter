@@ -55,6 +55,7 @@ def _response(**updates) -> dict:
         "canonicalFinalityProven": False,
         "grantsWriteAuthority": False,
         "grantsRetryAuthority": False,
+        "debuggerAttachedAfter": False,
     }
     payload.update(updates)
     return payload
@@ -158,6 +159,21 @@ def test_authority_claim_from_observation_is_rejected_to_unknown() -> None:
     assert observed.reason_code == "OBSERVATION_CONTRACT_VIOLATION"
     assert observed.grants_write_authority is False
     assert observed.grants_retry_authority is False
+    assert observed.canonical_finality_proven is False
+
+
+def test_debugger_still_attached_downgrades_observation_to_unknown() -> None:
+    provider = _Provider(_response(debuggerAttachedAfter=True))
+    runtime = _runtime(
+        transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
+        provider=provider,
+    )
+
+    observed = runtime.observe_ui_liveness()
+
+    assert observed.state is adapter.BrowserUILivenessState.UNKNOWN
+    assert observed.reason_code == "OBSERVATION_DEBUGGER_STILL_ATTACHED"
+    assert observed.grants_write_authority is False
     assert observed.canonical_finality_proven is False
 
 
