@@ -129,7 +129,9 @@ def test_refresh_auth_uses_bounded_worker_and_atomically_persists(
     assert not list(tmp_path.glob("*.tmp"))
 
 
-def test_refresh_auth_preserves_reduced_worker_http_status(tmp_path, monkeypatch) -> None:
+def test_refresh_auth_preserves_reduced_worker_http_status(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setattr(
         auth_refresh.subprocess,
         "run",
@@ -191,3 +193,36 @@ def test_refresh_auth_requires_session_cookie_before_worker(tmp_path, monkeypatc
     ):
         refresh_auth_session(client, persist=False)
     assert called is False
+
+
+def test_refresh_auth_validates_complete_response_before_cookie_mutation(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        auth_refresh.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "status": 200,
+                    "data": {
+                        "accessToken": "",
+                        "sessionToken": "new-session",
+                        "expires": "2030-01-01T00:00:00.000Z",
+                    },
+                    "set_cookie_headers": [
+                        f"{CHATGPT_SESSION_COOKIE}=rotated-session; Path=/; Secure"
+                    ],
+                }
+            ).encode(),
+        ),
+    )
+    client = RefreshClient(tmp_path / "auth_data.json")
+
+    with pytest.raises(auth_refresh.AuthError, match="valid accessToken"):
+        refresh_auth_session(client, persist=False)
+
+    assert client.auth.accessToken == "old-access"
+    assert client.auth.cookies[CHATGPT_SESSION_COOKIE] == "old-session"
+    assert client.response_headers is None
