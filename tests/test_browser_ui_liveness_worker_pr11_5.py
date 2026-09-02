@@ -30,6 +30,17 @@ def test_liveness_worker_requires_positive_generating_evidence() -> None:
     assert '"UNAVAILABLE", "RUNTIME_TAB_ABSENT"' in source
 
 
+def test_liveness_worker_serializes_non_liveness_messages_behind_active_probe() -> None:
+    source = LIVENESS.read_text(encoding="utf-8")
+
+    assert "let _cwaUiLivenessProbePromise = null;" in source
+    assert "const activeProbe = _cwaUiLivenessProbePromise;" in source
+    assert "if (activeProbe)" in source
+    assert "await activeProbe" in source
+    assert "_cwaUiLivenessProbePromise = probe;" in source
+    assert "_cwaUiLivenessProbePromise = null;" in source
+
+
 def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives() -> None:
     source = LIVENESS.read_text(encoding="utf-8")
 
