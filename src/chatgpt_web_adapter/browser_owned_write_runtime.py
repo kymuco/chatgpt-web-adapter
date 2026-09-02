@@ -30,8 +30,11 @@ WRITE_ACCEPTED_READBACK_INCOMPLETE = "BROWSER_OWNED_WRITE_ACCEPTED_READBACK_INCO
 BROWSER_AUTHORITY_RELEASE_UNSUPPORTED = "BROWSER_AUTHORITY_RELEASE_UNSUPPORTED"
 BROWSER_AUTHORITY_NOT_FRESH = "BROWSER_AUTHORITY_NOT_FRESH"
 
-READ_PLANE = BROWSER_CONTEXT_CANONICAL_READ_PLANE
 LEGACY_READ_PLANE = "BROWSERLESS_CANONICAL_HTTP"
+# Historical module-level compatibility constant. Production instances select
+# BROWSER_CONTEXT_CANONICAL_READ_PLANE only when their canonical client owns that
+# read transport; injected/custom clients retain the legacy read plane.
+READ_PLANE = LEGACY_READ_PLANE
 SESSION_PLANE = "BROWSERLESS_SESSION_HTTP"
 WRITE_PLANE = "BROWSER_NATIVE_PAGE_OWNED_WRITE"
 
@@ -257,8 +260,6 @@ class BrowserOwnedProductWriteRuntime:
             if self._browser_context_readback
             else LEGACY_READ_PLANE
         )
-        # Validate assembly defaults without forcing an IDLE_TTL value if policy
-        # is not selected yet.
         self._browser_authority_runtime_policy = browser_authority_policy
         self._browser_authority_runtime_ttl_ms = browser_authority_ttl_ms
         resolve_browser_authority_policy(
@@ -333,10 +334,6 @@ class BrowserOwnedProductWriteRuntime:
                 canonical_status=None,
                 canonical_read_checked=False,
             )
-
-        # A runtime tab is deliberately NOT required here. PR8.1.1 proved that
-        # the connected extension can create/recover its dedicated background
-        # ChatGPT tab on demand without stealing foreground focus.
         if conversation is None:
             return self._health(
                 ready=True,
@@ -473,8 +470,6 @@ class BrowserOwnedProductWriteRuntime:
 
         release_runtime_tab = getattr(self.provider, "release_runtime_tab", None)
         if not callable(release_runtime_tab):
-            # This should have been rejected before write, but keep the async
-            # boundary fail-closed if a custom provider mutates at runtime.
             with self._authority_lock:
                 self._last_disposal_result = {
                     "lease_id": lease.lease_id,
