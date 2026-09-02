@@ -11,7 +11,7 @@ latest public release   v0.3.0
 release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
-post-release milestones PR10.0 + PR10.1 merged
+post-release milestones PR10.0 + PR10.1 merged; PR11.0 complete
 license                 MIT
 python                   3.10-3.14
 ```
@@ -65,6 +65,24 @@ On the proven default browser-owned provider path, the runtime includes:
 
 Rich-input and observation capability claims are provider-aware rather than inferred from a transport name alone.
 
+## Browser bridge product surface
+
+PR11.0 gives the unpacked Chrome bridge a first-class product surface without changing ChatGPT write/finality authority:
+
+- CWA-specific extension icons;
+- product name/description;
+- light/dark read-only popup;
+- Native Messaging connection, runtime-tab presence and activity state;
+- sanitized copyable status;
+- toolbar ready/working/unavailable presentation;
+- package/release validation for the complete extension asset set.
+
+The popup performs no ChatGPT product write and does not create the runtime-owned ChatGPT tab merely because it was opened.
+
+Chrome Web Store distribution remains deferred; the current installation path is still Developer mode → Load unpacked.
+
+See [`docs/browser_bridge_product_surface_pr11_0.md`](docs/browser_bridge_product_surface_pr11_0.md).
+
 ## Conservative / incomplete product boundaries
 
 ### Tools and connectors
@@ -116,22 +134,15 @@ ambiguous write
 -> no automatic retry
 ```
 
-## Current repository milestone
+## Current checkpoint
 
-`polish/public-readiness` is a documentation/repository-quality pass only.
+The public-readiness repository polish and PR11.0 browser-bridge product surface are complete milestones. CWA now has a coherent GitHub/documentation surface and a coherent local extension surface.
 
-It should:
-
-- make the current product/runtime boundary obvious from the GitHub landing page;
-- replace stale PR8/PR9-first architecture/user guidance;
-- separate current docs from historical evidence;
-- synchronize `Unreleased` changelog state with merged PR10.0/PR10.1;
-- improve contribution/security/community entry points;
-- avoid changing product behavior or performing live product writes.
+Neither milestone changes the underlying ChatGPT product capability boundary.
 
 ## Next product milestone
 
-Preferred direction after repository polish:
+Preferred direction:
 
 ```text
 consumer-driven runtime hardening
@@ -143,11 +154,11 @@ See [`ROADMAP.md`](ROADMAP.md).
 
 ## Release policy
 
-Repository polish alone does not justify a new minor release.
+Repository/product-surface polish alone does not justify a new minor release.
 
 Likely next-release rule:
 
-- `0.3.x` for compatible fixes/drift repairs/docs/packaging/ergonomics;
+- `0.3.x` for compatible fixes/drift repairs/docs/packaging/ergonomics/product-surface hardening;
 - `0.4.0` for a coherent new public runtime capability set.
 
 Release gates remain Linux/Windows CI, exact built-artifact validation, installed-wheel smoke, and tag/version/changelog agreement.

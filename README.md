@@ -1,5 +1,9 @@
 # chatgpt-web-adapter
 
+<p align="center">
+  <img src="docs/assets/cwa-hero.svg" alt="chatgpt-web-adapter — Python SDK, CLI and Browser Bridge" width="100%">
+</p>
+
 [![CI](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/chatgpt-web-adapter.svg)](https://pypi.org/project/chatgpt-web-adapter/)
 [![Python](https://img.shields.io/pypi/pyversions/chatgpt-web-adapter.svg)](https://pypi.org/project/chatgpt-web-adapter/)
@@ -21,7 +25,7 @@
 ## Current status
 
 - **Latest public release:** `v0.3.0` — 2026-09-01.
-- **Current `main`:** post-0.3 development through merged PR10.1.
+- **Current `main`:** post-0.3 development; see [STATUS.md](STATUS.md) for merged post-release milestones.
 - **Production write transport:** `browser-owned`.
 - **Experimental transport:** `browserless-request`.
 - **Current product boundary:** text, images, general files, multimodal continuation, canonical conversation reads, streaming/finality, model profiles, Temporary Chat, web-search observation, and typed product observations are implemented on their evidence-backed paths.
@@ -121,6 +125,10 @@ cwa doctor --json
 ```
 
 A healthy bridge reports the extension connected and the runtime ready.
+
+The Chrome extension also exposes a small local popup with Native Messaging connection state, runtime-tab presence, activity state, version and sanitized copyable diagnostics. Opening the popup performs **no ChatGPT product write** and does not provision the hidden runtime tab. See [docs/browser_bridge_product_surface_pr11_0.md](docs/browser_bridge_product_surface_pr11_0.md).
+
+Because the current installation path is still **Load unpacked**, Chrome may continue to label it as a developer extension. Chrome Web Store distribution is intentionally deferred until external adoption makes the extra store/privacy/update lifecycle worthwhile.
 
 ### Send from the CLI
 
@@ -347,6 +355,7 @@ Current entry points:
 - [USAGE.md](USAGE.md) — current runtime-first user guide with a separate compatibility section;
 - [docs/architecture.md](docs/architecture.md) — current runtime architecture;
 - [docs/browser_owned_v1_contract.md](docs/browser_owned_v1_contract.md) — production browser-owned contract;
+- [docs/browser_bridge_product_surface_pr11_0.md](docs/browser_bridge_product_surface_pr11_0.md) — Chrome extension product chrome and local status boundary;
 - [docs/product_rich_input_pr9_2.md](docs/product_rich_input_pr9_2.md) — rich-input evidence and boundary;
 - [docs/product_runtime_observation_integration_pr9_3.md](docs/product_runtime_observation_integration_pr9_3.md) — observation integration;
 - [docs/generated_artifact_handoff_pr10_1.md](docs/generated_artifact_handoff_pr10_1.md) — current artifact handoff boundary;

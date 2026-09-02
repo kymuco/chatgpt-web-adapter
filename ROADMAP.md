@@ -2,7 +2,7 @@
 
 _Last updated: 2026-09-02_
 
-This is the current product roadmap for `chatgpt-web-adapter` (CWA). Historical PR8/PR9 planning documents remain in `docs/` as evidence and lineage; this file describes the current direction after CWA 0.3 and the completed PR10.0/PR10.1 milestones.
+This is the current product roadmap for `chatgpt-web-adapter` (CWA). Historical PR8/PR9 planning documents remain in `docs/` as evidence and lineage; this file describes the current direction after CWA 0.3 and the completed PR10/PR11 milestones.
 
 ## Product role
 
@@ -22,7 +22,7 @@ chatgpt-web-adapter
                CMA / HDE / others
 ```
 
-CWA owns product/session mechanics, canonical observation, product mutation, transport boundaries, capabilities, provenance, product-level observations, and diagnostics.
+CWA owns product/session mechanics, canonical observation, product mutation, transport boundaries, capabilities, provenance, product-level observations, diagnostics, and the local browser bridge product surface.
 
 CWA does **not** own project cognition, Git/workspace authority, autonomous continuation policy, or approval policy for external actions. Those remain downstream concerns.
 
@@ -89,13 +89,31 @@ ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
 
 Actual generated-artifact download/materialization remains intentionally unimplemented. The research path stops rather than depending on minified React/update-queue internals as a public SDK contract.
 
+### PR11.0 — browser bridge product surface
+
+Completed after the public-readiness pass.
+
+PR11.0 gives the unpacked Chrome bridge its own CWA identity and a bounded read-only product surface:
+
+- CWA extension icon family and repository visual identity;
+- concise manifest name/description;
+- light/dark popup;
+- local Native Messaging connection, runtime-tab presence and activity status;
+- sanitized copyable diagnostics;
+- toolbar ready/working/unavailable state;
+- exact packaging/release validation for HTML/CSS/PNG extension assets.
+
+The popup does not send ChatGPT turns, provision the runtime tab merely by opening, inspect ChatGPT page content, expose product ids/credentials, or gain retry/approval authority.
+
+Chrome Web Store publication remains deferred; the current installation flow stays explicit and local (`Developer mode -> Load unpacked`).
+
+See [`docs/browser_bridge_product_surface_pr11_0.md`](docs/browser_bridge_product_surface_pr11_0.md).
+
 ## Current checkpoint
 
-Current `main` is a strong post-0.3 product-runtime baseline.
+Current `main` is a strong post-0.3 product-runtime baseline with coherent public documentation and a coherent local browser-bridge surface.
 
-The immediate goal is no longer “discover one more hidden ChatGPT surface.” The next work should be driven primarily by real consumer needs and observed product drift.
-
-Current repository-polish work is documentation/public-readiness only and does not create a new product capability.
+The immediate goal is no longer “discover one more hidden ChatGPT surface” or “polish one more repository page.” The next work should be driven primarily by real consumer needs and observed product drift.
 
 ## Next vertical milestone: consumer-driven runtime hardening
 
@@ -147,6 +165,18 @@ Any future handoff must also preserve explicit caller destination/overwrite auth
 
 CWA will not add challenge-bypass machinery merely to make browserless writes appear reliable.
 
+### Chrome Web Store distribution
+
+Consider store publication only when external adoption justifies the additional distribution contract. Before reopening, review:
+
+- `debugger` permission policy/review expectations;
+- privacy disclosures;
+- extension version/update lifecycle;
+- support burden for externally installed bridge versions;
+- whether store distribution materially improves the actual CWA consumer workflow.
+
+Do not publish merely to remove the visual “unpacked/developer” label from a local development install.
+
 ## Compatibility-drift hardening
 
 ChatGPT Web is an undocumented changing product surface. Drift work should be triggered by concrete evidence:
@@ -172,11 +202,11 @@ Avoid open-ended reverse engineering after the decision-relevant boundary is alr
 
 ## Release direction
 
-Do not cut a new major/minor release for repository polish alone.
+Do not cut a new major/minor release for repository/product-surface polish alone.
 
 A likely release policy is:
 
-- `0.3.x` for compatible fixes, drift repairs, documentation/packaging hardening, and narrow ergonomics improvements;
+- `0.3.x` for compatible fixes, drift repairs, documentation/packaging/product-surface hardening, and narrow ergonomics improvements;
 - `0.4.0` when a coherent new product/consumer capability set materially expands the public runtime contract.
 
 Every release continues to require Linux/Windows validation, exact built-artifact checks, installed-wheel smoke, explicit support/capability documentation, and tag/version/changelog agreement.
@@ -194,8 +224,9 @@ Every release continues to require Linux/Windows validation, exact built-artifac
 9. Observation never becomes approval or downstream authority by implication.
 10. Browser internals remain below the public runtime boundary.
 11. Research/diagnostic surfaces do not become public production contracts merely because they exist in-tree.
-12. No challenge-bypass expansion.
-13. Product drift fails clearly rather than pretending permanence.
+12. Product chrome may expose local sanitized bridge state, but opening the UI never grants ChatGPT product-write/finality authority.
+13. No challenge-bypass expansion.
+14. Product drift fails clearly rather than pretending permanence.
 
 ## Non-goals
 
@@ -207,7 +238,8 @@ CWA is not becoming:
 - a Git/filesystem authority layer;
 - a caller-controlled abstraction over every internal ChatGPT tool;
 - a browser-protection bypass toolkit;
-- an unstable DOM/React scraper presented as a stable SDK.
+- an unstable DOM/React scraper presented as a stable SDK;
+- a Chrome Web Store product before distribution is justified by real adoption.
 
 ## Historical maps
 
@@ -218,6 +250,7 @@ Useful lineage documents:
 - [`docs/browserless_request_transport_pr9_1.md`](docs/browserless_request_transport_pr9_1.md) — browserless experimental boundary;
 - [`docs/product_rich_input_pr9_2.md`](docs/product_rich_input_pr9_2.md) — rich-input evidence;
 - [`docs/product_runtime_observation_integration_pr9_3.md`](docs/product_runtime_observation_integration_pr9_3.md) — structured observation integration;
-- [`docs/generated_artifact_handoff_pr10_1.md`](docs/generated_artifact_handoff_pr10_1.md) — artifact handoff closure.
+- [`docs/generated_artifact_handoff_pr10_1.md`](docs/generated_artifact_handoff_pr10_1.md) — artifact handoff closure;
+- [`docs/browser_bridge_product_surface_pr11_0.md`](docs/browser_bridge_product_surface_pr11_0.md) — browser bridge product-surface contract.
 
 Use [`docs/README.md`](docs/README.md) for the complete documentation map.

@@ -65,4 +65,7 @@ where = ["src"]
 chatgpt_web_adapter = [
   "browser_native_extension/*.json",
   "browser_native_extension/*.js",
+  "browser_native_extension/*.html",
+  "browser_native_extension/*.css",
+  "browser_native_extension/*.png",
 ]

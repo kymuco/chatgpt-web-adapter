@@ -118,3 +118,7 @@ executeNativeTurn = async function _executeNativeTurnWithProvisioningObservabili
     chrome.tabs.onActivated.removeListener(onActivated);
   }
 };
+
+// PR11.0: product chrome is read-only with respect to ChatGPT. It consumes only
+// local bridge state and never participates in product-write/finality semantics.
+importScripts("service_worker_product_surface_pr11_0.js");

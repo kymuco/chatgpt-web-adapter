@@ -16,6 +16,8 @@ EXPECTED_ENTRY_POINTS = {
     "chatgpt-web-adapter": "chatgpt_web_adapter.cli_v02:main",
     "chatgpt-web-adapter-native-host": "chatgpt_web_adapter.browser_native_host:main",
 }
+EXTENSION_PACKAGE_PATTERNS = ("*.json", "*.js", "*.html", "*.css", "*.png")
+EXTENSION_PACKAGE_SUFFIXES = (".json", ".js", ".html", ".css", ".png")
 REQUIRED_WHEEL_FILES = {
     # Stable CLI / diagnostics baseline retained from CWA 0.2.
     "chatgpt_web_adapter/cli_v02.py",
@@ -37,6 +39,14 @@ REQUIRED_WHEEL_FILES = {
     # Browser-owned package entrypoints/assets.
     "chatgpt_web_adapter/browser_native_extension/manifest.json",
     "chatgpt_web_adapter/browser_native_extension/service_worker.js",
+    "chatgpt_web_adapter/browser_native_extension/service_worker_product_surface_pr11_0.js",
+    "chatgpt_web_adapter/browser_native_extension/popup.html",
+    "chatgpt_web_adapter/browser_native_extension/popup.css",
+    "chatgpt_web_adapter/browser_native_extension/popup.js",
+    "chatgpt_web_adapter/browser_native_extension/icon16.png",
+    "chatgpt_web_adapter/browser_native_extension/icon32.png",
+    "chatgpt_web_adapter/browser_native_extension/icon48.png",
+    "chatgpt_web_adapter/browser_native_extension/icon128.png",
 }
 REQUIRED_SDIST_SUFFIXES = {
     "/pyproject.toml",
@@ -49,6 +59,11 @@ REQUIRED_SDIST_SUFFIXES = {
     "/src/chatgpt_web_adapter/product_rich_input_capability_gate_pr9_4.py",
     "/src/chatgpt_web_adapter/browser_native_extension/manifest.json",
     "/src/chatgpt_web_adapter/browser_native_extension/service_worker.js",
+    "/src/chatgpt_web_adapter/browser_native_extension/service_worker_product_surface_pr11_0.js",
+    "/src/chatgpt_web_adapter/browser_native_extension/popup.html",
+    "/src/chatgpt_web_adapter/browser_native_extension/popup.css",
+    "/src/chatgpt_web_adapter/browser_native_extension/popup.js",
+    "/src/chatgpt_web_adapter/browser_native_extension/icon128.png",
 }
 _VERSION_RE = re.compile(r'^version\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
 _PROJECT_RE = re.compile(r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE)
@@ -114,7 +129,7 @@ def _source_extension_files(root: Path) -> set[str]:
     extension_dir = root / "src" / "chatgpt_web_adapter" / "browser_native_extension"
     files = {
         path.name
-        for pattern in ("*.json", "*.js")
+        for pattern in EXTENSION_PACKAGE_PATTERNS
         for path in extension_dir.glob(pattern)
         if path.is_file()
     }
@@ -147,7 +162,7 @@ def verify_wheel(wheel: Path, *, root: Path, version: str) -> dict[str, Any]:
             Path(name).name
             for name in names
             if name.startswith("chatgpt_web_adapter/browser_native_extension/")
-            and (name.endswith(".js") or name.endswith(".json"))
+            and name.endswith(EXTENSION_PACKAGE_SUFFIXES)
         }
         missing_extension = sorted(source_extension_files - wheel_extension_files)
         if missing_extension:
