@@ -195,6 +195,19 @@ onNativeMessage = async function _cwaOnNativeMessageWithUiLiveness(message, port
     });
     return;
   }
+  if (_cwaUiLivenessProbePromise) {
+    const observation = _cwaUiLivenessBase("UNKNOWN", "OBSERVATION_ALREADY_RUNNING", {
+      runtimeTabPresent: null
+    });
+    safePortPost(port, {
+      protocol: BRIDGE_PROTOCOL_VERSION,
+      type: "ui_liveness_result",
+      request_id: requestId,
+      ok: true,
+      ...observation
+    });
+    return;
+  }
 
   let observation;
   const probe = _cwaObserveUiLiveness();
