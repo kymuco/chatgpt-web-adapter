@@ -35,6 +35,8 @@ PRIMARY_PRODUCT_RUNTIME_EXPORTS: tuple[str, ...] = (
     "SubmissionEvidenceSource",
     "ProductSubmissionProvenance",
     "ProductSubmissionAck",
+    "BrowserUILivenessState",
+    "BrowserUILivenessObservation",
     "ProductObservationKind",
     "ProductObservationPhase",
     "ProductActivityObservation",
