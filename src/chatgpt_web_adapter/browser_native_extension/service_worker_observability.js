@@ -30,6 +30,27 @@ importScripts("service_worker_early_product_completion_repair_pr8_11_1.js");
 importScripts("service_worker_normalized_activity_stream_pr8_12.js");
 importScripts("service_worker_connector_lifecycle_pr10_0.js");
 importScripts("service_worker_connector_router_characterization_pr10_0.js");
+importScripts("service_worker_generated_artifact_pr10_1.js");
+
+// PR10.1 closure: the v1-v10 artifact-shape probes are retained in the source tree
+// as reproducible research evidence, but they are not part of ordinary runtime
+// startup after the unsupported download-handoff boundary was frozen. Re-entry is
+// an explicit research action and must deliberately flip this source-only switch.
+const PR101_ARTIFACT_CHARACTERIZATION_ENABLED = false;
+if (PR101_ARTIFACT_CHARACTERIZATION_ENABLED) {
+  importScripts("service_worker_generated_artifact_shape_pr10_1.js");
+  importScripts("service_worker_generated_artifact_surface_overlay_pr10_1.js");
+  importScripts("service_worker_generated_artifact_surface_v2_overlay_pr10_1.js");
+  importScripts("service_worker_generated_artifact_topology_v3_pr10_1.js");
+  importScripts("service_worker_generated_artifact_noncode_v4_pr10_1.js");
+  importScripts("service_worker_generated_artifact_action_v5_pr10_1.js");
+  importScripts("service_worker_generated_artifact_fiber_state_v6_pr10_1.js");
+  importScripts("service_worker_generated_artifact_subtree_v7_pr10_1.js");
+  importScripts("service_worker_generated_artifact_root_shape_v8_pr10_1.js");
+  importScripts("service_worker_generated_artifact_root_key_shape_v9_pr10_1.js");
+  importScripts("service_worker_generated_artifact_array_element_shape_v10_pr10_1.js");
+}
+
 importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
 importScripts("service_worker_answer_channel_pr8_12.js");
 importScripts("service_worker_temporary_chat_production_pr8_13.js");

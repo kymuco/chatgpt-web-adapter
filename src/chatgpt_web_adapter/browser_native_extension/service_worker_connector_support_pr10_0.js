@@ -255,6 +255,12 @@ executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportPr
       connectorObservationGrantsApprovalAuthority: false,
       connectorObservationChangesCanonicalFinality: false,
       connectorObservationChangesRetryAuthority: false,
+      generatedArtifactObservationSupported: true,
+      generatedArtifactObservationSchemaVersion: 1,
+      explicitArtifactIdentityRequired: true,
+      artifactLocatorExported: false,
+      artifactObservationGrantsDownloadAuthority: false,
+      artifactObservationGrantsOverwriteAuthority: false,
       automaticWriteRetry: false,
       fallbackTransport: null,
       writePerformed: false

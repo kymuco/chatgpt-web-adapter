@@ -7,9 +7,7 @@ from typing import Any, Callable
 from .product_activity_kind_precedence_pr9_3 import (
     install_product_activity_kind_precedence,
 )
-from .product_connector_router_characterization_pr10_0 import (
-    ProductConnectorRouterCharacterizationCollector,
-)
+from .product_artifact_observation_pr10_1 import ProductArtifactObservationCollector
 from .product_rich_input_capability_gate_pr9_4 import (
     install_browser_owned_rich_input_capability_gate,
 )
@@ -55,6 +53,10 @@ def gate_product_runtime_send_text_observed(
     canonical finality. The bounded api_tool router-shape diagnostic stays only on
     the caller event stream and is recognized without becoming public observation
     authority or being counted as an unexplained dropped event.
+
+    PR10.1 additionally accepts generated-artifact point evidence only when the
+    product supplies an explicit artifact/file/asset id. Artifact observation never
+    grants download, local-path, overwrite, retry, or canonical-finality authority.
     """
 
     if getattr(send_text_observed, _PR93_PRODUCT_OBSERVATION_GATE_MARKER, False):
@@ -78,7 +80,7 @@ def gate_product_runtime_send_text_observed(
         install_canonical_product_observation_gate()
 
         caller_on_event = kwargs.get("on_event")
-        collector = ProductConnectorRouterCharacterizationCollector()
+        collector = ProductArtifactObservationCollector()
 
         def collect_and_forward(event: dict[str, Any]) -> None:
             try:
