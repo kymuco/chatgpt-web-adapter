@@ -13,7 +13,6 @@ from chatgpt_web_adapter.browser_owned_submission_lifecycle import (
     SUBMISSION_HANDLE_INVALID,
 )
 from chatgpt_web_adapter.browser_owned_write_runtime import BrowserOwnedWriteRuntimeError
-from chatgpt_web_adapter.product_runtime import ChatGPTProductRuntime
 from chatgpt_web_adapter.product_submission import (
     ProductSubmissionAck,
     SubmissionEvidenceSource,
@@ -21,6 +20,7 @@ from chatgpt_web_adapter.product_submission import (
 from chatgpt_web_adapter.product_submission_runtime_gate import (
     ProductSubmissionLifecycleUnavailableError,
 )
+from chatgpt_web_adapter.product_runtime import ChatGPTProductRuntime
 from chatgpt_web_adapter.revision_safe_streaming_pr8_9 import RevisionSafeTextAccumulator
 from chatgpt_web_adapter.types import ChatResponse, ConversationStatus
 
@@ -193,6 +193,8 @@ def test_submit_ack_is_write_acceptance_not_canonical_finality(monkeypatch):
     assert governance["submission_ack_is_canonical_finality"] is False
     assert governance["submission_pending_limit"] == 1
     assert governance["submission_pending_blocks_new_write"] is True
+    assert governance["submission_dispatch_serialized"] is True
+    assert governance["submission_await_serialized"] is True
     assert governance["submission_automatic_write_retry"] is False
 
 
@@ -220,7 +222,7 @@ def test_pending_submission_blocks_every_second_write_before_delegation(monkeypa
 def test_await_final_rebinds_same_authority_then_releases_slot(monkeypatch):
     runtime, _transport, client, provider, calls = _runtime(monkeypatch)
     ack = runtime.submit("hello")
-    lifecycle_id = ack.turn_lifecycle_id
+    lease_id = ack.turn_lifecycle_id
 
     response = runtime.await_final(ack)
 
@@ -236,7 +238,7 @@ def test_await_final_rebinds_same_authority_then_releases_slot(monkeypatch):
     assert lifecycle["turn_lifecycle"]["state"] == "FINALIZED"
     assert lifecycle["browser_authority_lease"]["state"] == "RELEASED"
     assert lifecycle["browser_authority_lease"]["authority_release_proven"] is True
-    assert lifecycle["turn_lifecycle"]["lifecycle_id"] == lifecycle_id
+    assert lifecycle["turn_lifecycle"]["lifecycle_id"] == lease_id
 
     second = runtime.submit("second")
     assert second.submission_id == "submission-1"
