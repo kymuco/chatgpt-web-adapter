@@ -113,6 +113,7 @@ async function _cwaObserveUiLiveness() {
 
   const debuggee = { tabId: tab.id };
   let attached = false;
+  let detachFailed = false;
   let observation = null;
   _cwaUiLivenessProbeActive = true;
   try {
@@ -135,15 +136,31 @@ async function _cwaObserveUiLiveness() {
     }
   } finally {
     if (attached) {
-      try { await chrome.debugger.detach(debuggee); } catch {}
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        detachFailed = true;
+      }
     }
     _cwaUiLivenessProbeActive = false;
-    if (observation) {
+    if (observation && detachFailed) {
+      observation = _cwaUiLivenessBase("UNKNOWN", "DEBUGGER_DETACH_FAILED", {
+        runtimeTabPresent: true,
+        debuggerAttachedAfter: true
+      });
+    } else if (observation) {
       try {
         const targets = await chrome.debugger.getTargets();
-        observation.debuggerAttachedAfter = Boolean(
+        const stillAttached = Boolean(
           targets.find((target) => target.tabId === tab.id)?.attached
         );
+        observation.debuggerAttachedAfter = stillAttached;
+        if (stillAttached) {
+          observation = _cwaUiLivenessBase("UNKNOWN", "DEBUGGER_STILL_ATTACHED", {
+            runtimeTabPresent: true,
+            debuggerAttachedAfter: true
+          });
+        }
       } catch {
         observation.debuggerAttachedAfter = null;
       }
