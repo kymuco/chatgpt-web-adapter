@@ -1,5 +1,3 @@
-importScripts("service_worker_temporary_chat_route_reopen_probe.js");
-
 const _cwaCanonicalPriorOnNativeMessage = onNativeMessage;
 const CWA_CANONICAL_CHUNK_BASE64_CHARS = 600_000;
 
