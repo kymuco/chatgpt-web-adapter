@@ -20,6 +20,13 @@ _COOKIE_FIELDS = (
 )
 
 
+def _is_chatgpt_cookie_domain(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    domain = value.strip().lstrip(".").lower()
+    return domain == "chatgpt.com" or domain.endswith(".chatgpt.com")
+
+
 def serialize_browser_cookies(browser_cookies: Any) -> list[dict[str, Any]]:
     """Keep portable CDP cookie attributes without persisting runtime objects."""
 
@@ -31,8 +38,7 @@ def serialize_browser_cookies(browser_cookies: Any) -> list[dict[str, Any]]:
         name = getattr(cookie, "name", None)
         value = getattr(cookie, "value", None)
         if not (
-            isinstance(domain, str)
-            and domain.lstrip(".").lower().endswith("chatgpt.com")
+            _is_chatgpt_cookie_domain(domain)
             and isinstance(name, str)
             and isinstance(value, str)
         ):
@@ -79,8 +85,7 @@ def flatten_browser_cookies(records: Any) -> dict[str, str]:
         if (
             isinstance(name, str)
             and isinstance(value, str)
-            and isinstance(domain, str)
-            and domain.lstrip(".").lower().endswith("chatgpt.com")
+            and _is_chatgpt_cookie_domain(domain)
         ):
             cookies[name] = value
     return cookies
@@ -103,7 +108,10 @@ def browser_cookie_params(
             name = record.get("name")
             value = record.get("value")
             domain = record.get("domain")
-            if not all(isinstance(item, str) and item for item in (name, value, domain)):
+            if not (
+                all(isinstance(item, str) and item for item in (name, value, domain))
+                and _is_chatgpt_cookie_domain(domain)
+            ):
                 continue
             kwargs: dict[str, Any] = {
                 "name": name,
