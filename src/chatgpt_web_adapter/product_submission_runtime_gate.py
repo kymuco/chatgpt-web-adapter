@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+from .browser_owned_submission_dispatch_guard_pr11_4 import (
+    install_browser_owned_submission_dispatch_guard,
+)
 from .product_submission import ProductSubmissionAck
 from .product_transport import ConversationInput, EventCallback, TokenCallback
 from .types import ChatResponse, MediaItem
@@ -149,6 +152,7 @@ def _runtime_submission_lifecycle_snapshot(self: Any) -> dict[str, Any]:
 def install_product_submission_runtime_surface(runtime_class: type[Any]) -> None:
     """Install the optional schema-preserving split lifecycle on the runtime class."""
 
+    install_browser_owned_submission_dispatch_guard()
     if getattr(runtime_class, "_pr114_submission_lifecycle_installed", False):
         return
     runtime_class.submit = _runtime_submit
