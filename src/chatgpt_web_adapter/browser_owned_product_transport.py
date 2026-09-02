@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+from functools import wraps
+import threading
 from typing import Any
 
 from .browser_authority_lease import (
@@ -198,6 +200,17 @@ def _normalize_mode(value: str) -> str:
     return mode
 
 
+def _serialize_submission_operation(method: Any) -> Any:
+    """Serialize every browser-owned write/finality operation on one transport."""
+
+    @wraps(method)
+    def serialized(self: "BrowserOwnedProductTransport", *args: Any, **kwargs: Any) -> Any:
+        with self._submission_dispatch_lock:
+            return method(self, *args, **kwargs)
+
+    return serialized
+
+
 class BrowserOwnedProductTransport:
     """Browser-owned ordinary-product transport with mode-specific finality."""
 
@@ -248,6 +261,7 @@ class BrowserOwnedProductTransport:
             self.canonical_client,
             **runtime_kwargs,
         )
+        self._submission_dispatch_lock = threading.RLock()
         self._submission_lifecycle = BrowserOwnedSubmissionLifecycle(self._runtime)
         self._temporary_runtime = TemporaryProductWriteRuntime(self.provider)
 
@@ -345,6 +359,7 @@ class BrowserOwnedProductTransport:
             return _BROWSER_OWNED_CAPABILITIES
         return _build_browser_owned_capabilities(profile_selection_supported=False)
 
+    @_serialize_submission_operation
     def send_text(
         self,
         text: str,
@@ -393,6 +408,7 @@ class BrowserOwnedProductTransport:
                 **authority_kwargs,
             )
 
+    @_serialize_submission_operation
     def submit_text(
         self,
         text: str,
@@ -449,6 +465,7 @@ class BrowserOwnedProductTransport:
             provenance=provenance,
         )
 
+    @_serialize_submission_operation
     def await_final(self, submission: ProductSubmissionAck) -> ChatResponse:
         if not isinstance(submission, ProductSubmissionAck):
             raise TypeError("submission must be ProductSubmissionAck")
@@ -459,6 +476,7 @@ class BrowserOwnedProductTransport:
     def submission_lifecycle_snapshot(self) -> dict[str, Any]:
         return self._submission_lifecycle.snapshot()
 
+    @_serialize_submission_operation
     def send_text_observed(
         self,
         text: str,
@@ -512,6 +530,7 @@ class BrowserOwnedProductTransport:
             observation=execution.observation,
         )
 
+    @_serialize_submission_operation
     def end_temporary_lifecycle(self) -> bool:
         self._submission_lifecycle.ensure_no_pending_submission()
         return self._temporary_runtime.close()
@@ -623,6 +642,8 @@ class BrowserOwnedProductTransport:
                 "submission_pending_blocks_new_write": True,
                 "submission_await_required_for_canonical_finality": True,
                 "submission_handle_runtime_bound": True,
+                "submission_dispatch_serialized": True,
+                "submission_await_serialized": True,
                 "submission_automatic_write_retry": False,
                 "submission_fallback_transport": None,
                 "browser_native_send_composes_submit_and_await_final": True,
