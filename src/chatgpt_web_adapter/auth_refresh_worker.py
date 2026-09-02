@@ -42,7 +42,15 @@ _ALLOWED_HEADERS = frozenset(
 class _RejectSessionRedirects(HTTPRedirectHandler):
     """Keep session credentials bound to the fixed ChatGPT endpoint."""
 
-    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+    def redirect_request(
+        self,
+        request,
+        file_pointer,
+        code,
+        message,
+        headers,
+        new_url,
+    ):
         return None
 
 
@@ -54,19 +62,22 @@ def _is_session_cookie_name(value: str) -> bool:
 
 def _bounded_cookie_header(value: str) -> str | None:
     accepted: list[str] = []
+    session_present = False
     for raw_pair in value.split(";"):
         pair = raw_pair.strip()
         if not pair or "=" not in pair:
             continue
         name, cookie_value = pair.split("=", 1)
         name = name.strip()
-        if _is_session_cookie_name(name) or name == "oai-did":
-            accepted.append(f"{name}={cookie_value.strip()}")
-    if not any(
-        pair.split("=", 1)[0] == CHATGPT_SESSION_COOKIE
-        or pair.split("=", 1)[0].startswith(f"{CHATGPT_SESSION_COOKIE}.")
-        for pair in accepted
-    ):
+        cookie_value = cookie_value.strip()
+        if _is_session_cookie_name(name):
+            if not cookie_value:
+                continue
+            session_present = True
+            accepted.append(f"{name}={cookie_value}")
+        elif name == "oai-did" and cookie_value:
+            accepted.append(f"{name}={cookie_value}")
+    if not session_present:
         return None
     result = "; ".join(accepted)
     return result if len(result) <= MAX_HEADER_VALUE_CHARS else None
