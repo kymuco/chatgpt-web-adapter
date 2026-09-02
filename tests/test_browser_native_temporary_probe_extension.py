@@ -13,7 +13,15 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
     assert manifest["version"] == "0.1.13"
     assert worker_name == "service_worker_temporary_chat_route_reopen_probe.js"
 
-    route_worker = (root / worker_name).read_text(encoding="utf-8")
+    bootstrap = (root / worker_name).read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_runtime.js")' in bootstrap
+    runtime = (root / "service_worker_runtime.js").read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_runtime_legacy.js")' in runtime
+    legacy = (root / "service_worker_runtime_legacy.js").read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_runtime_legacy_impl.js")' in legacy
+    route_worker = (root / "service_worker_runtime_legacy_impl.js").read_text(
+        encoding="utf-8"
+    )
     assert 'importScripts("service_worker_temporary_chat_manual_ground_truth.js")' in route_worker
     manual_worker = (
         root / "service_worker_temporary_chat_manual_ground_truth.js"
@@ -240,7 +248,7 @@ def test_manual_temporary_ground_truth_requires_visible_page_turn_evidence() -> 
 
 def test_temporary_route_reopen_probe_is_explicit_read_only_and_settled() -> None:
     root = browser_native_extension_dir()
-    worker = (root / "service_worker_temporary_chat_route_reopen_probe.js").read_text(
+    worker = (root / "service_worker_runtime_legacy_impl.js").read_text(
         encoding="utf-8"
     )
 
