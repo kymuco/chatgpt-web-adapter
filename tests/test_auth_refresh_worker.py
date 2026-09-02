@@ -18,7 +18,10 @@ class FakeSessionResponse:
             "set-cookie",
             f"{CHATGPT_SESSION_COOKIE}=rotated-cookie; Path=/; Secure",
         )
-        self.headers.add_header("set-cookie", "_puid=browser-owned; Path=/; Secure")
+        self.headers.add_header(
+            "set-cookie",
+            "_puid=browser-owned; Path=/; Secure",
+        )
         self._payload = payload or json.dumps(
             {
                 "accessToken": "new-access",
@@ -45,7 +48,10 @@ def test_worker_reduces_headers_cookies_and_session_response(monkeypatch) -> Non
         def open(self, request, *, timeout):
             captured["url"] = request.full_url
             captured["timeout"] = timeout
-            captured["headers"] = {key.lower(): value for key, value in request.header_items()}
+            captured["headers"] = {
+                key.lower(): value
+                for key, value in request.header_items()
+            }
             return FakeSessionResponse()
 
     monkeypatch.setattr(
@@ -114,7 +120,10 @@ def test_worker_does_not_forward_credentials_across_redirect(monkeypatch) -> Non
             return None
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread = threading.Thread(
+        target=server.serve_forever,
+        daemon=True,
+    )
     server_thread.start()
     monkeypatch.setattr(
         auth_refresh_worker,
