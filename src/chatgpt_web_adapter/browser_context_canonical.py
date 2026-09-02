@@ -44,11 +44,17 @@ class BrowserContextCanonicalReadError(RequestError):
         retryable: bool = False,
     ) -> None:
         normalized_reason = (
-            reason_code if isinstance(reason_code, str) and _REASON_RE.fullmatch(reason_code) else "CANONICAL_READ_FAILED"
+            reason_code
+            if isinstance(reason_code, str) and _REASON_RE.fullmatch(reason_code)
+            else "CANONICAL_READ_FAILED"
         )
         self.reason_code = normalized_reason
         self.conversation_id = ConversationRef(conversation_id).conversation_id
-        self.content_type = content_type[:128] if isinstance(content_type, str) and content_type else None
+        self.content_type = (
+            content_type[:128]
+            if isinstance(content_type, str) and content_type
+            else None
+        )
         self.retryable = bool(retryable)
         details = [f"reason={self.reason_code}"]
         if status_code is not None:
@@ -102,7 +108,11 @@ class _CanonicalReadChunkCollector:
             or not 0 <= index < count
         ):
             raise ValueError("CANONICAL_READ_CHUNK_INDEX_INVALID")
-        if isinstance(total_bytes, bool) or not isinstance(total_bytes, int) or total_bytes < 0:
+        if (
+            isinstance(total_bytes, bool)
+            or not isinstance(total_bytes, int)
+            or total_bytes < 0
+        ):
             raise ValueError("CANONICAL_READ_TOTAL_BYTES_INVALID")
         if not isinstance(digest, str) or _DIGEST_RE.fullmatch(digest) is None:
             raise ValueError("CANONICAL_READ_DIGEST_INVALID")
@@ -171,6 +181,60 @@ class BrowserContextCanonicalTransport:
         value = getter()
         return value if isinstance(value, str) and value else None
 
+    def _descriptor(self) -> dict[str, Any]:
+        return self.provider._load_descriptor()
+
+    def complete_readback(self) -> bool:
+        """Release a matching host reservation after Python reaches terminality."""
+
+        lease_id = self._lease_id()
+        if lease_id is None:
+            return True
+        deadline = time.monotonic() + max(
+            1.0,
+            float(getattr(self.provider, "connect_timeout", 3.0)) + 5.5,
+        )
+        while time.monotonic() < deadline:
+            descriptor = self._descriptor()
+            request_id = str(uuid.uuid4())
+            request = {
+                "protocol": PROTOCOL_VERSION,
+                "token": descriptor["token"],
+                "type": "canonical_read_complete",
+                "request_id": request_id,
+                "browserAuthorityLeaseId": lease_id,
+            }
+            response: dict[str, Any] | None = None
+            try:
+                remaining = max(0.1, deadline - time.monotonic())
+                with socket.create_connection(
+                    (descriptor["host"], descriptor["port"]),
+                    timeout=min(
+                        float(getattr(self.provider, "connect_timeout", 3.0)),
+                        remaining,
+                    ),
+                ) as sock:
+                    sock.settimeout(remaining)
+                    send_local_message(sock, request)
+                    response = recv_local_message(sock)
+            except (OSError, EOFError, ValueError):
+                response = None
+            if (
+                isinstance(response, dict)
+                and response.get("protocol") == PROTOCOL_VERSION
+                and response.get("request_id") == request_id
+                and response.get("ok") is True
+                and response.get("type") == "canonical_read_complete_result"
+            ):
+                return True
+            if (
+                isinstance(response, dict)
+                and response.get("error") != "BROWSER_NATIVE_BRIDGE_BUSY"
+            ):
+                return False
+            time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+        return False
+
     def read_conversation(
         self,
         conversation_id: str,
@@ -181,7 +245,7 @@ class BrowserContextCanonicalTransport:
         read_timeout = self.read_timeout if timeout is None else float(timeout)
         if read_timeout <= 0:
             raise ValueError("timeout must be positive")
-        descriptor = self.provider._load_descriptor()
+        descriptor = self._descriptor()
         request_id = str(uuid.uuid4())
         request = {
             "protocol": PROTOCOL_VERSION,
@@ -198,7 +262,10 @@ class BrowserContextCanonicalTransport:
             remaining = max(0.1, deadline - time.monotonic())
             with socket.create_connection(
                 (descriptor["host"], descriptor["port"]),
-                timeout=min(float(getattr(self.provider, "connect_timeout", 3.0)), remaining),
+                timeout=min(
+                    float(getattr(self.provider, "connect_timeout", 3.0)),
+                    remaining,
+                ),
             ) as sock:
                 sock.settimeout(remaining)
                 send_local_message(sock, request)
@@ -236,7 +303,11 @@ class BrowserContextCanonicalTransport:
         if response.get("ok") is not True:
             reason = response.get("reasonCode") or response.get("error")
             status = response.get("status")
-            status_code = status if isinstance(status, int) and not isinstance(status, bool) else None
+            status_code = (
+                status
+                if isinstance(status, int) and not isinstance(status, bool)
+                else None
+            )
             raise BrowserContextCanonicalReadError(
                 reason if isinstance(reason, str) else "CANONICAL_READ_FAILED",
                 conversation_id=ref.conversation_id,
@@ -257,7 +328,9 @@ class BrowserContextCanonicalTransport:
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
             reason = str(error)
             raise BrowserContextCanonicalReadError(
-                reason if _REASON_RE.fullmatch(reason or "") else "CANONICAL_READ_MALFORMED_JSON",
+                reason
+                if _REASON_RE.fullmatch(reason or "")
+                else "CANONICAL_READ_MALFORMED_JSON",
                 conversation_id=ref.conversation_id,
                 status_code=response.get("status")
                 if isinstance(response.get("status"), int)
@@ -287,11 +360,17 @@ class BrowserContextCanonicalClient:
     ) -> None:
         self.source_client = source_client
         self.provider = provider
-        self.transport = BrowserContextCanonicalTransport(provider, read_timeout=read_timeout)
+        self.transport = BrowserContextCanonicalTransport(
+            provider,
+            read_timeout=read_timeout,
+        )
         self._browser_native_turn_provider = provider
 
     def _get_conversation_payload(self, conversation_id: str) -> dict[str, Any]:
         return self.transport.read_conversation(conversation_id)
+
+    def complete_canonical_readback(self) -> bool:
+        return self.transport.complete_readback()
 
     def get_status(
         self,
@@ -318,7 +397,9 @@ class BrowserContextCanonicalClient:
             callback({"type": event_type, **payload})
 
     @staticmethod
-    def _current_message_from_conversation(payload: dict[str, Any]) -> dict[str, Any] | None:
+    def _current_message_from_conversation(
+        payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
         return ChatGPTWebClient._current_message_from_conversation(payload)
 
     @staticmethod
