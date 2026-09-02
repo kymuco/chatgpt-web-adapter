@@ -25,6 +25,8 @@ REQUIRED_WHEEL_FILES = {
     "chatgpt_web_adapter/artifact_manifest.py",
     "chatgpt_web_adapter/conversation_snapshot.py",
     "chatgpt_web_adapter/export.py",
+    # Session/auth transport required by the stable client lifecycle.
+    "chatgpt_web_adapter/auth_refresh_worker.py",
     # CWA 0.3 product-runtime/public-surface freeze.
     "chatgpt_web_adapter/product_runtime.py",
     "chatgpt_web_adapter/product_transport.py",
@@ -53,6 +55,7 @@ REQUIRED_SDIST_SUFFIXES = {
     "/README.md",
     "/CHANGELOG.md",
     "/LICENSE",
+    "/src/chatgpt_web_adapter/auth_refresh_worker.py",
     "/src/chatgpt_web_adapter/product_runtime.py",
     "/src/chatgpt_web_adapter/product_observations.py",
     "/src/chatgpt_web_adapter/public_surface.py",
