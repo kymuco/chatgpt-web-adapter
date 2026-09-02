@@ -179,8 +179,11 @@ def test_custom_provider_preserves_legacy_canonical_client_contract() -> None:
     )
 
 
-def test_extension_layers_canonical_read_without_replacing_historical_entrypoint() -> None:
+def test_extension_layers_canonical_read_without_replacing_frozen_boundaries() -> None:
     source = (EXTENSION / "service_worker_canonical_read.js").read_text(encoding="utf-8")
+    loader = (EXTENSION / "service_worker_rich_input_schema7_repair_pr9_2.js").read_text(
+        encoding="utf-8"
+    )
     connector = (EXTENSION / "service_worker_connector_support_pr10_0.js").read_text(
         encoding="utf-8"
     )
@@ -194,8 +197,14 @@ def test_extension_layers_canonical_read_without_replacing_historical_entrypoint
         manifest["background"]["service_worker"]
         == "service_worker_temporary_chat_route_reopen_probe.js"
     )
-    assert 'importScripts("service_worker_connector_support_pr10_0.js")' in historical
-    assert 'importScripts("service_worker_canonical_read.js")' in connector
+    assert historical.rstrip().endswith(
+        'importScripts("service_worker_connector_support_pr10_0.js");'
+    )
+    assert connector.rstrip().endswith("};")
+    assert 'importScripts("service_worker_canonical_read.js")' in loader
+    assert loader.index('importScripts("service_worker_product_source_citations_pr9_3.js")') < loader.index(
+        'importScripts("service_worker_canonical_read.js")'
+    )
     assert 'importScripts("service_worker_temporary_chat_route_reopen_probe.js")' not in source
 
     assert 'credentials: "include"' in source
