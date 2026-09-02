@@ -281,6 +281,16 @@ class BrowserNativeBroker:
                 extension_connected=True,
                 runtime_tab_present=False,
             )
+        if self.turn_lock.locked():
+            # Observation never competes with an authoritative write/read for CDP.
+            # Return immediately rather than forwarding a debugger probe.
+            return self._ui_liveness_base(
+                base,
+                state="UNKNOWN",
+                reason_code="AUTHORITY_LANE_ACTIVE",
+                extension_connected=True,
+                runtime_tab_present=True,
+            )
 
         timeout_ms = request.get("timeoutMs")
         timeout = max(0.25, min(float(timeout_ms or 3_000) / 1000.0, 10.0))
@@ -339,9 +349,8 @@ class BrowserNativeBroker:
         if not isinstance(request_id, str) or not request_id:
             return {**base, "ok": False, "error": "BROWSER_NATIVE_REQUEST_ID_REQUIRED"}
         if operation == "ui_liveness":
-            # PR11.5 deliberately bypasses turn_lock. This is a read-only,
-            # non-authoritative observation lane and must not become Browser
-            # Authority merely because another write/read lifecycle is active.
+            # PR11.5 does not acquire turn_lock. If the authority lane is active,
+            # the handler returns UNKNOWN before touching the extension/debugger.
             return self._handle_ui_liveness_request(request, base)
 
         if operation not in {
