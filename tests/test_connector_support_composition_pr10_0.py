@@ -32,10 +32,10 @@ def test_connector_support_remains_outermost_turn_wrapper() -> None:
 
     support_source = SUPPORT.read_text(encoding="utf-8")
     liveness = 'importScripts("service_worker_ui_liveness.js");'
-    assert support_source.rstrip().endswith(liveness)
-    assert support_source.index("executeNativeTurn = async function _pr100") < (
-        support_source.index(liveness)
-    )
+    final_wrapper = "executeNativeTurn = async function _pr100"
+    assert liveness in support_source
+    assert support_source.index(liveness) < support_source.index(final_wrapper)
+    assert support_source.rstrip().endswith("};")
 
 
 def test_outer_support_probes_are_direct_no_write_and_other_turns_delegate() -> None:
