@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import inspect
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -19,6 +21,25 @@ from .types import (
     ChatResponse,
     ConversationRef,
 )
+
+
+@dataclass
+class BrowserNativeSubmission:
+    """Internal accepted-write state awaiting canonical finality."""
+
+    submission_id: str
+    turn: Any
+    baseline_assistant_ids: frozenset[str]
+    timeout: float
+    poll_interval: float
+    started_monotonic: float
+    accepted_at_ms: int
+    is_continuation: bool
+    attachment_count: int
+    stream_state: RevisionSafeTextAccumulator
+    on_token: Callable[[str], None] | None
+    on_event: Callable[[dict[str, Any]], None] | None
+    final_response: ChatResponse | None = None
 
 
 def set_browser_native_turn_provider(self: Any, provider: BrowserNativeTurnProvider | None) -> None:
@@ -62,7 +83,7 @@ def _status_finalizes_message(status: Any, message_id: str) -> bool:
 def _assistant_candidates_from_payload(
     payload: dict[str, Any],
     *,
-    baseline_assistant_ids: set[str],
+    baseline_assistant_ids: set[str] | frozenset[str],
 ) -> list[Any]:
     candidates: list[Any] = []
     for node_id, node in _current_branch_nodes(payload):
@@ -82,7 +103,7 @@ def _wait_for_new_final_assistant(
     self: Any,
     conversation_id: str,
     *,
-    baseline_assistant_ids: set[str],
+    baseline_assistant_ids: set[str] | frozenset[str],
     timeout: float,
     interval: float,
     include_readback: bool = False,
@@ -220,7 +241,7 @@ def _callable_accepts_attachment_paths(value: Any) -> bool:
     )
 
 
-def send_browser_native(
+def submit_browser_native(
     self: Any,
     prompt: str,
     *,
@@ -230,15 +251,8 @@ def send_browser_native(
     on_token: Callable[[str], None] | None = None,
     on_event: Callable[[dict[str, Any]], None] | None = None,
     attachment_paths: Sequence[str | Path] | None = None,
-) -> ChatResponse:
-    """Send one ordinary product turn through the persistent ChatGPT browser tab.
-
-    PR8.9 exposes revision-safe early assistant text through ``on_event`` while
-    keeping canonical readback authoritative. ``on_token`` intentionally remains
-    final-only because it cannot retract revisions. PR9.2 carries validated local
-    attachment paths to the official page; attachment bytes are never embedded in
-    Native Messaging JSON and canonical assistant finality is unchanged.
-    """
+) -> BrowserNativeSubmission:
+    """Perform exactly one browser-owned write and return before canonical finality."""
 
     provider = getattr(self, "_browser_native_turn_provider", None)
     if not callable(getattr(provider, "send_text", None)):
@@ -263,6 +277,7 @@ def send_browser_native(
         )
 
     started = time.monotonic()
+    submission_id = str(uuid.uuid4())
     baseline_assistant_ids: set[str] = set()
     is_continuation = conversation is not None
     canonical_status_before_turn = None
@@ -288,6 +303,7 @@ def send_browser_native(
     self._emit_event(
         on_event,
         "browser_native_turn_started",
+        submission_id=submission_id,
         is_continuation=is_continuation,
         canonical_status_before_turn=canonical_status_before_turn,
         canonical_status_recovery_confirm=canonical_status_recovery_confirm,
@@ -300,6 +316,7 @@ def send_browser_native(
     def handle_text_event(event: dict[str, Any]) -> None:
         normalized = stream_state.apply(event)
         if normalized is not None:
+            normalized = {**normalized, "submission_id": submission_id}
             _emit_revision_safe_event(self, on_event, normalized)
 
     streaming_requested = (
@@ -313,7 +330,9 @@ def send_browser_native(
     if recovery_authorized:
         canonical_completed_at_ms = int(time.time() * 1000)
         if streaming_requested and callable(recovery_stream_send):
-            if normalized_attachment_paths and not _callable_accepts_attachment_paths(recovery_stream_send):
+            if normalized_attachment_paths and not _callable_accepts_attachment_paths(
+                recovery_stream_send
+            ):
                 raise RequestError(
                     "BROWSER_NATIVE_RICH_INPUT_RECOVERY_PROVIDER_UNSUPPORTED",
                     request_stage="browser_native_turn_preflight",
@@ -327,7 +346,9 @@ def send_browser_native(
                 **attachment_kwargs,
             )
         else:
-            if normalized_attachment_paths and not _callable_accepts_attachment_paths(recovery_send):
+            if normalized_attachment_paths and not _callable_accepts_attachment_paths(
+                recovery_send
+            ):
                 raise RequestError(
                     "BROWSER_NATIVE_RICH_INPUT_RECOVERY_PROVIDER_UNSUPPORTED",
                     request_stage="browser_native_turn_preflight",
@@ -382,9 +403,12 @@ def send_browser_native(
     else:
         attachment_count = 0
 
+    accepted_at_ms = int(time.time() * 1000)
     self._emit_event(
         on_event,
         "browser_native_write_completed",
+        submission_id=submission_id,
+        accepted_at_ms=accepted_at_ms,
         conversation_id=turn.conversation_id,
         turn_exchange_id=turn.turn_exchange_id,
         status_code=turn.response_status,
@@ -400,15 +424,47 @@ def send_browser_native(
         foreground_activation_observed=turn.foreground_activation_observed,
         attachment_count=attachment_count,
         revision_safe_stream_observation_count=stream_state.observation_count,
+        canonical_finality_proven=False,
     )
 
-    remaining = max(1.0, timeout - (time.monotonic() - started))
+    return BrowserNativeSubmission(
+        submission_id=submission_id,
+        turn=turn,
+        baseline_assistant_ids=frozenset(baseline_assistant_ids),
+        timeout=float(timeout),
+        poll_interval=float(poll_interval),
+        started_monotonic=started,
+        accepted_at_ms=accepted_at_ms,
+        is_continuation=is_continuation,
+        attachment_count=attachment_count,
+        stream_state=stream_state,
+        on_token=on_token,
+        on_event=on_event,
+    )
+
+
+def await_browser_native_final(
+    self: Any,
+    submission: BrowserNativeSubmission,
+) -> ChatResponse:
+    """Resolve canonical finality for one previously acknowledged browser write."""
+
+    if not isinstance(submission, BrowserNativeSubmission):
+        raise TypeError("submission must be BrowserNativeSubmission")
+    if submission.final_response is not None:
+        return submission.final_response
+
+    turn = submission.turn
+    remaining = max(
+        1.0,
+        submission.timeout - (time.monotonic() - submission.started_monotonic),
+    )
     final_message, canonical_payload, canonical_payload_read_count = _wait_for_new_final_assistant(
         self,
         turn.conversation_id,
-        baseline_assistant_ids=baseline_assistant_ids,
+        baseline_assistant_ids=submission.baseline_assistant_ids,
         timeout=remaining,
-        interval=poll_interval,
+        interval=submission.poll_interval,
         include_readback=True,
     )
 
@@ -437,7 +493,7 @@ def send_browser_native(
         )
         result_conversation = ChatConversation.from_dict(conversation_data)
 
-    total = time.monotonic() - started
+    total = time.monotonic() - submission.started_monotonic
     response = ChatResponse(
         text=final_message.text,
         title=attached.title,
@@ -445,36 +501,66 @@ def send_browser_native(
         metrics=ChatMetrics(total=total, backend_status=turn.response_status),
         request=ChatRequestDiagnostics(
             conversation_id=turn.conversation_id,
-            is_continuation=is_continuation,
+            is_continuation=submission.is_continuation,
             observed_model=final_message.model,
             turn_exchange_id=turn.turn_exchange_id,
         ),
     )
 
-    finalization = stream_state.finalization_event(
+    finalization = submission.stream_state.finalization_event(
         canonical_text=final_message.text,
         conversation_id=turn.conversation_id,
         message_id=final_message.message_id,
         model=final_message.model,
         finish_reason=final_message.finish_reason,
     )
-    _emit_revision_safe_event(self, on_event, finalization)
+    finalization = {**finalization, "submission_id": submission.submission_id}
+    _emit_revision_safe_event(self, submission.on_event, finalization)
 
-    if on_token is not None and response.text:
-        on_token(response.text)
+    if submission.on_token is not None and response.text:
+        submission.on_token(response.text)
     self._emit_event(
-        on_event,
+        submission.on_event,
         "browser_native_readback_completed",
+        submission_id=submission.submission_id,
         conversation_id=turn.conversation_id,
         message_id=final_message.message_id,
         model=final_message.model,
         total=total,
-        attachment_count=attachment_count,
+        attachment_count=submission.attachment_count,
         canonical_payload_read_count=canonical_payload_read_count,
         canonical_payload_reused_for_attach=canonical_payload is not None,
         stream_canonical_reconciliation=finalization["reconciliation"],
-        revision_safe_stream_observation_count=stream_state.observation_count,
-        revision_safe_stream_revision_count=stream_state.revision_count,
-        revision_safe_stream_delivery_incomplete=stream_state.delivery_incomplete,
+        revision_safe_stream_observation_count=submission.stream_state.observation_count,
+        revision_safe_stream_revision_count=submission.stream_state.revision_count,
+        revision_safe_stream_delivery_incomplete=submission.stream_state.delivery_incomplete,
+        canonical_finality_proven=True,
     )
+    submission.final_response = response
     return response
+
+
+def send_browser_native(
+    self: Any,
+    prompt: str,
+    *,
+    conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+    timeout: float = 150.0,
+    poll_interval: float = 0.5,
+    on_token: Callable[[str], None] | None = None,
+    on_event: Callable[[dict[str, Any]], None] | None = None,
+    attachment_paths: Sequence[str | Path] | None = None,
+) -> ChatResponse:
+    """Compatibility composition: submit exactly once, then await canonical finality."""
+
+    submission = submit_browser_native(
+        self,
+        prompt,
+        conversation=conversation,
+        timeout=timeout,
+        poll_interval=poll_interval,
+        on_token=on_token,
+        on_event=on_event,
+        attachment_paths=attachment_paths,
+    )
+    return await_browser_native_final(self, submission)
