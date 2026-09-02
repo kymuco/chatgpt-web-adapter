@@ -1,23 +1,32 @@
 # PR12.0 Browser Runtime Architecture
 
-PR12.0 replaces the historical product-wide nested `importScripts(previous_layer)` topology with one stable production entrypoint and four explicit assembly domains.
+PR12.0 replaces the historical product-wide nested `importScripts(previous_layer)` topology with one stable runtime assembly root and four explicit domains.
 
-## Stable entrypoint
+## Compatibility bootstrap and stable assembly root
 
-`manifest.json` points to `service_worker_runtime.js` (extension version `0.1.14`). The entrypoint contains assembly only and loads, in order:
+The packaged extension intentionally preserves its reviewed manifest identity:
+
+```text
+manifest version = 0.1.13
+service worker = service_worker_temporary_chat_route_reopen_probe.js
+```
+
+That historical filename is no longer the Temporary-route implementation or the product-wide assembly owner. In PR12.0 it is a one-import compatibility bootstrap into `service_worker_runtime.js`.
+
+`service_worker_runtime.js` is the stable assembly root and loads, in order:
 
 1. `service_worker_runtime_legacy.js`
 2. `service_worker_runtime_write.js`
 3. `service_worker_runtime_read.js`
 4. `service_worker_runtime_observation.js`
 
-The entrypoint owns no DOM/CDP behavior, Browser Authority, submission, retry, navigation, or canonical-finality interpretation.
+The assembly root owns no DOM/CDP behavior, Browser Authority, submission, retry, navigation, or canonical-finality interpretation. A future packaging release can point the manifest directly at this stable root without another runtime-topology migration.
 
 ## Domains
 
 ### Legacy
 
-The legacy domain loads the reviewed PR8/Temporary Chat chain. Historical behavior remains in place, but that chain no longer decides which later write/read/observation layers exist.
+The legacy domain loads `service_worker_runtime_legacy_impl.js`, the reviewed PR8/Temporary Chat chain. Historical behavior remains in place, but that chain no longer decides which later write/read/observation layers exist.
 
 ### Write
 
@@ -39,7 +48,7 @@ PR12.0 intentionally does not rewrite every older PR8/PR9 schema/diagnostic file
 
 The following old cross-domain links are removed:
 
-- Temporary route-reopen no longer imports PR9 rich input or PR10 connector support;
+- the Temporary route-reopen implementation no longer imports PR9 rich input or PR10 connector support;
 - the PR9 rich-schema loader no longer imports UI compatibility, text-submit hardening, source/citation observation, or canonical read;
 - connector support no longer imports UI liveness.
 
