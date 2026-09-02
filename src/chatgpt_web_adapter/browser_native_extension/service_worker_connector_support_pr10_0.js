@@ -277,3 +277,7 @@ executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportPr
 
   return _pr100SupportPriorExecuteNativeTurn(message);
 };
+
+// PR11.5 adds one final read-only Native Messaging observation handler. It wraps
+// onNativeMessage only; PR10.0 remains the outermost executeNativeTurn wrapper.
+importScripts("service_worker_ui_liveness.js");
