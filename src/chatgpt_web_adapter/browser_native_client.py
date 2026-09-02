@@ -109,7 +109,12 @@ def _wait_for_new_final_assistant(
             try:
                 canonical_payload_read_count += 1
                 payload = canonical_reader(conversation_id)
-            except Exception:
+            except RequestError as error:
+                # A freshly created conversation can briefly be absent from the
+                # canonical read plane. Other request failures are deterministic
+                # for this attempt and must not be hidden until the turn timeout.
+                if error.status_code != 404:
+                    raise
                 payload = None
 
             if isinstance(payload, dict):
