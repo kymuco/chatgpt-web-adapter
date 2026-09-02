@@ -36,3 +36,8 @@ importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");
 // PR9.2 authority generation so it can observe PR8.12 message events without
 // participating in attachment staging, protected submit, retry, or finality.
 importScripts("service_worker_product_source_citations_pr9_3.js");
+
+// PR11.2 canonical reads are an observation/read overlay only. Load them after
+// the final rich-input authority generation and PR9.3 observation layer, while
+// leaving the historical manifest and PR10.0 outer executeNativeTurn wrapper intact.
+importScripts("service_worker_canonical_read.js");
