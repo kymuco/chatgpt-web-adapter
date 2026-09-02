@@ -239,6 +239,10 @@ async function _pr100CharacterizeRequiredActionSurface() {
   };
 }
 
+// PR11.5 adds one final read-only Native Messaging observation handler. It wraps
+// onNativeMessage only; the PR10.0 executeNativeTurn wrapper remains terminal.
+importScripts("service_worker_ui_liveness.js");
+
 executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportProbe(message) {
   if (message?.characterizeConnectorObservationSupport === true) {
     _pr100SupportRejectWriteBearingMessage(
@@ -277,7 +281,3 @@ executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportPr
 
   return _pr100SupportPriorExecuteNativeTurn(message);
 };
-
-// PR11.5 adds one final read-only Native Messaging observation handler. It wraps
-// onNativeMessage only; PR10.0 remains the outermost executeNativeTurn wrapper.
-importScripts("service_worker_ui_liveness.js");
