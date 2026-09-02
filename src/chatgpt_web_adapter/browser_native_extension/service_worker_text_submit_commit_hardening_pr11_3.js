@@ -36,8 +36,22 @@ function _pr113IsMouseReleaseOutcomeUnconfirmed(error) {
   );
 }
 
+async function _pr113LocateComposerForTextSubmit(debuggee) {
+  if (typeof _pr117LocateAndFocusComposer === "function") {
+    return _pr117LocateAndFocusComposer(debuggee);
+  }
+  return locateAndFocusComposer(debuggee);
+}
+
+async function _pr113WaitForSubmitPoint(debuggee, timeoutMs) {
+  if (typeof _pr117WaitForSendButtonPoint === "function") {
+    return _pr117WaitForSendButtonPoint(debuggee, timeoutMs);
+  }
+  return waitForSendButtonPoint(debuggee, timeoutMs);
+}
+
 async function _pr113SubmitTextWithEnterOnce(debuggee) {
-  await _pr117LocateAndFocusComposer(debuggee);
+  await _pr113LocateComposerForTextSubmit(debuggee);
 
   // Enter keyDown is the keyboard protected-write boundary. A rejected/lost CDP
   // ACK can coexist with a real keyDown, so the attempt itself is ambiguous and
@@ -123,7 +137,7 @@ submitOfficialPageTurn = async function _pr113SubmitOfficialTextWithoutPostCommi
 
   let point = null;
   try {
-    point = await _pr117WaitForSendButtonPoint(
+    point = await _pr113WaitForSubmitPoint(
       debuggee,
       Math.min(timeoutMs, DEFAULT_SUBMIT_READY_TIMEOUT_MS)
     );
