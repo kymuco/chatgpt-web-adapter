@@ -31,6 +31,7 @@ BROWSER_AUTHORITY_RELEASE_UNSUPPORTED = "BROWSER_AUTHORITY_RELEASE_UNSUPPORTED"
 BROWSER_AUTHORITY_NOT_FRESH = "BROWSER_AUTHORITY_NOT_FRESH"
 
 READ_PLANE = BROWSER_CONTEXT_CANONICAL_READ_PLANE
+LEGACY_READ_PLANE = "BROWSERLESS_CANONICAL_HTTP"
 SESSION_PLANE = "BROWSERLESS_SESSION_HTTP"
 WRITE_PLANE = "BROWSER_NATIVE_PAGE_OWNED_WRITE"
 
@@ -248,6 +249,14 @@ class BrowserOwnedProductWriteRuntime:
         self.client = client
         self.provider = provider or BrowserNativeTurnProvider()
         set_browser_native_turn_provider(self.client, self.provider)
+        self._browser_context_readback = callable(
+            getattr(self.client, "complete_canonical_readback", None)
+        )
+        self._read_plane = (
+            BROWSER_CONTEXT_CANONICAL_READ_PLANE
+            if self._browser_context_readback
+            else LEGACY_READ_PLANE
+        )
         # Validate assembly defaults without forcing an IDLE_TTL value if policy
         # is not selected yet.
         self._browser_authority_runtime_policy = browser_authority_policy
@@ -264,6 +273,37 @@ class BrowserOwnedProductWriteRuntime:
         self._last_turn_lifecycle: TurnLifecycle | None = None
         self._last_disposal_result: dict[str, Any] | None = None
 
+    def _health(
+        self,
+        *,
+        ready: bool,
+        reason: str,
+        bridge_available: bool,
+        extension_connected: bool,
+        runtime_tab_id: int | None,
+        conversation_id: str | None,
+        canonical_status: str | None,
+        canonical_read_checked: bool,
+        canonical_read_reason_code: str | None = None,
+        canonical_read_status_code: int | None = None,
+        canonical_read_content_type: str | None = None,
+    ) -> BrowserOwnedWriteRuntimeHealth:
+        return BrowserOwnedWriteRuntimeHealth(
+            ready=ready,
+            reason=reason,
+            bridge_available=bridge_available,
+            extension_connected=extension_connected,
+            runtime_tab_id=runtime_tab_id,
+            runtime_tab_preexisting=runtime_tab_id is not None,
+            conversation_id=conversation_id,
+            canonical_status=canonical_status,
+            canonical_read_checked=canonical_read_checked,
+            canonical_read_reason_code=canonical_read_reason_code,
+            canonical_read_status_code=canonical_read_status_code,
+            canonical_read_content_type=canonical_read_content_type,
+            read_plane=self._read_plane,
+        )
+
     def health(
         self,
         conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
@@ -272,25 +312,23 @@ class BrowserOwnedProductWriteRuntime:
         bridge: BrowserNativeBridgeStatus = self.provider.status()
 
         if not bridge.available:
-            return BrowserOwnedWriteRuntimeHealth(
+            return self._health(
                 ready=False,
                 reason=BRIDGE_UNAVAILABLE,
                 bridge_available=False,
                 extension_connected=False,
                 runtime_tab_id=bridge.runtime_tab_id,
-                runtime_tab_preexisting=bridge.runtime_tab_id is not None,
                 conversation_id=conversation_id,
                 canonical_status=None,
                 canonical_read_checked=False,
             )
         if not bridge.extension_connected:
-            return BrowserOwnedWriteRuntimeHealth(
+            return self._health(
                 ready=False,
                 reason=EXTENSION_DISCONNECTED,
                 bridge_available=True,
                 extension_connected=False,
                 runtime_tab_id=bridge.runtime_tab_id,
-                runtime_tab_preexisting=bridge.runtime_tab_id is not None,
                 conversation_id=conversation_id,
                 canonical_status=None,
                 canonical_read_checked=False,
@@ -300,13 +338,12 @@ class BrowserOwnedProductWriteRuntime:
         # the connected extension can create/recover its dedicated background
         # ChatGPT tab on demand without stealing foreground focus.
         if conversation is None:
-            return BrowserOwnedWriteRuntimeHealth(
+            return self._health(
                 ready=True,
                 reason=READY,
                 bridge_available=True,
                 extension_connected=True,
                 runtime_tab_id=bridge.runtime_tab_id,
-                runtime_tab_preexisting=bridge.runtime_tab_id is not None,
                 conversation_id=None,
                 canonical_status=None,
                 canonical_read_checked=False,
@@ -315,13 +352,12 @@ class BrowserOwnedProductWriteRuntime:
         try:
             canonical_status = _canonical_status_value(self.client, conversation)
         except Exception as error:
-            return BrowserOwnedWriteRuntimeHealth(
+            return self._health(
                 ready=False,
                 reason=CANONICAL_READ_UNAVAILABLE,
                 bridge_available=True,
                 extension_connected=True,
                 runtime_tab_id=bridge.runtime_tab_id,
-                runtime_tab_preexisting=bridge.runtime_tab_id is not None,
                 conversation_id=conversation_id,
                 canonical_status=None,
                 canonical_read_checked=True,
@@ -331,25 +367,23 @@ class BrowserOwnedProductWriteRuntime:
             )
 
         if canonical_status != "completed":
-            return BrowserOwnedWriteRuntimeHealth(
+            return self._health(
                 ready=False,
                 reason=CONVERSATION_NOT_COMPLETED,
                 bridge_available=True,
                 extension_connected=True,
                 runtime_tab_id=bridge.runtime_tab_id,
-                runtime_tab_preexisting=bridge.runtime_tab_id is not None,
                 conversation_id=conversation_id,
                 canonical_status=canonical_status,
                 canonical_read_checked=True,
             )
 
-        return BrowserOwnedWriteRuntimeHealth(
+        return self._health(
             ready=True,
             reason=READY,
             bridge_available=True,
             extension_connected=True,
             runtime_tab_id=bridge.runtime_tab_id,
-            runtime_tab_preexisting=bridge.runtime_tab_id is not None,
             conversation_id=conversation_id,
             canonical_status=canonical_status,
             canonical_read_checked=True,
@@ -493,6 +527,65 @@ class BrowserOwnedProductWriteRuntime:
             self._pending_disposal_timer = timer
         timer.start()
 
+    def _release_authority_from_write_event(
+        self,
+        lease: BrowserAuthorityLease,
+        turn: TurnLifecycle,
+        event: dict[str, Any],
+    ) -> tuple[BrowserAuthorityLease, TurnLifecycle, dict[str, Any]]:
+        """Historical release boundary for legacy/custom canonical clients."""
+
+        with self._authority_lock:
+            current = self._last_browser_authority_lease
+            current_turn = self._last_turn_lifecycle
+            if current is None or current.lease_id != lease.lease_id:
+                return lease, turn, dict(event)
+            if current.state is BrowserAuthorityLeaseState.ACTIVE:
+                released_at = _monotonic_ms()
+                current = current.release(
+                    released_at_ms=released_at,
+                    runtime_tab_id=_optional_int(event.get("runtime_tab_id")),
+                )
+                self._last_browser_authority_lease = current
+            if (
+                current_turn is not None
+                and current_turn.lifecycle_id == turn.lifecycle_id
+                and current_turn.state in {
+                    TurnLifecycleState.PREPARED,
+                    TurnLifecycleState.DISPATCHED,
+                }
+            ):
+                current_turn = current_turn.write_completed(
+                    at_ms=current.released_at_ms or _monotonic_ms()
+                )
+                self._last_turn_lifecycle = current_turn
+
+            enriched = dict(event)
+            enriched.update(
+                {
+                    "browser_authority_lease_id": current.lease_id,
+                    "browser_authority_generation": current.generation,
+                    "browser_authority_policy": current.policy.value,
+                    "browser_authority_ttl_ms": current.ttl_ms,
+                    "browser_authority_issued_at_ms": current.issued_at_ms,
+                    "browser_authority_released_at_ms": current.released_at_ms,
+                    "browser_authority_disposal_due_at_ms": current.disposal_due_at_ms,
+                    "browser_authority_release_proven": current.authority_release_proven,
+                    "browser_authority_disposal_action": (
+                        "CLOSE" if current.disposal_allowed else "KEEP"
+                    ),
+                    "turn_lifecycle_id": current_turn.lifecycle_id
+                    if current_turn is not None
+                    else turn.lifecycle_id,
+                    "turn_lifecycle_state": current_turn.state.value
+                    if current_turn is not None
+                    else turn.state.value,
+                }
+            )
+
+        self._schedule_disposal(current)
+        return current, current_turn or turn, enriched
+
     def _record_write_completion(
         self,
         lease: BrowserAuthorityLease,
@@ -507,8 +600,6 @@ class BrowserOwnedProductWriteRuntime:
             if current is None or current.lease_id != lease.lease_id:
                 return lease, turn, dict(event)
 
-            # Keep browser ownership active until canonical readback reaches a
-            # terminal result; disposable tabs must not race their own read.
             if (
                 current_turn is not None
                 and current_turn.lifecycle_id == turn.lifecycle_id
@@ -623,8 +714,9 @@ class BrowserOwnedProductWriteRuntime:
             browser_authority_ttl_ms=browser_authority_ttl_ms,
         )
         set_lease = getattr(self.provider, "set_browser_authority_lease", None)
-        complete_readback = getattr(self.provider, "complete_canonical_readback", None)
+        complete_readback = getattr(self.client, "complete_canonical_readback", None)
         clear_lease = getattr(self.provider, "clear_browser_authority_lease", None)
+        browser_context_readback = callable(complete_readback)
         if resolution.policy is not BrowserAuthorityPolicy.PERSISTENT and (
             not callable(getattr(self.provider, "release_runtime_tab", None))
             or not callable(set_lease)
@@ -652,8 +744,6 @@ class BrowserOwnedProductWriteRuntime:
                 request_stage="browser_owned_write_preflight",
             )
 
-        # Commit-point recheck for continuation turns. Health is advisory and a
-        # conversation can transition between the first read and delegation.
         if conversation is not None:
             try:
                 commit_status = _canonical_status_value(self.client, conversation)
@@ -679,8 +769,6 @@ class BrowserOwnedProductWriteRuntime:
                     request_stage="browser_owned_write_preflight",
                 )
 
-        # PR8.8 browser authority has its own commit-point freshness check after
-        # canonical checks and immediately before lease issuance/delegation.
         fresh_authority = self._fresh_browser_authority_status()
         lease, turn = self._issue_authority(
             resolution=resolution,
@@ -697,12 +785,12 @@ class BrowserOwnedProductWriteRuntime:
 
         def acknowledge_readback() -> bool:
             nonlocal readback_ack_attempted, readback_acknowledged
+            if not browser_context_readback:
+                return True
             if readback_ack_attempted:
                 return readback_acknowledged
             readback_ack_attempted = True
-            readback_acknowledged = (
-                callable(complete_readback) and complete_readback() is True
-            )
+            readback_acknowledged = complete_readback() is True
             return readback_acknowledged
 
         def runtime_event(event: dict[str, Any]) -> None:
@@ -712,25 +800,29 @@ class BrowserOwnedProductWriteRuntime:
                 write_event_observed = True
                 delegated_conversation_id = _optional_text(event.get("conversation_id")) or delegated_conversation_id
                 runtime_tab_id = _optional_int(event.get("runtime_tab_id"))
-                lease_ref, turn_ref, forwarded = self._record_write_completion(
-                    lease_ref,
-                    turn_ref,
-                    event,
-                )
-            elif (
-                isinstance(event, dict)
-                and event.get("type") == "browser_native_readback_completed"
-                and write_event_observed
-            ):
-                if not acknowledge_readback():
-                    raise RequestError(
-                        "BROWSER_NATIVE_READBACK_ACKNOWLEDGEMENT_FAILED",
-                        request_stage="browser_native_canonical_read",
+                if browser_context_readback:
+                    lease_ref, turn_ref, forwarded = self._record_write_completion(
+                        lease_ref,
+                        turn_ref,
+                        event,
                     )
-                lease_ref = self._release_authority_after_readback(
-                    lease_ref,
-                    runtime_tab_id=runtime_tab_id,
-                )
+                else:
+                    lease_ref, turn_ref, forwarded = self._release_authority_from_write_event(
+                        lease_ref,
+                        turn_ref,
+                        event,
+                    )
+            elif isinstance(event, dict) and event.get("type") == "browser_native_readback_completed":
+                if browser_context_readback and write_event_observed:
+                    if not acknowledge_readback():
+                        raise RequestError(
+                            "BROWSER_NATIVE_READBACK_ACKNOWLEDGEMENT_FAILED",
+                            request_stage="browser_native_canonical_read",
+                        )
+                    lease_ref = self._release_authority_after_readback(
+                        lease_ref,
+                        runtime_tab_id=runtime_tab_id,
+                    )
                 turn_ref = self._finalize_turn(turn_ref)
                 forwarded = dict(event)
                 forwarded.update(
@@ -750,10 +842,10 @@ class BrowserOwnedProductWriteRuntime:
                 try:
                     on_event(forwarded)
                 except Exception:
-                    # Observers cannot interrupt canonical readback, authority
-                    # release, or reconciliation after browser delegation.
                     pass
 
+        if callable(set_lease):
+            set_lease(lease.lease_id)
         try:
             response = send_browser_native(
                 self.client,
@@ -763,12 +855,9 @@ class BrowserOwnedProductWriteRuntime:
                 poll_interval=poll_interval,
                 on_token=on_token,
                 on_event=runtime_event,
-                browser_authority_lease_id=lease.lease_id,
             )
             turn_ref = self._finalize_turn(turn_ref)
             if lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
-                # Successful canonical return without the expected write event is
-                # not enough evidence to start a disposal TTL.
                 lease_ref = self._mark_release_unknown(lease_ref)
             return response
         except ConversationTimeoutError as error:
@@ -776,7 +865,7 @@ class BrowserOwnedProductWriteRuntime:
                 turn_ref,
                 state=TurnLifecycleState.READBACK_INCOMPLETE,
             )
-            if write_event_observed and acknowledge_readback():
+            if browser_context_readback and write_event_observed and acknowledge_readback():
                 lease_ref = self._release_authority_after_readback(
                     lease_ref,
                     runtime_tab_id=runtime_tab_id,
@@ -807,7 +896,7 @@ class BrowserOwnedProductWriteRuntime:
                     else TurnLifecycleState.AMBIGUOUS
                 ),
             )
-            if readback_failure and acknowledge_readback():
+            if browser_context_readback and readback_failure and acknowledge_readback():
                 lease_ref = self._release_authority_after_readback(
                     lease_ref,
                     runtime_tab_id=runtime_tab_id,
@@ -842,10 +931,9 @@ class BrowserOwnedProductWriteRuntime:
                 turn_lifecycle=turn_ref,
             ) from error
         finally:
-            # Python owns canonical terminality, so release the host reservation
-            # only after success or terminal failure has been classified here.
             try:
-                acknowledge_readback()
+                if browser_context_readback:
+                    acknowledge_readback()
             finally:
                 if callable(clear_lease):
                     clear_lease()
@@ -873,8 +961,6 @@ class BrowserOwnedProductWriteRuntime:
                 and event.get("type") == "browser_native_readback_completed"
                 and write_event is not None
             ):
-                # Keep write identity while upgrading lease/finality evidence to
-                # the terminal canonical readback boundary.
                 for key in (
                     "browser_authority_released_at_ms",
                     "browser_authority_disposal_due_at_ms",
@@ -924,11 +1010,9 @@ class BrowserOwnedProductWriteRuntime:
 
     def governance(self) -> dict[str, Any]:
         return {
-            "read_plane": READ_PLANE,
+            "read_plane": self._read_plane,
             "session_plane": SESSION_PLANE,
             "write_plane": WRITE_PLANE,
-            # Compatibility alias retained from PR8.2.4. The split fields below
-            # are the authoritative ownership semantics from PR8.2.4a.
             "browser_launch_owned_by_runtime": False,
             "browser_process_launch_owned_by_runtime": False,
             "runtime_tab_creation_owned_by_extension": True,
@@ -945,7 +1029,11 @@ class BrowserOwnedProductWriteRuntime:
             "browser_authority_lease_model": "BrowserAuthorityLease",
             "turn_lifecycle_model": "TurnLifecycle",
             "browser_authority_lease_distinct_from_turn_lifecycle": True,
-            "browser_authority_release_event": "browser_native_readback_completed",
+            "browser_authority_release_event": (
+                "browser_native_readback_completed"
+                if self._browser_context_readback
+                else "browser_native_write_completed"
+            ),
             "turn_finality_event": "browser_native_readback_completed",
             "browser_authority_default_policy": (
                 TRANSPORT_DEFAULT_BROWSER_AUTHORITY_POLICY.value
