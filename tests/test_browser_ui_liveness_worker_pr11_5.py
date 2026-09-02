@@ -24,7 +24,7 @@ def test_liveness_worker_requires_positive_generating_evidence() -> None:
 
     assert '"READY_FOR_INPUT", "COMPOSER_READY"' in source
     assert '"GENERATING", "GENERATION_CONTROL_VISIBLE"' in source
-    assert 'generationControlVisible: true' in source
+    assert "generationControlVisible: true" in source
     assert '"UNKNOWN", "COMPOSER_BUSY"' in source
     assert '"UNKNOWN", "ACTIVE_REQUEST_IN_PROGRESS"' in source
     assert '"UNAVAILABLE", "RUNTIME_TAB_ABSENT"' in source
@@ -60,10 +60,11 @@ def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives(
         assert contract in source
 
 
-def test_liveness_worker_is_loaded_after_outer_turn_support() -> None:
+def test_liveness_worker_loads_inside_outer_turn_support_without_replacing_it() -> None:
     support = SUPPORT.read_text(encoding="utf-8")
 
     liveness_import = 'importScripts("service_worker_ui_liveness.js");'
+    final_wrapper = "executeNativeTurn = async function _pr100"
     assert liveness_import in support
-    assert support.rstrip().endswith(liveness_import)
-    assert "executeNativeTurn = async function _pr100" in support
+    assert support.index(liveness_import) < support.index(final_wrapper)
+    assert support.rstrip().endswith("};")
