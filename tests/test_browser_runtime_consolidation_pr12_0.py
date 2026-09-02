@@ -22,6 +22,14 @@ def _source(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _active_imports(source: str) -> list[str]:
+    return [
+        line.strip()
+        for line in source.splitlines()
+        if line.strip().startswith("importScripts(")
+    ]
+
+
 def test_manifest_identity_is_preserved_as_thin_pr12_bootstrap() -> None:
     manifest = json.loads(_source(MANIFEST))
 
@@ -30,8 +38,7 @@ def test_manifest_identity_is_preserved_as_thin_pr12_bootstrap() -> None:
         "service_worker_temporary_chat_route_reopen_probe.js"
     )
     bootstrap = _source(BOOTSTRAP)
-    assert bootstrap.count("importScripts(") == 1
-    assert 'importScripts("service_worker_runtime.js");' in bootstrap
+    assert _active_imports(bootstrap) == ['importScripts("service_worker_runtime.js");']
 
 
 def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> None:
@@ -45,7 +52,7 @@ def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> Non
 
     positions = [source.index(line) for line in expected]
     assert positions == sorted(positions)
-    assert source.count("importScripts(") == len(expected)
+    assert _active_imports(source) == expected
 
     for forbidden in (
         "executeNativeTurn =",
@@ -63,8 +70,9 @@ def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> Non
 def test_legacy_domain_quarantines_historical_runtime_chain() -> None:
     source = _source(LEGACY)
 
-    assert source.count("importScripts(") == 1
-    assert 'importScripts("service_worker_runtime_legacy_impl.js");' in source
+    assert _active_imports(source) == [
+        'importScripts("service_worker_runtime_legacy_impl.js");'
+    ]
 
     legacy_impl = _source(LEGACY_IMPL)
     assert "_executeNativeTurnWithTemporaryRouteReopenProbe" in legacy_impl
@@ -91,7 +99,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
     positions = [source.index(name) for name in ordered]
 
     assert positions == sorted(positions)
-    assert source.count("importScripts(") == len(ordered)
+    assert len(_active_imports(source)) == len(ordered)
     assert "service_worker_canonical_read.js" not in source
     assert "service_worker_ui_liveness.js" not in source
     assert "service_worker_connector_support_pr10_0.js" not in source
@@ -114,7 +122,7 @@ def test_read_domain_is_explicit_and_excludes_write_and_observation() -> None:
     canonical = 'importScripts("service_worker_canonical_read.js");'
 
     assert source.index(citations) < source.index(canonical)
-    assert source.count("importScripts(") == 2
+    assert len(_active_imports(source)) == 2
     assert "service_worker_text_submit_commit_hardening_pr11_3.js" not in source
     assert "service_worker_connector_support_pr10_0.js" not in source
     assert "service_worker_ui_liveness.js" not in source
@@ -126,7 +134,7 @@ def test_observation_domain_keeps_connector_turn_wrapper_before_liveness() -> No
     liveness = 'importScripts("service_worker_ui_liveness.js");'
 
     assert source.index(connector) < source.index(liveness)
-    assert source.count("importScripts(") == 2
+    assert len(_active_imports(source)) == 2
 
     support = _source(CONNECTOR_SUPPORT)
     assert "service_worker_ui_liveness.js" not in support
