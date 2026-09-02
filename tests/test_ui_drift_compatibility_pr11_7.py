@@ -54,7 +54,8 @@ def test_compatibility_pack_loads_after_rich_authority_before_text_hardening() -
     assert loader.index(hardening) < loader.index(observation)
 
 
-def test_existing_consumers_use_shared_compatibility_without_changing_ownership() -> None:
+def test_existing_consumers_use_shared_compatibility_without_changing_ownership(
+) -> None:
     hardening = TEXT_HARDENING.read_text(encoding="utf-8")
     liveness = LIVENESS.read_text(encoding="utf-8")
 
