@@ -135,3 +135,16 @@ class ProductSubmissionAck:
             "canonical_finality_proven": self.canonical_finality_proven,
             "provenance": self.provenance.to_dict(),
         }
+
+
+def _install_runtime_surface() -> None:
+    # Keep the frozen ProductWriteTransport protocol unchanged. Import-time
+    # installation mirrors CWA's existing runtime gates while making the optional
+    # submit/await extension available on ChatGPTProductRuntime itself.
+    from .product_runtime import ChatGPTProductRuntime
+    from .product_submission_runtime_gate import install_product_submission_runtime_surface
+
+    install_product_submission_runtime_surface(ChatGPTProductRuntime)
+
+
+_install_runtime_surface()
