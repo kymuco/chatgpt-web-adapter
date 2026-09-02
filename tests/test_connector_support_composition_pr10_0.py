@@ -21,7 +21,7 @@ def test_manifest_entrypoint_stays_historically_stable() -> None:
     )
 
 
-def test_connector_support_wrapper_loads_after_complete_rich_input_stack() -> None:
+def test_connector_support_remains_outermost_turn_wrapper() -> None:
     source = ENTRYPOINT.read_text(encoding="utf-8")
     schema7 = 'importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");'
     support = 'importScripts("service_worker_connector_support_pr10_0.js");'
@@ -29,6 +29,13 @@ def test_connector_support_wrapper_loads_after_complete_rich_input_stack() -> No
     assert schema7 in source and support in source
     assert source.index(schema7) < source.index(support)
     assert source.rstrip().endswith(support)
+
+    support_source = SUPPORT.read_text(encoding="utf-8")
+    liveness = 'importScripts("service_worker_ui_liveness.js");'
+    assert support_source.rstrip().endswith(liveness)
+    assert support_source.index("executeNativeTurn = async function _pr100") < (
+        support_source.index(liveness)
+    )
 
 
 def test_outer_support_probes_are_direct_no_write_and_other_turns_delegate() -> None:
@@ -43,9 +50,8 @@ def test_outer_support_probes_are_direct_no_write_and_other_turns_delegate() -> 
     assert connector_flag in source
     assert surface_flag in source
     assert contract in source
-    assert source.rstrip().endswith("};")
-    assert source.rfind(delegation) > source.index(surface_flag)
     assert source.count(delegation) == 1
+    assert source.rfind(delegation) > source.index(surface_flag)
     assert "message?.text != null" in source
     assert "message?.conversationId != null" in source
     assert "message?.attachmentPaths != null" in source
