@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import threading
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from .browser_authority_lease import (
@@ -22,7 +22,6 @@ from .browser_owned_write_runtime import (
     CONVERSATION_NOT_COMPLETED,
     WRITE_ACCEPTED_READBACK_INCOMPLETE,
     WRITE_OUTCOME_UNKNOWN,
-    BrowserOwnedProductWriteRuntime,
     BrowserOwnedWriteObservation,
     BrowserOwnedWriteRuntimeError,
     _canonical_status_value,
@@ -62,26 +61,36 @@ class _PendingSubmission:
 class BrowserOwnedSubmissionLifecycle:
     """Split submit/finality facade over the existing browser-owned runtime.
 
-    Browser Authority remains owned by ``BrowserOwnedProductWriteRuntime``. This
-    class only turns the already-existing write/readback event boundary into a
-    first-class synchronous API and allows at most one pending submission per
-    runtime instance.
+    Browser Authority remains owned by the lower browser-owned runtime. This class
+    turns the already-existing write/readback event boundary into a first-class
+    synchronous API and allows at most one pending or in-flight split submission
+    per product transport instance.
     """
 
-    def __init__(self, runtime: BrowserOwnedProductWriteRuntime) -> None:
-        if not isinstance(runtime, BrowserOwnedProductWriteRuntime):
-            raise TypeError("runtime must be BrowserOwnedProductWriteRuntime")
+    def __init__(self, runtime: Any) -> None:
+        # Keep the long-standing BrowserOwnedProductTransport constructor seam
+        # structural. Tests and downstream integrations may substitute a compatible
+        # lower runtime; split operations validate the methods they actually use.
         self.runtime = runtime
         self._lock = threading.RLock()
         self._pending: _PendingSubmission | None = None
+        self._dispatch_reserved = False
 
     @property
     def pending_submission_id(self) -> str | None:
         with self._lock:
             return self._pending.submission_id if self._pending is not None else None
 
+    def _pending_or_reserved_label(self) -> str | None:
+        with self._lock:
+            if self._pending is not None:
+                return self._pending.submission_id
+            if self._dispatch_reserved:
+                return "DISPATCH_IN_PROGRESS"
+            return None
+
     def ensure_no_pending_submission(self) -> None:
-        pending = self.pending_submission_id
+        pending = self._pending_or_reserved_label()
         if pending is None:
             return
         raise BrowserOwnedWriteRuntimeError(
@@ -93,6 +102,32 @@ class BrowserOwnedSubmissionLifecycle:
             reconciliation_required=False,
             request_stage="browser_owned_submission_preflight",
         )
+
+    def _reserve_dispatch(self) -> None:
+        with self._lock:
+            if self._pending is not None or self._dispatch_reserved:
+                pending = (
+                    self._pending.submission_id
+                    if self._pending is not None
+                    else "DISPATCH_IN_PROGRESS"
+                )
+                raise BrowserOwnedWriteRuntimeError(
+                    f"browser-owned submission {pending} is awaiting canonical finality",
+                    failure_kind=SUBMISSION_FINALITY_PENDING,
+                    automatic_retry_allowed=False,
+                    manual_retry_safe_after_repair=True,
+                    write_may_have_been_submitted=False,
+                    reconciliation_required=False,
+                    request_stage="browser_owned_submission_preflight",
+                )
+            # Reservation is published before health/authority checks and before
+            # the provider call. Competing compatibility/Temporary writes call
+            # ensure_no_pending_submission() and therefore fail before delegation.
+            self._dispatch_reserved = True
+
+    def _clear_dispatch_reservation(self) -> None:
+        with self._lock:
+            self._dispatch_reserved = False
 
     def _validate_inputs(self, text: str, *, timeout: float, poll_interval: float) -> None:
         if not isinstance(text, str) or not text.strip():
@@ -289,108 +324,112 @@ class BrowserOwnedSubmissionLifecycle:
         browser_authority_ttl_ms: int | None = None,
     ) -> BrowserOwnedSubmissionAck:
         self._validate_inputs(text, timeout=timeout, poll_interval=poll_interval)
-        self.ensure_no_pending_submission()
-        lease, turn = self._prepare_authority(
-            conversation=conversation,
-            browser_authority_policy=browser_authority_policy,
-            browser_authority_ttl_ms=browser_authority_ttl_ms,
-        )
-        state = _PendingSubmission(
-            submission_id="pending",
-            lease=lease,
-            turn=turn,
-            native=None,
-            write_event_observed=False,
-            delegated_conversation_id=_conversation_id(conversation),
-            runtime_tab_id=None,
-        )
-        provider = self.runtime.provider
-        set_lease = getattr(provider, "set_browser_authority_lease", None)
-        clear_lease = getattr(provider, "clear_browser_authority_lease", None)
-
-        def runtime_event(event: dict[str, Any]) -> None:
-            self._runtime_event(state, on_event, event)
-
-        if callable(set_lease):
-            set_lease(lease.lease_id)
+        self._reserve_dispatch()
         try:
-            native = submit_browser_native(
-                self.runtime.client,
-                text,
+            lease, turn = self._prepare_authority(
                 conversation=conversation,
-                timeout=timeout,
-                poll_interval=poll_interval,
-                on_token=on_token,
-                on_event=runtime_event,
+                browser_authority_policy=browser_authority_policy,
+                browser_authority_ttl_ms=browser_authority_ttl_ms,
             )
-        except WebChatAdapterError as error:
-            raise self._mark_submit_failure(state, error) from error
-        finally:
-            if callable(clear_lease):
-                clear_lease()
+            state = _PendingSubmission(
+                submission_id="pending",
+                lease=lease,
+                turn=turn,
+                native=None,
+                write_event_observed=False,
+                delegated_conversation_id=_conversation_id(conversation),
+                runtime_tab_id=None,
+            )
+            provider = self.runtime.provider
+            set_lease = getattr(provider, "set_browser_authority_lease", None)
+            clear_lease = getattr(provider, "clear_browser_authority_lease", None)
 
-        state.native = native
-        state.submission_id = native.submission_id
-        state.delegated_conversation_id = native.turn.conversation_id
-        state.runtime_tab_id = _optional_int(getattr(native.turn, "tab_id", None))
-        if not state.write_event_observed:
-            synthetic_event = {
-                "type": "browser_native_write_completed",
-                "submission_id": native.submission_id,
-                "accepted_at_ms": native.accepted_at_ms,
-                "conversation_id": native.turn.conversation_id,
-                "turn_exchange_id": native.turn.turn_exchange_id,
-                "runtime_tab_id": native.turn.tab_id,
-            }
-            self._runtime_event(state, None, synthetic_event)
+            def runtime_event(event: dict[str, Any]) -> None:
+                self._runtime_event(state, on_event, event)
 
-        with self._lock:
-            if self._pending is not None:
-                # The initial slot check plus synchronous call should make this
-                # unreachable. Fail closed rather than replacing another pending turn.
-                if state.lease.state is BrowserAuthorityLeaseState.ACTIVE:
-                    state.lease = self.runtime._mark_release_unknown(state.lease)
-                raise BrowserOwnedWriteRuntimeError(
-                    "browser-owned submission slot changed during dispatch",
-                    failure_kind=SUBMISSION_FINALITY_PENDING,
-                    automatic_retry_allowed=False,
-                    manual_retry_safe_after_repair=False,
-                    write_may_have_been_submitted=True,
-                    reconciliation_required=True,
-                    request_stage="browser_owned_submission_commit",
-                    conversation_id=state.delegated_conversation_id,
-                    browser_authority_lease=state.lease,
-                    turn_lifecycle=state.turn,
+            if callable(set_lease):
+                set_lease(lease.lease_id)
+            try:
+                native = submit_browser_native(
+                    self.runtime.client,
+                    text,
+                    conversation=conversation,
+                    timeout=timeout,
+                    poll_interval=poll_interval,
+                    on_token=on_token,
+                    on_event=runtime_event,
                 )
-            self._pending = state
+            except WebChatAdapterError as error:
+                raise self._mark_submit_failure(state, error) from error
+            finally:
+                if callable(clear_lease):
+                    clear_lease()
 
-        observation = BrowserOwnedWriteObservation.from_event(
-            {
-                "runtime_tab_id": state.runtime_tab_id,
-                "browser_authority_lease_id": state.lease.lease_id,
-                "browser_authority_generation": state.lease.generation,
-                "browser_authority_policy": state.lease.policy.value,
-                "browser_authority_ttl_ms": state.lease.ttl_ms,
-                "browser_authority_issued_at_ms": state.lease.issued_at_ms,
-                "browser_authority_released_at_ms": state.lease.released_at_ms,
-                "browser_authority_disposal_due_at_ms": state.lease.disposal_due_at_ms,
-                "browser_authority_release_proven": state.lease.authority_release_proven,
-                "browser_authority_disposal_action": (
-                    "PENDING_CANONICAL_READBACK"
-                    if state.lease.state is BrowserAuthorityLeaseState.ACTIVE
-                    else ("CLOSE" if state.lease.disposal_allowed else "KEEP")
-                ),
-                "turn_lifecycle_id": state.turn.lifecycle_id,
-                "turn_lifecycle_state": state.turn.state.value,
-            }
-        )
-        return BrowserOwnedSubmissionAck(
-            submission_id=native.submission_id,
-            conversation_id=native.turn.conversation_id,
-            turn_exchange_id=native.turn.turn_exchange_id,
-            accepted_at_ms=native.accepted_at_ms,
-            observation=observation,
-        )
+            state.native = native
+            state.submission_id = native.submission_id
+            state.delegated_conversation_id = native.turn.conversation_id
+            state.runtime_tab_id = _optional_int(getattr(native.turn, "tab_id", None))
+            if not state.write_event_observed:
+                synthetic_event = {
+                    "type": "browser_native_write_completed",
+                    "submission_id": native.submission_id,
+                    "accepted_at_ms": native.accepted_at_ms,
+                    "conversation_id": native.turn.conversation_id,
+                    "turn_exchange_id": native.turn.turn_exchange_id,
+                    "runtime_tab_id": native.turn.tab_id,
+                }
+                self._runtime_event(state, None, synthetic_event)
+
+            with self._lock:
+                # _dispatch_reserved remains true until after this assignment, so
+                # no competing split/compatibility/Temporary operation can pass
+                # its prewrite pending check between provider return and ack publish.
+                if self._pending is not None:
+                    if state.lease.state is BrowserAuthorityLeaseState.ACTIVE:
+                        state.lease = self.runtime._mark_release_unknown(state.lease)
+                    raise BrowserOwnedWriteRuntimeError(
+                        "browser-owned submission slot changed during dispatch",
+                        failure_kind=SUBMISSION_FINALITY_PENDING,
+                        automatic_retry_allowed=False,
+                        manual_retry_safe_after_repair=False,
+                        write_may_have_been_submitted=True,
+                        reconciliation_required=True,
+                        request_stage="browser_owned_submission_commit",
+                        conversation_id=state.delegated_conversation_id,
+                        browser_authority_lease=state.lease,
+                        turn_lifecycle=state.turn,
+                    )
+                self._pending = state
+
+            observation = BrowserOwnedWriteObservation.from_event(
+                {
+                    "runtime_tab_id": state.runtime_tab_id,
+                    "browser_authority_lease_id": state.lease.lease_id,
+                    "browser_authority_generation": state.lease.generation,
+                    "browser_authority_policy": state.lease.policy.value,
+                    "browser_authority_ttl_ms": state.lease.ttl_ms,
+                    "browser_authority_issued_at_ms": state.lease.issued_at_ms,
+                    "browser_authority_released_at_ms": state.lease.released_at_ms,
+                    "browser_authority_disposal_due_at_ms": state.lease.disposal_due_at_ms,
+                    "browser_authority_release_proven": state.lease.authority_release_proven,
+                    "browser_authority_disposal_action": (
+                        "PENDING_CANONICAL_READBACK"
+                        if state.lease.state is BrowserAuthorityLeaseState.ACTIVE
+                        else ("CLOSE" if state.lease.disposal_allowed else "KEEP")
+                    ),
+                    "turn_lifecycle_id": state.turn.lifecycle_id,
+                    "turn_lifecycle_state": state.turn.state.value,
+                }
+            )
+            return BrowserOwnedSubmissionAck(
+                submission_id=native.submission_id,
+                conversation_id=native.turn.conversation_id,
+                turn_exchange_id=native.turn.turn_exchange_id,
+                accepted_at_ms=native.accepted_at_ms,
+                observation=observation,
+            )
+        finally:
+            self._clear_dispatch_reservation()
 
     def _require_pending(self, submission_id: str) -> _PendingSubmission:
         if not isinstance(submission_id, str) or not submission_id.strip():
@@ -510,12 +549,14 @@ class BrowserOwnedSubmissionLifecycle:
             if state is None:
                 return {
                     "pending": False,
+                    "dispatch_reserved": self._dispatch_reserved,
                     "submission_id": None,
                     "conversation_id": None,
                     "turn_lifecycle_id": None,
                 }
             return {
                 "pending": True,
+                "dispatch_reserved": self._dispatch_reserved,
                 "submission_id": state.submission_id,
                 "conversation_id": state.delegated_conversation_id,
                 "turn_lifecycle_id": state.turn.lifecycle_id,
