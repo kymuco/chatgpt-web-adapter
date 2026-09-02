@@ -277,3 +277,7 @@ executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportPr
 
   return _pr100SupportPriorExecuteNativeTurn(message);
 };
+
+// PR11.2 canonical reads are layered above the complete historical worker chain.
+// The manifest entrypoint and all earlier product/write wrappers remain unchanged.
+importScripts("service_worker_canonical_read.js");
