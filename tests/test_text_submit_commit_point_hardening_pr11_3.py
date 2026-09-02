@@ -32,6 +32,8 @@ def test_text_submit_hardening_declares_exact_protected_boundaries() -> None:
     assert 'type: "keyDown"' in text
     assert 'type: "keyUp"' in text
     assert "_pr113IsMouseReleaseOutcomeUnconfirmed(error)" in text
+    assert "_pr813TemporaryTurnContext" in text
+    assert "_pr92ActiveRichInputContext" in text
     assert "throw error;" in text
     assert "return _pr113SubmitTextWithEnterOnce(debuggee);" in text
     assert text.index("throw error;") < text.rindex(
@@ -52,11 +54,12 @@ const overlaySource = fs.readFileSync(process.argv[2], "utf8");
 const scenario = process.argv[3];
 const log = [];
 let _pr92ActiveRichInputContext = null;
+let _pr813TemporaryTurnContext = null;
 const DEFAULT_SUBMIT_READY_TIMEOUT_MS = 10000;
 
 async function submitOfficialPageTurn() {
   log.push("prior_submit");
-  return { strategy: "prior_rich", selector: null };
+  return { strategy: "prior_specialized", selector: null };
 }
 
 async function waitForSendButtonPoint() {
@@ -96,6 +99,9 @@ async function sendCommand(_debuggee, method, params) {
 eval(overlaySource);
 if (scenario === "rich") {
   _pr92ActiveRichInputContext = { staged: true };
+}
+if (scenario === "temporary") {
+  _pr813TemporaryTurnContext = { tabId: 77 };
 }
 
 (async () => {
@@ -174,9 +180,13 @@ def test_enter_keydown_failure_propagates_without_second_submit(tmp_path: Path) 
     assert len(_enter_keydowns(result["log"])) == 1
 
 
-def test_rich_input_context_delegates_to_existing_authority_chain(tmp_path: Path) -> None:
-    result = _run_node_scenario(tmp_path, "rich")
+@pytest.mark.parametrize("scenario", ["rich", "temporary"])
+def test_specialized_submit_contexts_delegate_to_existing_authority_chain(
+    tmp_path: Path,
+    scenario: str,
+) -> None:
+    result = _run_node_scenario(tmp_path, scenario)
 
     assert result["ok"] is True
-    assert result["result"]["strategy"] == "prior_rich"
+    assert result["result"]["strategy"] == "prior_specialized"
     assert result["log"] == ["prior_submit"]
