@@ -20,6 +20,7 @@ from .product_provenance import (
     TemporaryLifecycleState,
     build_product_execution_provenance,
 )
+from .product_submission import ProductSubmissionAck
 from .product_transport import (
     BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
     BROWSER_OWNED_PRODUCT_TRANSPORT,
@@ -37,6 +38,7 @@ from .product_transport import (
     require_canonical_conversation_client,
     require_product_write_transport,
 )
+from .product_ui_liveness import BrowserUILivenessObservation
 from .types import ChatMessage, ChatResponse, ConversationStatus, MediaItem
 
 
@@ -612,6 +614,65 @@ class ChatGPTProductRuntime:
         value = snapshot()
         return dict(value) if isinstance(value, dict) else {}
 
+    def submit(
+        self,
+        text: str,
+        *,
+        conversation: ConversationInput = None,
+        timeout: float = 150.0,
+        poll_interval: float = 0.5,
+        on_token: TokenCallback = None,
+        on_event: EventCallback = None,
+        conversation_mode: str = _NORMAL_CONVERSATION_MODE,
+        browser_authority_policy: str | None = None,
+        browser_authority_ttl_ms: int | None = None,
+        model_profile: str | None = None,
+        media: Sequence[MediaItem] | None = None,
+    ) -> ProductSubmissionAck:
+        """Submit one turn and return after browser-owned write acceptance."""
+
+        from .product_submission_runtime import submit_product_turn
+
+        return submit_product_turn(
+            self,
+            text,
+            conversation=conversation,
+            timeout=timeout,
+            poll_interval=poll_interval,
+            on_token=on_token,
+            on_event=on_event,
+            conversation_mode=conversation_mode,
+            browser_authority_policy=browser_authority_policy,
+            browser_authority_ttl_ms=browser_authority_ttl_ms,
+            model_profile=model_profile,
+            media=media,
+        )
+
+    def await_final(self, submission: ProductSubmissionAck) -> ChatResponse:
+        """Resolve canonical finality for a previously accepted submission."""
+
+        from .product_submission_runtime import await_product_submission
+
+        return await_product_submission(self, submission)
+
+    def submission_lifecycle_snapshot(self) -> dict[str, Any]:
+        """Return bounded state for the optional split submission lifecycle."""
+
+        from .product_submission_runtime import submission_lifecycle_snapshot
+
+        return submission_lifecycle_snapshot(self)
+
+    def observe_ui_liveness(
+        self,
+        *,
+        timeout: float = 3.0,
+    ) -> BrowserUILivenessObservation:
+        """Observe browser UI liveness without granting authority or finality."""
+
+        from .product_ui_liveness_runtime import observe_product_ui_liveness
+
+        return observe_product_ui_liveness(self, timeout=timeout)
+
     def get_status(self, conversation: Any) -> ConversationStatus:
         return self.canonical.get_status(conversation)
 
@@ -742,7 +803,9 @@ class ChatGPTProductRuntime:
                 "finish_reason_is_optional_observed_metadata": True,
             }
         )
-        return transport_governance
+        from .product_ui_liveness_runtime import augment_product_ui_liveness_governance
+
+        return augment_product_ui_liveness_governance(self, transport_governance)
 
 
 def assemble_product_runtime(
