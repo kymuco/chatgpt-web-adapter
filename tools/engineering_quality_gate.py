@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+QUALITY_ROOTS = ("src", "tests", "tools")
 PRODUCTION_PREFIX = "src/chatgpt_web_adapter/"
 LEGACY_PRODUCTION_NAME = re.compile(r"(?:_pr\d+|repair)", re.IGNORECASE)
 MODULE_ATTRIBUTE_ASSIGNMENT = re.compile(
@@ -33,6 +35,44 @@ def _resolve_base_ref(value: str | None) -> str:
     if candidate and set(candidate) != {"0"}:
         return candidate
     return "HEAD^"
+
+
+def _changed_python_files(base_ref: str) -> list[str]:
+    output = _git(
+        "diff",
+        "--name-only",
+        "--diff-filter=ACMR",
+        f"{base_ref}...HEAD",
+        "--",
+        *QUALITY_ROOTS,
+    )
+    paths = [line.strip() for line in output.splitlines() if line.strip()]
+    return [
+        path
+        for path in paths
+        if Path(path).suffix.lower() == ".py" and (ROOT / path).is_file()
+    ]
+
+
+def _run_python_quality(files: list[str]) -> bool:
+    if not files:
+        print("ruff delta gate passed: no changed Python files")
+        return True
+
+    print("ruff delta gate targets:")
+    for path in files:
+        print(f"- {path}")
+
+    commands = (
+        [sys.executable, "-m", "ruff", "check", *files],
+        [sys.executable, "-m", "ruff", "format", "--check", *files],
+    )
+    passed = True
+    for command in commands:
+        completed = subprocess.run(command, cwd=ROOT, check=False)
+        if completed.returncode != 0:
+            passed = False
+    return passed
 
 
 def _added_production_files(base_ref: str) -> list[str]:
@@ -80,7 +120,10 @@ def _new_import_time_mutations(base_ref: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Prevent new research-era production topology and import-time mutation debt."
+        description=(
+            "Require changed Python files to be Ruff-clean and prevent new "
+            "research-era production topology or import-time mutation debt."
+        )
     )
     parser.add_argument(
         "--base-ref",
@@ -90,10 +133,14 @@ def main() -> int:
     args = parser.parse_args()
     base_ref = _resolve_base_ref(args.base_ref)
 
+    python_quality_passed = _run_python_quality(_changed_python_files(base_ref))
+
     violations: list[str] = []
     for path in _added_production_files(base_ref):
         suffix = Path(path).suffix.lower()
-        if suffix in {".py", ".js"} and LEGACY_PRODUCTION_NAME.search(Path(path).name):
+        if suffix in {".py", ".js"} and LEGACY_PRODUCTION_NAME.search(
+            Path(path).name
+        ):
             violations.append(
                 f"new production module uses research-era PR/repair naming: {path}"
             )
@@ -102,18 +149,20 @@ def main() -> int:
         violations.append(f"new module-level runtime mutation: {mutation}")
 
     if violations:
-        print("engineering quality gate failed:")
+        print("engineering architecture debt gate failed:")
         for violation in violations:
             print(f"- {violation}")
         print(
             "Existing legacy debt is grandfathered, but new debt is blocked. "
             "Refactor through explicit composition instead."
         )
+
+    if not python_quality_passed or violations:
         return 1
 
     print(
-        "engineering quality gate passed: no new PR/repair-named production modules "
-        "or module-level runtime mutation debt"
+        "engineering quality gate passed: changed Python is Ruff-clean and no new "
+        "PR/repair-named production modules or module-level runtime mutation debt"
     )
     return 0
 

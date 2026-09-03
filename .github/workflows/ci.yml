@@ -34,22 +34,16 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .[test]
 
-      - name: Ruff lint
-        run: python -m ruff check src tests tools
-
-      - name: Ruff format
-        run: python -m ruff format --check src tests tools
+      - name: Ruff delta quality and architecture debt
+        env:
+          QUALITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python tools/engineering_quality_gate.py --base-ref "$QUALITY_BASE_SHA"
 
       - name: Compile Python sources
         run: python -m compileall -q src tests tools
 
       - name: Validate extension JavaScript syntax
         run: python tools/check_extension_js_syntax.py
-
-      - name: Prevent new research-era architecture debt
-        env:
-          QUALITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python tools/engineering_quality_gate.py --base-ref "$QUALITY_BASE_SHA"
 
   tests:
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
