@@ -111,7 +111,9 @@ def submit_product_turn(
             **transport_kwargs,
         )
     if not isinstance(ack, ProductSubmissionAck):
-        raise TypeError("write transport submit_text() must return ProductSubmissionAck")
+        raise TypeError(
+            "write transport submit_text() must return ProductSubmissionAck"
+        )
     if ack.transport != runtime.transport:
         raise RuntimeError(
             "write transport returned submission for unexpected transport "
@@ -129,7 +131,9 @@ def await_product_submission(
     if not isinstance(submission, ProductSubmissionAck):
         raise TypeError("submission must be ProductSubmissionAck")
     if submission.transport != runtime.transport:
-        raise ValueError("submission transport does not match selected runtime transport")
+        raise ValueError(
+            "submission transport does not match selected runtime transport"
+        )
     writer = _submission_transport(runtime, "normal")
     response = writer.await_final(submission)
     if not isinstance(response, ChatResponse):
