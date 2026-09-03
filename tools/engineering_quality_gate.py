@@ -21,6 +21,9 @@ LEGACY_RELOCATION_SOURCES = {
     "src/chatgpt_web_adapter/browserless_request_transport_core.py": (
         "src/chatgpt_web_adapter/browserless_request_transport.py"
     ),
+    "src/chatgpt_web_adapter/browser_owned_product_transport_core.py": (
+        "src/chatgpt_web_adapter/browser_owned_product_transport.py"
+    ),
 }
 
 
