@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE
-from .client import ChatGPTWebClient, DEFAULT_TIMEOUT_SECONDS
+from .client import DEFAULT_TIMEOUT_SECONDS, ChatGPTWebClient
 from .product_capabilities import ProductCapabilities
 from .product_media import browser_owned_media_scope
 from .product_provenance import (
@@ -22,12 +22,11 @@ from .product_provenance import (
 )
 from .product_submission import ProductSubmissionAck
 from .product_transport import (
-    BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
     BROWSER_OWNED_PRODUCT_TRANSPORT,
+    BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
     DEFAULT_PRODUCT_TRANSPORT,
     SUPPORTED_PRODUCT_TRANSPORTS,
     CanonicalConversationClient,
-    CanonicalSessionClient,
     ConversationInput,
     EventCallback,
     ProductRuntimeExecution,
@@ -40,7 +39,6 @@ from .product_transport import (
 )
 from .product_ui_liveness import BrowserUILivenessObservation
 from .types import ChatMessage, ChatResponse, ConversationStatus, MediaItem
-
 
 _NORMAL_CONVERSATION_MODE = "normal"
 _TEMPORARY_CONVERSATION_MODE = "temporary"
@@ -76,7 +74,9 @@ def _normal_conversation_mode_provenance() -> ProductConversationModeProvenance:
     )
 
 
-def _not_established_temporary_lifecycle_provenance() -> ProductTemporaryLifecycleProvenance:
+def _not_established_temporary_lifecycle_provenance() -> (
+    ProductTemporaryLifecycleProvenance
+):
     return ProductTemporaryLifecycleProvenance(
         temporary_lifecycle_state=TemporaryLifecycleState.NOT_ESTABLISHED,
         lifecycle_evidence_source=(
@@ -165,7 +165,9 @@ def _conversation_mode_override_kwargs(
     return mode, {"conversation_mode": _TEMPORARY_CONVERSATION_MODE}
 
 
-def _known_browser_owned_rich_input_transport(write_transport: ProductWriteTransport) -> bool:
+def _known_browser_owned_rich_input_transport(
+    write_transport: ProductWriteTransport,
+) -> bool:
     """Return whether the selected writer is the proven PR9.2 implementation.
 
     ProductWriteTransport intentionally remains a text-oriented protocol. A custom
@@ -245,7 +247,9 @@ def _validate_temporary_mode_provenance(
     mode = provenance.conversation_mode
     lifecycle = provenance.temporary_lifecycle
     if mode is None:
-        raise RuntimeError("Temporary execution is missing conversation-mode provenance")
+        raise RuntimeError(
+            "Temporary execution is missing conversation-mode provenance"
+        )
     if (
         mode.requested_conversation_mode is not ConversationMode.TEMPORARY
         or mode.observed_conversation_mode is not ConversationMode.TEMPORARY
@@ -373,8 +377,7 @@ class ChatGPTProductRuntime:
         if write_transport is not None and provider is not None:
             raise ValueError("provider and write_transport are mutually exclusive")
         if write_transport is not None and (
-            browser_authority_policy is not None
-            or browser_authority_ttl_ms is not None
+            browser_authority_policy is not None or browser_authority_ttl_ms is not None
         ):
             raise ValueError(
                 "browser authority runtime defaults require runtime-owned transport assembly"
@@ -385,7 +388,10 @@ class ChatGPTProductRuntime:
                 "transport": self.transport,
                 "provider": provider,
             }
-            if browser_authority_policy is not None or browser_authority_ttl_ms is not None:
+            if (
+                browser_authority_policy is not None
+                or browser_authority_ttl_ms is not None
+            ):
                 assembly_kwargs.update(
                     {
                         "browser_authority_policy": browser_authority_policy,
@@ -420,7 +426,9 @@ class ChatGPTProductRuntime:
     def capabilities(self) -> ProductCapabilities:
         capabilities = self.write_transport.capabilities()
         if not isinstance(capabilities, ProductCapabilities):
-            raise TypeError("write transport capabilities() must return ProductCapabilities")
+            raise TypeError(
+                "write transport capabilities() must return ProductCapabilities"
+            )
         if capabilities.transport != self.transport:
             raise RuntimeError(
                 "write transport returned capabilities for unexpected transport "
@@ -685,15 +693,21 @@ class ChatGPTProductRuntime:
     def governance(self) -> dict[str, Any]:
         transport_governance = dict(self.write_transport.governance())
         browser_authority_supported = (
-            transport_governance.get("browser_authority_product_runtime_policy_supported")
+            transport_governance.get(
+                "browser_authority_product_runtime_policy_supported"
+            )
             is True
         )
         model_profile_supported = (
-            transport_governance.get("model_profile_product_runtime_selection_supported")
+            transport_governance.get(
+                "model_profile_product_runtime_selection_supported"
+            )
             is True
         )
         temporary_supported = (
-            transport_governance.get("temporary_chat_product_runtime_selection_supported")
+            transport_governance.get(
+                "temporary_chat_product_runtime_selection_supported"
+            )
             is True
         )
         rich_input_browser_owned = _known_browser_owned_rich_input_transport(
@@ -749,7 +763,9 @@ class ChatGPTProductRuntime:
                 "temporary_lifecycle_requires_fresh_proof_after_tab_recreation": True,
                 "post_close_route_recovery_restores_temporary_lifecycle": False,
                 "temporary_lifecycle_explicit_end_surface": (
-                    "ChatGPTProductRuntime.end_temporary_chat" if temporary_supported else None
+                    "ChatGPTProductRuntime.end_temporary_chat"
+                    if temporary_supported
+                    else None
                 ),
                 "browser_authority_policy_high_level_surface": True,
                 "browser_authority_selected_transport_policy_support": (
