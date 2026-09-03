@@ -19,7 +19,7 @@ from .browser_native_provider import (
     BrowserNativeTurnResult,
 )
 from .browser_sentinel import ZendriverSentinelBundleProvider
-from .client import ChatGPTWebClient
+from .client import ChatGPTWebClient, _original_send
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .exceptions import (
     AuthError,
