@@ -47,7 +47,10 @@ Security = "https://github.com/kymuco/chatgpt-web-adapter/blob/main/SECURITY.md"
 Releases = "https://github.com/kymuco/chatgpt-web-adapter/releases"
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+test = [
+  "pytest>=8",
+  "ruff>=0.11",
+]
 browser = ["zendriver==0.15.3"]
 
 [project.scripts]
@@ -69,3 +72,25 @@ chatgpt_web_adapter = [
   "browser_native_extension/*.css",
   "browser_native_extension/*.png",
 ]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+extend-exclude = [
+  "build",
+  "dist",
+]
+
+[tool.ruff.lint]
+select = [
+  "E4",
+  "E7",
+  "E9",
+  "F",
+  "I",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
