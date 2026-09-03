@@ -6,14 +6,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 QUALITY_ROOTS = ("src", "tests", "tools")
 PRODUCTION_PREFIX = "src/chatgpt_web_adapter/"
 LEGACY_PRODUCTION_NAME = re.compile(r"(?:_pr\d+|repair)", re.IGNORECASE)
-MODULE_ATTRIBUTE_ASSIGNMENT = re.compile(
-    r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\s*="
-)
+MODULE_ATTRIBUTE_ASSIGNMENT = re.compile(r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+\s*=")
 TOP_LEVEL_SETATTR = re.compile(r"^setattr\(")
 TOP_LEVEL_INSTALL = re.compile(r"^install_[A-Za-z0-9_]\w*\(")
 ALLOW_MARKER = "engineering-quality: allow-import-time-mutation"
@@ -138,9 +135,7 @@ def main() -> int:
     violations: list[str] = []
     for path in _added_production_files(base_ref):
         suffix = Path(path).suffix.lower()
-        if suffix in {".py", ".js"} and LEGACY_PRODUCTION_NAME.search(
-            Path(path).name
-        ):
+        if suffix in {".py", ".js"} and LEGACY_PRODUCTION_NAME.search(Path(path).name):
             violations.append(
                 f"new production module uses research-era PR/repair naming: {path}"
             )
