@@ -10,7 +10,6 @@ from chatgpt_web_adapter.product_ui_liveness_runtime_gate import (
     install_product_ui_liveness_runtime_surface,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "chatgpt_web_adapter"
 
