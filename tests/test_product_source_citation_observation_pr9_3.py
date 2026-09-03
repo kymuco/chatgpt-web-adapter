@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SOURCE_JS = EXT / "service_worker_product_source_citations_pr9_3.js"
 SCHEMA7_LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
+READ = EXT / "service_worker_runtime_read.js"
+RUNTIME = EXT / "service_worker_runtime.js"
+MANIFEST = EXT / "manifest.json"
 
 
 def _run_node_fixture(message_expressions: list[str]) -> list[dict[str, object]]:
@@ -54,12 +57,22 @@ process.stdout.write(JSON.stringify(events));
 
 
 def test_pr93_overlay_is_loaded_after_schema29_without_changing_manifest_entrypoint() -> None:
-    source = SCHEMA7_LOADER.read_text(encoding="utf-8")
+    schema_loader = SCHEMA7_LOADER.read_text(encoding="utf-8")
+    read = READ.read_text(encoding="utf-8")
+    runtime = RUNTIME.read_text(encoding="utf-8")
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     schema29 = 'importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");'
     pr93 = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
-    assert schema29 in source
-    assert pr93 in source
-    assert source.index(schema29) < source.index(pr93)
+
+    assert schema29 in schema_loader
+    assert pr93 in read
+    assert runtime.index('importScripts("service_worker_runtime_write.js");') < runtime.index(
+        'importScripts("service_worker_runtime_read.js");'
+    )
+    assert manifest["version"] == "0.1.13"
+    assert manifest["background"]["service_worker"] == (
+        "service_worker_temporary_chat_route_reopen_probe.js"
+    )
 
 
 def test_pr93_source_citation_overlay_exports_only_bounded_provenance_fields() -> None:

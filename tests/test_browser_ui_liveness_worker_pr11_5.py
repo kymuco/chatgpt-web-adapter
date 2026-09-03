@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 LIVENESS = EXT / "service_worker_ui_liveness.js"
 SUPPORT = EXT / "service_worker_connector_support_pr10_0.js"
+OBSERVATION = EXT / "service_worker_runtime_observation.js"
 
 
 def test_liveness_worker_wraps_native_messages_without_wrapping_turn_dispatch() -> None:
@@ -71,11 +72,12 @@ def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives(
         assert contract in source
 
 
-def test_liveness_worker_loads_inside_outer_turn_support_without_replacing_it() -> None:
+def test_liveness_loads_after_outer_turn_support_without_replacing_it() -> None:
     support = SUPPORT.read_text(encoding="utf-8")
+    observation = OBSERVATION.read_text(encoding="utf-8")
 
+    support_import = 'importScripts("service_worker_connector_support_pr10_0.js");'
     liveness_import = 'importScripts("service_worker_ui_liveness.js");'
-    final_wrapper = "executeNativeTurn = async function _pr100"
-    assert liveness_import in support
-    assert support.index(liveness_import) < support.index(final_wrapper)
+    assert observation.index(support_import) < observation.index(liveness_import)
+    assert "service_worker_ui_liveness.js" not in support
     assert support.rstrip().endswith("};")

@@ -9,11 +9,11 @@ from chatgpt_web_adapter.product_runtime import _known_browser_owned_rich_input_
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 REPAIR = EXT / "service_worker_rich_input_deadline_repair_pr9_2.js"
-ENTRYPOINT = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
+WRITE = EXT / "service_worker_runtime_write.js"
 
 
 def test_deadline_repair_overlay_is_loaded_after_primary_rich_input_overlay():
-    text = ENTRYPOINT.read_text(encoding="utf-8")
+    text = WRITE.read_text(encoding="utf-8")
     primary = 'importScripts("service_worker_rich_input_pr9_2.js");'
     repair = 'importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");'
     assert primary in text

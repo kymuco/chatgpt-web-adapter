@@ -6,19 +6,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 CLOSURE = EXT / "service_worker_rich_input_closure_repair_pr9_2.js"
-ENTRYPOINT = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
+WRITE = EXT / "service_worker_runtime_write.js"
 
 
 def test_schema_6_closure_overlay_is_loaded_last():
-    entrypoint = ENTRYPOINT.read_text(encoding="utf-8")
+    write = WRITE.read_text(encoding="utf-8")
     primary = 'importScripts("service_worker_rich_input_pr9_2.js");'
     deadline = 'importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");'
     closure = 'importScripts("service_worker_rich_input_closure_repair_pr9_2.js");'
 
-    assert primary in entrypoint
-    assert deadline in entrypoint
-    assert closure in entrypoint
-    assert entrypoint.index(primary) < entrypoint.index(deadline) < entrypoint.index(closure)
+    assert primary in write
+    assert deadline in write
+    assert closure in write
+    assert write.index(primary) < write.index(deadline) < write.index(closure)
 
 
 def test_schema_6_rich_submit_uses_page_deadline_guard_not_raw_cdp_input():

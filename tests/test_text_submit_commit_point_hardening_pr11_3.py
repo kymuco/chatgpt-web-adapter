@@ -10,18 +10,28 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OVERLAY = EXTENSION / "service_worker_text_submit_commit_hardening_pr11_3.js"
-LOADER = EXTENSION / "service_worker_rich_input_schema7_repair_pr9_2.js"
+SCHEMA_LOADER = EXTENSION / "service_worker_rich_input_schema7_repair_pr9_2.js"
+WRITE = EXTENSION / "service_worker_runtime_write.js"
+READ = EXTENSION / "service_worker_runtime_read.js"
+RUNTIME = EXTENSION / "service_worker_runtime.js"
 
 
 def test_text_submit_hardening_loads_after_rich_authority_before_observation_layers() -> None:
-    text = LOADER.read_text(encoding="utf-8")
+    schema_loader = SCHEMA_LOADER.read_text(encoding="utf-8")
+    write = WRITE.read_text(encoding="utf-8")
+    read = READ.read_text(encoding="utf-8")
+    runtime = RUNTIME.read_text(encoding="utf-8")
     rich = 'importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");'
     hardening = 'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
     observation = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
     canonical_read = 'importScripts("service_worker_canonical_read.js");'
 
-    assert text.index(rich) < text.index(hardening) < text.index(observation)
-    assert text.index(hardening) < text.index(canonical_read)
+    assert rich in schema_loader
+    assert hardening in write
+    assert read.index(observation) < read.index(canonical_read)
+    assert runtime.index('importScripts("service_worker_runtime_write.js");') < runtime.index(
+        'importScripts("service_worker_runtime_read.js");'
+    )
 
 
 def test_text_submit_hardening_declares_exact_protected_boundaries() -> None:

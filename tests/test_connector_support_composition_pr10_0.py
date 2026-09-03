@@ -6,7 +6,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-ENTRYPOINT = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
+BOOTSTRAP = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
+WRITE = EXT / "service_worker_runtime_write.js"
+OBSERVATION = EXT / "service_worker_runtime_observation.js"
 SUPPORT = EXT / "service_worker_connector_support_pr10_0.js"
 MANIFEST = EXT / "manifest.json"
 
@@ -19,22 +21,24 @@ def test_manifest_entrypoint_stays_historically_stable() -> None:
         manifest["background"]["service_worker"]
         == "service_worker_temporary_chat_route_reopen_probe.js"
     )
+    bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_runtime.js");' in bootstrap
 
 
 def test_connector_support_remains_outermost_turn_wrapper() -> None:
-    source = ENTRYPOINT.read_text(encoding="utf-8")
+    write = WRITE.read_text(encoding="utf-8")
+    observation = OBSERVATION.read_text(encoding="utf-8")
     schema7 = 'importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");'
     support = 'importScripts("service_worker_connector_support_pr10_0.js");'
+    liveness = 'importScripts("service_worker_ui_liveness.js");'
 
-    assert schema7 in source and support in source
-    assert source.index(schema7) < source.index(support)
-    assert source.rstrip().endswith(support)
+    assert schema7 in write
+    assert observation.index(support) < observation.index(liveness)
 
     support_source = SUPPORT.read_text(encoding="utf-8")
-    liveness = 'importScripts("service_worker_ui_liveness.js");'
     final_wrapper = "executeNativeTurn = async function _pr100"
-    assert liveness in support_source
-    assert support_source.index(liveness) < support_source.index(final_wrapper)
+    assert final_wrapper in support_source
+    assert liveness not in support_source
     assert support_source.rstrip().endswith("};")
 
 

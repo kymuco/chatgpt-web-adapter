@@ -10,7 +10,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 COMPAT = EXT / "service_worker_ui_compat_pr11_7.js"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
+SCHEMA_LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
+WRITE = EXT / "service_worker_runtime_write.js"
+READ = EXT / "service_worker_runtime_read.js"
+RUNTIME = EXT / "service_worker_runtime.js"
 TEXT_HARDENING = EXT / "service_worker_text_submit_commit_hardening_pr11_3.js"
 LIVENESS = EXT / "service_worker_ui_liveness.js"
 
@@ -44,14 +47,21 @@ def test_compatibility_pack_is_shared_discovery_not_new_authority_layer() -> Non
 
 
 def test_compatibility_pack_loads_after_rich_authority_before_text_hardening() -> None:
-    loader = LOADER.read_text(encoding="utf-8")
+    schema_loader = SCHEMA_LOADER.read_text(encoding="utf-8")
+    write = WRITE.read_text(encoding="utf-8")
+    read = READ.read_text(encoding="utf-8")
+    runtime = RUNTIME.read_text(encoding="utf-8")
     rich = 'importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");'
     compat = 'importScripts("service_worker_ui_compat_pr11_7.js");'
     hardening = 'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
     observation = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
 
-    assert loader.index(rich) < loader.index(compat) < loader.index(hardening)
-    assert loader.index(hardening) < loader.index(observation)
+    assert rich in schema_loader
+    assert write.index(compat) < write.index(hardening)
+    assert observation in read
+    assert runtime.index('importScripts("service_worker_runtime_write.js");') < runtime.index(
+        'importScripts("service_worker_runtime_read.js");'
+    )
 
 
 def test_existing_consumers_use_shared_compatibility_without_changing_ownership(
