@@ -8,8 +8,8 @@ from .auth_browser import BrowserLoginResult, browser_login, default_browser_pro
 from .auth_refresh import AuthRefreshResult
 from .auth_status import AuthStatus, get_auth_status
 from .browser_native_install import (
-    EXTENSION_ID as BROWSER_NATIVE_EXTENSION_ID,
     BrowserNativeInstallResult,
+    EXTENSION_ID as BROWSER_NATIVE_EXTENSION_ID,
     browser_native_extension_dir,
     install_native_messaging_host,
 )
@@ -19,7 +19,7 @@ from .browser_native_provider import (
     BrowserNativeTurnResult,
 )
 from .browser_sentinel import ZendriverSentinelBundleProvider
-from .client import ChatGPTWebClient, _original_send
+from .client import ChatGPTWebClient, _original_send as _original_send
 from .conversation_prepare import PrepareResult, prepare_text_turn
 from .exceptions import (
     AuthError,
@@ -29,7 +29,11 @@ from .exceptions import (
     RequestError,
     WebChatAdapterError,
 )
-from .model_registry import DEFAULT_MODEL, DEFAULT_THINKING_MODEL, MODEL_ALIASES
+from .model_registry import (
+    DEFAULT_MODEL,
+    DEFAULT_THINKING_MODEL as DEFAULT_THINKING_MODEL,
+    MODEL_ALIASES as MODEL_ALIASES,
+)
 from .payload_builder import PayloadBuilder
 from .payload_validation import validate_payload
 from .policy_approval import ApprovalDeniedError
@@ -77,10 +81,7 @@ from .product_support import (
     product_transport_support_tier,
 )
 from .product_transport import CanonicalConversationClient, ProductWriteTransport
-from .product_ui_liveness import (
-    BrowserUILivenessObservation,
-    BrowserUILivenessState,
-)
+from .product_ui_liveness import BrowserUILivenessObservation, BrowserUILivenessState
 from .public_surface import (
     PRIMARY_PRODUCT_RUNTIME_EXPORTS,
     PUBLIC_SURFACE_CLASSIFICATION,
@@ -228,21 +229,111 @@ EXPERIMENTAL_BROWSER_NATIVE_EXPORTS = [
     "install_native_messaging_host",
 ]
 
+# Keep this list literal. Besides making the supported root surface obvious to
+# readers, a literal __all__ lets static tooling verify that imports are deliberate
+# re-exports rather than accidental unused dependencies.
 __all__ = [
     # Historical prefix retained for compatibility.
-    *CORE_PUBLIC_API,
+    "ChatGPTWebClient",
+    "WebChatClient",
+    "ChatConversation",
+    "AttachedConversation",
+    "ChatMessage",
+    "ConversationStatus",
+    "PendingApproval",
+    "ChatResponse",
+    "ChatMetrics",
+    "ChatRequestDiagnostics",
+    "AuthData",
+    "errors",
     # Primary production surface is intentionally promoted before legacy extras.
-    *PRODUCT_RUNTIME_EXPORTS,
-    *ERROR_EXPORTS,
-    *ADVANCED_HELPERS,
-    *MEDIA_EXPORTS,
-    *SUPPORT_EXPORTS,
-    *PUBLIC_SURFACE_METADATA_EXPORTS,
+    "BROWSER_OWNED_PRODUCT_TRANSPORT",
+    "DEFAULT_PRODUCT_TRANSPORT",
+    "SUPPORTED_PRODUCT_TRANSPORTS",
+    "PRODUCT_RUNTIME_CONTRACT_SCHEMA",
+    "ProductTransportSupportTier",
+    "product_transport_support_tier",
+    "ProductRuntimeContract",
+    "product_runtime_contract",
+    "ORDINARY_CHATGPT_PRODUCT_SEMANTICS",
+    "PRODUCT_CAPABILITY_NAMES",
+    "CapabilityState",
+    "CapabilityOwner",
+    "ProductCapability",
+    "ProductCapabilities",
+    "CompletionSource",
+    "ProductCompletionProvenance",
+    "ProductIdentityProvenance",
+    "ProductExecutionProvenance",
+    "SubmissionEvidenceSource",
+    "ProductSubmissionProvenance",
+    "ProductSubmissionAck",
+    "BrowserUILivenessState",
+    "BrowserUILivenessObservation",
+    "ProductObservationKind",
+    "ProductObservationPhase",
+    "ProductActivityObservation",
+    "ProductSourceObservation",
+    "ProductCitationObservation",
+    "ProductRequiredActionObservation",
+    "StructuredProductObservation",
+    "CanonicalConversationClient",
+    "ProductWriteTransport",
+    "ChatGPTProductRuntime",
+    "ProductRuntimeExecution",
+    "ProductRuntimeHealth",
+    "assemble_product_runtime",
+    "WebChatAdapterError",
+    "AuthError",
+    "ConversationTimeoutError",
+    "MediaError",
+    "PayloadValidationError",
+    "RequestError",
+    "ConversationRef",
+    "WaitResult",
+    "MediaItem",
+    "MediaSource",
+    "AuthStatus",
+    "AuthRefreshResult",
+    "BrowserLoginResult",
+    "DEFAULT_AUTH_FILE",
+    "DEFAULT_MODEL",
+    "browser_login",
+    "default_browser_profile_dir",
+    "get_auth_status",
+    "load_auth_data",
+    "PublicSurfaceTier",
+    "PUBLIC_SURFACE_TIERS",
+    "PUBLIC_SURFACE_CLASSIFICATION",
+    "public_surface_tier",
     # Lower-support-level compatibility exports remain available.
-    *EXPERIMENTAL_APPROVAL_EXPORTS,
-    *EXPERIMENTAL_REQUIRED_ACTION_EXPORTS,
-    *EXPERIMENTAL_RAW_PAYLOAD_EXPORTS,
-    *EXPERIMENTAL_PREPARE_EXPORTS,
-    *EXPERIMENTAL_SENTINEL_EXPORTS,
-    *EXPERIMENTAL_BROWSER_NATIVE_EXPORTS,
+    "ApprovalDecision",
+    "ApprovalDeniedError",
+    "ApprovalEvent",
+    "ApprovalPolicy",
+    "ApprovalResult",
+    "ApprovalRound",
+    "RequiredAction",
+    "find_required_action",
+    "PayloadBuilder",
+    "validate_payload",
+    "PrepareResult",
+    "prepare_text_turn",
+    "FinalizedSentinelBundle",
+    "OBSERVED_FINALIZE_REQUEST_KEYS",
+    "OBSERVED_FINALIZE_RESPONSE_KEYS",
+    "SentinelBundleProvider",
+    "SentinelChallengeContext",
+    "SentinelChallengeEvidence",
+    "SentinelChallengeProvider",
+    "SentinelPrepareProbeResult",
+    "ZendriverSentinelBundleProvider",
+    "probe_sentinel_requirements_prepare",
+    "BROWSER_NATIVE_EXTENSION_ID",
+    "BrowserNativeBridgeStatus",
+    "BrowserNativeInstallResult",
+    "BrowserNativeTurnProvider",
+    "BrowserNativeTurnResult",
+    "browser_native_extension_dir",
+    "install_native_messaging_host",
 ]

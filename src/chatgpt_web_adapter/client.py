@@ -3,39 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from . import legacy_client_core as _core
-from .model_registry import (
-    DEFAULT_MODEL,
-    DEFAULT_THINKING_MODEL,
-    MODEL_ALIASES,
-    normalize_reasoning_effort as _normalize_reasoning_effort,
-    resolve_model as _resolve_model,
-)
-
-# Stable constants used by modules that participate in client composition. They
-# are defined before those modules are imported so circular imports can resolve
-# data without observing a partially constructed client class.
-DEFAULT_TIMEOUT_SECONDS = _core.DEFAULT_TIMEOUT_SECONDS
-DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS = (
-    _core.DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS
-)
-DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS = (
-    _core.DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS
-)
-
-
-def __getattr__(name: str) -> Any:
-    """Delegate untouched legacy module attributes to the frozen core.
-
-    ``ChatGPTWebClient`` deliberately does not delegate while this module is being
-    initialized: a composition helper importing the class too early must fail
-    loudly rather than silently capture the uncomposed legacy base class.
-    """
-
-    if name == "ChatGPTWebClient":
-        raise AttributeError(name)
-    return getattr(_core, name)
-
-
 from .attach import attach_conversation as _attach_conversation
 from .auth_refresh import refresh_auth_session as _refresh_auth_session
 from .browser_native_client import (
@@ -47,7 +14,14 @@ from .conversation_send import send_to_conversation as _send_to_conversation
 from .diagnostic_metrics import send_with_expanded_metrics as _send_with_expanded_metrics
 from .export import export_conversation as _export_conversation
 from .messages import get_messages as _get_messages
-from .payload_validation import validate_payload
+from .model_registry import (
+    DEFAULT_MODEL as DEFAULT_MODEL,
+    DEFAULT_THINKING_MODEL as DEFAULT_THINKING_MODEL,
+    MODEL_ALIASES as MODEL_ALIASES,
+    normalize_reasoning_effort as _normalize_reasoning_effort,
+    resolve_model as _resolve_model,
+)
+from .payload_validation import validate_payload as _validate_payload
 from .policy_approval import approve_pending_action as _policy_approve_pending_action
 from .policy_approval import send_and_auto_approve as _policy_send_and_auto_approve
 from .policy_approval import (
@@ -77,6 +51,28 @@ from .web_session import (
     gate_get_ready_requirements as _gate_get_ready_requirements,
     redact_web_session_headers as _redact_web_session_headers,
 )
+
+# Stable constants used by modules that participate in client composition.
+DEFAULT_TIMEOUT_SECONDS = _core.DEFAULT_TIMEOUT_SECONDS
+DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS = (
+    _core.DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS
+)
+DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS = (
+    _core.DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS
+)
+
+
+def __getattr__(name: str) -> Any:
+    """Delegate untouched legacy module attributes to the frozen core.
+
+    ``ChatGPTWebClient`` deliberately does not delegate while this module is being
+    initialized: a composition helper importing the class too early must fail
+    loudly rather than silently capture the uncomposed legacy base class.
+    """
+
+    if name == "ChatGPTWebClient":
+        raise AttributeError(name)
+    return getattr(_core, name)
 
 
 _original_send = _core.ChatGPTWebClient.send
@@ -138,4 +134,4 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
 
 # Keep the historical module-level validation helper available through the public
 # module without mutating the frozen legacy core.
-validate_payload = validate_payload
+validate_payload = _validate_payload
