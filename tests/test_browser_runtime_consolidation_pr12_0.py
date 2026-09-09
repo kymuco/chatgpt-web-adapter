@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 MANIFEST = EXT / "manifest.json"
@@ -95,6 +94,8 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
         "service_worker_rich_input_schema7_repair_pr9_2.js",
         "service_worker_ui_compat_pr11_7.js",
         "service_worker_text_submit_commit_hardening_pr11_3.js",
+        "service_worker_cwa_sse_conversation_identity.js",
+        "service_worker_cwa_identity_capture_diag.js",
     ]
     positions = [source.index(name) for name in ordered]
 

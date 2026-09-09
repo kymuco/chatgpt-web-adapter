@@ -6,6 +6,8 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- ordinary-text identity: make the request-bound SSE conversation-id consensus the only ordinary-text conversation-identity authority on the browser-owned write plane; the `/c/<id>` SPA route conversation id is demoted to diagnostics-only and never promoted after live evidence showed the product route already carrying a namespaced conversation id (`WEB:...`) that the canonical read plane rejects with HTTP 400 while the request-bound SSE stream emitted one stable accepted consensus (0 candidates -> fail closed unresolved; >1 -> fail closed `SSE_IDENTITY_CONFLICT`; continuation mismatch -> fail closed; no prefix stripping, no UUID inference, no automatic retry)
+
 - connectors / required actions: add post-0.3 typed connector and required-action lifecycle observations that require explicit stable product identity/correlation; authenticated product evidence proves required-action point observation while the combined `tools_connectors` capability remains `UNKNOWN`
 - connector authority boundary: keep product observation separate from approval, connector authorization, canonical finality, retry authority, and downstream filesystem/Git/workspace authority; generic router/tool activity, display names, DOM adjacency and generated ids are not treated as connector lifecycle identity
 - generated artifacts: add a bounded `ProductArtifactObservation` boundary and fail closed around locator-bearing evidence; current generated-artifact download/materialization status is `ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY`
