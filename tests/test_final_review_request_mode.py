@@ -192,6 +192,41 @@ def test_request_mode_ambiguous_finality_fails_closed(tmp_path) -> None:
     assert _code(exc.value) == "FINALITY_AMBIGUOUS"
 
 
+def test_request_mode_reasoning_summary_before_reply(tmp_path) -> None:
+    # The product may stream a reasoning-summary assistant message (no
+    # finish) BEFORE the final answer; the LAST assistant after the user
+    # message is the authoritative reply (regression: first-assistant
+    # selection made real reviews FINALITY_AMBIGUOUS forever).
+    runtime = ReasoningFirstRuntime()
+    result = _transport(runtime, tmp_path).submit_final_review_request(
+        **_submit_kwargs()
+    )
+    assert result.finality == "FINAL"
+    assert result.reply_text == '{"verdict":"PASS","binding":{}}'
+    assert runtime.submit_calls == 1
+
+
+class ReasoningFirstRuntime(FakeRuntime):
+    def get_messages(self, conversation):
+        items = [
+            FakeMessage(role="user", text=self.submitted_text, message_id="u-1"),
+            FakeMessage(
+                role="assistant", message_id="r-1", finish_reason=None,
+                metadata_preview={}, text="Reasoning summary",
+            ),
+            FakeMessage(
+                role="assistant", message_id="a-1",
+                finish_reason="stop" if self.assistant_complete else None,
+                metadata_preview={
+                    "is_complete": self.assistant_complete,
+                    "model_slug": "gpt-5-6",
+                },
+                text=self.reply_text,
+            ),
+        ]
+        return items
+
+
 def test_request_mode_empty_reply_fails_closed_and_reconciles(tmp_path) -> None:
     runtime = FakeRuntime(reply_text="   ")
     transport = _transport(runtime, tmp_path)

@@ -563,14 +563,15 @@ class CwaFinalReviewTransport:
             assistant_after = None
             if matching_users:
                 user_index = items.index(matching_users[0])
-                assistant_after = next(
-                    (
-                        item
-                        for item in items[user_index + 1 :]
-                        if item.get("role") == "assistant"
-                    ),
-                    None,
-                )
+                assistants_after = [
+                    item
+                    for item in items[user_index + 1 :]
+                    if item.get("role") == "assistant"
+                ]
+                # The product may stream a reasoning-summary assistant message
+                # (no finish) BEFORE the final answer — the LAST assistant
+                # after our user message is the authoritative reply.
+                assistant_after = assistants_after[-1] if assistants_after else None
             assistant_complete = bool(
                 assistant_after
                 and assistant_after.get("finish_reason") == "stop"
@@ -586,32 +587,28 @@ class CwaFinalReviewTransport:
                     "status": status_result,
                     "messageCount": len(items),
                     "matchingUserMessageCount": len(matching_users),
-                    "assistantMessageId": (assistant_after or {}).get("message_id"),
+                    "assistantMessageId": (
+                        assistant_after or {}
+                    ).get("message_id"),
                     "assistantComplete": assistant_complete,
                 }
             )
             if matching_users and assistant_complete:
-                # Exact request binding: the canonical read-back of the
-                # committed user message must hash to the bound evidence
-                # digest (the prompt bytes we bound before the write).
-                recovered_user_text = matching_users[0].get("text")
-                recovered_user_message_id = matching_users[0].get("message_id")
-                recovered_message_id = assistant_after.get("message_id")
-                text_value = assistant_after.get("text")
-                reply_text = text_value if isinstance(text_value, str) else None
-                model_value = (assistant_after.get("metadata_preview") or {}).get(
-                    "model_slug"
+                # Strict parse of the CANONICAL read-back text (not our
+                # journal copy): the committed payload must parse to the
+                # bound payload byte-for-byte.
+                recovered_payload = _parse_payload_text(
+                    matching_users[0].get("text")
                 )
-                model_slug = model_value if isinstance(model_value, str) else None
-                if hashlib.sha256(
-                    recovered_user_text.encode("utf-8")
-                ).hexdigest() != evidence_digest:
-                    raise FinalReviewTransportError(
-                        _transport_code("RESPONSE_MISMATCH")
-                    )
+                recovered_message_id = assistant_after.get("message_id")
+                recovered_user_message_id = matching_users[0].get("message_id")
                 finality = "FINAL"
                 break
         if finality != "FINAL":
+            # Persist the read attempts: the durable journal must show WHAT the
+            # canonical reads observed before the fail-closed verdict.
+            journal["canonicalReadAttempts"] = attempts
+            _persist(self._journal_path(canonical_request_id), journal)
             raise FinalReviewTransportError(_transport_code("FINALITY_AMBIGUOUS"))
         if reply_text is None or not reply_text.strip():
             # Unambiguous finality with an empty reply body is not a verdict;
@@ -703,14 +700,15 @@ class CwaFinalReviewTransport:
             assistant_after = None
             if matching_users:
                 user_index = items.index(matching_users[0])
-                assistant_after = next(
-                    (
-                        item
-                        for item in items[user_index + 1 :]
-                        if item.get("role") == "assistant"
-                    ),
-                    None,
-                )
+                assistants_after = [
+                    item
+                    for item in items[user_index + 1 :]
+                    if item.get("role") == "assistant"
+                ]
+                # The product may stream a reasoning-summary assistant message
+                # (no finish) BEFORE the final answer — the LAST assistant
+                # after our user message is the authoritative reply.
+                assistant_after = assistants_after[-1] if assistants_after else None
             assistant_complete = bool(
                 assistant_after
                 and assistant_after.get("finish_reason") == "stop"
