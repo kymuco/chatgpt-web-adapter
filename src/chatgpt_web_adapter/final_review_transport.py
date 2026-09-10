@@ -594,14 +594,24 @@ class CwaFinalReviewTransport:
                 }
             )
             if matching_users and assistant_complete:
-                # Strict parse of the CANONICAL read-back text (not our
-                # journal copy): the committed payload must parse to the
-                # bound payload byte-for-byte.
-                recovered_payload = _parse_payload_text(
-                    matching_users[0].get("text")
-                )
+                # Exact request binding: the canonical read-back of the
+                # committed user message must hash to the bound evidence
+                # digest (the prompt bytes bound before the write).
+                recovered_user_text = matching_users[0].get("text")
+                if hashlib.sha256(
+                    recovered_user_text.encode("utf-8")
+                ).hexdigest() != evidence_digest:
+                    raise FinalReviewTransportError(
+                        _transport_code("RESPONSE_MISMATCH")
+                    )
                 recovered_message_id = assistant_after.get("message_id")
                 recovered_user_message_id = matching_users[0].get("message_id")
+                text_value = assistant_after.get("text")
+                reply_text = text_value if isinstance(text_value, str) else None
+                model_value = (assistant_after.get("metadata_preview") or {}).get(
+                    "model_slug"
+                )
+                model_slug = model_value if isinstance(model_value, str) else None
                 finality = "FINAL"
                 break
         if finality != "FINAL":
