@@ -399,9 +399,9 @@ class CwaFinalReviewTransport:
         gate, so reconciliation never loses the write evidence.
         """
         canonical_request_id = journal["canonicalRequestId"]
-        runtime = self._runtime_factory()
         events: list[dict[str, Any]] = []
         try:
+            runtime = self._runtime_factory()
             ack = runtime.submit(
                 journal["payloadText"],
                 timeout=240.0,
