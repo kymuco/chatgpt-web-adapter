@@ -122,6 +122,9 @@ def main(argv: list[str] | None = None) -> int:
     reconcile = sub.add_parser("reconcile")
     reconcile.add_argument("--store", required=True)
     reconcile.add_argument("--request-id", required=True)
+    reconcile.add_argument("--repo", required=True)
+    reconcile.add_argument("--issue", type=int, required=True)
+    reconcile.add_argument("--pr", type=int, required=True)
     reconcile.set_defaults(func=cmd_reconcile)
 
     args = parser.parse_args(argv)
