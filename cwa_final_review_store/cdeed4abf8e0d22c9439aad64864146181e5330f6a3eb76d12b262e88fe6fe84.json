@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "probe": "FINAL_REVIEW_TRANSPORT",
+  "state": "RECONCILED",
+  "boundAt": "2026-09-10T13:45:25.247789+00:00",
+  "canonicalRequestId": "cdeed4abf8e0d22c9439aad64864146181e5330f6a3eb76d12b262e88fe6fe84",
+  "binding": {
+    "canonicalRequestId": "cdeed4abf8e0d22c9439aad64864146181e5330f6a3eb76d12b262e88fe6fe84",
+    "canonicalPayload": {
+      "repository": "cwa-fixture/sandbox",
+      "issueNumber": 999901,
+      "pullRequestNumber": 999902,
+      "headSha": "ed7fc026ecdd902d123e7fe6a0a1d718e61e334e",
+      "evidenceDigest": "386e4c4d02692bb3b67fbd8e7c52b3d03ad6b66ae49ad73b45730a0f8ab97486",
+      "verdict": "APPROVE"
+    }
+  },
+  "payloadText": "FINAL_REVIEW_VERDICT_V1 {\"evidenceDigest\":\"386e4c4d02692bb3b67fbd8e7c52b3d03ad6b66ae49ad73b45730a0f8ab97486\",\"headSha\":\"ed7fc026ecdd902d123e7fe6a0a1d718e61e334e\",\"issueNumber\":999901,\"pullRequestNumber\":999902,\"repository\":\"cwa-fixture/sandbox\",\"verdict\":\"APPROVE\"}",
+  "liveWriteCount": 1,
+  "writeAcknowledgedAt": "2026-09-10T13:46:57.740988+00:00",
+  "ack": {
+    "submission_id": "819b9540-e58e-4afb-a7ef-d1b737437722",
+    "transport": "browser-owned",
+    "conversation_id": "6aa2b4c7-437c-83ec-a7e9-8d90f5cf4bcb",
+    "turn_exchange_id": null,
+    "accepted_at_ms": 1789048017740,
+    "turn_lifecycle_id": "b50e86d1-c620-4938-949f-6c321962fc7e",
+    "write_may_have_committed": true,
+    "automatic_retry_allowed": false,
+    "canonical_finality_proven": false,
+    "provenance": {
+      "product_semantics": "ordinary-chatgpt",
+      "transport": "browser-owned",
+      "write_plane": "BROWSER_NATIVE_PAGE_OWNED_WRITE",
+      "evidence_source": "BROWSER_NATIVE_WRITE_COMPLETED",
+      "write_acknowledged": true,
+      "canonical_finality_proven": false,
+      "automatic_write_retry": false,
+      "fallback_transport": null
+    }
+  },
+  "conversationId": "6aa2b4c7-437c-83ec-a7e9-8d90f5cf4bcb",
+  "sseConversationIdentityAuthority": "REQUEST_BOUND_SSE_CONVERSATION_ID_CONSENSUS",
+  "sseConversationIdentityRecordCount": 6,
+  "sseConversationIdentityDistinctCount": 1,
+  "writeEvents": [
+    {
+      "type": "browser_native_turn_started",
+      "submission_id": "819b9540-e58e-4afb-a7ef-d1b737437722",
+      "is_continuation": false,
+      "canonical_status_before_turn": null,
+      "canonical_status_recovery_confirm": null,
+      "stale_ui_recovery_authorized": false,
+      "attachment_count": 0
+    },
+    {
+      "type": "browser_native_write_completed",
+      "submission_id": "819b9540-e58e-4afb-a7ef-d1b737437722",
+      "accepted_at_ms": 1789048017740,
+      "conversation_id": "6aa2b4c7-437c-83ec-a7e9-8d90f5cf4bcb",
+      "turn_exchange_id": null,
+      "status_code": 200,
+      "elapsed_ms": 77368,
+      "runtime_reloaded": false,
+      "runtime_reload_ms": null,
+      "runtime_tab_id": 743521781,
+      "runtime_tab_preexisting": false,
+      "runtime_tab_created_for_turn": true,
+      "tab_was_active_at_write_start": false,
+      "tab_active_after_write": false,
+      "tab_activated_during_turn": false,
+      "foreground_activation_observed": false,
+      "attachment_count": 0,
+      "revision_safe_stream_observation_count": 6,
+      "canonical_finality_proven": false,
+      "sse_conversation_identity_authority": "REQUEST_BOUND_SSE_CONVERSATION_ID_CONSENSUS",
+      "sse_conversation_identity_record_count": 6,
+      "sse_conversation_identity_distinct_count": 1,
+      "browser_authority_lease_id": "26551402-f1cb-438e-952c-864c73f58017",
+      "browser_authority_generation": 1,
+      "browser_authority_policy": "PERSISTENT",
+      "browser_authority_ttl_ms": null,
+      "browser_authority_issued_at_ms": 63945540,
+      "browser_authority_released_at_ms": null,
+      "browser_authority_disposal_due_at_ms": null,
+      "browser_authority_release_proven": false,
+      "browser_authority_disposal_action": "PENDING_CANONICAL_READBACK",
+      "turn_lifecycle_id": "b50e86d1-c620-4938-949f-6c321962fc7e",
+      "turn_lifecycle_state": "WRITE_COMPLETED"
+    }
+  ],
+  "reconciledAt": "2026-09-10T13:47:15.344228+00:00",
+  "canonicalReadAttempts": [
+    {
+      "attempt": 1,
+      "readAt": "2026-09-10T13:47:15.344044+00:00",
+      "status": {
+        "status": "completed",
+        "node_id": "f97f7b8b-d3cd-402d-9dc7-61536d8b177f",
+        "message_id": "f97f7b8b-d3cd-402d-9dc7-61536d8b177f",
+        "role": "assistant",
+        "recipient": "all",
+        "async_status": null,
+        "finish_reason": "stop",
+        "pending_approval": false,
+        "metadata_preview": {
+          "finish_details": {
+            "type": "stop",
+            "stop_tokens": [
+              200002
+            ]
+          },
+          "is_complete": true,
+          "model_slug": "gpt-5-6",
+          "message_status": "finished_successfully",
+          "end_turn": true
+        }
+      },
+      "messageCount": 2,
+      "matchingUserMessageCount": 1,
+      "assistantMessageId": "f97f7b8b-d3cd-402d-9dc7-61536d8b177f",
+      "assistantComplete": true
+    }
+  ],
+  "recoveredAssistantMessageId": "f97f7b8b-d3cd-402d-9dc7-61536d8b177f",
+  "recoveredUserMessageId": "d2213538-da70-4be9-8929-540c63367fda",
+  "result": {
+    "verdict": "APPROVE",
+    "finality": "FINAL",
+    "responseDigest": "cdeed4abf8e0d22c9439aad64864146181e5330f6a3eb76d12b262e88fe6fe84",
+    "reconciledAt": "2026-09-10T13:47:15.344228+00:00"
+  }
+}

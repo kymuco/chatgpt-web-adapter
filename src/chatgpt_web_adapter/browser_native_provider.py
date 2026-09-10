@@ -47,6 +47,9 @@ class BrowserNativeTurnResult:
     foreground_activation_observed: bool | None = None
     browser_authority_lease_id: str | None = None
     attachment_count: int = 0
+    sse_conversation_identity_authority: str | None = None
+    sse_conversation_identity_record_count: int | None = None
+    sse_conversation_identity_distinct_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -362,6 +365,31 @@ class BrowserNativeTurnProvider:
             if isinstance(response_lease_id, str)
             else None,
             attachment_count=attachment_count,
+            sse_conversation_identity_authority=response.get(
+                "sseConversationIdentityAuthority"
+            )
+            if isinstance(response.get("sseConversationIdentityAuthority"), str)
+            else None,
+            sse_conversation_identity_record_count=response.get(
+                "sseConversationIdentityRecordCount"
+            )
+            if isinstance(
+                response.get("sseConversationIdentityRecordCount"), int
+            )
+            and not isinstance(
+                response.get("sseConversationIdentityRecordCount"), bool
+            )
+            else None,
+            sse_conversation_identity_distinct_count=response.get(
+                "sseConversationIdentityDistinctCount"
+            )
+            if isinstance(
+                response.get("sseConversationIdentityDistinctCount"), int
+            )
+            and not isinstance(
+                response.get("sseConversationIdentityDistinctCount"), bool
+            )
+            else None,
         )
 
     def send_text(

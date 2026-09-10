@@ -425,6 +425,9 @@ def submit_browser_native(
         attachment_count=attachment_count,
         revision_safe_stream_observation_count=stream_state.observation_count,
         canonical_finality_proven=False,
+        sse_conversation_identity_authority=turn.sse_conversation_identity_authority,
+        sse_conversation_identity_record_count=turn.sse_conversation_identity_record_count,
+        sse_conversation_identity_distinct_count=turn.sse_conversation_identity_distinct_count,
     )
 
     return BrowserNativeSubmission(
