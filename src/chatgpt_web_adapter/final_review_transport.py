@@ -144,6 +144,63 @@ class FinalReviewResult:
         }
 
 
+class FinalReviewRequestResult:
+    """Verified review-REQUEST outcome: the recovered GPT reply is DATA for the
+    caller's own strict parsing; the transport owns identity/finality/binding."""
+
+    __slots__ = (
+        "canonical_request_id",
+        "conversation_id",
+        "submission_id",
+        "sse_conversation_identity_authority",
+        "reply_text",
+        "model_slug",
+        "finality",
+        "payload",
+        "reconciled_at",
+    )
+
+    def __init__(
+        self,
+        *,
+        canonical_request_id: str,
+        conversation_id: str,
+        submission_id: str,
+        sse_conversation_identity_authority: str | None,
+        reply_text: str,
+        model_slug: str | None,
+        finality: str,
+        payload: dict[str, Any],
+        reconciled_at: str,
+    ) -> None:
+        self.canonical_request_id = canonical_request_id
+        self.conversation_id = conversation_id
+        self.submission_id = submission_id
+        self.sse_conversation_identity_authority = (
+            sse_conversation_identity_authority
+        )
+        self.reply_text = reply_text
+        self.model_slug = model_slug
+        self.finality = finality
+        self.payload = payload
+        self.reconciled_at = reconciled_at
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "canonicalRequestId": self.canonical_request_id,
+            "conversationId": self.conversation_id,
+            "submissionId": self.submission_id,
+            "sseConversationIdentityAuthority": (
+                self.sse_conversation_identity_authority
+            ),
+            "replyText": self.reply_text,
+            "modelSlug": self.model_slug,
+            "finality": self.finality,
+            "payload": self.payload,
+            "reconciledAt": self.reconciled_at,
+        }
+
+
 class FinalReviewTransport(Protocol):
     """Replaceable final-review transport surface (no CWA-specific types)."""
 
@@ -250,23 +307,98 @@ class CwaFinalReviewTransport:
             known_request_ids=self._known_request_ids(),
         )
         canonical_request_id = binding["canonicalRequestId"]
-        payload = binding["canonicalPayload"]
         self._assert_no_active_submission(canonical_request_id)
+        journal = self._bound_journal(binding, mode="VERDICT")
+        journal["payloadText"] = _payload_text(binding["canonicalPayload"])
+        self._protected_write(journal)
+        return self._recover_from_ack(journal)
 
+    def submit_final_review_request(
+        self,
+        *,
+        prompt: str,
+        repository: str,
+        issue_number: int,
+        pull_request_number: int,
+        head_sha: str,
+        evidence_digest: str,
+        current_head_sha: str,
+    ) -> "FinalReviewRequestResult":
+        """Review-REQUEST mode: submit the caller's prompt as the protected
+        write, then recover the assistant REPLY (the GPT verdict payload) via
+        canonical reads. Binding/durability/identity/finality semantics are
+        identical to verdict-delivery mode; there is no verdict at bind time
+        (the canonical payload omits it)."""
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise FinalReviewTransportError(_transport_code("PROMPT_INVALID"))
+        if len(prompt) > 200_000:
+            raise FinalReviewTransportError(_transport_code("PROMPT_TOO_LARGE"))
+        try:
+            binding = bind_final_review_request(
+                repository,
+                issue_number,
+                pull_request_number,
+                head_sha,
+                evidence_digest,
+                expected_repository=self._expected_repository,
+                expected_issue_number=self._expected_issue_number,
+                expected_pull_request_number=self._expected_pull_request_number,
+                current_head_sha=current_head_sha,
+                known_request_ids=self._known_request_ids(),
+            )
+        except FinalReviewBindingError as error:
+            if str(error).rsplit(":", 1)[-1] != "REPLAY":
+                raise
+            # Same request identity already bound: continue from durable
+            # evidence with ZERO writes (idempotent re-entry).
+            payload = {
+                "repository": repository,
+                "issueNumber": issue_number,
+                "pullRequestNumber": pull_request_number,
+                "headSha": head_sha,
+                "evidenceDigest": evidence_digest,
+            }
+            canonical_request_id = canonical_request_identity(payload)
+            path = self._journal_path(canonical_request_id)
+            if not path.is_file():
+                raise
+            journal = json.loads(path.read_text(encoding="utf-8"))
+            if journal.get("state") == "RECONCILED":
+                return self._request_result_from_journal(journal)
+            if journal.get("state") == "WRITE_ACKNOWLEDGED":
+                return self._recover_request(journal)
+            raise
+        canonical_request_id = binding["canonicalRequestId"]
+        self._assert_no_active_submission(canonical_request_id)
+        journal = self._bound_journal(binding, mode="REQUEST")
+        journal["payloadText"] = prompt
+        self._protected_write(journal)
+        return self._recover_from_ack(journal)
+
+    def _bound_journal(self, binding: dict[str, Any], *, mode: str) -> dict[str, Any]:
         journal: dict[str, Any] = {
-            "schema": 1,
+            "schema": 2,
             "probe": "FINAL_REVIEW_TRANSPORT",
+            "mode": mode,
             "state": "BOUND",
             "boundAt": _utc_now(),
-            "canonicalRequestId": canonical_request_id,
+            "canonicalRequestId": binding["canonicalRequestId"],
             "binding": binding,
-            "payloadText": _payload_text(payload),
             "liveWriteCount": 0,
         }
         # Durable BEFORE external mutation: replay/duplicate rejection and
         # crash reconciliation both key off this file.
-        _persist(self._journal_path(canonical_request_id), journal)
+        _persist(self._journal_path(binding["canonicalRequestId"]), journal)
+        return journal
 
+    def _protected_write(self, journal: dict[str, Any]) -> None:
+        """Exactly one browser-owned write + durable identity-gated ACK.
+
+        The write MAY have committed even when this method raises: the durable
+        ACK + typed identity evidence are persisted BEFORE any fail-closed
+        gate, so reconciliation never loses the write evidence.
+        """
+        canonical_request_id = journal["canonicalRequestId"]
         runtime = self._runtime_factory()
         events: list[dict[str, Any]] = []
         try:
@@ -339,16 +471,17 @@ class CwaFinalReviewTransport:
             )
         # Durable ACK BEFORE any finality attempt.
         _persist(self._journal_path(canonical_request_id), journal)
-        return self._recover_from_ack(journal)
 
     def reconcile_final_review(
         self, canonical_request_id: str
-    ) -> FinalReviewResult:
+    ) -> "FinalReviewResult | FinalReviewRequestResult":
         path = self._journal_path(canonical_request_id)
         if not path.is_file():
             raise FinalReviewTransportError(_transport_code("UNKNOWN_REQUEST"))
         journal = json.loads(path.read_text(encoding="utf-8"))
         if journal.get("state") == "RECONCILED":
+            if journal.get("mode") == "REQUEST":
+                return self._request_result_from_journal(journal)
             stored = journal.get("result") or {}
             return FinalReviewResult(
                 canonical_request_id=journal["canonicalRequestId"],
@@ -372,7 +505,156 @@ class CwaFinalReviewTransport:
             )
         return self._recover_from_ack(journal)
 
-    def _recover_from_ack(self, journal: dict[str, Any]) -> FinalReviewResult:
+    def _recover_from_ack(
+        self, journal: dict[str, Any]
+    ) -> "FinalReviewResult | FinalReviewRequestResult":
+        if journal.get("mode") == "REQUEST":
+            return self._recover_request(journal)
+        return self._recover_verdict(journal)
+
+    def _recover_request(
+        self, journal: dict[str, Any]
+    ) -> "FinalReviewRequestResult":
+        canonical_request_id = journal["canonicalRequestId"]
+        conversation_id = journal["conversationId"]
+        evidence_digest = journal["binding"]["canonicalPayload"]["evidenceDigest"]
+        prompt = journal["payloadText"]
+        runtime = self._runtime_factory()
+        conversation = ConversationRef(conversation_id)
+
+        attempts: list[dict[str, Any]] = []
+        reply_text: str | None = None
+        recovered_message_id: str | None = None
+        recovered_user_message_id: str | None = None
+        model_slug: str | None = None
+        finality: str | None = None
+        for attempt in range(1, _READ_ATTEMPTS + 1):
+            if attempt > 1:
+                time.sleep(_READ_WAIT_S[attempt - 1])
+            else:
+                time.sleep(_READ_WAIT_S[0])
+            try:
+                status = runtime.get_status(conversation)
+                status_result = (
+                    status.to_dict() if hasattr(status, "to_dict") else status
+                )
+            except Exception as error:  # noqa: BLE001 - evidence boundary
+                status_result = {
+                    "errorType": type(error).__name__,
+                    "error": str(error),
+                }
+            try:
+                messages = runtime.get_messages(conversation)
+                items = [
+                    item.to_dict() if hasattr(item, "to_dict") else item
+                    for item in (messages if isinstance(messages, list) else [])
+                ]
+            except Exception as error:  # noqa: BLE001 - evidence boundary
+                items = []
+            matching_users = [
+                item
+                for item in items
+                if item.get("role") == "user" and item.get("text") == prompt
+            ]
+            if len(matching_users) > 1:
+                raise FinalReviewTransportError(
+                    _transport_code("DUPLICATE_COMMIT")
+                )
+            assistant_after = None
+            if matching_users:
+                user_index = items.index(matching_users[0])
+                assistant_after = next(
+                    (
+                        item
+                        for item in items[user_index + 1 :]
+                        if item.get("role") == "assistant"
+                    ),
+                    None,
+                )
+            assistant_complete = bool(
+                assistant_after
+                and assistant_after.get("finish_reason") == "stop"
+                and (assistant_after.get("metadata_preview") or {}).get(
+                    "is_complete"
+                )
+                is True
+            )
+            attempts.append(
+                {
+                    "attempt": attempt,
+                    "readAt": _utc_now(),
+                    "status": status_result,
+                    "messageCount": len(items),
+                    "matchingUserMessageCount": len(matching_users),
+                    "assistantMessageId": (assistant_after or {}).get("message_id"),
+                    "assistantComplete": assistant_complete,
+                }
+            )
+            if matching_users and assistant_complete:
+                # Exact request binding: the canonical read-back of the
+                # committed user message must hash to the bound evidence
+                # digest (the prompt bytes we bound before the write).
+                recovered_user_text = matching_users[0].get("text")
+                recovered_user_message_id = matching_users[0].get("message_id")
+                recovered_message_id = assistant_after.get("message_id")
+                text_value = assistant_after.get("text")
+                reply_text = text_value if isinstance(text_value, str) else None
+                model_value = (assistant_after.get("metadata_preview") or {}).get(
+                    "model_slug"
+                )
+                model_slug = model_value if isinstance(model_value, str) else None
+                if hashlib.sha256(
+                    recovered_user_text.encode("utf-8")
+                ).hexdigest() != evidence_digest:
+                    raise FinalReviewTransportError(
+                        _transport_code("RESPONSE_MISMATCH")
+                    )
+                finality = "FINAL"
+                break
+        if finality != "FINAL":
+            raise FinalReviewTransportError(_transport_code("FINALITY_AMBIGUOUS"))
+        if reply_text is None or not reply_text.strip():
+            # Unambiguous finality with an empty reply body is not a verdict;
+            # the journal stays WRITE_ACKNOWLEDGED so a later reconcile can
+            # re-read without any new write.
+            raise FinalReviewTransportError(_transport_code("REPLY_EMPTY"))
+        journal.update(
+            {
+                "state": "RECONCILED",
+                "reconciledAt": _utc_now(),
+                "canonicalReadAttempts": attempts,
+                "recoveredAssistantMessageId": recovered_message_id,
+                "recoveredUserMessageId": recovered_user_message_id,
+                "replyText": reply_text,
+                "replyModelSlug": model_slug,
+                "result": {
+                    "finality": finality,
+                    "replyText": reply_text,
+                    "replyModelSlug": model_slug,
+                },
+            }
+        )
+        _persist(self._journal_path(canonical_request_id), journal)
+        return self._request_result_from_journal(journal)
+
+    def _request_result_from_journal(
+        self, journal: dict[str, Any]
+    ) -> "FinalReviewRequestResult":
+        return FinalReviewRequestResult(
+            canonical_request_id=journal["canonicalRequestId"],
+            conversation_id=journal["conversationId"],
+            submission_id=journal["ack"]["submission_id"],
+            sse_conversation_identity_authority=journal.get(
+                "sseConversationIdentityAuthority"
+            ),
+            reply_text=journal["replyText"],
+            model_slug=journal.get("replyModelSlug"),
+            finality="FINAL",
+            payload=journal["binding"]["canonicalPayload"],
+            reconciled_at=journal.get("reconciledAt", ""),
+        )
+
+    def _recover_verdict(self, journal: dict[str, Any]) -> FinalReviewResult:
         canonical_request_id = journal["canonicalRequestId"]
         conversation_id = journal["conversationId"]
         payload = journal["binding"]["canonicalPayload"]
@@ -518,6 +800,7 @@ __all__ = [
     "FINAL_REVIEW_PAYLOAD_PREFIX",
     "CwaFinalReviewTransport",
     "FinalReviewRequest",
+    "FinalReviewRequestResult",
     "FinalReviewResult",
     "FinalReviewTransport",
     "FinalReviewTransportError",

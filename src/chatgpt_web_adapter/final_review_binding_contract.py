@@ -22,6 +22,9 @@ FINAL_REVIEW_VERDICTS = frozenset({"APPROVE", "REQUEST_CHANGES", "BLOCK"})
 FINAL_REVIEW_FINALITY_STATES = frozenset({"FINAL"})
 _ERROR_PREFIX = "FINAL_REVIEW_BINDING_REJECTED"
 _HEX_DIGITS = frozenset("0123456789abcdef")
+# Sentinel for review-REQUEST bindings (no verdict exists yet at bind time);
+# the canonical payload simply omits the verdict field.
+_NO_VERDICT = object()
 
 
 class FinalReviewBindingError(Exception):
@@ -60,7 +63,7 @@ def bind_final_review_request(
     pull_request_number: Any,
     head_sha: Any,
     evidence_digest: Any,
-    verdict: Any,
+    verdict: Any = _NO_VERDICT,
     *,
     expected_repository: str,
     expected_issue_number: int,
@@ -70,6 +73,8 @@ def bind_final_review_request(
 ) -> dict[str, Any]:
     """Validate + bind one final-review request; returns the binding evidence.
 
+    ``verdict`` may be omitted for review-REQUEST bindings (the verdict only
+    exists after the reply); the canonical payload then has no verdict field.
     Fail-closed order: field shape -> target mismatch -> stale headSha ->
     malformed verdict -> replay.
     """
@@ -91,7 +96,7 @@ def bind_final_review_request(
     ):
         raise FinalReviewBindingError(_code("HEAD_SHA_STALE"))
 
-    if verdict not in FINAL_REVIEW_VERDICTS:
+    if verdict is not _NO_VERDICT and verdict not in FINAL_REVIEW_VERDICTS:
         raise FinalReviewBindingError(_code("VERDICT_MALFORMED"))
 
     payload = {
@@ -100,8 +105,9 @@ def bind_final_review_request(
         "pullRequestNumber": pull_request_number,
         "headSha": head_sha,
         "evidenceDigest": evidence_digest,
-        "verdict": verdict,
     }
+    if verdict is not _NO_VERDICT:
+        payload["verdict"] = verdict
     canonical_request_id = canonical_request_identity(payload)
     if canonical_request_id in known_request_ids:
         raise FinalReviewBindingError(_code("REPLAY"))
