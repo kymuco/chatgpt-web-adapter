@@ -192,6 +192,33 @@ def test_request_mode_ambiguous_finality_fails_closed(tmp_path) -> None:
     assert _code(exc.value) == "FINALITY_AMBIGUOUS"
 
 
+class ComposerNbspRuntime(FakeRuntime):
+    def get_messages(self, conversation):
+        live = self.submitted_text.replace("  ", "\u00a0 ")  # composer fold
+        items = [
+            FakeMessage(role="user", text=live, message_id="u-1"),
+            FakeMessage(
+                role="assistant", message_id="a-1",
+                finish_reason="stop" if self.assistant_complete else None,
+                metadata_preview={
+                    "is_complete": self.assistant_complete,
+                    "model_slug": "gpt-5-6",
+                },
+                text=self.reply_text,
+            ),
+        ]
+        return items
+
+
+def test_request_mode_composer_fold_still_reconciles(tmp_path) -> None:
+    runtime = ComposerNbspRuntime()
+    transport = _transport(runtime, tmp_path)
+    result = transport.submit_final_review_request(**_submit_kwargs())
+    assert result.finality == "FINAL"
+    assert result.reply_text == '{"verdict":"PASS","binding":{}}'
+    assert runtime.submit_calls == 1
+
+
 def test_request_mode_reasoning_summary_before_reply(tmp_path) -> None:
     # The product may stream a reasoning-summary assistant message (no
     # finish) BEFORE the final answer; the LAST assistant after the user

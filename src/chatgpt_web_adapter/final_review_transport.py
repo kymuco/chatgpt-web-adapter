@@ -240,6 +240,19 @@ def _parse_payload_text(text: str) -> dict[str, Any]:
     return payload
 
 
+def _normalize_product_text(text: str) -> str:
+    """Composer-owned whitespace normalization: the product editor turns
+    regular spaces into non-breaking spaces (and may use CRLF). Equality and
+    digest checks run on this canonical form — exact binding modulo
+    product-owned normalization, never a content rewrite."""
+    return (
+        str(text)
+        .replace("\u00a0", " ")
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+    )
+
+
 def _persist(path: Path, data: dict[str, Any]) -> None:
     tmp = path.with_suffix(".tmp")
     raw = json.dumps(data, ensure_ascii=False, indent=2, default=str)
@@ -554,7 +567,7 @@ class CwaFinalReviewTransport:
             matching_users = [
                 item
                 for item in items
-                if item.get("role") == "user" and item.get("text") == prompt
+                if item.get("role") == "user" and _normalize_product_text(item.get("text")) == _normalize_product_text(prompt)
             ]
             if len(matching_users) > 1:
                 raise FinalReviewTransportError(
@@ -594,13 +607,14 @@ class CwaFinalReviewTransport:
                 }
             )
             if matching_users and assistant_complete:
-                # Exact request binding: the canonical read-back of the
-                # committed user message must hash to the bound evidence
-                # digest (the prompt bytes bound before the write).
-                recovered_user_text = matching_users[0].get("text")
-                if hashlib.sha256(
-                    recovered_user_text.encode("utf-8")
-                ).hexdigest() != evidence_digest:
+                # Exact request binding modulo product-owned whitespace
+                # normalization: the canonical read-back of the committed
+                # user message must equal the durable prompt text on the
+                # normalized form (nbsp/CRLF folds), else fail closed.
+                recovered_user_text = _normalize_product_text(
+                    matching_users[0].get("text")
+                )
+                if recovered_user_text != _normalize_product_text(prompt):
                     raise FinalReviewTransportError(
                         _transport_code("RESPONSE_MISMATCH")
                     )
@@ -701,7 +715,7 @@ class CwaFinalReviewTransport:
                 item
                 for item in items
                 if item.get("role") == "user"
-                and item.get("text") == journal["payloadText"]
+                and _normalize_product_text(item.get("text")) == _normalize_product_text(journal["payloadText"])
             ]
             if len(matching_users) > 1:
                 raise FinalReviewTransportError(
@@ -743,9 +757,9 @@ class CwaFinalReviewTransport:
             if matching_users and assistant_complete:
                 # Strict parse of the CANONICAL read-back text (not our
                 # journal copy): the committed payload must parse to the
-                # bound payload byte-for-byte.
+                # bound payload byte-for-byte (product whitespace folded).
                 recovered_payload = _parse_payload_text(
-                    matching_users[0].get("text")
+                    _normalize_product_text(matching_users[0].get("text"))
                 )
                 recovered_message_id = assistant_after.get("message_id")
                 recovered_user_message_id = matching_users[0].get("message_id")
