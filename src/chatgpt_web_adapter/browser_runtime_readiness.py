@@ -51,25 +51,36 @@ def read_sentinel(
     if not storage.is_dir():
         return None
     newest: dict[str, Any] | None = None
-    for log in sorted(storage.glob("*.log")):
+    for log in sorted(storage.glob("*.log")) + sorted(storage.glob("*.ldb")):
+        data = None
         try:
             data = log.read_bytes()
         except OSError:
-            # Chrome holds the log open; share-read like the LevelDB reader.
+            # Chrome holds LevelDB files open; os.open uses share-deny-none.
             try:
-                with open(log, "rb") as handle:
-                    data = handle.read()
+                import os as _os
+
+                fd = _os.open(str(log), _os.O_RDONLY | _os.O_BINARY)
+                try:
+                    data = _os.read(fd, 1 << 30)
+                finally:
+                    _os.close(fd)
             except OSError:
                 continue
+        if not data:
+            continue
         text = data.decode("latin-1", errors="replace")
         for match in re.finditer(re.escape(key), text):
             window = text[match.end() : match.end() + 400]
-            at = re.search(r"(?:loadedAtMs|at)[\"\\:. ]{0,8}(\d{13})", window)
+            at = re.search(
+                r"(?:loadedAtMs|at)[\"\\:. ]{0,8}(\d+(?:\.\d+)?(?:e[+-]?\d+)?)",
+                window,
+            )
             if not at:
                 continue
             bundle = re.search(r"bundle[\"\\:. ]{0,8}([A-Za-z0-9._-]{1,64})", window)
             record = {
-                "loadedAtMs": int(at.group(1)),
+                "loadedAtMs": int(float(at.group(1))),
                 "bundle": bundle.group(1) if bundle else None,
             }
             if newest is None or record["loadedAtMs"] >= newest["loadedAtMs"]:

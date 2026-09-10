@@ -298,6 +298,22 @@ def test_readiness_bundle_mismatch_not_ready(tmp_path, monkeypatch) -> None:
     assert "CWA_BUNDLE_MISMATCH" in report["reasons"]
 
 
+def test_readiness_scientific_notation_loaded_at(tmp_path, monkeypatch) -> None:
+    # Chrome serializes the sentinel number in float form
+    # (1.789047601424e+12); the parser must not drop the record.
+    monkeypatch.setattr(readiness, "bridge_connected", lambda: True)
+    ms = readiness.newest_source_mtime_ms() + 5_000
+    record = (
+        f'{readiness.SSE_SENTINEL_KEY}\x00{{"bundle":"worktree-cwa-main-test","loadedAtMs":{float(ms):.12e},"schema":1}}'
+    ).encode("latin-1")
+    user_data = _write_leveldb_log(tmp_path, record)
+    report = readiness.check_readiness(
+        user_data=str(user_data), profile="Profile 1", extension_id="kjfnkhajljnkbhikmfijcchenlfglaie"
+    )
+    assert report["ready"] is True
+    assert abs(report["sentinel"]["loadedAtMs"] - ms) <= 1
+
+
 def test_readiness_repair_requires_stale_proof(tmp_path, monkeypatch) -> None:
     killed = []
     monkeypatch.setattr(readiness, "_stale_chrome_processes", lambda user_data: killed.append(user_data) or [123])
