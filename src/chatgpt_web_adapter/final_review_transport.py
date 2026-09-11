@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import os
 import time
 from datetime import datetime, timezone
@@ -241,16 +242,15 @@ def _parse_payload_text(text: str) -> dict[str, Any]:
 
 
 def _normalize_product_text(text: str) -> str:
-    """Composer-owned whitespace normalization: the product editor turns
-    regular spaces into non-breaking spaces (and may use CRLF). Equality and
+    """Composer-owned text normalization: the product editor turns regular
+    spaces into non-breaking spaces, may use CRLF, and MARKDOWN-ESCAPES
+    special characters on the round-trip (observed live: ``_`` -> ``\\_`` for
+    every identifier underscore in a 67 KB review prompt). Equality and
     digest checks run on this canonical form — exact binding modulo
     product-owned normalization, never a content rewrite."""
-    return (
-        str(text)
-        .replace("\u00a0", " ")
-        .replace("\r\n", "\n")
-        .replace("\r", "\n")
-    )
+    text = str(text).replace("\u00a0", " ").replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"\\([_*`\[\]~])", r"\1", text)
+    return text
 
 
 def _persist(path: Path, data: dict[str, Any]) -> None:

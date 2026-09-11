@@ -219,6 +219,37 @@ def test_request_mode_composer_fold_still_reconciles(tmp_path) -> None:
     assert runtime.submit_calls == 1
 
 
+def test_request_mode_composer_markdown_escapes(tmp_path) -> None:
+    # The composer markdown-escapes special characters on the round-trip
+    # (observed live: every ``_`` became ``\_`` in a 67 KB review prompt).
+    # The normalized comparison must still bind the request exactly.
+    class MarkdownEscapeRuntime(FakeRuntime):
+        def get_messages(self, conversation):
+            live = (
+                self.submitted_text.replace("_", "\\_")
+                .replace("*", "\\*")
+                .replace("[", "\\[")
+                .replace("]", "\\]")
+            )
+            return [
+                FakeMessage(role="user", text=live, message_id="u-1"),
+                FakeMessage(
+                    role="assistant", message_id="a-1",
+                    finish_reason="stop",
+                    metadata_preview={"is_complete": True, "model_slug": "gpt-5-6"},
+                    text=self.reply_text,
+                ),
+            ]
+
+    runtime = MarkdownEscapeRuntime()
+    result = _transport(runtime, tmp_path).submit_final_review_request(
+        **_submit_kwargs()
+    )
+    assert result.finality == "FINAL"
+    assert result.reply_text == '{"verdict":"PASS","binding":{}}'
+    assert runtime.submit_calls == 1
+
+
 def test_request_mode_reasoning_summary_before_reply(tmp_path) -> None:
     # The product may stream a reasoning-summary assistant message (no
     # finish) BEFORE the final answer; the LAST assistant after the user
