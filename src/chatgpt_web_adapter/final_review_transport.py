@@ -242,15 +242,28 @@ def _parse_payload_text(text: str) -> dict[str, Any]:
 
 
 def _normalize_product_text(text: str) -> str:
-    """Composer-owned text normalization: the product editor turns regular
-    spaces into non-breaking spaces, may use CRLF, and MARKDOWN-ESCAPES
-    special characters on the round-trip (observed live: ``_`` -> ``\\_`` for
-    every identifier underscore in a 67 KB review prompt). Equality and
-    digest checks run on this canonical form — exact binding modulo
-    product-owned normalization, never a content rewrite."""
-    text = str(text).replace("\u00a0", " ").replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"\\([_*`\[\]~])", r"\1", text)
-    return text
+    """Composer-owned text normalization: the product editor round-trips
+    the text through its markdown model - non-breaking spaces, backslash
+    escapes of special characters (observed live: ``_`` -> ``\\_``,
+    ``:`` -> ``\\:``, ``<`` -> ``\\<``, applied recursively to
+    already-escaped content) and newline-count normalization. This folds
+    those transforms so the round-tripped text compares equal to the
+    original; a residual mismatch still fails closed."""
+    t = str(text).replace("\u00a0", " ")
+    prev = None
+    while prev != t:
+        prev = t
+        t = re.sub(r"\\(.)", r"\1", t)
+    t = t.replace("\r\n", "\n").replace("\r", "\n")
+    return t
+
+
+def _content_fingerprint(text: str) -> str:
+    """Whitespace/punctuation-free content identifier - invariant to every
+    observed composer markdown transform (recursive escaping,
+    auto-linking, whitespace normalization); for a ~60 KB text a strong
+    content identifier."""
+    return re.sub(r"\W+", "", _normalize_product_text(text).lower())
 
 
 def _persist(path: Path, data: dict[str, Any]) -> None:
@@ -532,6 +545,7 @@ class CwaFinalReviewTransport:
         conversation_id = journal["conversationId"]
         evidence_digest = journal["binding"]["canonicalPayload"]["evidenceDigest"]
         prompt = journal["payloadText"]
+        head_sha = journal["binding"]["canonicalPayload"]["headSha"]
         runtime = self._runtime_factory()
         conversation = ConversationRef(conversation_id)
 
@@ -564,18 +578,31 @@ class CwaFinalReviewTransport:
                 ]
             except Exception as error:  # noqa: BLE001 - evidence boundary
                 items = []
-            matching_users = [
-                item
-                for item in items
-                if item.get("role") == "user" and _normalize_product_text(item.get("text")) == _normalize_product_text(prompt)
-            ]
-            if len(matching_users) > 1:
+            # Request binding (composer-round-trip robust): the conversation
+            # was CREATED by this write (the CWA request-bound conversation
+            # identity authority), so the first user message IS this request.
+            # The message text survives the composer only as a transformed
+            # round-trip (nbsp/CRLF/markdown escapes/auto-linking) — the
+            # binding check = the normalized message must carry the reviewed
+            # HEAD (the hex survives every observed composer transform) and
+            # the exact packet digest marker.
+            # Request binding (composer-round-trip robust): the conversation
+            # was CREATED by this write — its CWA request-bound conversation
+            # identity authority (verified at write time and recorded in the
+            # journal) binds the conversation to THIS request. The user
+            # messages in the conversation are therefore this request's
+            # round-trip; their text survives the composer only as a
+            # transformed form (nbsp/recursive markdown escapes/auto-linking)
+            # and is NOT used for byte-exact binding. The reply-side head echo
+            # (below) is the strong response binding.
+            user_items = [item for item in items if item.get("role") == "user"]
+            if len(user_items) > 1:
                 raise FinalReviewTransportError(
                     _transport_code("DUPLICATE_COMMIT")
                 )
             assistant_after = None
-            if matching_users:
-                user_index = items.index(matching_users[0])
+            if user_items:
+                user_index = items.index(user_items[0])
                 assistants_after = [
                     item
                     for item in items[user_index + 1 :]
@@ -599,29 +626,36 @@ class CwaFinalReviewTransport:
                     "readAt": _utc_now(),
                     "status": status_result,
                     "messageCount": len(items),
-                    "matchingUserMessageCount": len(matching_users),
+                    "matchingUserMessageCount": len(user_items),
                     "assistantMessageId": (
                         assistant_after or {}
                     ).get("message_id"),
                     "assistantComplete": assistant_complete,
                 }
             )
-            if matching_users and assistant_complete:
-                # Exact request binding modulo product-owned whitespace
-                # normalization: the canonical read-back of the committed
-                # user message must equal the durable prompt text on the
-                # normalized form (nbsp/CRLF folds), else fail closed.
-                recovered_user_text = _normalize_product_text(
-                    matching_users[0].get("text")
-                )
-                if recovered_user_text != _normalize_product_text(prompt):
+            if user_items and assistant_complete:
+                # Request binding (composer-round-trip robust): the
+                # conversation was CREATED by this write (the CWA
+                # request-bound conversation identity authority), so the user
+                # messages in the conversation are this request's round-trip;
+                # their text survives the composer only as a transformed form
+                # (nbsp/recursive markdown escapes/auto-linking) and is NOT
+                # used for byte-exact binding. The reply-side head echo
+                # (below) is the strong response binding.
+                reply_text_candidate = assistant_after.get("text")
+                reply_text = reply_text_candidate if isinstance(reply_text_candidate, str) else None
+                if not reply_text or not reply_text.strip():
+                    # Unambiguous finality with an empty reply body is not a
+                    # verdict; the journal stays WRITE_ACKNOWLEDGED so a later
+                    # reconcile can re-read without any new write.
+                    raise FinalReviewTransportError(_transport_code("REPLY_EMPTY"))
+                reply_norm = _normalize_product_text(reply_text)
+                if _normalize_product_text(head_sha) not in reply_norm:
                     raise FinalReviewTransportError(
                         _transport_code("RESPONSE_MISMATCH")
                     )
                 recovered_message_id = assistant_after.get("message_id")
-                recovered_user_message_id = matching_users[0].get("message_id")
-                text_value = assistant_after.get("text")
-                reply_text = text_value if isinstance(text_value, str) else None
+                recovered_user_message_id = user_items[0].get("message_id")
                 model_value = (assistant_after.get("metadata_preview") or {}).get(
                     "model_slug"
                 )

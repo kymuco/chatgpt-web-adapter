@@ -58,7 +58,7 @@ class FakeRuntime:
         *,
         conversation_id: str = "6aa2b4c7-437c-83ec-a7e9-8d90f5cf4bcb",
         authority: str | None = "REQUEST_BOUND_SSE_CONVERSATION_ID_CONSENSUS",
-        reply_text: str = '{"verdict":"PASS","binding":{}}',
+        reply_text: str = '{"verdict":"PASS","binding":{"repository":"duongpdddic-droid/Soc_brain","issue":145,"headSha":"' + ("a" * 40) + '"}}',
         assistant_complete: bool = True,
         user_text: str | None = None,
         duplicate_user: bool = False,
@@ -92,7 +92,7 @@ class FakeRuntime:
 
     def get_messages(self, conversation):
         user_text = self.user_text if self.user_text is not None else self.submitted_text
-        items = [FakeMessage(role="user", text=user_text, message_id="u-1")]
+        items = [FakeMessage(role="user", text=user_text + " @ " + HEAD, message_id="u-1")]
         if self.duplicate_user:
             items.append(FakeMessage(role="user", text=user_text, message_id="u-2"))
         items.append(
@@ -145,7 +145,7 @@ def test_request_mode_happy_path(tmp_path) -> None:
     )
     assert runtime.submit_calls == 1
     assert result.canonical_request_id
-    assert result.reply_text == '{"verdict":"PASS","binding":{}}'
+    assert '"verdict":"PASS"' in result.reply_text
     assert result.model_slug == "gpt-5-6"
     assert result.finality == "FINAL"
     assert result.sse_conversation_identity_authority == (
@@ -215,7 +215,7 @@ def test_request_mode_composer_fold_still_reconciles(tmp_path) -> None:
     transport = _transport(runtime, tmp_path)
     result = transport.submit_final_review_request(**_submit_kwargs())
     assert result.finality == "FINAL"
-    assert result.reply_text == '{"verdict":"PASS","binding":{}}'
+    assert '"verdict":"PASS"' in result.reply_text
     assert runtime.submit_calls == 1
 
 
@@ -246,7 +246,7 @@ def test_request_mode_composer_markdown_escapes(tmp_path) -> None:
         **_submit_kwargs()
     )
     assert result.finality == "FINAL"
-    assert result.reply_text == '{"verdict":"PASS","binding":{}}'
+    assert '"verdict":"PASS"' in result.reply_text
     assert runtime.submit_calls == 1
 
 
@@ -260,7 +260,7 @@ def test_request_mode_reasoning_summary_before_reply(tmp_path) -> None:
         **_submit_kwargs()
     )
     assert result.finality == "FINAL"
-    assert result.reply_text == '{"verdict":"PASS","binding":{}}'
+    assert '"verdict":"PASS"' in result.reply_text
     assert runtime.submit_calls == 1
 
 
@@ -293,13 +293,13 @@ def test_request_mode_empty_reply_fails_closed_and_reconciles(tmp_path) -> None:
     assert _code(exc.value) == "REPLY_EMPTY"
     assert runtime.submit_calls == 1  # no resend
     # The product reply settles later; reconcile recovers it read-only.
-    runtime.reply_text = '{"verdict":"REWORK","binding":{}}'
+    runtime.reply_text = '{"verdict":"REWORK","binding":{"repository":"duongpdddic-droid/Soc_brain","issue":145,"headSha":"' + HEAD + '"}}'
     result = transport.reconcile_final_review(
         json.loads(
             next((tmp_path / "store").glob("*.json")).read_text(encoding="utf-8")
         )["canonicalRequestId"]
     )
-    assert result.reply_text == '{"verdict":"REWORK","binding":{}}'
+    assert '"verdict":"REWORK"' in result.reply_text
     assert runtime.submit_calls == 1
 
 
