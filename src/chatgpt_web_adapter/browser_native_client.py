@@ -403,6 +403,20 @@ def submit_browser_native(
     else:
         attachment_count = 0
 
+    # Issue #169: the DELEGATION_ACCEPTED phase (command crossed into the
+    # browser plane) is surfaced to observers BEFORE the write-completed
+    # frame, so a durable journal can record delegation even when the final
+    # response is later lost. It is not write or response finality.
+    if bool(getattr(turn, "delegation_accepted", False)):
+        self._emit_event(
+            on_event,
+            "browser_native_delegation_accepted",
+            submission_id=submission_id,
+            acceptedAtMs=getattr(turn, "delegation_accepted_at_ms", None),
+            canonical_finality_proven=False,
+            write_confirmed=False,
+        )
+
     accepted_at_ms = int(time.time() * 1000)
     self._emit_event(
         on_event,

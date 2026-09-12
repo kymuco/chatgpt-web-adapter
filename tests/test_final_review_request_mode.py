@@ -157,7 +157,7 @@ def test_request_mode_happy_path(tmp_path) -> None:
             encoding="utf-8"
         )
     )
-    assert journal["state"] == "RECONCILED"
+    assert journal["state"] == "RESPONSE_CONFIRMED"
     assert journal["mode"] == "REQUEST"
     assert journal["liveWriteCount"] == 1
 

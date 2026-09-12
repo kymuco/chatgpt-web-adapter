@@ -164,7 +164,7 @@ def test_exact_binding_happy_path(tmp_path) -> None:
             encoding="utf-8"
         )
     )
-    assert journal["state"] == "RECONCILED"
+    assert journal["state"] == "RESPONSE_CONFIRMED"
     assert journal["liveWriteCount"] == 1
     assert (
         journal["sseConversationIdentityAuthority"] == AUTHORITY
@@ -233,15 +233,17 @@ def test_malformed_verdict_fails_closed(tmp_path) -> None:
     assert runtime.submit_calls == 0
 
 
-def test_replay_fails_closed(tmp_path) -> None:
+def test_replay_continues_idempotently(tmp_path) -> None:
+    # Issue #169: a replay of the SAME immutable identity never re-issues the
+    # write: the terminal journal replays the stored result with zero writes.
     runtime = FakeRuntime()
     transport = _transport(runtime, tmp_path)
     result = transport.submit_final_review(_request())
     assert runtime.submit_calls == 1
-    with pytest.raises(FinalReviewBindingError) as exc:
-        transport.submit_final_review(_request())
-    assert _code(exc.value) == "REPLAY"
+    replay = transport.submit_final_review(_request())
     assert runtime.submit_calls == 1  # second bind never reached the write
+    assert replay.canonical_request_id == result.canonical_request_id
+    assert replay.verdict == VERDICT
 
 
 def test_duplicate_submission_impossible(tmp_path) -> None:
@@ -270,7 +272,8 @@ def test_ambiguous_finality_fails_closed(tmp_path) -> None:
     assert _code(exc.value) == "FINALITY_AMBIGUOUS"
     journal_files = list((tmp_path / "store").glob("*.json"))
     journal = json.loads(journal_files[0].read_text(encoding="utf-8"))
-    assert journal["state"] == "WRITE_ACKNOWLEDGED"
+    # RESPONSE_WAIT is re-enterable by reconcile: reads again, NEVER rewrites.
+    assert journal["state"] == "RESPONSE_WAIT"
 
 
 def test_response_mismatch_fails_closed(tmp_path) -> None:
@@ -346,7 +349,7 @@ def test_restart_reconciliation_zero_resend(tmp_path) -> None:
     assert result.payload["headSha"] == HEAD
 
 
-def test_reconcile_requires_ack_fails_closed(tmp_path) -> None:
+def test_reconcile_prepared_requires_ack_fails_closed(tmp_path) -> None:
     from chatgpt_web_adapter.final_review_binding_contract import (
         bind_final_review_request,
     )
@@ -360,8 +363,10 @@ def test_reconcile_requires_ack_fails_closed(tmp_path) -> None:
     )
     (tmp_path / "store").mkdir(parents=True, exist_ok=True)
     journal = {
-        "schema": 1,
-        "state": "BOUND",
+        "schema": 3,
+        "stateMachineVersion": 3,
+        "mode": "VERDICT",
+        "state": "PREPARED",
         "canonicalRequestId": bound["canonicalRequestId"],
         "binding": bound,
         "payloadText": frt._payload_text(bound["canonicalPayload"]),
@@ -376,6 +381,7 @@ def test_reconcile_requires_ack_fails_closed(tmp_path) -> None:
         transport.reconcile_final_review(bound["canonicalRequestId"])
     assert _code(exc.value) == "RECONCILIATION_REQUIRES_ACK"
     assert runtime.submit_calls == 0
+
 
 
 def test_malformed_payload_text_fails_closed() -> None:

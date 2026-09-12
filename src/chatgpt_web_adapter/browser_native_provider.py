@@ -50,6 +50,12 @@ class BrowserNativeTurnResult:
     sse_conversation_identity_authority: str | None = None
     sse_conversation_identity_record_count: int | None = None
     sse_conversation_identity_distinct_count: int | None = None
+    # Issue #169 layered bridge ACK: DELEGATION_ACCEPTED is the durable moment
+    # the command crossed into the browser plane (host wrote it to the Native
+    # Messaging pipe). It is a strictly weaker signal than WRITE_CONFIRMED and
+    # NEVER finality: a lost bridge response after delegation must reconcile.
+    delegation_accepted: bool = False
+    delegation_accepted_at_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -282,6 +288,27 @@ class BrowserNativeTurnProvider:
             raise ValueError("timeout must be positive")
         request_id = str(uuid.uuid4())
         authority_lease_id = self._current_browser_authority_lease_id()
+        # Issue #169: DELEGATION_ACCEPTED is captured as its own phase signal,
+        # independent of the streamed text callback and independent of the
+        # final turn result. It records that the command crossed into the
+        # browser plane; it never carries write or response finality.
+        delegation_state: dict[str, Any] = {"accepted": False, "atMs": None}
+
+        def _phase_observer(event: dict[str, Any]) -> None:
+            if (
+                isinstance(event, dict)
+                and event.get("type") == "browser_native_delegation_accepted"
+            ):
+                delegation_state["accepted"] = True
+                accepted_at = event.get("acceptedAtMs")
+                if isinstance(accepted_at, int) and not isinstance(
+                    accepted_at, bool
+                ):
+                    delegation_state["atMs"] = accepted_at
+                return
+            if on_text_event is not None:
+                on_text_event(event)
+
         response = self._rpc(
             {
                 "type": "turn",
@@ -294,9 +321,10 @@ class BrowserNativeTurnProvider:
                 "canonicalCompletedAtMs": canonical_completed_at_ms,
                 "browserAuthorityLeaseId": authority_lease_id,
                 "streamTextObservations": on_text_event is not None,
+                "phases": True,
             },
             timeout=total_timeout + self.connect_timeout,
-            on_event=on_text_event,
+            on_event=_phase_observer,
         )
         if response.get("request_id") != request_id:
             raise RequestError(
@@ -390,6 +418,8 @@ class BrowserNativeTurnProvider:
                 response.get("sseConversationIdentityDistinctCount"), bool
             )
             else None,
+            delegation_accepted=bool(delegation_state["accepted"]),
+            delegation_accepted_at_ms=delegation_state["atMs"],
         )
 
     def send_text(

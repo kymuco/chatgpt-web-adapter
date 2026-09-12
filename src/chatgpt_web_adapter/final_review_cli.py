@@ -3,11 +3,16 @@
 Subcommands (JSON on stdout, stable exit codes: 0 ok, 4 fail-closed):
 
 - ``submit``: bind + one protected write + canonical recovery of the GPT
-  reply. Idempotent per canonical request identity: an existing terminal
-  journal returns the stored result with zero writes; a WRITE_ACKNOWLEDGED
-  journal continues via reconcile (never a resend); only a fresh identity
-  binds and writes.
+  reply. Idempotent per IMMUTABLE canonical request identity (Issue #169):
+  the transaction state machine decides the continuation - terminal journals
+  replay, delegated-but-unconfirmed journals RECONCILE FIRST, and only a
+  persisted NO_WRITE_PROVEN negative proof opens the single legal retry
+  edge. Only a fresh identity binds and writes.
 - ``reconcile``: read-only recovery from the durable journal.
+
+Failure envelopes carry the durable gate fields ``state`` / ``safeToRetry`` /
+``reconcileRequired`` so no caller can mistake UNKNOWN or AMBIGUOUS finality
+for a retryable failure.
 
 The prompt travels via ``--prompt-file`` (size + shell safety); the journal
 stores it verbatim as the committed request text (sanitized by construction:
@@ -50,7 +55,15 @@ def _emit(payload: dict, code: int) -> int:
 def _failure(error: Exception) -> tuple[dict, int]:
     message = str(error)
     reason = message.rsplit(":", 1)[-1] if ":" in message else message
-    return {"ok": False, "code": reason, "detail": message}, 4
+    payload = {"ok": False, "code": reason, "detail": message}
+    state = getattr(error, "journal_state", None)
+    if isinstance(state, str):
+        payload["state"] = state
+        payload["safeToRetry"] = bool(getattr(error, "safe_to_retry", False))
+        payload["reconcileRequired"] = bool(
+            getattr(error, "reconcile_required", False)
+        )
+    return payload, 4
 
 
 def cmd_submit(args: argparse.Namespace) -> int:
@@ -58,37 +71,17 @@ def cmd_submit(args: argparse.Namespace) -> int:
     evidence_digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
     transport = _transport(args)
     try:
-        try:
-            result = transport.submit_final_review_request(
-                prompt=prompt,
-                repository=args.repo,
-                issue_number=args.issue,
-                pull_request_number=args.pr,
-                head_sha=args.head_sha,
-                evidence_digest=evidence_digest,
-                current_head_sha=args.current_head_sha,
-            )
-        except (FinalReviewTransportError, FinalReviewBindingError) as error:
-            message = str(error)
-            if message.rsplit(":", 1)[-1] != "REPLAY":
-                raise
-            # Same identity already bound: continue from durable evidence
-            # (terminal journal -> stored result; acknowledged -> reconcile).
-            digest = hashlib.sha256(
-                json.dumps(
-                    {
-                        "repository": args.repo,
-                        "issueNumber": args.issue,
-                        "pullRequestNumber": args.pr,
-                        "headSha": args.head_sha,
-                        "evidenceDigest": evidence_digest,
-                    },
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    ensure_ascii=False,
-                ).encode("utf-8")
-            ).hexdigest()
-            result = transport.reconcile_final_review(digest)
+        result = transport.submit_final_review_request(
+            prompt=prompt,
+            repository=args.repo,
+            issue_number=args.issue,
+            pull_request_number=args.pr,
+            head_sha=args.head_sha,
+            evidence_digest=evidence_digest,
+            current_head_sha=args.current_head_sha,
+            review_attempt_id=args.review_attempt_id,
+            expected_conversation_id=args.conversation_id,
+        )
     except (FinalReviewTransportError, FinalReviewBindingError) as error:
         payload, code = _failure(error)
         return _emit(payload, code)
@@ -117,6 +110,15 @@ def main(argv: list[str] | None = None) -> int:
     submit.add_argument("--pr", type=int, required=True)
     submit.add_argument("--head-sha", required=True)
     submit.add_argument("--current-head-sha", required=True)
+    submit.add_argument("--review-attempt-id", default="1")
+    submit.add_argument(
+        "--conversation-id",
+        default=None,
+        help=(
+            "PRE-SUBMIT expected conversation identity (identity v3); omit "
+            "when the write creates the conversation (canonical sentinel)"
+        ),
+    )
     submit.set_defaults(func=cmd_submit)
 
     reconcile = sub.add_parser("reconcile")
@@ -129,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     return args.func(args)
+
 
 
 if __name__ == "__main__":
