@@ -5,6 +5,7 @@ from typing import Any, Sequence
 
 from . import product_runtime_core as _core
 from .auth import DEFAULT_AUTH_FILE
+from .canonical_conversation_snapshot import CanonicalConversationSnapshot
 from .client import DEFAULT_TIMEOUT_SECONDS, ChatGPTWebClient
 from .product_runtime_observation_gate import gate_product_runtime_send_text_observed
 from .product_submission import ProductSubmissionAck
@@ -175,6 +176,22 @@ class ChatGPTProductRuntime(_core.ChatGPTProductRuntime):
         timeout: float = 3.0,
     ) -> BrowserUILivenessObservation:
         return super().observe_ui_liveness(timeout=timeout)
+
+    def get_conversation_snapshot(
+        self, conversation: Any
+    ) -> CanonicalConversationSnapshot:
+        reader = getattr(self.canonical, "get_conversation_snapshot", None)
+        if not callable(reader):
+            raise TypeError(
+                "canonical client does not expose get_conversation_snapshot()"
+            )
+        snapshot = reader(conversation)
+        if not isinstance(snapshot, CanonicalConversationSnapshot):
+            raise TypeError(
+                "canonical get_conversation_snapshot() must return "
+                "CanonicalConversationSnapshot"
+            )
+        return snapshot
 
     def governance(self) -> dict[str, Any]:
         return super().governance()

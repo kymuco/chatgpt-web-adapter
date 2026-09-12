@@ -13,6 +13,7 @@ from .artifact_manifest import (
     build_artifact_manifest,
     write_artifact_manifest,
 )
+from .canonical_conversation_snapshot import CanonicalConversationSnapshot
 from .types import ChatConversation, ChatMessage, ConversationRef
 
 _CONTEXT_SEPARATOR = "\n\n---\n\n"
@@ -115,6 +116,20 @@ def _snapshot_payload(client: Any, conversation_id: str) -> Any:
     return client._get_conversation_payload(conversation_id)
 
 
+def _first_class_snapshot(
+    client: Any, conversation: Any
+) -> CanonicalConversationSnapshot | None:
+    reader = getattr(client, "get_conversation_snapshot", None)
+    if not callable(reader):
+        return None
+    snapshot = reader(conversation)
+    if not isinstance(snapshot, CanonicalConversationSnapshot):
+        raise TypeError(
+            "get_conversation_snapshot() must return CanonicalConversationSnapshot"
+        )
+    return snapshot
+
+
 def snapshot_conversation(
     client: Any,
     conversation: ConversationRef | ChatConversation | dict[str, Any] | str,
@@ -128,9 +143,9 @@ def snapshot_conversation(
 
     The context contains only current-branch user messages and assistant messages
     addressed to the user (recipient absent or ``all``). Internal assistant-to-tool
-    traffic is deliberately excluded. A raw conversation payload can be written as
-    a forensic backup alongside the clean context. The manifest is written last and
-    acts as the completion marker for the artifact bundle.
+    traffic is deliberately excluded. A complete normalized conversation payload
+    can be written as a forensic backup alongside the clean context. The manifest
+    is written last and acts as the completion marker for the artifact bundle.
     """
 
     normalized_name = _normalize_snapshot_name(name)
@@ -160,19 +175,31 @@ def snapshot_conversation(
     if manifest_path.exists():
         raise FileExistsError(f"snapshot manifest already exists: {manifest_path}")
 
-    messages = client.get_messages(
-        conversation,
-        limit=None,
-        roles=("user", "assistant"),
-        include_empty=False,
-    )
+    canonical_snapshot = _first_class_snapshot(client, conversation)
+    if canonical_snapshot is not None:
+        messages = list(canonical_snapshot.messages)
+        raw_payload = (
+            canonical_snapshot.to_canonical_payload()
+            if raw_payload_path is not None
+            else None
+        )
+    else:
+        messages = client.get_messages(
+            conversation,
+            limit=None,
+            roles=("user", "assistant"),
+            include_empty=False,
+        )
+        raw_payload = None
+        if raw_payload_path is not None:
+            ref = ConversationRef.from_any(conversation)
+            raw_payload = _snapshot_payload(client, ref.conversation_id)
+
     selected = _context_messages(list(messages))
     context_text = render_snapshot_context(selected)
 
     raw_text: str | None = None
-    if raw_payload_path is not None:
-        ref = ConversationRef.from_any(conversation)
-        raw_payload = _snapshot_payload(client, ref.conversation_id)
+    if raw_payload_path is not None and raw_payload is not None:
         raw_text = json.dumps(raw_payload, ensure_ascii=False, indent=2) + "\n"
 
     context_path.write_text(context_text, encoding="utf-8", newline="\n")
