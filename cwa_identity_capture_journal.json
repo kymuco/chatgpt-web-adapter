@@ -1,0 +1,35 @@
+{
+  "schema": 2,
+  "probe": "CWA_IDENTITY_CAPTURE_ORDINARY_TEXT",
+  "startedAt": "2026-09-08T18:43:45.573632+00:00",
+  "prompt": "Chỉ trả lời chính xác chuỗi sau, không thêm nội dung khác: SOC_BRAIN_CWA_IDCAP_OK",
+  "expectedReply": "SOC_BRAIN_CWA_IDCAP_OK",
+  "writeBudget": 1,
+  "state": "SUBMIT_ERROR",
+  "automaticRetry": false,
+  "submitStartedAt": "2026-09-08T18:43:45.609693+00:00",
+  "submitErrorAt": "2026-09-08T18:46:18.661089+00:00",
+  "submitErrorType": "BrowserOwnedWriteRuntimeError",
+  "submitError": "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION: timed out",
+  "diagnosticCapture": null,
+  "events": [
+    {
+      "type": "browser_native_turn_started",
+      "submission_id": "701d8004-be38-483e-9648-113308bf448b",
+      "is_continuation": false,
+      "canonical_status_before_turn": null,
+      "canonical_status_recovery_confirm": null,
+      "stale_ui_recovery_authorized": false,
+      "attachment_count": 0
+    }
+  ],
+  "lifecycleSnapshot": {
+    "pending": false,
+    "dispatch_reserved": false,
+    "submission_id": null,
+    "conversation_id": null,
+    "turn_lifecycle_id": null,
+    "supported": true
+  },
+  "finishedAt": "2026-09-08T18:46:18.661189+00:00"
+}

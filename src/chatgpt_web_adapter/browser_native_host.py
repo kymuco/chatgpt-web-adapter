@@ -45,8 +45,11 @@ class _BrokerHandler(socketserver.BaseRequestHandler):
             response = broker.handle_local_request(
                 request,
                 event_sink=emit_event
-                if request.get("streamTextObservations") is True
-                or operation == "canonical_read"
+                if (
+                    request.get("streamTextObservations") is True
+                    or request.get("phases") is True
+                    or operation == "canonical_read"
+                )
                 else None,
             )
         except Exception as error:
@@ -396,6 +399,26 @@ class BrowserNativeBroker:
             try:
                 with self.write_lock:
                     write_native_message(sys.stdout.buffer, forwarded)
+                if request.get("phases") is True and event_sink is not None:
+                    # DELEGATION_ACCEPTED: the command has crossed into the
+                    # browser-owned plane (Native Messaging pipe accepted it).
+                    # This is explicitly NOT a write ACK: WRITE_CONFIRMED is
+                    # the correlated turn_result carrying the typed identity
+                    # authority, and RESPONSE_CONFIRMED comes only from the
+                    # canonical readback plane. No phase here authorizes a
+                    # resend after loss - the caller reconciles from evidence.
+                    event_sink(
+                        {
+                            "protocol": PROTOCOL_VERSION,
+                            "type": "turn_event",
+                            "request_id": request_id,
+                            "event": {
+                                "type": "browser_native_delegation_accepted",
+                                "acceptedAtMs": int(time.time() * 1000),
+                                "operation": operation,
+                            },
+                        }
+                    )
                 deadline = time.monotonic() + timeout + 5.0
                 while True:
                     try:

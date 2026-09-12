@@ -1,0 +1,231 @@
+{
+  "schema": 2,
+  "probe": "CWA_IDENTITY_CAPTURE_ORDINARY_TEXT",
+  "startedAt": "2026-09-09T01:30:45.763964+00:00",
+  "prompt": "Chỉ trả lời chính xác chuỗi sau, không thêm nội dung khác: SOC_BRAIN_CWA_IDCAP2_OK",
+  "expectedReply": "SOC_BRAIN_CWA_IDCAP2_OK",
+  "writeBudget": 1,
+  "state": "FINALITY_UNRESOLVED",
+  "automaticRetry": false,
+  "submitStartedAt": "2026-09-09T01:30:45.830436+00:00",
+  "writeAcknowledgedAt": "2026-09-09T01:31:30.055126+00:00",
+  "ack": {
+    "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed",
+    "transport": "browser-owned",
+    "conversation_id": "WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab",
+    "turn_exchange_id": null,
+    "accepted_at_ms": 1788917490054,
+    "turn_lifecycle_id": "b53b682a-174b-40ba-bb3c-e0a991bb946e",
+    "write_may_have_committed": true,
+    "automatic_retry_allowed": false,
+    "canonical_finality_proven": false,
+    "provenance": {
+      "product_semantics": "ordinary-chatgpt",
+      "transport": "browser-owned",
+      "write_plane": "BROWSER_NATIVE_PAGE_OWNED_WRITE",
+      "evidence_source": "BROWSER_NATIVE_WRITE_COMPLETED",
+      "write_acknowledged": true,
+      "canonical_finality_proven": false,
+      "automatic_write_retry": false,
+      "fallback_transport": null
+    }
+  },
+  "events": [
+    {
+      "type": "browser_native_turn_started",
+      "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed",
+      "is_continuation": false,
+      "canonical_status_before_turn": null,
+      "canonical_status_recovery_confirm": null,
+      "stale_ui_recovery_authorized": false,
+      "attachment_count": 0
+    },
+    {
+      "type": "activity_started",
+      "schema": 1,
+      "sequence": 1,
+      "observed_at_ms": 43850,
+      "activity_id": "reasoning:056c8804-4e76-4eba-836d-2ebfc1b822ac",
+      "activity_kind": "reasoning",
+      "label": "Reasoning summary",
+      "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed"
+    },
+    {
+      "type": "activity_text_snapshot",
+      "schema": 1,
+      "sequence": 2,
+      "observed_at_ms": 43851,
+      "activity_id": "reasoning:056c8804-4e76-4eba-836d-2ebfc1b822ac",
+      "activity_kind": "reasoning",
+      "label": "Reasoning summary",
+      "text": "Đã xử lý trong 2 giây",
+      "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed"
+    },
+    {
+      "type": "activity_completed",
+      "schema": 1,
+      "sequence": 3,
+      "observed_at_ms": 43851,
+      "activity_id": "reasoning:056c8804-4e76-4eba-836d-2ebfc1b822ac",
+      "activity_kind": "reasoning",
+      "label": "Reasoning summary complete",
+      "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed"
+    },
+    {
+      "type": "assistant_text_snapshot",
+      "sequence": 1,
+      "observed_at_ms": 43853,
+      "message_id": "0ac61c41-91bc-4bee-9aa0-b54c09d55b24",
+      "content_type": "text",
+      "channel": null,
+      "text_length": 19,
+      "finish_reason": null,
+      "before_network_complete": true,
+      "text": "SOC_BRAIN_CWA_IDCAP",
+      "provisional_text_length": 19,
+      "delivery_incomplete": false,
+      "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed"
+    },
+    {
+      "type": "assistant_text_delta",
+      "sequence": 2,
+      "observed_at_ms": 43854,
+      "message_id": "0ac61c41-91bc-4bee-9aa0-b54c09d55b24",
+      "content_type": "text",
+      "channel": null,
+      "text_length": 23,
+      "finish_reason": null,
+      "before_network_complete": true,
+      "delta": "2_OK",
+      "provisional_text_length": 23,
+      "delivery_incomplete": false,
+      "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed"
+    },
+    {
+      "type": "browser_native_write_completed",
+      "submission_id": "e4dc043e-91c3-4062-bf10-62ba304745ed",
+      "accepted_at_ms": 1788917490054,
+      "conversation_id": "WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab",
+      "turn_exchange_id": null,
+      "status_code": 200,
+      "elapsed_ms": 32252,
+      "runtime_reloaded": false,
+      "runtime_reload_ms": null,
+      "runtime_tab_id": 743520230,
+      "runtime_tab_preexisting": false,
+      "runtime_tab_created_for_turn": true,
+      "tab_was_active_at_write_start": false,
+      "tab_active_after_write": false,
+      "tab_activated_during_turn": false,
+      "foreground_activation_observed": false,
+      "attachment_count": 0,
+      "revision_safe_stream_observation_count": 2,
+      "canonical_finality_proven": false,
+      "browser_authority_lease_id": "f78ef65f-bb67-4602-bd51-668de3da203f",
+      "browser_authority_generation": 1,
+      "browser_authority_policy": "PERSISTENT",
+      "browser_authority_ttl_ms": null,
+      "browser_authority_issued_at_ms": 260191797,
+      "browser_authority_released_at_ms": null,
+      "browser_authority_disposal_due_at_ms": null,
+      "browser_authority_release_proven": false,
+      "browser_authority_disposal_action": "PENDING_CANONICAL_READBACK",
+      "turn_lifecycle_id": "b53b682a-174b-40ba-bb3c-e0a991bb946e",
+      "turn_lifecycle_state": "WRITE_COMPLETED"
+    }
+  ],
+  "diagnosticCapture": {
+    "schema": 1,
+    "captureId": 1,
+    "mode": "ordinary_text",
+    "startedAtMs": 1788917446140,
+    "finishedAtMs": 1788917490048,
+    "requestedConversationId": null,
+    "expectedTextLength": 82,
+    "expectedAttachmentCount": 0,
+    "protectedSubmitArmMarkerObserved": false,
+    "conversationWriteRequests": [
+      {
+        "requestId": "6772.733",
+        "url": "https://chatgpt.com/backend-api/f/conversation",
+        "method": "POST",
+        "hasUserGesture": false,
+        "observedAtMs": 1788917484679,
+        "responseStatus": 200,
+        "responseMimeType": "text/event-stream",
+        "loadingFinished": false,
+        "loadingFailedReason": null,
+        "requestBodyIdentity": {
+          "resolved": true,
+          "action": "next",
+          "conversationId": null,
+          "userMessageCount": 1,
+          "userMessageIds": [
+            "a590c964-f14a-4da6-9198-3772035f5e8f"
+          ],
+          "textPartLengths": [
+            82
+          ],
+          "pointerPartCount": 0
+        }
+      }
+    ],
+    "identityParses": [],
+    "result": {
+      "ok": true,
+      "promotedConversationId": "WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab",
+      "turnExchangeId": null,
+      "responseStatus": 200,
+      "responseMimeType": "text/event-stream",
+      "finalUrl": "https://chatgpt.com/c/WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab",
+      "routeConversationId": "WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab",
+      "routeConversationIdAuthority": "ROUTE_DIAGNOSTIC_ONLY",
+      "elapsedMs": 32252,
+      "submitStrategy": "send_button_click"
+    },
+    "error": null
+  },
+  "identityCandidates": [
+    {
+      "identity": "WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab",
+      "source": "ack_promoted",
+      "webPrefixed": true
+    }
+  ],
+  "canonicalResults": [
+    {
+      "identity": "WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab",
+      "source": "ack_promoted",
+      "webPrefixed": true,
+      "status": {
+        "target": "get_status[ack_promoted]",
+        "ok": false,
+        "errorType": "RequestError",
+        "error": "conversation status=400: {'detail': 'Invalid conversation WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab'}"
+      },
+      "messages": {
+        "target": "get_messages[ack_promoted]",
+        "ok": false,
+        "errorType": "RequestError",
+        "error": "conversation status=400: {'detail': 'Invalid conversation WEB:bb6929bd-23ad-4aae-a234-9ff2dbfe9bab'}"
+      },
+      "assistantTexts": [],
+      "exactReplyRecovered": false
+    }
+  ],
+  "canonicalProbedAt": "2026-09-09T01:31:32.885757+00:00",
+  "finality": {
+    "ok": false,
+    "errorType": "BrowserOwnedWriteRuntimeError",
+    "error": "browser-context canonical read failed: reason=CANONICAL_READ_HTTP_ERROR status=400 content_type=application/json"
+  },
+  "lifecycleSnapshot": {
+    "pending": false,
+    "dispatch_reserved": false,
+    "submission_id": null,
+    "conversation_id": null,
+    "turn_lifecycle_id": null,
+    "supported": true
+  },
+  "finishedAt": "2026-09-09T01:31:40.813078+00:00"
+}

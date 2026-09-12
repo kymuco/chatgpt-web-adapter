@@ -1,0 +1,432 @@
+{
+  "schema": 2,
+  "probe": "CWA_IDENTITY_CAPTURE_ORDINARY_TEXT",
+  "startedAt": "2026-09-09T02:11:53.009224+00:00",
+  "prompt": "Chỉ trả lời chính xác chuỗi sau, không thêm nội dung khác: SOC_BRAIN_CWA_IDCAP3_OK",
+  "expectedReply": "SOC_BRAIN_CWA_IDCAP3_OK",
+  "writeBudget": 1,
+  "state": "FINALITY_UNRESOLVED",
+  "automaticRetry": false,
+  "submitStartedAt": "2026-09-09T02:11:53.027517+00:00",
+  "writeAcknowledgedAt": "2026-09-09T02:12:17.432295+00:00",
+  "ack": {
+    "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5",
+    "transport": "browser-owned",
+    "conversation_id": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9",
+    "turn_exchange_id": null,
+    "accepted_at_ms": 1788919937431,
+    "turn_lifecycle_id": "208fce46-5abe-4d47-8637-7fa2e336ad03",
+    "write_may_have_committed": true,
+    "automatic_retry_allowed": false,
+    "canonical_finality_proven": false,
+    "provenance": {
+      "product_semantics": "ordinary-chatgpt",
+      "transport": "browser-owned",
+      "write_plane": "BROWSER_NATIVE_PAGE_OWNED_WRITE",
+      "evidence_source": "BROWSER_NATIVE_WRITE_COMPLETED",
+      "write_acknowledged": true,
+      "canonical_finality_proven": false,
+      "automatic_write_retry": false,
+      "fallback_transport": null
+    }
+  },
+  "events": [
+    {
+      "type": "browser_native_turn_started",
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5",
+      "is_continuation": false,
+      "canonical_status_before_turn": null,
+      "canonical_status_recovery_confirm": null,
+      "stale_ui_recovery_authorized": false,
+      "attachment_count": 0
+    },
+    {
+      "type": "activity_started",
+      "schema": 1,
+      "sequence": 1,
+      "observed_at_ms": 23636,
+      "activity_id": "reasoning:4411abdb-bf81-44ab-a3c3-a27c803ec74c",
+      "activity_kind": "reasoning",
+      "label": "Reasoning summary",
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5"
+    },
+    {
+      "type": "activity_text_snapshot",
+      "schema": 1,
+      "sequence": 2,
+      "observed_at_ms": 23637,
+      "activity_id": "reasoning:4411abdb-bf81-44ab-a3c3-a27c803ec74c",
+      "activity_kind": "reasoning",
+      "label": "Reasoning summary",
+      "text": "Đã xử lý trong vài giây",
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5"
+    },
+    {
+      "type": "activity_completed",
+      "schema": 1,
+      "sequence": 3,
+      "observed_at_ms": 23637,
+      "activity_id": "reasoning:4411abdb-bf81-44ab-a3c3-a27c803ec74c",
+      "activity_kind": "reasoning",
+      "label": "Reasoning summary complete",
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5"
+    },
+    {
+      "type": "assistant_text_snapshot",
+      "sequence": 1,
+      "observed_at_ms": 23872,
+      "message_id": "082e9c0e-f3be-4ad4-b8ea-43a64c167742",
+      "content_type": "text",
+      "channel": null,
+      "text_length": 3,
+      "finish_reason": null,
+      "before_network_complete": true,
+      "text": "SOC",
+      "provisional_text_length": 3,
+      "delivery_incomplete": false,
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5"
+    },
+    {
+      "type": "assistant_text_delta",
+      "sequence": 2,
+      "observed_at_ms": 23907,
+      "message_id": "082e9c0e-f3be-4ad4-b8ea-43a64c167742",
+      "content_type": "text",
+      "channel": null,
+      "text_length": 20,
+      "finish_reason": null,
+      "before_network_complete": true,
+      "delta": "_BRAIN_CWA_IDCAP3",
+      "provisional_text_length": 20,
+      "delivery_incomplete": false,
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5"
+    },
+    {
+      "type": "assistant_text_delta",
+      "sequence": 3,
+      "observed_at_ms": 24200,
+      "message_id": "082e9c0e-f3be-4ad4-b8ea-43a64c167742",
+      "content_type": "text",
+      "channel": null,
+      "text_length": 23,
+      "finish_reason": null,
+      "before_network_complete": true,
+      "delta": "_OK",
+      "provisional_text_length": 23,
+      "delivery_incomplete": false,
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5"
+    },
+    {
+      "type": "browser_native_write_completed",
+      "submission_id": "8c6e3db3-fdf5-411e-a0c4-bf583b58e2e5",
+      "accepted_at_ms": 1788919937431,
+      "conversation_id": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9",
+      "turn_exchange_id": null,
+      "status_code": 200,
+      "elapsed_ms": 21933,
+      "runtime_reloaded": false,
+      "runtime_reload_ms": null,
+      "runtime_tab_id": 743520230,
+      "runtime_tab_preexisting": true,
+      "runtime_tab_created_for_turn": false,
+      "tab_was_active_at_write_start": false,
+      "tab_active_after_write": false,
+      "tab_activated_during_turn": false,
+      "foreground_activation_observed": false,
+      "attachment_count": 0,
+      "revision_safe_stream_observation_count": 3,
+      "canonical_finality_proven": false,
+      "browser_authority_lease_id": "dc084979-b561-4c77-868b-dd220b58d172",
+      "browser_authority_generation": 1,
+      "browser_authority_policy": "PERSISTENT",
+      "browser_authority_ttl_ms": null,
+      "browser_authority_issued_at_ms": 262658547,
+      "browser_authority_released_at_ms": null,
+      "browser_authority_disposal_due_at_ms": null,
+      "browser_authority_release_proven": false,
+      "browser_authority_disposal_action": "PENDING_CANONICAL_READBACK",
+      "turn_lifecycle_id": "208fce46-5abe-4d47-8637-7fa2e336ad03",
+      "turn_lifecycle_state": "WRITE_COMPLETED"
+    }
+  ],
+  "diagnosticCapture": {
+    "schema": 1,
+    "captureId": 1,
+    "mode": "ordinary_text",
+    "startedAtMs": 1788919913065,
+    "finishedAtMs": 1788919937422,
+    "requestedConversationId": null,
+    "expectedTextLength": 82,
+    "expectedAttachmentCount": 0,
+    "protectedSubmitArmMarkerObserved": false,
+    "conversationWriteRequests": [
+      {
+        "requestId": "6772.1582",
+        "url": "https://chatgpt.com/backend-api/f/conversation",
+        "method": "POST",
+        "hasUserGesture": false,
+        "observedAtMs": 1788919930019,
+        "responseStatus": 200,
+        "responseMimeType": "text/event-stream",
+        "loadingFinished": false,
+        "loadingFailedReason": null,
+        "requestBodyIdentity": {
+          "resolved": true,
+          "action": "next",
+          "conversationId": null,
+          "userMessageCount": 1,
+          "userMessageIds": [
+            "8c11760a-5f84-4f04-85fd-29a7564969a4"
+          ],
+          "textPartLengths": [
+            82
+          ],
+          "pointerPartCount": 0
+        },
+        "sseDecoder": {},
+        "sseFirstDataAtMs": 1788919934321,
+        "sseLastDataAtMs": 1788919937270,
+        "sseChunkCount": 13,
+        "sseBuffer": ""
+      }
+    ],
+    "identityParses": [],
+    "result": {
+      "ok": true,
+      "promotedConversationId": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9",
+      "turnExchangeId": null,
+      "responseStatus": 200,
+      "responseMimeType": "text/event-stream",
+      "finalUrl": "https://chatgpt.com/c/6aa0c074-5d4c-83ec-b16d-92e095b71bf9",
+      "routeConversationId": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9",
+      "routeConversationIdAuthority": "ROUTE_DIAGNOSTIC_ONLY",
+      "elapsedMs": 21933,
+      "submitStrategy": "send_button_click"
+    },
+    "error": null,
+    "sseEventCount": 21,
+    "sseJsonEventCount": 21,
+    "sseIdentityEvents": [
+      {
+        "orderIndex": 1,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919934322,
+        "eventType": "resume_conversation_token",
+        "identityFields": [
+          {
+            "path": "conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          }
+        ]
+      },
+      {
+        "orderIndex": 2,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919934970,
+        "eventType": null,
+        "identityFields": [
+          {
+            "path": "p=''/o=add/v.conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          },
+          {
+            "path": "p=''/o=add/v.message.id[user]",
+            "value": "7d34c1a8-61dc-49c7-a3ce-453a6950f440"
+          }
+        ]
+      },
+      {
+        "orderIndex": 6,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919935061,
+        "eventType": "input_message",
+        "identityFields": [
+          {
+            "path": "conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          }
+        ]
+      },
+      {
+        "orderIndex": 7,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919935193,
+        "eventType": "input_message",
+        "identityFields": [
+          {
+            "path": "conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          }
+        ]
+      },
+      {
+        "orderIndex": 13,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919936707,
+        "eventType": "message_marker",
+        "identityFields": [
+          {
+            "path": "conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          },
+          {
+            "path": "message_id",
+            "value": "4411abdb-bf81-44ab-a3c3-a27c803ec74c"
+          }
+        ]
+      },
+      {
+        "orderIndex": 16,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919936943,
+        "eventType": "message_marker",
+        "identityFields": [
+          {
+            "path": "conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          },
+          {
+            "path": "message_id",
+            "value": "082e9c0e-f3be-4ad4-b8ea-43a64c167742"
+          }
+        ]
+      },
+      {
+        "orderIndex": 17,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919936943,
+        "eventType": "message_marker",
+        "identityFields": [
+          {
+            "path": "conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          },
+          {
+            "path": "message_id",
+            "value": "082e9c0e-f3be-4ad4-b8ea-43a64c167742"
+          }
+        ]
+      },
+      {
+        "orderIndex": 21,
+        "requestId": "6772.1582",
+        "observedAtMs": 1788919937270,
+        "eventType": "message_marker",
+        "identityFields": [
+          {
+            "path": "conversation_id",
+            "value": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9"
+          },
+          {
+            "path": "message_id",
+            "value": "082e9c0e-f3be-4ad4-b8ea-43a64c167742"
+          }
+        ]
+      }
+    ]
+  },
+  "identityCandidates": [
+    {
+      "identity": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9",
+      "source": "ack_promoted",
+      "webPrefixed": false
+    }
+  ],
+  "streamedAssistantText": "SOC_BRAIN_CWA_IDCAP3_OK",
+  "canonicalResults": [
+    {
+      "identity": "6aa0c074-5d4c-83ec-b16d-92e095b71bf9",
+      "source": "ack_promoted",
+      "webPrefixed": false,
+      "status": {
+        "target": "get_status[ack_promoted]",
+        "ok": true,
+        "result": {
+          "status": "user_last_message",
+          "node_id": "8c11760a-5f84-4f04-85fd-29a7564969a4",
+          "message_id": "8c11760a-5f84-4f04-85fd-29a7564969a4",
+          "role": "user",
+          "recipient": "all",
+          "async_status": null,
+          "finish_reason": null,
+          "pending_approval": false,
+          "metadata_preview": {
+            "message_status": "finished_successfully"
+          }
+        }
+      },
+      "messages": {
+        "target": "get_messages[ack_promoted]",
+        "ok": true,
+        "result": [
+          {
+            "node_id": "8c11760a-5f84-4f04-85fd-29a7564969a4",
+            "message_id": "8c11760a-5f84-4f04-85fd-29a7564969a4",
+            "role": "user",
+            "text": "Chỉ trả lời chính xác chuỗi sau, không thêm nội dung khác: SOC_BRAIN_CWA_IDCAP3_OK",
+            "create_time": 1788919929.358,
+            "recipient": "all",
+            "model": null,
+            "finish_reason": null,
+            "metadata_preview": {}
+          },
+          {
+            "node_id": "4411abdb-bf81-44ab-a3c3-a27c803ec74c",
+            "message_id": "4411abdb-bf81-44ab-a3c3-a27c803ec74c",
+            "role": "assistant",
+            "text": "Đã xử lý trong vài giây",
+            "create_time": 1788919936.805834,
+            "recipient": "all",
+            "model": "gpt-5-6-thinking",
+            "finish_reason": null,
+            "metadata_preview": {
+              "model_slug": "gpt-5-6-thinking",
+              "default_model_slug": "gpt-5-6-thinking"
+            }
+          },
+          {
+            "node_id": "082e9c0e-f3be-4ad4-b8ea-43a64c167742",
+            "message_id": "082e9c0e-f3be-4ad4-b8ea-43a64c167742",
+            "role": "assistant",
+            "text": "SOC_BRAIN_CWA_IDCAP3_OK",
+            "create_time": 1788919933.122994,
+            "recipient": "all",
+            "model": "gpt-5-6-thinking",
+            "finish_reason": "stop",
+            "metadata_preview": {
+              "finish_details": {
+                "type": "stop",
+                "stop_tokens": [
+                  200002
+                ]
+              },
+              "is_complete": true,
+              "model_slug": "gpt-5-6-thinking",
+              "default_model_slug": "gpt-5-6-thinking"
+            }
+          }
+        ]
+      },
+      "assistantTexts": [
+        "Đã xử lý trong vài giây",
+        "SOC_BRAIN_CWA_IDCAP3_OK"
+      ],
+      "exactReplyRecovered": true
+    }
+  ],
+  "canonicalProbedAt": "2026-09-09T02:12:19.471978+00:00",
+  "finality": {
+    "ok": false,
+    "errorType": "BrowserOwnedWriteRuntimeError",
+    "error": "browser-native write completed but canonical assistant readback did not finish"
+  },
+  "lifecycleSnapshot": {
+    "pending": false,
+    "dispatch_reserved": false,
+    "submission_id": null,
+    "conversation_id": null,
+    "turn_lifecycle_id": null,
+    "supported": true
+  },
+  "finishedAt": "2026-09-09T02:15:53.859000+00:00"
+}

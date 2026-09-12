@@ -1,0 +1,217 @@
+{
+  "schema": 1,
+  "probe": "CWA_CRASH_RESTART_RECONCILIATION",
+  "phase": "write",
+  "startedAt": "2026-09-10T12:19:02.276769+00:00",
+  "prompt": "Chỉ trả lời chính xác chuỗi sau, không thêm nội dung khác: SOC_BRAIN_CWA_RECON4_OK",
+  "expectedReply": "SOC_BRAIN_CWA_RECON4_OK",
+  "writeBudget": 1,
+  "state": "RECONCILED",
+  "automaticRetry": false,
+  "submitStartedAt": "2026-09-10T12:19:02.320293+00:00",
+  "writeAcknowledgedAt": "2026-09-10T12:20:07.238771+00:00",
+  "ack": {
+    "submission_id": "841016c8-1a5a-42ba-94e4-39bddfbe0d0a",
+    "transport": "browser-owned",
+    "conversation_id": "6aa2a05d-dad4-83ec-b25d-803ba37fe79e",
+    "turn_exchange_id": null,
+    "accepted_at_ms": 1789042807238,
+    "turn_lifecycle_id": "fbf33e06-9735-4f46-980d-4e05f5bf6331",
+    "write_may_have_committed": true,
+    "automatic_retry_allowed": false,
+    "canonical_finality_proven": false,
+    "provenance": {
+      "product_semantics": "ordinary-chatgpt",
+      "transport": "browser-owned",
+      "write_plane": "BROWSER_NATIVE_PAGE_OWNED_WRITE",
+      "evidence_source": "BROWSER_NATIVE_WRITE_COMPLETED",
+      "write_acknowledged": true,
+      "canonical_finality_proven": false,
+      "automatic_write_retry": false,
+      "fallback_transport": null
+    }
+  },
+  "events": [
+    {
+      "type": "browser_native_turn_started",
+      "submission_id": "841016c8-1a5a-42ba-94e4-39bddfbe0d0a",
+      "is_continuation": false,
+      "canonical_status_before_turn": null,
+      "canonical_status_recovery_confirm": null,
+      "stale_ui_recovery_authorized": false,
+      "attachment_count": 0
+    },
+    {
+      "type": "browser_native_write_completed",
+      "submission_id": "841016c8-1a5a-42ba-94e4-39bddfbe0d0a",
+      "accepted_at_ms": 1789042807238,
+      "conversation_id": "6aa2a05d-dad4-83ec-b25d-803ba37fe79e",
+      "turn_exchange_id": null,
+      "status_code": 200,
+      "elapsed_ms": 51491,
+      "runtime_reloaded": false,
+      "runtime_reload_ms": null,
+      "runtime_tab_id": 743520808,
+      "runtime_tab_preexisting": false,
+      "runtime_tab_created_for_turn": true,
+      "tab_was_active_at_write_start": false,
+      "tab_active_after_write": false,
+      "tab_activated_during_turn": false,
+      "foreground_activation_observed": false,
+      "attachment_count": 0,
+      "revision_safe_stream_observation_count": 0,
+      "canonical_finality_proven": false,
+      "browser_authority_lease_id": "474f8b15-325c-40b4-9c6f-efa34f3135bd",
+      "browser_authority_generation": 1,
+      "browser_authority_policy": "PERSISTENT",
+      "browser_authority_ttl_ms": null,
+      "browser_authority_issued_at_ms": 58763393,
+      "browser_authority_released_at_ms": null,
+      "browser_authority_disposal_due_at_ms": null,
+      "browser_authority_release_proven": false,
+      "browser_authority_disposal_action": "PENDING_CANONICAL_READBACK",
+      "turn_lifecycle_id": "fbf33e06-9735-4f46-980d-4e05f5bf6331",
+      "turn_lifecycle_state": "WRITE_COMPLETED"
+    }
+  ],
+  "diagnosticCapture": {
+    "schema": 1,
+    "captureId": 1,
+    "mode": "ordinary_text",
+    "startedAtMs": 1789042742677,
+    "finishedAtMs": 1789042807226,
+    "requestedConversationId": null,
+    "expectedTextLength": 82,
+    "expectedAttachmentCount": 0,
+    "protectedSubmitArmMarkerObserved": false,
+    "conversationWriteRequests": [
+      {
+        "requestId": "4160.755",
+        "url": "https://chatgpt.com/backend-api/f/conversation",
+        "method": "POST",
+        "hasUserGesture": false,
+        "observedAtMs": 1789042800957,
+        "responseStatus": 200,
+        "responseMimeType": "text/event-stream",
+        "loadingFinished": true,
+        "loadingFailedReason": null,
+        "requestBodyIdentity": {
+          "resolved": true,
+          "action": "next",
+          "conversationId": null,
+          "userMessageCount": 1,
+          "userMessageIds": [
+            "1df1279c-8196-41f7-b150-bbde47502ea4"
+          ],
+          "textPartLengths": [
+            82
+          ],
+          "pointerPartCount": 0
+        }
+      }
+    ],
+    "identityParses": [],
+    "result": {
+      "ok": true,
+      "promotedConversationId": "6aa2a05d-dad4-83ec-b25d-803ba37fe79e",
+      "turnExchangeId": null,
+      "responseStatus": 200,
+      "responseMimeType": "text/event-stream",
+      "finalUrl": "https://chatgpt.com/c/WEB:0347d734-e2bc-42cb-90eb-1b19ee3575cd",
+      "routeConversationId": "WEB:0347d734-e2bc-42cb-90eb-1b19ee3575cd",
+      "routeConversationIdAuthority": "ROUTE_DIAGNOSTIC_ONLY",
+      "elapsedMs": 51491,
+      "submitStrategy": "send_button_click"
+    },
+    "error": null
+  },
+  "sseAuthorityFields": {
+    "conversationId": "6aa2a05d-dad4-83ec-b25d-803ba37fe79e"
+  },
+  "durableWriteCount": 1,
+  "submissionCount": 1,
+  "crashPlannedAt": "2026-09-10T12:20:07.238832+00:00",
+  "reconciliation": {
+    "phase": "reconcile",
+    "reconcileStartedAt": "2026-09-10T12:24:04.528500+00:00",
+    "freshProcess": true,
+    "writePerformedByReconciler": false,
+    "authorityFields": {
+      "conversationId": "6aa2a05d-dad4-83ec-b25d-803ba37fe79e"
+    },
+    "durableConversationId": "6aa2a05d-dad4-83ec-b25d-803ba37fe79e",
+    "durableClientMessageId": "1df1279c-8196-41f7-b150-bbde47502ea4",
+    "durableExpectedAssistantMessageId": null,
+    "canonicalReadAttempts": [
+      {
+        "attempt": 1,
+        "readAt": "2026-09-10T12:24:19.535468+00:00",
+        "status": {
+          "status": "completed",
+          "node_id": "34307058-0f44-41bf-a451-04046e7837c0",
+          "message_id": "34307058-0f44-41bf-a451-04046e7837c0",
+          "role": "assistant",
+          "recipient": "all",
+          "async_status": null,
+          "finish_reason": "stop",
+          "pending_approval": false,
+          "metadata_preview": {
+            "finish_details": {
+              "type": "stop",
+              "stop_tokens": [
+                200002
+              ]
+            },
+            "is_complete": true,
+            "model_slug": "gpt-5-6",
+            "message_status": "finished_successfully",
+            "end_turn": true
+          }
+        },
+        "messageCount": 2,
+        "matchingUserMessageCount": 1,
+        "matchingUserMessageIds": [
+          "1df1279c-8196-41f7-b150-bbde47502ea4"
+        ],
+        "matchingAssistantMessages": [
+          {
+            "message_id": "34307058-0f44-41bf-a451-04046e7837c0",
+            "finish_reason": "stop",
+            "metadata_preview": {
+              "finish_details": {
+                "type": "stop",
+                "stop_tokens": [
+                  200002
+                ]
+              },
+              "is_complete": true,
+              "model_slug": "gpt-5-6",
+              "default_model_slug": "gpt-5-6"
+            }
+          }
+        ],
+        "messagesError": null
+      }
+    ],
+    "lifecycleSnapshotFreshProcess": {
+      "pending": false,
+      "dispatch_reserved": false,
+      "submission_id": null,
+      "conversation_id": null,
+      "turn_lifecycle_id": null,
+      "supported": true
+    },
+    "checks": {
+      "write_count_durable_1": true,
+      "submission_count_1": true,
+      "recovered_canonical_conversation_matches_durable": true,
+      "recovered_canonical_turn_bound": true,
+      "finality_recovered": true,
+      "no_duplicate_write": true,
+      "no_new_submission_by_reconciler": true
+    },
+    "verdict": "RECONCILED",
+    "failures": [],
+    "reconcileFinishedAt": "2026-09-10T12:24:22.383878+00:00"
+  }
+}

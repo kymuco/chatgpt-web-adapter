@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "startedAt": "2026-09-08T13:21:21.173558+00:00",
+  "prompt": "Chỉ trả lời chính xác chuỗi sau, không thêm nội dung khác: SOC_BRAIN_CWA_SPLIT_ACK_OK",
+  "state": "FINALITY_UNRESOLVED",
+  "automaticRetry": false,
+  "submitStartedAt": "2026-09-08T13:21:21.209014+00:00",
+  "writeAcknowledgedAt": "2026-09-08T13:21:38.291981+00:00",
+  "ack": {
+    "submission_id": "fa0ca0c8-504b-4e23-b189-73dbeb9a812a",
+    "transport": "browser-owned",
+    "conversation_id": "WEB:125de410-fad7-4802-a9d4-b4046e77b83c",
+    "turn_exchange_id": null,
+    "accepted_at_ms": 1788873698291,
+    "turn_lifecycle_id": "c4034525-9eee-4094-a103-0d85088afdcd",
+    "write_may_have_committed": true,
+    "automatic_retry_allowed": false,
+    "canonical_finality_proven": false,
+    "provenance": {
+      "product_semantics": "ordinary-chatgpt",
+      "transport": "browser-owned",
+      "write_plane": "BROWSER_NATIVE_PAGE_OWNED_WRITE",
+      "evidence_source": "BROWSER_NATIVE_WRITE_COMPLETED",
+      "write_acknowledged": true,
+      "canonical_finality_proven": false,
+      "automatic_write_retry": false,
+      "fallback_transport": null
+    }
+  },
+  "finalityErrorAt": "2026-09-08T13:22:13.319618+00:00",
+  "finalityErrorType": "BrowserOwnedWriteRuntimeError",
+  "finalityError": "browser-context canonical read failed: reason=BROWSER_NATIVE_EXTENSION_TIMEOUT",
+  "lifecycleSnapshot": {
+    "pending": false,
+    "dispatch_reserved": false,
+    "submission_id": null,
+    "conversation_id": null,
+    "turn_lifecycle_id": null,
+    "supported": true
+  }
+}

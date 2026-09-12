@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "probe": "CWA_FINAL_REVIEW_TRANSPORT_E2E",
+  "phase": "reconcile",
+  "startedAt": "2026-09-10T13:45:25.217073+00:00",
+  "fixture": {
+    "repository": "cwa-fixture/sandbox",
+    "issueNumber": 999901,
+    "pullRequestNumber": 999902,
+    "headSha": "ed7fc026ecdd902d123e7fe6a0a1d718e61e334e",
+    "evidenceDigest": "386e4c4d02692bb3b67fbd8e7c52b3d03ad6b66ae49ad73b45730a0f8ab97486",
+    "verdict": "APPROVE"
+  },
+  "writeBudget": 1,
+  "state": "E2E_PASS",
+  "writeAcknowledgedAt": "2026-09-10T13:47:15.359014+00:00",
+  "submittedResult": {
+    "canonicalRequestId": "cdeed4abf8e0d22c9439aad64864146181e5330f6a3eb76d12b262e88fe6fe84",
+    "conversationId": "6aa2b4c7-437c-83ec-a7e9-8d90f5cf4bcb",
+    "submissionId": "819b9540-e58e-4afb-a7ef-d1b737437722",
+    "sseConversationIdentityAuthority": "REQUEST_BOUND_SSE_CONVERSATION_ID_CONSENSUS",
+    "verdict": "APPROVE",
+    "finality": "FINAL",
+    "payload": {
+      "repository": "cwa-fixture/sandbox",
+      "issueNumber": 999901,
+      "pullRequestNumber": 999902,
+      "headSha": "ed7fc026ecdd902d123e7fe6a0a1d718e61e334e",
+      "evidenceDigest": "386e4c4d02692bb3b67fbd8e7c52b3d03ad6b66ae49ad73b45730a0f8ab97486",
+      "verdict": "APPROVE"
+    },
+    "reconciledAt": "2026-09-10T13:47:15.344228+00:00"
+  },
+  "crashPlannedAt": "2026-09-10T13:47:15.359044+00:00",
+  "reconcileStartedAt": "2026-09-10T13:47:58.568621+00:00",
+  "freshProcess": true,
+  "checks": {
+    "live_write_count_1": true,
+    "retries_zero": true,
+    "authority_typed_present": true,
+    "identity_not_route_only": true,
+    "exact_binding_recovered": true,
+    "finality_final": true,
+    "verdict_strict": true,
+    "journal_terminal_reconciled": true,
+    "fresh_process_zero_writes": true
+  },
+  "reconciledResult": {
+    "canonicalRequestId": "cdeed4abf8e0d22c9439aad64864146181e5330f6a3eb76d12b262e88fe6fe84",
+    "conversationId": "6aa2b4c7-437c-83ec-a7e9-8d90f5cf4bcb",
+    "submissionId": "819b9540-e58e-4afb-a7ef-d1b737437722",
+    "sseConversationIdentityAuthority": "REQUEST_BOUND_SSE_CONVERSATION_ID_CONSENSUS",
+    "verdict": "APPROVE",
+    "finality": "FINAL",
+    "payload": {
+      "repository": "cwa-fixture/sandbox",
+      "issueNumber": 999901,
+      "pullRequestNumber": 999902,
+      "headSha": "ed7fc026ecdd902d123e7fe6a0a1d718e61e334e",
+      "evidenceDigest": "386e4c4d02692bb3b67fbd8e7c52b3d03ad6b66ae49ad73b45730a0f8ab97486",
+      "verdict": "APPROVE"
+    },
+    "reconciledAt": "2026-09-10T13:47:15.344228+00:00"
+  },
+  "finishedAt": "2026-09-10T13:47:58.570363+00:00"
+}

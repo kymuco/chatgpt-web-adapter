@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "probe": "FINAL_REVIEW_TRANSPORT",
+  "state": "MANUAL_DISPOSITION_RESOLVED",
+  "boundAt": "2026-09-10T13:10:59.957253+00:00",
+  "canonicalRequestId": "3516f0006fa755cc42934c6526a88fcde2e2d9374017cbaf02bde2f51c311a87",
+  "binding": {
+    "canonicalRequestId": "3516f0006fa755cc42934c6526a88fcde2e2d9374017cbaf02bde2f51c311a87",
+    "canonicalPayload": {
+      "repository": "cwa-fixture/sandbox",
+      "issueNumber": 999901,
+      "pullRequestNumber": 999902,
+      "headSha": "ed7fc026ecdd902d123e7fe6a0a1d718e61e334e",
+      "evidenceDigest": "c05e6f5c253b08bb5c15c154077e8d807bbc88d10f0ca4d5d5c08f73fbc4c45e",
+      "verdict": "APPROVE"
+    }
+  },
+  "payloadText": "FINAL_REVIEW_VERDICT_V1 {\"evidenceDigest\":\"c05e6f5c253b08bb5c15c154077e8d807bbc88d10f0ca4d5d5c08f73fbc4c45e\",\"headSha\":\"ed7fc026ecdd902d123e7fe6a0a1d718e61e334e\",\"issueNumber\":999901,\"pullRequestNumber\":999902,\"repository\":\"cwa-fixture/sandbox\",\"verdict\":\"APPROVE\"}",
+  "liveWriteCount": 1,
+  "writeAcknowledgedAt": "2026-09-10T13:11:42.680600+00:00",
+  "ack": {
+    "submission_id": "0379d745-78d8-412d-8e42-02d3b1b6500c",
+    "transport": "browser-owned",
+    "conversation_id": "WEB:340978e9-7ad0-42bc-b4f8-a630ea5d8b7b",
+    "turn_exchange_id": null,
+    "accepted_at_ms": 1789045902680,
+    "turn_lifecycle_id": "f652a4ee-00ee-46d4-9f24-66c204b0724e",
+    "write_may_have_committed": true,
+    "automatic_retry_allowed": false,
+    "canonical_finality_proven": false,
+    "provenance": {
+      "product_semantics": "ordinary-chatgpt",
+      "transport": "browser-owned",
+      "write_plane": "BROWSER_NATIVE_PAGE_OWNED_WRITE",
+      "evidence_source": "BROWSER_NATIVE_WRITE_COMPLETED",
+      "write_acknowledged": true,
+      "canonical_finality_proven": false,
+      "automatic_write_retry": false,
+      "fallback_transport": null
+    }
+  },
+  "conversationId": "WEB:340978e9-7ad0-42bc-b4f8-a630ea5d8b7b",
+  "sseConversationIdentityAuthority": null,
+  "sseConversationIdentityRecordCount": null,
+  "sseConversationIdentityDistinctCount": null,
+  "writeEvents": [
+    {
+      "type": "browser_native_turn_started",
+      "submission_id": "0379d745-78d8-412d-8e42-02d3b1b6500c",
+      "is_continuation": false,
+      "canonical_status_before_turn": null,
+      "canonical_status_recovery_confirm": null,
+      "stale_ui_recovery_authorized": false,
+      "attachment_count": 0
+    },
+    {
+      "type": "browser_native_write_completed",
+      "submission_id": "0379d745-78d8-412d-8e42-02d3b1b6500c",
+      "accepted_at_ms": 1789045902680,
+      "conversation_id": "WEB:340978e9-7ad0-42bc-b4f8-a630ea5d8b7b",
+      "turn_exchange_id": null,
+      "status_code": 200,
+      "elapsed_ms": 37815,
+      "runtime_reloaded": false,
+      "runtime_reload_ms": null,
+      "runtime_tab_id": 743520916,
+      "runtime_tab_preexisting": true,
+      "runtime_tab_created_for_turn": false,
+      "tab_was_active_at_write_start": false,
+      "tab_active_after_write": false,
+      "tab_activated_during_turn": false,
+      "foreground_activation_observed": false,
+      "attachment_count": 0,
+      "revision_safe_stream_observation_count": 7,
+      "canonical_finality_proven": false,
+      "sse_conversation_identity_authority": null,
+      "sse_conversation_identity_record_count": null,
+      "sse_conversation_identity_distinct_count": null,
+      "browser_authority_lease_id": "74f15b57-ff08-4ed1-b66b-15f26781945e",
+      "browser_authority_generation": 1,
+      "browser_authority_policy": "PERSISTENT",
+      "browser_authority_ttl_ms": null,
+      "browser_authority_issued_at_ms": 61880527,
+      "browser_authority_released_at_ms": null,
+      "browser_authority_disposal_due_at_ms": null,
+      "browser_authority_release_proven": false,
+      "browser_authority_disposal_action": "PENDING_CANONICAL_READBACK",
+      "turn_lifecycle_id": "f652a4ee-00ee-46d4-9f24-66c204b0724e",
+      "turn_lifecycle_state": "WRITE_COMPLETED"
+    }
+  ],
+  "identityRejection": "IDENTITY_ROUTE_ONLY",
+  "disposition": {
+    "resolvedBy": "cwa_final_review_e2e.py attempt-3 hygiene",
+    "reason": "attempt-2 committed an orphan write into a disposable conversation with a route-only identity (stale SW ScriptCache, root-caused and fixed); the write is unverifiable by design and the fixture is disposable; new submissions unblocked",
+    "resolvedAt": "2026-09-10T14:20:00+00:00"
+  }
+}
