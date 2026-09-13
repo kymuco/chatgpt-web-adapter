@@ -12,6 +12,9 @@ from .browser_native_client import (
     set_browser_native_turn_provider as _set_browser_native_turn_provider,
 )
 from .browserless_request_guards import gate_browserless_poll_deadline
+from .canonical_conversation_snapshot import (
+    get_conversation_snapshot as _get_conversation_snapshot,
+)
 from .conversation_read_v2 import (
     get_messages_v2 as _get_messages_v2,
 )
@@ -256,6 +259,7 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
     )
     attach_conversation = _attach_conversation
     export_conversation = _export_conversation
+    get_conversation_snapshot = _get_conversation_snapshot
     get_messages = _get_messages_v2
     get_pending_approval = _get_pending_approval
     get_required_action = _get_required_action

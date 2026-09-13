@@ -21,6 +21,11 @@ from .browser_native_provider import (
     BrowserNativeTurnResult,
 )
 from .browser_sentinel import ZendriverSentinelBundleProvider
+from .canonical_conversation_snapshot import (
+    CANONICAL_CONVERSATION_SNAPSHOT_SCHEMA,
+    CanonicalConversationSnapshot,
+    ConversationReadProvenance,
+)
 from .client import ChatGPTWebClient
 from .client import _original_send as _original_send
 from .conversation_prepare import PrepareResult, prepare_text_turn
@@ -87,7 +92,11 @@ from .product_support import (
     ProductTransportSupportTier,
     product_transport_support_tier,
 )
-from .product_transport import CanonicalConversationClient, ProductWriteTransport
+from .product_transport import (
+    CanonicalConversationClient,
+    CanonicalConversationSnapshotClient,
+    ProductWriteTransport,
+)
 from .product_ui_liveness import BrowserUILivenessObservation, BrowserUILivenessState
 from .public_surface import (
     PRIMARY_PRODUCT_RUNTIME_EXPORTS,
@@ -285,6 +294,7 @@ __all__ = [
     "ProductRequiredActionObservation",
     "StructuredProductObservation",
     "CanonicalConversationClient",
+    "CanonicalConversationSnapshotClient",
     "ProductWriteTransport",
     "ChatGPTProductRuntime",
     "ProductRuntimeExecution",
@@ -300,6 +310,9 @@ __all__ = [
     "WaitResult",
     "MediaItem",
     "MediaSource",
+    "CANONICAL_CONVERSATION_SNAPSHOT_SCHEMA",
+    "CanonicalConversationSnapshot",
+    "ConversationReadProvenance",
     "AuthStatus",
     "AuthRefreshResult",
     "BrowserLoginResult",

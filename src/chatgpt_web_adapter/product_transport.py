@@ -3,10 +3,17 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
+from .canonical_conversation_snapshot import CanonicalConversationSnapshot
 from .product_artifact_observation_pr10_1 import PR101StructuredProductObservation
 from .product_capabilities import ProductCapabilities
 from .product_provenance import ProductExecutionProvenance
-from .types import ChatConversation, ChatMessage, ChatResponse, ConversationRef, ConversationStatus
+from .types import (
+    ChatConversation,
+    ChatMessage,
+    ChatResponse,
+    ConversationRef,
+    ConversationStatus,
+)
 
 BROWSER_OWNED_PRODUCT_TRANSPORT = "browser-owned"
 BROWSERLESS_REQUEST_PRODUCT_TRANSPORT = "browserless-request"
@@ -76,13 +83,23 @@ class ProductRuntimeExecution:
 
 @runtime_checkable
 class CanonicalConversationClient(Protocol):
-    """Canonical conversation surface consumed by product-runtime orchestration."""
+    """Historical canonical conversation surface consumed by product runtime."""
 
     def get_status(self, conversation: Any) -> ConversationStatus: ...
 
     def get_messages(self, conversation: Any, **kwargs: Any) -> list[ChatMessage]: ...
 
     def attach_conversation(self, conversation: Any) -> Any: ...
+
+
+@runtime_checkable
+class CanonicalConversationSnapshotClient(Protocol):
+    """Additive capability for complete in-memory canonical conversation snapshots."""
+
+    def get_conversation_snapshot(
+        self,
+        conversation: Any,
+    ) -> CanonicalConversationSnapshot: ...
 
 
 @runtime_checkable
@@ -151,7 +168,13 @@ def require_product_write_transport(transport: Any) -> ProductWriteTransport:
     transport_id = getattr(transport, "transport_id", None)
     if not isinstance(transport_id, str) or not transport_id.strip():
         raise TypeError("write transport must expose a non-empty transport_id")
-    for name in ("health", "capabilities", "send_text", "send_text_observed", "governance"):
+    for name in (
+        "health",
+        "capabilities",
+        "send_text",
+        "send_text_observed",
+        "governance",
+    ):
         if not callable(getattr(transport, name, None)):
             raise TypeError(
                 "write transport must expose callable health(), capabilities(), send_text(), "
