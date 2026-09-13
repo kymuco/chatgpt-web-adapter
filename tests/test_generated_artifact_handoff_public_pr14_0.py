@@ -8,6 +8,11 @@ import chatgpt_web_adapter as adapter
 import chatgpt_web_adapter.generated_artifact_handoff as handoff
 
 
+class _WriteTransport:
+    def governance(self) -> dict:
+        return {}
+
+
 def _result(tmp_path: Path) -> adapter.GeneratedArtifactHandoffResult:
     return adapter.GeneratedArtifactHandoffResult(
         conversation_id="conversation-1",
@@ -17,6 +22,14 @@ def _result(tmp_path: Path) -> adapter.GeneratedArtifactHandoffResult:
         sha256="a" * 64,
         overwritten=False,
     )
+
+
+def _runtime_with(canonical) -> adapter.ChatGPTProductRuntime:
+    runtime = adapter.ChatGPTProductRuntime.__new__(adapter.ChatGPTProductRuntime)
+    runtime.canonical = canonical
+    runtime.transport = adapter.DEFAULT_PRODUCT_TRANSPORT
+    runtime.write_transport = _WriteTransport()
+    return runtime
 
 
 def test_web_client_exposes_governed_generated_artifact_handoff() -> None:
@@ -91,6 +104,40 @@ def test_runtime_rejects_wrong_handoff_return_type(tmp_path: Path) -> None:
             "artifact.txt",
             tmp_path / "saved.txt",
         )
+
+
+def test_runtime_governance_declares_handoff_authority_when_supported() -> None:
+    class _Canonical:
+        def handoff_generated_artifact(self, *args, **kwargs):
+            raise AssertionError("governance must not execute handoff")
+
+    governance = _runtime_with(_Canonical()).governance()
+
+    assert governance["generated_artifact_handoff_supported"] is True
+    assert (
+        governance["generated_artifact_handoff_identity_authority"]
+        == "CONVERSATION_SCOPED_FILE_ID"
+    )
+    assert (
+        governance["generated_artifact_handoff_destination_authority"]
+        == "EXPLICIT_CALLER_PATH"
+    )
+    assert governance["generated_artifact_handoff_implicit_overwrite"] is False
+    assert governance["generated_artifact_handoff_automatic_retry"] is False
+    assert (
+        governance["generated_artifact_handoff_cross_origin_chatgpt_credentials"]
+        is False
+    )
+
+
+def test_runtime_governance_does_not_invent_handoff_for_legacy_client() -> None:
+    governance = _runtime_with(object()).governance()
+
+    assert governance["generated_artifact_handoff_supported"] is False
+    assert governance["generated_artifact_handoff_identity_authority"] is None
+    assert governance["generated_artifact_handoff_destination_authority"] is None
+    assert governance["generated_artifact_handoff_implicit_overwrite"] is False
+    assert governance["generated_artifact_handoff_automatic_retry"] is False
 
 
 def test_handoff_root_value_exports_are_shared_support() -> None:
