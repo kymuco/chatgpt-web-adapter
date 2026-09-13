@@ -94,14 +94,14 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
         "service_worker_rich_input_schema7_repair_pr9_2.js",
         "service_worker_ui_compat_pr11_7.js",
         "service_worker_text_submit_commit_hardening_pr11_3.js",
-        "service_worker_ordinary_text_identity_pr14_1.js",
+        "service_worker_ordinary_text_identity_authority.js",
     ]
     positions = [source.index(name) for name in ordered]
 
     assert positions == sorted(positions)
     assert len(_active_imports(source)) == len(ordered)
     assert source.rstrip().endswith(
-        'importScripts("service_worker_ordinary_text_identity_pr14_1.js");'
+        'importScripts("service_worker_ordinary_text_identity_authority.js");'
     )
     assert "service_worker_cwa_identity_capture_diag.js" not in source
     assert "service_worker_canonical_read.js" not in source
@@ -115,7 +115,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
     for cross_domain_import in (
         "service_worker_ui_compat_pr11_7.js",
         "service_worker_text_submit_commit_hardening_pr11_3.js",
-        "service_worker_ordinary_text_identity_pr14_1.js",
+        "service_worker_ordinary_text_identity_authority.js",
         "service_worker_product_source_citations_pr9_3.js",
         "service_worker_canonical_read.js",
         "service_worker_canonical_read_v2.js",
@@ -131,7 +131,7 @@ def test_read_domain_is_explicit_and_excludes_write_and_observation() -> None:
     assert source.index(citations) < source.index(canonical)
     assert len(_active_imports(source)) == 2
     assert "service_worker_text_submit_commit_hardening_pr11_3.js" not in source
-    assert "service_worker_ordinary_text_identity_pr14_1.js" not in source
+    assert "service_worker_ordinary_text_identity_authority.js" not in source
     assert "service_worker_connector_support_pr10_0.js" not in source
     assert "service_worker_ui_liveness.js" not in source
 
