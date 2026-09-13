@@ -92,6 +92,19 @@ def test_canonical_payload_escape_hatch_is_complete_and_defensively_copied() -> 
     assert len(payload["mapping"]) == 2
 
 
+def test_snapshot_messages_are_defensive_copies() -> None:
+    snapshot = canonical_snapshot_from_payload("conversation-1", _canonical_payload())
+
+    first = snapshot.messages
+    first[0].text = "mutated"
+    first[0].metadata_preview["mutated"] = True
+
+    second = snapshot.messages
+    assert second[0].text == "Hello"
+    assert "mutated" not in second[0].metadata_preview
+    assert snapshot.to_dict()["messages"][0]["text"] == "Hello"
+
+
 def test_runtime_exposes_first_class_snapshot_without_transport_details() -> None:
     snapshot = canonical_snapshot_from_payload("conversation-1", _canonical_payload())
 
@@ -157,6 +170,31 @@ def test_file_snapshot_reuses_first_class_snapshot_instead_of_double_read(
     )
     raw_payload = json.loads(result.raw_payload_path.read_text(encoding="utf-8"))
     assert raw_payload == _canonical_payload()
+
+
+def test_file_snapshot_rejects_mismatched_first_class_snapshot_identity(
+    tmp_path: Path,
+) -> None:
+    snapshot = canonical_snapshot_from_payload("conversation-1", _canonical_payload())
+
+    class _MismatchedClient:
+        def get_conversation_snapshot(self, conversation):
+            assert conversation == "conversation-2"
+            return snapshot
+
+    try:
+        snapshot_conversation(
+            _MismatchedClient(),
+            "conversation-2",
+            output_dir=tmp_path,
+            name="project",
+        )
+    except ValueError as error:
+        assert "different conversation identity" in str(error)
+    else:
+        raise AssertionError("expected mismatched snapshot identity to fail closed")
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_snapshot_types_are_root_exported_shared_support() -> None:
