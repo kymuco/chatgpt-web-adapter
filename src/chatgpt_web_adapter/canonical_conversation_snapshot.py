@@ -60,13 +60,21 @@ class CanonicalConversationSnapshot:
     provenance: ConversationReadProvenance
     _canonical_payload: dict[str, Any] = field(repr=False, compare=False)
 
+    def __getattribute__(self, name: str) -> Any:
+        value = object.__getattribute__(self, name)
+        if name == "messages":
+            return copy.deepcopy(value)
+        return value
+
     def __post_init__(self) -> None:
         ref = ConversationRef(self.conversation_id)
         object.__setattr__(self, "conversation_id", ref.conversation_id)
-        if not isinstance(self.messages, tuple) or not all(
-            isinstance(message, ChatMessage) for message in self.messages
+        messages = object.__getattribute__(self, "messages")
+        if not isinstance(messages, tuple) or not all(
+            isinstance(message, ChatMessage) for message in messages
         ):
             raise TypeError("messages must be a tuple of ChatMessage values")
+        object.__setattr__(self, "messages", copy.deepcopy(messages))
         if not isinstance(self.provenance, ConversationReadProvenance):
             raise TypeError("provenance must be ConversationReadProvenance")
         if not isinstance(self._canonical_payload, dict):
@@ -83,7 +91,7 @@ class CanonicalConversationSnapshot:
 
     @property
     def message_count(self) -> int:
-        return len(self.messages)
+        return len(object.__getattribute__(self, "messages"))
 
     def to_dict(self) -> dict[str, Any]:
         return {
