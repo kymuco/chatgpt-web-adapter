@@ -512,6 +512,11 @@ def handoff_generated_artifact(
         discovery_payload,
         source_filename,
     )
+    if source_size is not None and source_size > max_bytes:
+        raise GeneratedArtifactHandoffError(
+            "ARTIFACT_SIZE_LIMIT_EXCEEDED",
+            stage="discovery",
+        )
 
     resolution_headers = _authenticated_headers(
         self,
