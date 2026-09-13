@@ -19,9 +19,14 @@ that evidence into one bounded production capability: materialize one caller-nam
 generated artifact to one caller-authorized local destination without turning an
 observed product locator into filesystem or retry authority.
 
-## Candidate public operation
+This is the graduation path frozen in PR10.1: stable product identity and a safe
+identity-bound resolver are now proven, so CWA may add a handoff only under explicit
+destination, overwrite, integrity, credential, and retry boundaries.
 
-The production operation is intentionally narrow:
+## Public operation
+
+The production operation is intentionally narrow and is exposed through the client
+and product runtime rather than as a root-level free function:
 
 ```python
 result = client.handoff_generated_artifact(
@@ -30,15 +35,30 @@ result = client.handoff_generated_artifact(
     destination="./exports/report.pdf",
     overwrite=False,
 )
+
+result = runtime.handoff_generated_artifact(
+    conversation,
+    filename="report.pdf",
+    destination="./exports/report.pdf",
+    overwrite=False,
+)
 ```
 
-The current implementation core is
-`chatgpt_web_adapter.generated_artifact_handoff.handoff_generated_artifact`; the
-client/runtime binding and root-package classification are completed in this PR
-before merge.
+`chatgpt_web_adapter.generated_artifact_handoff.handoff_generated_artifact` remains an
+internal composition helper. The stable root value surface is:
 
-The success value is `GeneratedArtifactHandoffResult` and contains only stable,
-non-locator evidence:
+```text
+GeneratedArtifactHandoffResult
+GeneratedArtifactHandoffError
+GENERATED_ARTIFACT_HANDOFF_SCHEMA
+DEFAULT_GENERATED_ARTIFACT_MAX_BYTES
+```
+
+These values are classified as shared support; the operation itself is reached
+through `ChatGPTWebClient` or `ChatGPTProductRuntime`, matching the existing
+first-class runtime method pattern.
+
+The success value contains only stable, non-locator evidence:
 
 ```text
 conversation_id
@@ -97,8 +117,8 @@ no-overwrite publication uses an atomic same-directory hard-link from the staged
 artifact, so a file that appears after the initial authority check causes a
 fail-closed `DESTINATION_EXISTS` rather than a hidden overwrite.
 
-`overwrite=True` authorizes replacement of a regular destination at that exact
-path. It does not authorize directory replacement or symlink traversal.
+`overwrite=True` authorizes replacement at that exact path and publishes with
+`os.replace`. It does not authorize directory replacement or symlink traversal.
 
 ## Read chain
 
@@ -111,6 +131,9 @@ A successful handoff uses the already-characterized PR13 chain:
 3. one non-redirecting GET of the approved resolver locator.
 
 There is no endpoint fallback and no automatic request retry in this capability.
+
+If discovery metadata already proves `source_size > max_bytes`, the handoff stops
+immediately after discovery. Resolver and locator retrieval are not attempted.
 
 ## Locator and credential policy
 
@@ -158,6 +181,11 @@ The caller may supply a different positive `max_bytes` value explicitly. Retriev
 is written directly into a sibling staging file rather than accumulated in Python
 memory.
 
+Known product size metadata is checked before resolution. During transfer, curl's
+bounded filesize path is mapped to the explicit
+`ARTIFACT_SIZE_LIMIT_EXCEEDED` failure. The staged byte count is checked again before
+publish so unknown or inaccurate response metadata cannot bypass the bound.
+
 ## Materialization transaction
 
 The artifact is never downloaded directly into the caller-visible destination.
@@ -178,7 +206,9 @@ approved locator
 For `overwrite=False`, publication is atomic no-replace. For `overwrite=True`,
 publication uses `os.replace`.
 
-Staging files are cleaned on all pre-publish failures.
+The staging sync path uses a writable file handle so the contract works on both the
+supported Linux and Windows CI platforms. Staging files are cleaned on pre-publish
+failures; cleanup never grants a second publish attempt.
 
 ## Ambiguous filesystem failure
 
@@ -191,19 +221,42 @@ destination_state = unknown_after_publish_attempt
 
 and stops. It does not retry the write automatically.
 
-If post-publication integrity verification fails, PR14.0 reports:
+If publication succeeded but CWA cannot complete the post-write readback, or the
+materialized bytes no longer match the staged size/SHA-256, PR14.0 reports:
 
 ```text
 destination_state = published_unverified
 ```
 
-and likewise does not retry, delete, or overwrite again automatically.
+and likewise does not retry, delete, roll back, or overwrite again automatically.
 
-This preserves the same broader CWA rule used for product writes:
+This preserves the broader CWA rule used for product writes:
 
 ```text
 ambiguous write != retry authority
 ```
+
+## Runtime governance
+
+`ChatGPTProductRuntime.governance()` reports this capability independently of the
+existing rich-input `FILES` transport capability:
+
+```text
+generated_artifact_handoff_supported
+generated_artifact_handoff_identity_authority
+generated_artifact_handoff_destination_authority
+generated_artifact_handoff_implicit_overwrite
+generated_artifact_handoff_automatic_retry
+generated_artifact_handoff_cross_origin_chatgpt_credentials
+```
+
+A runtime backed by a legacy/custom canonical client that does not expose the handoff
+method reports `generated_artifact_handoff_supported=false`. The presence of a method
+on `ChatGPTProductRuntime` itself never fabricates support in an injected client.
+
+The governance extension preserves historical runtime construction used by existing
+regression tests: it tolerates older objects that expose `client` but predate the
+`canonical` alias.
 
 ## Stable failure surface
 
@@ -230,6 +283,10 @@ publish
 verification
 ```
 
+The historical `chatgpt_web_adapter.errors` compatibility namespace is intentionally
+not widened by PR14.0. The new error remains available as an explicit root/shared
+support symbol without changing the exact legacy `errors.__all__` contract.
+
 ## Scope boundaries
 
 PR14.0 does not add:
@@ -248,10 +305,32 @@ PR14.0 does not add:
 The capability is a governed handoff from already-proven product-owned identity to
 one explicit local filesystem destination.
 
-## Acceptance target
+## Deterministic regression coverage
 
-Before merge, PR14.0 requires both deterministic regression coverage and one
-authenticated exact-head live gate against the existing PR13 generated text fixture:
+The candidate covers at minimum:
+
+- successful verified materialization;
+- explicit overwrite replacement;
+- pre-read rejection of unauthorized overwrite;
+- no-overwrite destination race;
+- duplicate filename ambiguity;
+- explicit `file_id` requirement;
+- unknown locator origin rejection;
+- cross-origin credential stripping;
+- source-size mismatch;
+- known-size fail-fast before resolution;
+- curl filesize-limit mapping;
+- symlink destination rejection;
+- Windows-compatible staging fsync;
+- staging verification failure with `destination_state=unchanged`;
+- post-publish readback failure with `destination_state=published_unverified`;
+- client/runtime public surface and runtime governance;
+- legacy runtime/client compatibility boundaries.
+
+## Final live acceptance target
+
+Before merge, PR14.0 requires a green supported CI matrix and one authenticated
+exact-head live gate against the existing PR13 generated text fixture:
 
 ```text
 filename = cwa_pr13_1_identity_probe.txt
@@ -274,4 +353,5 @@ automatic retry = NOT ATTEMPTED
 ```
 
 The fixture destination is local only; the live gate performs no ChatGPT/product
-write.
+write. The PR must remain draft until deterministic CI is green; only after the
+exact-head authenticated gate passes may it be promoted for merge.
