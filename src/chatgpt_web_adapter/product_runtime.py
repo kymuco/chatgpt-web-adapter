@@ -226,7 +226,25 @@ class ChatGPTProductRuntime(_core.ChatGPTProductRuntime):
         return result
 
     def governance(self) -> dict[str, Any]:
-        return super().governance()
+        governance = dict(super().governance())
+        supported = callable(
+            getattr(self.canonical, "handoff_generated_artifact", None)
+        )
+        governance.update(
+            {
+                "generated_artifact_handoff_supported": supported,
+                "generated_artifact_handoff_identity_authority": (
+                    "CONVERSATION_SCOPED_FILE_ID" if supported else None
+                ),
+                "generated_artifact_handoff_destination_authority": (
+                    "EXPLICIT_CALLER_PATH" if supported else None
+                ),
+                "generated_artifact_handoff_implicit_overwrite": False,
+                "generated_artifact_handoff_automatic_retry": False,
+                "generated_artifact_handoff_cross_origin_chatgpt_credentials": False,
+            }
+        )
+        return governance
 
 
 def assemble_product_runtime(
