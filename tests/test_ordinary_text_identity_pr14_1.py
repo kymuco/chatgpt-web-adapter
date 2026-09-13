@@ -10,7 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-AUTHORITY = EXT / "service_worker_ordinary_text_identity_pr14_1.js"
+AUTHORITY = EXT / "service_worker_ordinary_text_identity_authority.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 
 
@@ -44,7 +44,7 @@ def _sse(*conversation_ids: str) -> str:
 def _run_harness(scenario: dict) -> dict:
     authority = _source(AUTHORITY)
     scenario_json = json.dumps(scenario)
-    prelude = r'''
+    prelude = r"""
 const scenario = __SCENARIO__;
 const events = [];
 const listeners = [];
@@ -271,9 +271,9 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
   text: message.text,
   timeoutMs: message.timeoutMs
 });
-'''.replace("__SCENARIO__", scenario_json)
+""".replace("__SCENARIO__", scenario_json)
 
-    epilogue = r'''
+    epilogue = r"""
 (async () => {
   const message = {
     text: scenario.messageText,
@@ -296,7 +296,7 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
   console.error(error);
   process.exitCode = 1;
 });
-'''
+"""
 
     with tempfile.NamedTemporaryFile(
         "w", suffix=".js", delete=False, encoding="utf-8"
@@ -322,7 +322,7 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
 
 def test_authority_is_last_write_domain_layer_without_diagnostic_dependency() -> None:
     source = _source(WRITE)
-    authority = 'importScripts("service_worker_ordinary_text_identity_pr14_1.js");'
+    authority = 'importScripts("service_worker_ordinary_text_identity_authority.js");'
     commit = 'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
 
     assert authority in source
