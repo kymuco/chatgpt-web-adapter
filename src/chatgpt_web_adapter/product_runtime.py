@@ -7,6 +7,10 @@ from . import product_runtime_core as _core
 from .auth import DEFAULT_AUTH_FILE
 from .canonical_conversation_snapshot import CanonicalConversationSnapshot
 from .client import DEFAULT_TIMEOUT_SECONDS, ChatGPTWebClient
+from .generated_artifact_handoff import (
+    DEFAULT_GENERATED_ARTIFACT_MAX_BYTES,
+    GeneratedArtifactHandoffResult,
+)
 from .product_runtime_observation_gate import gate_product_runtime_send_text_observed
 from .product_submission import ProductSubmissionAck
 from .product_transport import (
@@ -192,6 +196,34 @@ class ChatGPTProductRuntime(_core.ChatGPTProductRuntime):
                 "CanonicalConversationSnapshot"
             )
         return snapshot
+
+    def handoff_generated_artifact(
+        self,
+        conversation: Any,
+        filename: str,
+        destination: str | Path,
+        *,
+        overwrite: bool = False,
+        max_bytes: int = DEFAULT_GENERATED_ARTIFACT_MAX_BYTES,
+    ) -> GeneratedArtifactHandoffResult:
+        handoff = getattr(self.canonical, "handoff_generated_artifact", None)
+        if not callable(handoff):
+            raise TypeError(
+                "canonical client does not expose handoff_generated_artifact()"
+            )
+        result = handoff(
+            conversation,
+            filename,
+            destination,
+            overwrite=overwrite,
+            max_bytes=max_bytes,
+        )
+        if not isinstance(result, GeneratedArtifactHandoffResult):
+            raise TypeError(
+                "canonical handoff_generated_artifact() must return "
+                "GeneratedArtifactHandoffResult"
+            )
+        return result
 
     def governance(self) -> dict[str, Any]:
         return super().governance()
