@@ -54,19 +54,22 @@ def test_compatibility_pack_loads_after_rich_authority_before_text_hardening() -
     runtime = RUNTIME.read_text(encoding="utf-8")
     rich = 'importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");'
     compat = 'importScripts("service_worker_ui_compat_pr11_7.js");'
-    hardening = 'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
+    hardening = (
+        'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
+    )
     observation = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
 
     assert rich in schema_loader
     assert write.index(compat) < write.index(hardening)
     assert observation in read
-    assert runtime.index('importScripts("service_worker_runtime_write.js");') < runtime.index(
-        'importScripts("service_worker_runtime_read.js");'
-    )
+    assert runtime.index(
+        'importScripts("service_worker_runtime_write.js");'
+    ) < runtime.index('importScripts("service_worker_runtime_read.js");')
 
 
-def test_existing_consumers_use_shared_compatibility_without_changing_ownership(
-) -> None:
+def test_existing_consumers_use_shared_compatibility_without_changing_ownership() -> (
+    None
+):
     base = BASE.read_text(encoding="utf-8")
     compat = COMPAT.read_text(encoding="utf-8")
     hardening = TEXT_HARDENING.read_text(encoding="utf-8")
@@ -194,7 +197,9 @@ def test_composer_missing_uses_one_bounded_structural_probe(tmp_path: Path) -> N
     assert result["log"] == ["historical_readiness", "compat:Runtime.evaluate"]
 
 
-def test_initial_readiness_seam_installs_structural_compatibility(tmp_path: Path) -> None:
+def test_initial_readiness_seam_installs_structural_compatibility(
+    tmp_path: Path,
+) -> None:
     result = _run_node_scenario(tmp_path, "installed_structural_readiness")
 
     assert result["result"] == {"ready": True, "reason": "ready"}
