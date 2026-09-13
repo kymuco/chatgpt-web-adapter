@@ -21,8 +21,7 @@ def test_empty_composer_drift_uses_bounded_locale_neutral_structural_evidence() 
     assert "element.getAttribute('aria-multiline') !== 'true'" in source
     assert "!element.closest('main') || !element.closest('form')" in source
     assert (
-        "'[contenteditable=\"true\"][role=\"textbox\"]"
-        "[aria-multiline=\"true\"]'"
+        '\'[contenteditable="true"][role="textbox"][aria-multiline="true"]\''
     ) in source
     assert "visible(candidate)" in source
     assert "writable(candidate)" in source
@@ -37,7 +36,9 @@ def test_empty_composer_drift_uses_bounded_locale_neutral_structural_evidence() 
     assert "Message ChatGPT" not in source
 
 
-def test_empty_composer_repair_does_not_remove_existing_fail_closed_submit_evidence() -> None:
+def test_empty_composer_repair_does_not_remove_existing_fail_closed_submit_evidence() -> (
+    None
+):
     source = COMPAT.read_text(encoding="utf-8")
 
     assert "structuralGenericEvidence" in source
