@@ -26,6 +26,7 @@ ERROR_EXPORTS = [
     "MediaError",
     "PayloadValidationError",
     "RequestError",
+    "GeneratedArtifactHandoffError",
 ]
 
 
