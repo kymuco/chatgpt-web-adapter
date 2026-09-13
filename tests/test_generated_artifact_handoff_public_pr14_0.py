@@ -20,7 +20,10 @@ def _result(tmp_path: Path) -> adapter.GeneratedArtifactHandoffResult:
 
 
 def test_web_client_exposes_governed_generated_artifact_handoff() -> None:
-    assert adapter.ChatGPTWebClient.handoff_generated_artifact is handoff.handoff_generated_artifact
+    assert (
+        adapter.ChatGPTWebClient.handoff_generated_artifact
+        is handoff.handoff_generated_artifact
+    )
 
 
 def test_runtime_forwards_additive_handoff_capability(tmp_path: Path) -> None:
@@ -101,9 +104,22 @@ def test_handoff_root_exports_have_explicit_support_tiers() -> None:
         assert hasattr(adapter, name)
 
     for name in primary:
-        assert adapter.public_surface_tier(name) is adapter.PublicSurfaceTier.PRIMARY_PRODUCTION
+        assert (
+            adapter.public_surface_tier(name)
+            is adapter.PublicSurfaceTier.PRIMARY_PRODUCTION
+        )
     for name in shared:
-        assert adapter.public_surface_tier(name) is adapter.PublicSurfaceTier.SHARED_SUPPORT
+        assert (
+            adapter.public_surface_tier(name)
+            is adapter.PublicSurfaceTier.SHARED_SUPPORT
+        )
+
+
+def test_handoff_error_is_available_through_errors_namespace() -> None:
+    assert (
+        adapter.errors.GeneratedArtifactHandoffError
+        is adapter.GeneratedArtifactHandoffError
+    )
 
 
 def test_result_projection_is_stable_and_locator_free(tmp_path: Path) -> None:
@@ -113,7 +129,7 @@ def test_result_projection_is_stable_and_locator_free(tmp_path: Path) -> None:
         "schema": adapter.GENERATED_ARTIFACT_HANDOFF_SCHEMA,
         "conversation_id": "conversation-1",
         "source_filename": "artifact.txt",
-        "destination": str(tmp_path / "artifact.txt"),
+        "destination": str((tmp_path / "artifact.txt").absolute()),
         "size_bytes": 3,
         "sha256": "a" * 64,
         "overwritten": False,
