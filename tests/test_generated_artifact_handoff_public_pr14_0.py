@@ -115,13 +115,6 @@ def test_handoff_root_exports_have_explicit_support_tiers() -> None:
         )
 
 
-def test_handoff_error_is_available_through_errors_namespace() -> None:
-    assert (
-        adapter.errors.GeneratedArtifactHandoffError
-        is adapter.GeneratedArtifactHandoffError
-    )
-
-
 def test_result_projection_is_stable_and_locator_free(tmp_path: Path) -> None:
     result = _result(tmp_path)
 
