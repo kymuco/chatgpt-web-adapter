@@ -548,13 +548,19 @@ def handoff_generated_artifact(
     staging: Path | None = None
     published = False
     try:
-        with tempfile.NamedTemporaryFile(
-            prefix=f".{destination_path.name}.cwa-",
-            suffix=".part",
-            dir=destination_path.parent,
-            delete=False,
-        ) as staging_file:
-            staging = Path(staging_file.name)
+        try:
+            with tempfile.NamedTemporaryFile(
+                prefix=f".{destination_path.name}.cwa-",
+                suffix=".part",
+                dir=destination_path.parent,
+                delete=False,
+            ) as staging_file:
+                staging = Path(staging_file.name)
+        except OSError as error:
+            raise GeneratedArtifactHandoffError(
+                "STAGING_CREATE_FAILED",
+                stage="authority",
+            ) from error
 
         try:
             locator_status, _ = _run_read_curl(
@@ -583,8 +589,14 @@ def handoff_generated_artifact(
                 status_code=locator_status or None,
             )
 
-        _fsync_file(staging)
-        staged_size, staged_sha256 = _file_integrity(staging)
+        try:
+            _fsync_file(staging)
+            staged_size, staged_sha256 = _file_integrity(staging)
+        except OSError as error:
+            raise GeneratedArtifactHandoffError(
+                "STAGING_VERIFICATION_FAILED",
+                stage="verification",
+            ) from error
         if staged_size > max_bytes:
             raise GeneratedArtifactHandoffError(
                 "ARTIFACT_SIZE_LIMIT_EXCEEDED",
@@ -604,7 +616,14 @@ def handoff_generated_artifact(
         )
         published = True
 
-        materialized_size, materialized_sha256 = _file_integrity(destination_path)
+        try:
+            materialized_size, materialized_sha256 = _file_integrity(destination_path)
+        except OSError as error:
+            raise GeneratedArtifactHandoffError(
+                "POST_WRITE_INTEGRITY_UNAVAILABLE",
+                stage="verification",
+                destination_state="published_unverified",
+            ) from error
         if materialized_size != staged_size or materialized_sha256 != staged_sha256:
             raise GeneratedArtifactHandoffError(
                 "POST_WRITE_INTEGRITY_MISMATCH",
