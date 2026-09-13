@@ -28,10 +28,31 @@ function _pr117ComposerResolverSource() {
           element.getAttribute('contenteditable') !== 'true') return false;
       return true;
     };
+    const currentEmptyComposerEvidence = (element) => {
+      if (element.getAttribute('contenteditable') !== 'true') return false;
+      if (element.getAttribute('role') !== 'textbox') return false;
+      if (element.getAttribute('aria-multiline') !== 'true') return false;
+      if (!element.closest('main') || !element.closest('form')) return false;
+
+      // Current ChatGPT can expose an empty composer before a Send control exists.
+      // Accept that shape only when it is the unique visible+writable multiline
+      // contenteditable textbox inside main+form. This stays locale-neutral and
+      // fails closed when a second editor could be confused with the composer.
+      const peers = Array.from(document.querySelectorAll(
+        '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+      )).filter((candidate) =>
+        visible(candidate) &&
+        writable(candidate) &&
+        candidate.closest('main') &&
+        candidate.closest('form')
+      );
+      return peers.length === 1 && peers[0] === element;
+    };
     const structuralGenericEvidence = (element) => {
       if (element.closest('[data-testid*="composer"]')) return true;
       const testId = String(element.getAttribute('data-testid') || '').toLowerCase();
       if (testId.includes('composer') || testId.includes('prompt')) return true;
+      if (currentEmptyComposerEvidence(element)) return true;
 
       const form = element.closest('form');
       if (!form) return false;
