@@ -7,6 +7,7 @@
 // evidence; an arbitrary visible editor is never enough.
 
 const PR117_UI_COMPAT_SCHEMA = 1;
+const _pr117HistoricalQueryComposerReadiness = queryComposerReadiness;
 
 function _pr117ComposerResolverSource() {
   return `() => {
@@ -122,7 +123,7 @@ function _pr117ComposerReadinessExpression() {
 
 async function _pr117QueryComposerReadiness(debuggee) {
   try {
-    const historical = await queryComposerReadiness(debuggee);
+    const historical = await _pr117HistoricalQueryComposerReadiness(debuggee);
     if (historical?.reason !== 'composer_missing') return historical;
   } catch {
     // Fall through to the bounded structural compatibility probe.
@@ -236,3 +237,10 @@ async function _pr117WaitForSendButtonPoint(
   }
   throw new Error('CHATGPT_SEND_BUTTON_NOT_READY');
 }
+
+// The historical waitForComposerReady() loop resolves queryComposerReadiness at
+// call time. Install the compatibility query at that shared discovery seam so
+// initial write preflight, completion readiness, and legacy consumers all receive
+// the same bounded structural fallback. This changes observation only; it does
+// not submit, type, navigate, retry, or grant write authority.
+queryComposerReadiness = _pr117QueryComposerReadiness;
