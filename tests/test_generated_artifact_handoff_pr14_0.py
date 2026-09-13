@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,6 +21,23 @@ class _Client:
         headers = dict(self.base_headers)
         headers.update(additions)
         return headers
+
+
+class _CurlClient:
+    def _build_curl_command(
+        self,
+        method,
+        url,
+        headers,
+        header_path,
+        body_path=None,
+        *,
+        no_buffer=False,
+        follow_redirects=False,
+    ):
+        assert method == "GET"
+        assert follow_redirects is False
+        return ["curl", "-D", header_path, url]
 
 
 def _discovery_payload(*, size: int | None = None) -> dict:
@@ -45,7 +63,9 @@ def _install_read_chain(
     def fake_json_get(client, *, url, headers, stage):
         calls.append((stage, url))
         if stage == "discovery":
-            return 200, discovery_payload or _discovery_payload(size=len(artifact_bytes))
+            return 200, discovery_payload or _discovery_payload(
+                size=len(artifact_bytes)
+            )
         if stage == "resolution":
             return 200, {"download_url": locator}
         raise AssertionError(stage)
@@ -111,7 +131,9 @@ def test_existing_destination_requires_explicit_overwrite_before_any_read(
     destination.write_text("keep", encoding="utf-8")
 
     def forbidden(*args, **kwargs):
-        raise AssertionError("network read must not start without destination authority")
+        raise AssertionError(
+            "network read must not start without destination authority"
+        )
 
     monkeypatch.setattr(handoff, "_json_get", forbidden)
 
@@ -323,6 +345,31 @@ def test_symlink_destination_is_never_overwrite_authority(
 
     assert exc_info.value.reason == "DESTINATION_SYMLINK_REJECTED"
     assert target.read_bytes() == b"target"
+
+
+def test_curl_filesize_limit_has_explicit_bounded_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def fake_run(command, *, capture_output):
+        header_path = Path(command[command.index("-D") + 1])
+        header_path.write_text("HTTP/2 200 OK\n", encoding="utf-8")
+        return SimpleNamespace(returncode=63, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(handoff.subprocess, "run", fake_run)
+
+    with pytest.raises(handoff.GeneratedArtifactHandoffError) as exc_info:
+        handoff._run_read_curl(
+            _CurlClient(),
+            url="https://chatgpt.com/artifact",
+            headers={},
+            output_path=tmp_path / "staging.part",
+            max_bytes=5,
+        )
+
+    assert exc_info.value.reason == "ARTIFACT_SIZE_LIMIT_EXCEEDED"
+    assert exc_info.value.stage == "retrieval"
+    assert exc_info.value.status_code == 200
 
 
 def test_error_projection_does_not_expose_identity_or_locator() -> None:
