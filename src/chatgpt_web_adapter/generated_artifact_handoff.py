@@ -21,6 +21,7 @@ _COLLECTION_KEYS = ("files", "items", "data")
 _FILENAME_KEYS = ("filename", "file_name", "name")
 _SIZE_KEYS = ("size_bytes", "size")
 _LOCATOR_KEYS = ("download_url", "url", "href")
+_CURL_FILESIZE_EXCEEDED = 63
 
 GeneratedArtifactHandoffStage = Literal[
     "authority",
@@ -83,9 +84,10 @@ class GeneratedArtifactHandoffResult:
     def __post_init__(self) -> None:
         ref = ConversationRef(self.conversation_id)
         object.__setattr__(self, "conversation_id", ref.conversation_id)
-        object.__setattr__(self, "source_filename", _safe_filename(self.source_filename))
-        destination = Path(self.destination)
-        object.__setattr__(self, "destination", destination)
+        object.__setattr__(
+            self, "source_filename", _safe_filename(self.source_filename)
+        )
+        object.__setattr__(self, "destination", Path(self.destination).absolute())
         if isinstance(self.size_bytes, bool) or not isinstance(self.size_bytes, int):
             raise TypeError("size_bytes must be an int")
         if self.size_bytes < 0:
@@ -96,6 +98,7 @@ class GeneratedArtifactHandoffResult:
             int(self.sha256, 16)
         except ValueError as error:
             raise ValueError("sha256 must be hexadecimal") from error
+        object.__setattr__(self, "sha256", self.sha256.lower())
         if self.integrity_verified is not True:
             raise ValueError("successful handoff result must be integrity verified")
 
@@ -202,7 +205,7 @@ def _run_read_curl(
     output_path: Path | None = None,
     max_bytes: int | None = None,
 ) -> tuple[int, bytes]:
-    """Perform one non-redirecting GET without routing sensitive bodies to traces."""
+    """Perform one non-redirecting GET without tracing sensitive response bodies."""
 
     with tempfile.NamedTemporaryFile(delete=False) as header_file:
         header_path = Path(header_file.name)
@@ -221,6 +224,12 @@ def _run_read_curl(
         result = subprocess.run(command, capture_output=True)
         header_text = header_path.read_text(encoding="utf-8", errors="replace")
         status = _header_status(header_text)
+        if result.returncode == _CURL_FILESIZE_EXCEEDED and max_bytes is not None:
+            raise GeneratedArtifactHandoffError(
+                "ARTIFACT_SIZE_LIMIT_EXCEEDED",
+                stage="retrieval",
+                status_code=status or None,
+            )
         if result.returncode != 0:
             raise GeneratedArtifactHandoffError(
                 "READ_TRANSPORT_FAILED",
@@ -423,11 +432,9 @@ def _file_integrity(path: Path) -> tuple[int, str]:
 
 
 def _fsync_file(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+    with path.open("r+b") as handle:
+        handle.flush()
+        os.fsync(handle.fileno())
 
 
 def _publish_staging(
@@ -598,10 +605,7 @@ def handoff_generated_artifact(
         published = True
 
         materialized_size, materialized_sha256 = _file_integrity(destination_path)
-        if (
-            materialized_size != staged_size
-            or materialized_sha256 != staged_sha256
-        ):
+        if materialized_size != staged_size or materialized_sha256 != staged_sha256:
             raise GeneratedArtifactHandoffError(
                 "POST_WRITE_INTEGRITY_MISMATCH",
                 stage="verification",
