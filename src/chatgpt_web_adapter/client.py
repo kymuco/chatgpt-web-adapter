@@ -26,6 +26,9 @@ from .diagnostic_metrics import (
     send_with_expanded_metrics as _send_with_expanded_metrics,
 )
 from .export import export_conversation as _export_conversation
+from .generated_artifact_handoff import (
+    handoff_generated_artifact as _handoff_generated_artifact,
+)
 from .model_registry import (
     DEFAULT_MODEL as DEFAULT_MODEL,
 )
@@ -264,6 +267,7 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
     get_pending_approval = _get_pending_approval
     get_required_action = _get_required_action
     get_status = _get_status
+    handoff_generated_artifact = _handoff_generated_artifact
 
     send = _send_with_expanded_metrics(
         _gate_prepared_text_send(_original_send, require_provider=False)

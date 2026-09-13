@@ -7,6 +7,10 @@ from . import product_runtime_core as _core
 from .auth import DEFAULT_AUTH_FILE
 from .canonical_conversation_snapshot import CanonicalConversationSnapshot
 from .client import DEFAULT_TIMEOUT_SECONDS, ChatGPTWebClient
+from .generated_artifact_handoff import (
+    DEFAULT_GENERATED_ARTIFACT_MAX_BYTES,
+    GeneratedArtifactHandoffResult,
+)
 from .product_runtime_observation_gate import gate_product_runtime_send_text_observed
 from .product_submission import ProductSubmissionAck
 from .product_transport import (
@@ -193,8 +197,53 @@ class ChatGPTProductRuntime(_core.ChatGPTProductRuntime):
             )
         return snapshot
 
+    def handoff_generated_artifact(
+        self,
+        conversation: Any,
+        filename: str,
+        destination: str | Path,
+        *,
+        overwrite: bool = False,
+        max_bytes: int = DEFAULT_GENERATED_ARTIFACT_MAX_BYTES,
+    ) -> GeneratedArtifactHandoffResult:
+        handoff = getattr(self.canonical, "handoff_generated_artifact", None)
+        if not callable(handoff):
+            raise TypeError(
+                "canonical client does not expose handoff_generated_artifact()"
+            )
+        result = handoff(
+            conversation,
+            filename,
+            destination,
+            overwrite=overwrite,
+            max_bytes=max_bytes,
+        )
+        if not isinstance(result, GeneratedArtifactHandoffResult):
+            raise TypeError(
+                "canonical handoff_generated_artifact() must return "
+                "GeneratedArtifactHandoffResult"
+            )
+        return result
+
     def governance(self) -> dict[str, Any]:
-        return super().governance()
+        governance = dict(super().governance())
+        canonical = getattr(self, "canonical", getattr(self, "client", None))
+        supported = callable(getattr(canonical, "handoff_generated_artifact", None))
+        governance.update(
+            {
+                "generated_artifact_handoff_supported": supported,
+                "generated_artifact_handoff_identity_authority": (
+                    "CONVERSATION_SCOPED_FILE_ID" if supported else None
+                ),
+                "generated_artifact_handoff_destination_authority": (
+                    "EXPLICIT_CALLER_PATH" if supported else None
+                ),
+                "generated_artifact_handoff_implicit_overwrite": False,
+                "generated_artifact_handoff_automatic_retry": False,
+                "generated_artifact_handoff_cross_origin_chatgpt_credentials": False,
+            }
+        )
+        return governance
 
 
 def assemble_product_runtime(
