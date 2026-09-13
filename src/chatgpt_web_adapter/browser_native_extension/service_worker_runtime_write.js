@@ -11,4 +11,4 @@ importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");
 importScripts("service_worker_ui_compat_pr11_7.js");
 importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");
-importScripts("service_worker_ordinary_text_identity_pr14_1.js");
+importScripts("service_worker_ordinary_text_identity_authority.js");
