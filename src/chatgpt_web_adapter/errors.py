@@ -8,6 +8,7 @@ from .exceptions import (
     RequestError,
     WebChatAdapterError,
 )
+from .generated_artifact_handoff import GeneratedArtifactHandoffError
 
 __all__ = [
     "WebChatAdapterError",
@@ -16,4 +17,5 @@ __all__ = [
     "MediaError",
     "PayloadValidationError",
     "RequestError",
+    "GeneratedArtifactHandoffError",
 ]
