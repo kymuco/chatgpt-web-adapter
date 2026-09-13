@@ -227,8 +227,9 @@ class ChatGPTProductRuntime(_core.ChatGPTProductRuntime):
 
     def governance(self) -> dict[str, Any]:
         governance = dict(super().governance())
+        canonical = getattr(self, "canonical", getattr(self, "client", None))
         supported = callable(
-            getattr(self.canonical, "handoff_generated_artifact", None)
+            getattr(canonical, "handoff_generated_artifact", None)
         )
         governance.update(
             {
