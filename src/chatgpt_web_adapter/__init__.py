@@ -37,6 +37,13 @@ from .exceptions import (
     RequestError,
     WebChatAdapterError,
 )
+from .generated_artifact_handoff import (
+    DEFAULT_GENERATED_ARTIFACT_MAX_BYTES,
+    GENERATED_ARTIFACT_HANDOFF_SCHEMA,
+    GeneratedArtifactHandoffError,
+    GeneratedArtifactHandoffResult,
+    handoff_generated_artifact,
+)
 from .model_registry import (
     DEFAULT_MODEL,
 )
@@ -296,6 +303,8 @@ __all__ = [
     "CanonicalConversationClient",
     "CanonicalConversationSnapshotClient",
     "ProductWriteTransport",
+    "GeneratedArtifactHandoffResult",
+    "handoff_generated_artifact",
     "ChatGPTProductRuntime",
     "ProductRuntimeExecution",
     "ProductRuntimeHealth",
@@ -313,6 +322,9 @@ __all__ = [
     "CANONICAL_CONVERSATION_SNAPSHOT_SCHEMA",
     "CanonicalConversationSnapshot",
     "ConversationReadProvenance",
+    "DEFAULT_GENERATED_ARTIFACT_MAX_BYTES",
+    "GENERATED_ARTIFACT_HANDOFF_SCHEMA",
+    "GeneratedArtifactHandoffError",
     "AuthStatus",
     "AuthRefreshResult",
     "BrowserLoginResult",
