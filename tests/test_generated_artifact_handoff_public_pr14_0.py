@@ -9,6 +9,8 @@ import chatgpt_web_adapter.generated_artifact_handoff as handoff
 
 
 class _WriteTransport:
+    transport_id = adapter.DEFAULT_PRODUCT_TRANSPORT
+
     def governance(self) -> dict:
         return {}
 
