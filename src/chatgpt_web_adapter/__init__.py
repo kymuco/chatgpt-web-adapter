@@ -42,7 +42,6 @@ from .generated_artifact_handoff import (
     GENERATED_ARTIFACT_HANDOFF_SCHEMA,
     GeneratedArtifactHandoffError,
     GeneratedArtifactHandoffResult,
-    handoff_generated_artifact,
 )
 from .model_registry import (
     DEFAULT_MODEL,
@@ -303,8 +302,6 @@ __all__ = [
     "CanonicalConversationClient",
     "CanonicalConversationSnapshotClient",
     "ProductWriteTransport",
-    "GeneratedArtifactHandoffResult",
-    "handoff_generated_artifact",
     "ChatGPTProductRuntime",
     "ProductRuntimeExecution",
     "ProductRuntimeHealth",
@@ -325,6 +322,7 @@ __all__ = [
     "DEFAULT_GENERATED_ARTIFACT_MAX_BYTES",
     "GENERATED_ARTIFACT_HANDOFF_SCHEMA",
     "GeneratedArtifactHandoffError",
+    "GeneratedArtifactHandoffResult",
     "AuthStatus",
     "AuthRefreshResult",
     "BrowserLoginResult",
