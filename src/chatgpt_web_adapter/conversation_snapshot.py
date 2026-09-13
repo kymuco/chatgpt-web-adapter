@@ -122,10 +122,15 @@ def _first_class_snapshot(
     reader = getattr(client, "get_conversation_snapshot", None)
     if not callable(reader):
         return None
+    ref = ConversationRef.from_any(conversation)
     snapshot = reader(conversation)
     if not isinstance(snapshot, CanonicalConversationSnapshot):
         raise TypeError(
             "get_conversation_snapshot() must return CanonicalConversationSnapshot"
+        )
+    if snapshot.conversation_id != ref.conversation_id:
+        raise ValueError(
+            "get_conversation_snapshot() returned a different conversation identity"
         )
     return snapshot
 
