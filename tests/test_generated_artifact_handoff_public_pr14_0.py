@@ -26,6 +26,11 @@ def test_web_client_exposes_governed_generated_artifact_handoff() -> None:
     )
 
 
+def test_internal_handoff_helper_is_not_root_exported() -> None:
+    assert "handoff_generated_artifact" not in adapter.__all__
+    assert not hasattr(adapter, "handoff_generated_artifact")
+
+
 def test_runtime_forwards_additive_handoff_capability(tmp_path: Path) -> None:
     expected = _result(tmp_path)
 
@@ -88,27 +93,17 @@ def test_runtime_rejects_wrong_handoff_return_type(tmp_path: Path) -> None:
         )
 
 
-def test_handoff_root_exports_have_explicit_support_tiers() -> None:
-    primary = (
-        "GeneratedArtifactHandoffResult",
-        "handoff_generated_artifact",
-    )
+def test_handoff_root_value_exports_are_shared_support() -> None:
     shared = (
         "DEFAULT_GENERATED_ARTIFACT_MAX_BYTES",
         "GENERATED_ARTIFACT_HANDOFF_SCHEMA",
         "GeneratedArtifactHandoffError",
+        "GeneratedArtifactHandoffResult",
     )
 
-    for name in (*primary, *shared):
+    for name in shared:
         assert name in adapter.__all__
         assert hasattr(adapter, name)
-
-    for name in primary:
-        assert (
-            adapter.public_surface_tier(name)
-            is adapter.PublicSurfaceTier.PRIMARY_PRODUCTION
-        )
-    for name in shared:
         assert (
             adapter.public_surface_tier(name)
             is adapter.PublicSurfaceTier.SHARED_SUPPORT
