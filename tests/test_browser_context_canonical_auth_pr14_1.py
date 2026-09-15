@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-REPAIR = EXT / "service_worker_canonical_read_auth_pr14_1.js"
+SESSION_AUTH = EXT / "service_worker_canonical_read_session_auth.js"
 READ_DOMAIN = EXT / "service_worker_runtime_read.js"
 
 
@@ -15,7 +15,7 @@ def _source(path: Path) -> str:
 
 
 def _run_harness(install_result: dict) -> dict:
-    source = _source(REPAIR)
+    source = _source(SESSION_AUTH)
     script = f"""
 const installResult = {json.dumps(install_result)};
 const events = [];
@@ -114,11 +114,11 @@ def test_canonical_auth_repair_fails_closed_before_backend_read() -> None:
 
 
 def test_canonical_auth_repair_keeps_credential_inside_page_scope() -> None:
-    source = _source(REPAIR)
+    source = _source(SESSION_AUTH)
     read_domain = _source(READ_DOMAIN)
 
     canonical_import = 'importScripts("service_worker_canonical_read_v2.js");'
-    auth_import = 'importScripts("service_worker_canonical_read_auth_pr14_1.js");'
+    auth_import = 'importScripts("service_worker_canonical_read_session_auth.js");'
     assert read_domain.index(canonical_import) < read_domain.index(auth_import)
 
     assert "/api/auth/session" in source
@@ -130,7 +130,7 @@ def test_canonical_auth_repair_keeps_credential_inside_page_scope() -> None:
     assert "setTimeout(restore, patchLifetimeMs)" in source
     assert "CANONICAL_READ_AUTH_PATCH_RESTORE_FAILED" in source
 
-    # The page token is consumed by a closure. The overlay has no native-message,
+    # The page token is consumed by a closure. The module has no native-message,
     # logging, storage or port path that could export credential material.
     assert "safePortPost" not in source
     assert "postNative" not in source
