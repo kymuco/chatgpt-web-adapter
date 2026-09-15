@@ -128,15 +128,10 @@ def test_read_domain_is_explicit_and_excludes_write_and_observation() -> None:
     source = _source(READ)
     citations = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
     canonical = 'importScripts("service_worker_canonical_read_v2.js");'
-    session_auth = 'importScripts("service_worker_canonical_read_session_auth.js");'
 
-    positions = [
-        source.index(citations),
-        source.index(canonical),
-        source.index(session_auth),
-    ]
-    assert positions == sorted(positions)
-    assert _active_imports(source) == [citations, canonical, session_auth]
+    assert source.index(citations) < source.index(canonical)
+    assert _active_imports(source) == [citations, canonical]
+    assert "service_worker_canonical_read_session_auth.js" not in source
     assert "service_worker_text_submit_commit_hardening_pr11_3.js" not in source
     assert "service_worker_ordinary_text_identity_authority.js" not in source
     assert "service_worker_connector_support_pr10_0.js" not in source
