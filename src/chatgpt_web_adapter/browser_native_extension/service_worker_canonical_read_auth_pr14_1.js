@@ -46,7 +46,6 @@ async function _pr141InstallCanonicalSessionBearer(
 ) {
   const encodedConversationId = encodeURIComponent(conversationId);
   const currentPath = `/backend-api/conversations/${encodedConversationId}`;
-  const legacyPath = `/backend-api/conversation/${encodedConversationId}`;
   const sessionEndpoint = `${CHATGPT_ORIGIN}/api/auth/session`;
   const patchLifetimeMs = Math.max(
     5_000,
@@ -55,10 +54,7 @@ async function _pr141InstallCanonicalSessionBearer(
   const expression = `(async () => {
     const stateKey = ${JSON.stringify(PR141_CANONICAL_AUTH_PATCH_KEY)};
     const sessionEndpoint = ${JSON.stringify(sessionEndpoint)};
-    const expectedPaths = new Set([
-      ${JSON.stringify(currentPath)},
-      ${JSON.stringify(legacyPath)}
-    ]);
+    const expectedPath = ${JSON.stringify(currentPath)};
     const sessionMaxChars = ${JSON.stringify(PR141_CANONICAL_SESSION_MAX_CHARS)};
     const accessTokenMaxChars = ${JSON.stringify(PR141_CANONICAL_ACCESS_TOKEN_MAX_CHARS)};
     const patchLifetimeMs = ${JSON.stringify(patchLifetimeMs)};
@@ -204,7 +200,7 @@ async function _pr141InstallCanonicalSessionBearer(
       if (
         method !== "GET" ||
         url.origin !== location.origin ||
-        !expectedPaths.has(url.pathname)
+        url.pathname !== expectedPath
       ) {
         return originalFetch.call(globalThis, input, init);
       }
