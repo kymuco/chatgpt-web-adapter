@@ -32,7 +32,7 @@ function _cwaRequestTextShapeNormalizedPostData(postData) {
   }
   if (!Array.isArray(payload.messages)) return postData;
 
-  let changed = false;
+  let payloadChanged = false;
   const messages = payload.messages.map((message) => {
     if (message === null || typeof message !== "object" || Array.isArray(message)) {
       return message;
@@ -43,6 +43,7 @@ function _cwaRequestTextShapeNormalizedPostData(postData) {
     }
 
     const parts = Array.isArray(content.parts) ? content.parts : [];
+    let messageChanged = false;
     let visibleText = "";
     const normalizedParts = parts.map((part) => {
       if (typeof part === "string") {
@@ -59,7 +60,7 @@ function _cwaRequestTextShapeNormalizedPostData(postData) {
       }
       if (typeof part.text === "string") {
         visibleText += part.text;
-        changed = true;
+        messageChanged = true;
         return part.text;
       }
       return part;
@@ -67,11 +68,11 @@ function _cwaRequestTextShapeNormalizedPostData(postData) {
 
     if (!visibleText.trim() && typeof content.text === "string") {
       normalizedParts.push(content.text);
-      visibleText += content.text;
-      changed = true;
+      messageChanged = true;
     }
-    if (!changed && normalizedParts.length === parts.length) return message;
+    if (!messageChanged) return message;
 
+    payloadChanged = true;
     return {
       ...message,
       content: {
@@ -81,7 +82,7 @@ function _cwaRequestTextShapeNormalizedPostData(postData) {
     };
   });
 
-  if (!changed) return postData;
+  if (!payloadChanged) return postData;
   return JSON.stringify({ ...payload, messages });
 }
 
