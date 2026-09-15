@@ -122,7 +122,8 @@ def test_canonical_auth_repair_keeps_credential_inside_page_scope() -> None:
     assert read_domain.index(canonical_import) < read_domain.index(auth_import)
 
     assert "/api/auth/session" in source
-    assert "expectedPaths.has(url.pathname)" in source
+    assert "url.pathname !== expectedPath" in source
+    assert "legacyPath" not in source
     assert 'method !== "GET"' in source
     assert 'headers.set("authorization", "Bearer " + accessToken);' in source
     assert "globalThis.fetch = patchedFetch;" in source
