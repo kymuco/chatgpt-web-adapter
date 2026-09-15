@@ -131,3 +131,54 @@ console.log(JSON.stringify(result));
 
     assert result["matched"] is False
     assert result["diagnostics"]["exactTextUserMessageCount"] == 0
+
+
+def test_safe_fingerprint_survives_worker_lifecycle_without_raw_evidence() -> None:
+    source = _inspector_source()
+    result = _run_node(
+        f"""
+let persisted = null;
+globalThis.chrome = {{
+  storage: {{
+    local: {{
+      set(value) {{ persisted = value; return Promise.resolve(); }}
+    }}
+  }}
+}};
+{source}
+const expected = "alpha\nbeta";
+const observed = "alpha\r\nbeta";
+const body = JSON.stringify({{
+  action: "next",
+  messages: [{{
+    id: "private-message-id",
+    author: {{role: "user"}},
+    content: {{parts: [observed]}},
+    metadata: {{}}
+  }}]
+}});
+_pr92Schema29InspectRequestPostData(body, expected, 0, null);
+const fingerprint = persisted[CWA_REQUEST_TEXT_SHAPE_DIAGNOSTIC_KEY];
+console.log(JSON.stringify({{
+  fingerprint,
+  serialized: JSON.stringify(fingerprint)
+}}));
+"""
+    )
+
+    fingerprint = result["fingerprint"]
+    assert fingerprint["matched"] is False
+    assert fingerprint["actionNext"] is True
+    assert fingerprint["conversationIdentityMatches"] is True
+    assert fingerprint["userMessageCount"] == 1
+    assert fingerprint["userMessageIdCount"] == 1
+    assert fingerprint["observedTextCandidateCount"] == 1
+    assert fingerprint["expectedTextLength"] == 10
+    assert fingerprint["observedTextLength"] == 11
+    assert fingerprint["exactObservedTextEqualsExpected"] is False
+    assert fingerprint["crlfNormalizedEqualsExpected"] is True
+    assert fingerprint["commonPrefixLength"] == 5
+    assert fingerprint["commonSuffixLength"] == 4
+    assert "alpha" not in result["serialized"]
+    assert "beta" not in result["serialized"]
+    assert "private-message-id" not in result["serialized"]
