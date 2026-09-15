@@ -212,7 +212,7 @@ async function _pr141InstallCanonicalSessionBearer(
       const headers = new Headers(
         init?.headers || (input instanceof Request ? input.headers : undefined)
       );
-      headers.set("authorization", `Bearer ${accessToken}`);
+      headers.set("authorization", "Bearer " + accessToken);
       return originalFetch.call(globalThis, input, { ...init, headers });
     };
 
