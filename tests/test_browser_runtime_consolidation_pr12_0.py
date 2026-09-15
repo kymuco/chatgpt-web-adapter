@@ -119,7 +119,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
         "service_worker_product_source_citations_pr9_3.js",
         "service_worker_canonical_read.js",
         "service_worker_canonical_read_v2.js",
-        "service_worker_canonical_read_auth_pr14_1.js",
+        "service_worker_canonical_read_session_auth.js",
     ):
         assert cross_domain_import not in rich
 
@@ -128,15 +128,15 @@ def test_read_domain_is_explicit_and_excludes_write_and_observation() -> None:
     source = _source(READ)
     citations = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
     canonical = 'importScripts("service_worker_canonical_read_v2.js");'
-    auth_repair = 'importScripts("service_worker_canonical_read_auth_pr14_1.js");'
+    session_auth = 'importScripts("service_worker_canonical_read_session_auth.js");'
 
     positions = [
         source.index(citations),
         source.index(canonical),
-        source.index(auth_repair),
+        source.index(session_auth),
     ]
     assert positions == sorted(positions)
-    assert _active_imports(source) == [citations, canonical, auth_repair]
+    assert _active_imports(source) == [citations, canonical, session_auth]
     assert "service_worker_text_submit_commit_hardening_pr11_3.js" not in source
     assert "service_worker_ordinary_text_identity_authority.js" not in source
     assert "service_worker_connector_support_pr10_0.js" not in source
