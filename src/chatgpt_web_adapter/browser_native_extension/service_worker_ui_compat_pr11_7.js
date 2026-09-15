@@ -7,6 +7,7 @@
 // evidence; an arbitrary visible editor is never enough.
 
 const PR117_UI_COMPAT_SCHEMA = 1;
+const _pr117HistoricalQueryComposerReadiness = queryComposerReadiness;
 
 function _pr117ComposerResolverSource() {
   return `() => {
@@ -27,10 +28,31 @@ function _pr117ComposerResolverSource() {
           element.getAttribute('contenteditable') !== 'true') return false;
       return true;
     };
+    const currentEmptyComposerEvidence = (element) => {
+      if (element.getAttribute('contenteditable') !== 'true') return false;
+      if (element.getAttribute('role') !== 'textbox') return false;
+      if (element.getAttribute('aria-multiline') !== 'true') return false;
+      if (!element.closest('main') || !element.closest('form')) return false;
+
+      // Current ChatGPT can expose an empty composer before a Send control exists.
+      // Accept that shape only when it is the unique visible+writable multiline
+      // contenteditable textbox inside main+form. This stays locale-neutral and
+      // fails closed when a second editor could be confused with the composer.
+      const peers = Array.from(document.querySelectorAll(
+        '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+      )).filter((candidate) =>
+        visible(candidate) &&
+        writable(candidate) &&
+        candidate.closest('main') &&
+        candidate.closest('form')
+      );
+      return peers.length === 1 && peers[0] === element;
+    };
     const structuralGenericEvidence = (element) => {
       if (element.closest('[data-testid*="composer"]')) return true;
       const testId = String(element.getAttribute('data-testid') || '').toLowerCase();
       if (testId.includes('composer') || testId.includes('prompt')) return true;
+      if (currentEmptyComposerEvidence(element)) return true;
 
       const form = element.closest('form');
       if (!form) return false;
@@ -122,7 +144,7 @@ function _pr117ComposerReadinessExpression() {
 
 async function _pr117QueryComposerReadiness(debuggee) {
   try {
-    const historical = await queryComposerReadiness(debuggee);
+    const historical = await _pr117HistoricalQueryComposerReadiness(debuggee);
     if (historical?.reason !== 'composer_missing') return historical;
   } catch {
     // Fall through to the bounded structural compatibility probe.
@@ -236,3 +258,10 @@ async function _pr117WaitForSendButtonPoint(
   }
   throw new Error('CHATGPT_SEND_BUTTON_NOT_READY');
 }
+
+// The historical waitForComposerReady() loop resolves queryComposerReadiness at
+// call time. Install the compatibility query at that shared discovery seam so
+// initial write preflight, completion readiness, and legacy consumers all receive
+// the same bounded structural fallback. This changes observation only; it does
+// not submit, type, navigate, retry, or grant write authority.
+queryComposerReadiness = _pr117QueryComposerReadiness;

@@ -9,6 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
+BASE = EXT / "service_worker.js"
 COMPAT = EXT / "service_worker_ui_compat_pr11_7.js"
 SCHEMA_LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 WRITE = EXT / "service_worker_runtime_write.js"
@@ -53,22 +54,30 @@ def test_compatibility_pack_loads_after_rich_authority_before_text_hardening() -
     runtime = RUNTIME.read_text(encoding="utf-8")
     rich = 'importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");'
     compat = 'importScripts("service_worker_ui_compat_pr11_7.js");'
-    hardening = 'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
+    hardening = (
+        'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
+    )
     observation = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
 
     assert rich in schema_loader
     assert write.index(compat) < write.index(hardening)
     assert observation in read
-    assert runtime.index('importScripts("service_worker_runtime_write.js");') < runtime.index(
-        'importScripts("service_worker_runtime_read.js");'
-    )
+    assert runtime.index(
+        'importScripts("service_worker_runtime_write.js");'
+    ) < runtime.index('importScripts("service_worker_runtime_read.js");')
 
 
-def test_existing_consumers_use_shared_compatibility_without_changing_ownership(
-) -> None:
+def test_existing_consumers_use_shared_compatibility_without_changing_ownership() -> (
+    None
+):
+    base = BASE.read_text(encoding="utf-8")
+    compat = COMPAT.read_text(encoding="utf-8")
     hardening = TEXT_HARDENING.read_text(encoding="utf-8")
     liveness = LIVENESS.read_text(encoding="utf-8")
 
+    assert "const state = await queryComposerReadiness(debuggee);" in base
+    assert "_pr117HistoricalQueryComposerReadiness = queryComposerReadiness" in compat
+    assert "queryComposerReadiness = _pr117QueryComposerReadiness;" in compat
     assert "_pr117LocateAndFocusComposer" in hardening
     assert "_pr117WaitForSendButtonPoint" in hardening
     assert "_pr92ActiveRichInputContext" in hardening
@@ -139,6 +148,7 @@ vm.createContext(context);
 vm.runInContext(
   source + `\n;globalThis.__exports = {\n` +
     `queryReadiness: _pr117QueryComposerReadiness,\n` +
+    `installedReadiness: queryComposerReadiness,\n` +
     `focusComposer: _pr117LocateAndFocusComposer,\n` +
     `querySubmitPoint: _pr117QuerySendButtonPoint\n` +
   `};`,
@@ -149,6 +159,8 @@ vm.runInContext(
   let result;
   if (scenario === "historical_ready" || scenario === "structural_readiness") {
     result = await context.__exports.queryReadiness({});
+  } else if (scenario === "installed_structural_readiness") {
+    result = await context.__exports.installedReadiness({});
   } else if (scenario === "focus_fallback") {
     result = await context.__exports.focusComposer({});
   } else {
@@ -180,6 +192,15 @@ def test_historical_composer_evidence_short_circuits_compatibility_probe(
 
 def test_composer_missing_uses_one_bounded_structural_probe(tmp_path: Path) -> None:
     result = _run_node_scenario(tmp_path, "structural_readiness")
+
+    assert result["result"] == {"ready": True, "reason": "ready"}
+    assert result["log"] == ["historical_readiness", "compat:Runtime.evaluate"]
+
+
+def test_initial_readiness_seam_installs_structural_compatibility(
+    tmp_path: Path,
+) -> None:
+    result = _run_node_scenario(tmp_path, "installed_structural_readiness")
 
     assert result["result"] == {"ready": True, "reason": "ready"}
     assert result["log"] == ["historical_readiness", "compat:Runtime.evaluate"]
