@@ -124,7 +124,7 @@ def test_canonical_auth_repair_keeps_credential_inside_page_scope() -> None:
     assert "/api/auth/session" in source
     assert "expectedPaths.has(url.pathname)" in source
     assert 'method !== "GET"' in source
-    assert 'headers.set("authorization", `Bearer ${accessToken}`);' in source
+    assert 'headers.set("authorization", "Bearer " + accessToken);' in source
     assert "globalThis.fetch = patchedFetch;" in source
     assert "setTimeout(restore, patchLifetimeMs)" in source
     assert "CANONICAL_READ_AUTH_PATCH_RESTORE_FAILED" in source
