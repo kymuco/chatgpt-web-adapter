@@ -7,12 +7,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-BOUNDARY = EXT / "service_worker_ordinary_text_identity_error_boundary.js"
+AUTHORITY = EXT / "service_worker_ordinary_text_identity_authority.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 
 
 def _run_node(source: str) -> dict[str, object]:
-    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as handle:
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".js", delete=False, encoding="utf-8"
+    ) as handle:
         handle.write(source)
         path = Path(handle.name)
     try:
@@ -27,36 +29,26 @@ def _run_node(source: str) -> dict[str, object]:
         path.unlink(missing_ok=True)
 
 
-def test_error_boundary_is_final_write_domain_layer() -> None:
+def test_authority_remains_final_write_domain_layer() -> None:
     source = WRITE.read_text(encoding="utf-8")
-    imports = [line.strip() for line in source.splitlines() if line.strip().startswith("importScripts(")]
-    assert imports[-2:] == [
-        'importScripts("service_worker_ordinary_text_identity_authority.js");',
-        'importScripts("service_worker_ordinary_text_identity_error_boundary.js");',
+    imports = [
+        line.strip()
+        for line in source.splitlines()
+        if line.strip().startswith("importScripts(")
     ]
+    assert imports[-1] == (
+        'importScripts("service_worker_ordinary_text_identity_authority.js");'
+    )
+    assert "ordinary_text_identity_error_boundary" not in source
 
 
 def test_masked_legacy_error_restores_exact_ordinary_failure() -> None:
-    boundary = BOUNDARY.read_text(encoding="utf-8")
+    authority = AUTHORITY.read_text(encoding="utf-8")
     source = f"""
-const CWA_ORDINARY_IDENTITY_COMMITTED_ERROR =
-  "PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED";
-function _cwaOrdinaryIdentityEligible(message) {{
-  return message?.ordinary === true;
-}}
-function _cwaOrdinaryIdentityError(suffix, diagnostics = null) {{
-  let detail = `${{CWA_ORDINARY_IDENTITY_COMMITTED_ERROR}}:${{suffix}}`;
-  if (diagnostics) {{
-    for (const [key, value] of Object.entries(diagnostics)) {{
-      if (typeof value === "boolean" || Number.isFinite(value)) {{
-        detail += `:${{key}}=${{value}}`;
-      }}
-    }}
-  }}
-  return new Error(detail);
-}}
+let sendCommand = async () => ({{}});
+let executeOfficialPageTurn = async () => ({{ conversationId: null }});
 let executeNativeTurn = async function(message) {{
-  if (message?.ordinary === true) {{
+  if (message?.text === "ordinary") {{
     _cwaOrdinaryIdentityError(
       "ORDINARY_REQUEST_CORRELATION_UNRESOLVED",
       {{ requestCount: 2, unresolvedCount: 1 }}
@@ -69,19 +61,31 @@ let executeNativeTurn = async function(message) {{
   }}
   throw new Error("NON_ORDINARY_FAILURE");
 }};
+function _pr92Schema29InspectRequestPostData() {{ return null; }}
+function _pr92Schema29ExtractRequestBoundConversationMetadata() {{ return null; }}
 
-{boundary}
+{authority}
 
 (async () => {{
   let ordinaryError = null;
   let nonOrdinaryError = null;
   try {{
-    await executeNativeTurn({{ ordinary: true }});
+    await executeNativeTurn({{
+      text: "ordinary",
+      attachmentPaths: [],
+      conversationMode: "normal",
+      timeoutMs: 5000
+    }});
   }} catch (error) {{
     ordinaryError = error instanceof Error ? error.message : String(error);
   }}
   try {{
-    await executeNativeTurn({{ ordinary: false }});
+    await executeNativeTurn({{
+      text: "non-ordinary",
+      attachmentPaths: ["attachment"],
+      conversationMode: "normal",
+      timeoutMs: 5000
+    }});
   }} catch (error) {{
     nonOrdinaryError = error instanceof Error ? error.message : String(error);
   }}
@@ -97,12 +101,10 @@ let executeNativeTurn = async function(message) {{
     assert result["nonOrdinaryError"] == "NON_ORDINARY_FAILURE"
 
 
-def test_boundary_does_not_create_retry_or_fallback_authority() -> None:
-    source = BOUNDARY.read_text(encoding="utf-8")
-    lowered = source.lower()
-    assert "retry" in lowered
-    assert "fallback" in lowered
-    assert "automaticretry" not in lowered
-    assert "fallbacktransport" not in lowered
-    assert "send_text" not in lowered
-    assert "sendcommand(" not in lowered
+def test_preservation_changes_no_write_retry_or_fallback_authority() -> None:
+    source = AUTHORITY.read_text(encoding="utf-8")
+    preservation = source[source.index("  } catch (error) {") :]
+    assert "throw new Error(exact);" in preservation
+    assert "automaticWriteRetry" not in preservation
+    assert "fallbackTransport" not in preservation
+    assert "send_text" not in preservation
