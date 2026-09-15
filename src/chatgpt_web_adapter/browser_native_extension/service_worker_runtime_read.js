@@ -5,4 +5,3 @@
 
 importScripts("service_worker_product_source_citations_pr9_3.js");
 importScripts("service_worker_canonical_read_v2.js");
-importScripts("service_worker_canonical_read_session_auth.js");
