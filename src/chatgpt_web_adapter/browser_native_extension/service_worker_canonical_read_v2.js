@@ -3,6 +3,8 @@ const CWA_CANONICAL_CHUNK_BASE64_CHARS = 600_000;
 // Product-observed server query hint. It is not a message-count guarantee.
 const CWA_CANONICAL_CURRENT_NUM_TURNS = 20;
 const CWA_CANONICAL_MAX_PAGES = 100;
+const CWA_CANONICAL_SESSION_MAX_CHARS = 262_144;
+const CWA_CANONICAL_ACCESS_TOKEN_MAX_CHARS = 100_000;
 
 function _cwaCanonicalConversationId(value) {
   const conversationId = typeof value === "string" ? value.trim() : "";
@@ -55,6 +57,7 @@ async function _cwaCanonicalFetch(
   const encodedConversationId = encodeURIComponent(conversationId);
   const currentEndpoint = `${CHATGPT_ORIGIN}/backend-api/conversations/${encodedConversationId}`;
   const legacyEndpoint = `${CHATGPT_ORIGIN}/backend-api/conversation/${encodedConversationId}`;
+  const sessionEndpoint = `${CHATGPT_ORIGIN}/api/auth/session`;
   const expression = `(async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ${JSON.stringify(timeoutMs)});
@@ -63,6 +66,10 @@ async function _cwaCanonicalFetch(
     const includeAllPages = ${JSON.stringify(includeAllPages === true)};
     const currentEndpoint = ${JSON.stringify(currentEndpoint)};
     const legacyEndpoint = ${JSON.stringify(legacyEndpoint)};
+    const sessionEndpoint = ${JSON.stringify(sessionEndpoint)};
+    const sessionMaxChars = ${JSON.stringify(CWA_CANONICAL_SESSION_MAX_CHARS)};
+    const accessTokenMaxChars = ${JSON.stringify(CWA_CANONICAL_ACCESS_TOKEN_MAX_CHARS)};
+    let currentAccessToken = null;
 
     const failureForResponse = (response, contentType) => ({
       ok: false,
@@ -78,12 +85,110 @@ async function _cwaCanonicalFetch(
       retryable: response.status === 404
     });
 
-    const fetchBytes = async (url) => {
-      const response = await fetch(url, {
+    const loadCurrentAccessToken = async () => {
+      if (currentAccessToken !== null) return { ok: true };
+
+      const response = await fetch(sessionEndpoint, {
         method: "GET",
         credentials: "include",
         cache: "no-store",
         headers: { accept: "application/json" },
+        signal: controller.signal
+      });
+      const contentType = (
+        response.headers.get("content-type") || ""
+      ).slice(0, 128);
+      if (!response.ok) {
+        return {
+          ok: false,
+          status: response.status,
+          contentType,
+          reasonCode: response.status === 401
+            ? "CANONICAL_READ_AUTHENTICATION_REQUIRED"
+            : response.status === 403
+              ? "CANONICAL_READ_ACCESS_CHALLENGED"
+              : "CANONICAL_READ_SESSION_AUTH_FAILED",
+          retryable: false
+        };
+      }
+      if (!contentType.toLowerCase().includes("json")) {
+        return {
+          ok: false,
+          status: response.status,
+          contentType,
+          reasonCode: "CANONICAL_READ_SESSION_AUTH_NON_JSON",
+          retryable: false
+        };
+      }
+
+      let sessionText;
+      try {
+        sessionText = await response.text();
+      } catch {
+        return {
+          ok: false,
+          status: response.status,
+          contentType,
+          reasonCode: "CANONICAL_READ_SESSION_AUTH_INVALID",
+          retryable: false
+        };
+      }
+      if (
+        typeof sessionText !== "string" ||
+        sessionText.length === 0 ||
+        sessionText.length > sessionMaxChars
+      ) {
+        return {
+          ok: false,
+          status: response.status,
+          contentType,
+          reasonCode: "CANONICAL_READ_SESSION_AUTH_INVALID",
+          retryable: false
+        };
+      }
+
+      let sessionPayload;
+      try {
+        sessionPayload = JSON.parse(sessionText);
+      } catch {
+        return {
+          ok: false,
+          status: response.status,
+          contentType,
+          reasonCode: "CANONICAL_READ_SESSION_AUTH_INVALID",
+          retryable: false
+        };
+      }
+      const accessToken = typeof sessionPayload?.accessToken === "string"
+        ? sessionPayload.accessToken.trim()
+        : "";
+      if (!accessToken || accessToken.length > accessTokenMaxChars) {
+        return {
+          ok: false,
+          status: response.status,
+          contentType,
+          reasonCode: "CANONICAL_READ_SESSION_AUTH_TOKEN_REQUIRED",
+          retryable: false
+        };
+      }
+
+      currentAccessToken = accessToken;
+      return { ok: true };
+    };
+
+    const fetchBytes = async (url, authorizeCurrent = false) => {
+      const headers = new Headers({ accept: "application/json" });
+      if (authorizeCurrent) {
+        const auth = await loadCurrentAccessToken();
+        if (auth.ok !== true) return auth;
+        headers.set("authorization", "Bearer " + currentAccessToken);
+      }
+
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers,
         signal: controller.signal
       });
       const contentType = (response.headers.get("content-type") || "").slice(0, 128);
@@ -180,10 +285,10 @@ async function _cwaCanonicalFetch(
     };
 
     try {
-      const first = await fetchBytes(currentUrl());
+      const first = await fetchBytes(currentUrl(), true);
       if (first.ok !== true) {
         if (first.status !== 404) return first;
-        const legacy = await fetchBytes(legacyEndpoint);
+        const legacy = await fetchBytes(legacyEndpoint, false);
         if (legacy.ok !== true) return legacy;
         if (!legacy.payload.mapping || typeof legacy.payload.mapping !== "object") {
           return {
@@ -239,7 +344,7 @@ async function _cwaCanonicalFetch(
             };
           }
           seenCursors.add(cursor);
-          const older = await fetchBytes(currentUrl(cursor));
+          const older = await fetchBytes(currentUrl(cursor), true);
           if (older.ok !== true) return older;
           if (!Array.isArray(older.payload.messages)) {
             return {
@@ -303,6 +408,7 @@ async function _cwaCanonicalFetch(
         retryable: false
       };
     } finally {
+      currentAccessToken = null;
       clearTimeout(timer);
     }
   })()`;
