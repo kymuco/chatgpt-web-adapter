@@ -4,6 +4,7 @@ import threading
 from typing import Any
 
 from . import browser_owned_product_transport_core as _core
+from .browser_authority_commit_provider import CommitBoundProductModelProfileProvider
 from .browser_authority_lease import (
     BrowserAuthorityPolicy,
     resolve_browser_authority_policy,
@@ -42,9 +43,7 @@ class BrowserOwnedProductTransport(_core.BrowserOwnedProductTransport):
         # on chatgpt_web_adapter.browser_owned_product_transport.
         source_canonical = require_canonical_conversation_client(canonical_client)
         if provider is None:
-            from .product_model_profile_pr8_10 import ProductModelProfileProvider
-
-            provider = ProductModelProfileProvider()
+            provider = CommitBoundProductModelProfileProvider()
         self.provider = provider
         self._browser_context_canonical_enabled = isinstance(
             self.provider,
