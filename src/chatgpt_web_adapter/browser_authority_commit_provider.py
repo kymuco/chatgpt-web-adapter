@@ -18,21 +18,30 @@ class CommitBoundProductModelProfileProvider(ProductModelProfileProvider):
 
     Keep the newly issued lease pending in Python until ``_send_text_request`` is
     entered. From that point through postwrite canonical readback, the normal
-    BrowserNativeTurnProvider lease surface remains unchanged.
+    BrowserNativeTurnProvider lease surface remains unchanged. A per-turn entered
+    latch survives the provider's normal current-lease cleanup so outer error
+    classification can still distinguish prewrite failure from delegated ambiguity.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._pending_browser_authority_context = threading.local()
+        self._entered_browser_authority_context = threading.local()
 
     def set_browser_authority_lease(self, lease_id: str) -> None:
         if not isinstance(lease_id, str) or not lease_id.strip():
             raise ValueError("browser authority lease_id is required")
-        self._pending_browser_authority_context.lease_id = lease_id.strip()
+        normalized = lease_id.strip()
+        self._pending_browser_authority_context.lease_id = normalized
+        if hasattr(self._entered_browser_authority_context, "lease_id"):
+            del self._entered_browser_authority_context.lease_id
 
     def clear_browser_authority_lease(self) -> None:
         if hasattr(self._pending_browser_authority_context, "lease_id"):
             del self._pending_browser_authority_context.lease_id
+        # Deliberately keep the exact entered-latch until the next set(). The
+        # lower runtime clears the active lease in finally before the outer
+        # commit-bound classifier observes the failure disposition.
         super().clear_browser_authority_lease()
 
     def _pending_browser_authority_lease_id(self) -> str | None:
@@ -44,12 +53,17 @@ class CommitBoundProductModelProfileProvider(ProductModelProfileProvider):
 
         if not isinstance(lease_id, str) or not lease_id.strip():
             return False
-        current = self._current_browser_authority_lease_id()
-        return current is not None and hmac.compare_digest(current, lease_id.strip())
+        entered = getattr(self._entered_browser_authority_context, "lease_id", None)
+        return (
+            isinstance(entered, str)
+            and bool(entered)
+            and hmac.compare_digest(entered, lease_id.strip())
+        )
 
     def _activate_pending_browser_authority_lease(self) -> None:
         lease_id = self._pending_browser_authority_lease_id()
         if lease_id is not None:
+            self._entered_browser_authority_context.lease_id = lease_id
             super().set_browser_authority_lease(lease_id)
 
     def _send_text_request(self, *args: Any, **kwargs: Any):
