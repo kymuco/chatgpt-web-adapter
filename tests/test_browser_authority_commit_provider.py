@@ -138,10 +138,7 @@ def test_continuation_baseline_failure_happens_before_provider_write() -> None:
     assert client.baseline_leases == [None]
     assert provider.turn_payloads == []
     assert provider._current_browser_authority_lease_id() is None
-    assert (
-        provider._pending_browser_authority_lease_id()
-        == "lease-never-delegated"
-    )
+    assert provider._pending_browser_authority_lease_id() == "lease-never-delegated"
 
     provider.clear_browser_authority_lease()
     assert provider._pending_browser_authority_lease_id() is None
