@@ -79,6 +79,7 @@ def test_continuation_baseline_does_not_expose_uncommitted_lease() -> None:
 
     assert provider._pending_browser_authority_lease_id() == "lease-new"
     assert provider._current_browser_authority_lease_id() is None
+    assert provider._browser_authority_write_boundary_entered("lease-new") is False
 
     submission = submit_browser_native(
         client,
@@ -93,6 +94,7 @@ def test_continuation_baseline_does_not_expose_uncommitted_lease() -> None:
     assert len(provider.turn_payloads) == 1
     assert provider.turn_payloads[0]["browserAuthorityLeaseId"] == "lease-new"
     assert provider._current_browser_authority_lease_id() == "lease-new"
+    assert provider._browser_authority_write_boundary_entered("lease-new") is True
     assert submission.turn.browser_authority_lease_id == "lease-new"
 
     provider.clear_browser_authority_lease()
@@ -118,6 +120,7 @@ def test_new_chat_activates_pending_lease_at_actual_turn_boundary() -> None:
     assert provider.turn_payloads[0]["browserAuthorityLeaseId"] == "lease-new-chat"
     assert submission.turn.browser_authority_lease_id == "lease-new-chat"
     assert provider._current_browser_authority_lease_id() == "lease-new-chat"
+    assert provider._browser_authority_write_boundary_entered("lease-new-chat") is True
 
 
 def test_continuation_baseline_failure_happens_before_provider_write() -> None:
@@ -139,6 +142,10 @@ def test_continuation_baseline_failure_happens_before_provider_write() -> None:
     assert provider.turn_payloads == []
     assert provider._current_browser_authority_lease_id() is None
     assert provider._pending_browser_authority_lease_id() == "lease-never-delegated"
+    assert (
+        provider._browser_authority_write_boundary_entered("lease-never-delegated")
+        is False
+    )
 
     provider.clear_browser_authority_lease()
     assert provider._pending_browser_authority_lease_id() is None
@@ -154,3 +161,4 @@ def test_default_browser_transport_uses_commit_bound_provider() -> None:
 
     assert "CommitBoundProductModelProfileProvider" in source
     assert "provider = CommitBoundProductModelProfileProvider()" in source
+    assert "CommitBoundBrowserOwnedProductWriteRuntime" in source
