@@ -43,9 +43,7 @@ class _BaselineClient:
         self.events: list[dict[str, object]] = []
 
     def _record_lease(self) -> None:
-        self.baseline_leases.append(
-            self.provider._current_browser_authority_lease_id()
-        )
+        self.baseline_leases.append(self.provider._current_browser_authority_lease_id())
 
     def get_messages(self, conversation, **kwargs):
         del conversation, kwargs
@@ -100,6 +98,21 @@ def test_continuation_baseline_does_not_expose_uncommitted_lease() -> None:
     provider.clear_browser_authority_lease()
     assert provider._pending_browser_authority_lease_id() is None
     assert provider._current_browser_authority_lease_id() is None
+    assert provider._browser_authority_write_boundary_entered("lease-new") is True
+
+
+def test_next_lease_resets_previous_boundary_latch() -> None:
+    provider = _RecordingProvider()
+    provider.set_browser_authority_lease("lease-first")
+    provider._activate_pending_browser_authority_lease()
+    provider.clear_browser_authority_lease()
+
+    assert provider._browser_authority_write_boundary_entered("lease-first") is True
+
+    provider.set_browser_authority_lease("lease-second")
+
+    assert provider._browser_authority_write_boundary_entered("lease-first") is False
+    assert provider._browser_authority_write_boundary_entered("lease-second") is False
 
 
 def test_new_chat_activates_pending_lease_at_actual_turn_boundary() -> None:
