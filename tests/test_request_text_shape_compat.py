@@ -146,8 +146,8 @@ globalThis.chrome = {{
   }}
 }};
 {source}
-const expected = "alpha\nbeta";
-const observed = "alpha\r\nbeta";
+const expected = "alpha\\nbeta";
+const observed = "alpha\\r\\nbeta";
 const body = JSON.stringify({{
   action: "next",
   messages: [{{
