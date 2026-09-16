@@ -90,6 +90,8 @@ function _cwaOrdinaryIdentityError(suffix, diagnostics = null) {
       }
     }
   }
+  const context = _cwaOrdinaryIdentityActive;
+  if (context !== null) context.exactCommittedFailure = detail;
   return new Error(detail);
 }
 
@@ -658,7 +660,8 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
     correlation: null,
     authoritativeConversationId: null,
     identitySource: null,
-    matchingRequestCount: 0
+    matchingRequestCount: 0,
+    exactCommittedFailure: null
   };
 
   _cwaOrdinaryIdentityActive = context;
@@ -679,6 +682,17 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
       ordinaryTextMatchingRequestCount: context.matchingRequestCount,
       routeConversationIdentityAuthoritative: false
     };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    const exact = context.exactCommittedFailure;
+    if (
+      typeof exact === "string" &&
+      exact.startsWith(`${CWA_ORDINARY_IDENTITY_COMMITTED_ERROR}:`) &&
+      detail.startsWith(CWA_ORDINARY_IDENTITY_COMMITTED_ERROR)
+    ) {
+      throw new Error(exact);
+    }
+    throw error;
   } finally {
     _cwaOrdinaryIdentityActive = null;
   }

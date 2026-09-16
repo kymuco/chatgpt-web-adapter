@@ -92,6 +92,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
         "service_worker_rich_input_deadline_repair_pr9_2.js",
         "service_worker_rich_input_closure_repair_pr9_2.js",
         "service_worker_rich_input_schema7_repair_pr9_2.js",
+        "service_worker_request_text_shape_compat.js",
         "service_worker_ui_compat_pr11_7.js",
         "service_worker_text_submit_commit_hardening_pr11_3.js",
         "service_worker_ordinary_text_identity_authority.js",
@@ -113,6 +114,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
     assert "service_worker_rich_input_schema7_core_pr9_2.js" in rich
     assert "service_worker_rich_input_schema29_repair_pr9_2.js" in rich
     for cross_domain_import in (
+        "service_worker_request_text_shape_compat.js",
         "service_worker_ui_compat_pr11_7.js",
         "service_worker_text_submit_commit_hardening_pr11_3.js",
         "service_worker_ordinary_text_identity_authority.js",
@@ -132,6 +134,7 @@ def test_read_domain_is_explicit_and_excludes_write_and_observation() -> None:
     assert source.index(citations) < source.index(canonical)
     assert _active_imports(source) == [citations, canonical]
     assert "service_worker_canonical_read_session_auth.js" not in source
+    assert "service_worker_request_text_shape_compat.js" not in source
     assert "service_worker_text_submit_commit_hardening_pr11_3.js" not in source
     assert "service_worker_ordinary_text_identity_authority.js" not in source
     assert "service_worker_connector_support_pr10_0.js" not in source
