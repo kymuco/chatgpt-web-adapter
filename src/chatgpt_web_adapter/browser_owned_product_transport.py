@@ -5,6 +5,7 @@ from typing import Any
 
 from . import browser_owned_product_transport_core as _core
 from .browser_authority_commit_provider import CommitBoundProductModelProfileProvider
+from .browser_authority_commit_runtime import CommitBoundBrowserOwnedProductWriteRuntime
 from .browser_authority_lease import (
     BrowserAuthorityPolicy,
     resolve_browser_authority_policy,
@@ -15,7 +16,6 @@ from .browser_context_canonical import (
 from .browser_context_canonical_v2 import BrowserContextCanonicalClientV2
 from .browser_native_provider import BrowserNativeTurnProvider
 from .browser_owned_submission_lifecycle import BrowserOwnedSubmissionLifecycle
-from .browser_owned_write_runtime import BrowserOwnedProductWriteRuntime
 from .product_rich_input_capability_gate_pr9_4 import (
     gate_browser_owned_rich_input_capabilities,
 )
@@ -24,6 +24,10 @@ from .product_web_search_capability_gate_pr9_3 import (
     gate_browser_owned_web_search_capability,
 )
 from .temporary_product_runtime_pr8_13 import TemporaryProductWriteRuntime
+
+# Preserve the long-standing public-module test/integration seam while composing
+# the stricter commit-bound runtime by default.
+BrowserOwnedProductWriteRuntime = CommitBoundBrowserOwnedProductWriteRuntime
 
 
 class BrowserOwnedProductTransport(_core.BrowserOwnedProductTransport):
