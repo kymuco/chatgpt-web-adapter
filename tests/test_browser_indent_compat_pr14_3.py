@@ -216,9 +216,7 @@ def test_write_domain_keeps_ordinary_identity_authority_last() -> None:
     text_shape = source.index(
         'importScripts("service_worker_request_text_shape_compat.js")'
     )
-    indent = source.index(
-        'importScripts("service_worker_browser_indent_compat.js")'
-    )
+    indent = source.index('importScripts("service_worker_browser_indent_compat.js")')
     ui = source.index('importScripts("service_worker_ui_compat_pr11_7.js")')
     ordinary = source.index(
         'importScripts("service_worker_ordinary_text_identity_authority.js")'
