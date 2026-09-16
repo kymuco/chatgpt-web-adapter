@@ -9,10 +9,12 @@ from chatgpt_web_adapter.browser_authority_commit_provider import (
     CommitBoundProductModelProfileProvider,
 )
 from chatgpt_web_adapter.browser_authority_commit_runtime import (
-    CommitBoundBrowserOwnedProductWriteRuntime,
     WRITE_NOT_SUBMITTED,
+    CommitBoundBrowserOwnedProductWriteRuntime,
 )
-from chatgpt_web_adapter.browser_owned_write_runtime import BrowserOwnedWriteRuntimeError
+from chatgpt_web_adapter.browser_owned_write_runtime import (
+    BrowserOwnedWriteRuntimeError,
+)
 from chatgpt_web_adapter.exceptions import RequestError
 
 
@@ -85,7 +87,9 @@ def test_entered_provider_boundary_preserves_ambiguity(monkeypatch) -> None:
         provider._activate_pending_browser_authority_lease()
         raise RequestError("delegated outcome unknown", request_stage="test_write")
 
-    monkeypatch.setattr(base_subject, "send_browser_native", fail_after_provider_boundary)
+    monkeypatch.setattr(
+        base_subject, "send_browser_native", fail_after_provider_boundary
+    )
 
     with pytest.raises(BrowserOwnedWriteRuntimeError) as captured:
         runtime.send_text("continue", conversation="conversation-1")
