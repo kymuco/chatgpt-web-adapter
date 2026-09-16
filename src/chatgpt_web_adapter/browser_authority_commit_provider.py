@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import threading
 from typing import Any
 
@@ -37,6 +38,14 @@ class CommitBoundProductModelProfileProvider(ProductModelProfileProvider):
     def _pending_browser_authority_lease_id(self) -> str | None:
         value = getattr(self._pending_browser_authority_context, "lease_id", None)
         return value if isinstance(value, str) and value else None
+
+    def _browser_authority_write_boundary_entered(self, lease_id: str) -> bool:
+        """Return whether this exact staged lease reached the provider write boundary."""
+
+        if not isinstance(lease_id, str) or not lease_id.strip():
+            return False
+        current = self._current_browser_authority_lease_id()
+        return current is not None and hmac.compare_digest(current, lease_id.strip())
 
     def _activate_pending_browser_authority_lease(self) -> None:
         lease_id = self._pending_browser_authority_lease_id()
