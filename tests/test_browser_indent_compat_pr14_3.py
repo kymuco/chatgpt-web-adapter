@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SCHEMA29 = EXT / "service_worker_rich_input_schema29_repair_pr9_2.js"
 TEXT_SHAPE = EXT / "service_worker_request_text_shape_compat.js"
-INDENT = EXT / "service_worker_browser_indent_compat_pr14_3.js"
+INDENT = EXT / "service_worker_browser_indent_compat.js"
 RUNTIME_WRITE = EXT / "service_worker_runtime_write.js"
 
 
@@ -217,7 +217,7 @@ def test_write_domain_keeps_ordinary_identity_authority_last() -> None:
         'importScripts("service_worker_request_text_shape_compat.js")'
     )
     indent = source.index(
-        'importScripts("service_worker_browser_indent_compat_pr14_3.js")'
+        'importScripts("service_worker_browser_indent_compat.js")'
     )
     ui = source.index('importScripts("service_worker_ui_compat_pr11_7.js")')
     ordinary = source.index(
