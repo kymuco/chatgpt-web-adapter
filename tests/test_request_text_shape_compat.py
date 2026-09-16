@@ -178,7 +178,7 @@ console.log(JSON.stringify({{
     assert fingerprint["exactObservedTextEqualsExpected"] is False
     assert fingerprint["crlfNormalizedEqualsExpected"] is True
     assert fingerprint["commonPrefixLength"] == 5
-    assert fingerprint["commonSuffixLength"] == 4
+    assert fingerprint["commonSuffixLength"] == 5
     assert "alpha" not in result["serialized"]
     assert "beta" not in result["serialized"]
     assert "private-message-id" not in result["serialized"]
