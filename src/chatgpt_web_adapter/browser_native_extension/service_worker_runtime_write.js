@@ -1,15 +1,17 @@
 // PR12.0 write-domain assembly.
 //
 // Preserve the reviewed rich-input ordering, then install bounded request-text
-// shape compatibility, shared UI discovery, the ordinary-text protected commit
-// boundary, and finally the request-bound ordinary-text conversation-identity
-// authority. Read/observation modules are deliberately excluded from this domain.
+// shape compatibility, bounded browser-composer indentation compatibility,
+// shared UI discovery, the ordinary-text protected commit boundary, and finally
+// the request-bound ordinary-text conversation-identity authority. Read/
+// observation modules are deliberately excluded from this domain.
 
 importScripts("service_worker_rich_input_pr9_2.js");
 importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");
 importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");
 importScripts("service_worker_request_text_shape_compat.js");
+importScripts("service_worker_browser_indent_compat_pr14_3.js");
 importScripts("service_worker_ui_compat_pr11_7.js");
 importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");
 importScripts("service_worker_ordinary_text_identity_authority.js");
