@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -148,7 +149,7 @@ def test_continuation_baseline_failure_happens_before_provider_write() -> None:
 
 def test_default_browser_transport_uses_commit_bound_provider() -> None:
     source = (
-        __import__("pathlib").Path(__file__).parents[1]
+        Path(__file__).parents[1]
         / "src"
         / "chatgpt_web_adapter"
         / "browser_owned_product_transport.py"
