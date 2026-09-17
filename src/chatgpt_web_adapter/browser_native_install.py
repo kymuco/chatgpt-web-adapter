@@ -110,7 +110,10 @@ def _package_identity() -> dict[str, Any]:
 
 def _current_environment_host_executable() -> Path | None:
     suffix = ".exe" if os.name == "nt" else ""
-    adjacent = Path(sys.executable).resolve().parent / f"chatgpt-web-adapter-native-host{suffix}"
+    adjacent = (
+        Path(sys.executable).resolve().parent
+        / f"chatgpt-web-adapter-native-host{suffix}"
+    )
     return adjacent if adjacent.is_file() else None
 
 
@@ -161,8 +164,12 @@ def browser_native_deployment_status() -> dict[str, Any]:
         and deployment is not None
         and deployment.get("extension_digest") == installed_digest
     )
-    deployment_schema_matches = deployment is not None and deployment.get("schema") == DEPLOYMENT_SCHEMA
-    extension_id_matches = deployment is not None and deployment.get("extension_id") == EXTENSION_ID
+    deployment_schema_matches = (
+        deployment is not None and deployment.get("schema") == DEPLOYMENT_SCHEMA
+    )
+    extension_id_matches = (
+        deployment is not None and deployment.get("extension_id") == EXTENSION_ID
+    )
     healthy = all(
         (
             deployment_schema_matches,
@@ -180,7 +187,9 @@ def browser_native_deployment_status() -> dict[str, Any]:
         "deployment_manifest": str(deployment_path.resolve()),
         "packaged_extension_digest": packaged_digest,
         "installed_extension_digest": installed_digest,
-        "current_host_executable": str(current_host) if current_host is not None else None,
+        "current_host_executable": str(current_host)
+        if current_host is not None
+        else None,
         "deployment": deployment,
         "deployment_schema_matches": deployment_schema_matches,
         "extension_id_matches": extension_id_matches,
@@ -199,7 +208,9 @@ def _materialize_extension(source: Path, target: Path) -> str:
     target = target.resolve()
     source_manifest = source / "manifest.json"
     if not source.is_dir() or not source_manifest.is_file():
-        raise FileNotFoundError(f"packaged browser-native extension is incomplete: {source}")
+        raise FileNotFoundError(
+            f"packaged browser-native extension is incomplete: {source}"
+        )
     target.parent.mkdir(parents=True, exist_ok=True)
     source_digest = _extension_tree_digest(source)
 
@@ -247,7 +258,9 @@ def _write_deployment_manifest(
         **_package_identity(),
     }
     temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(path)
 
 
@@ -287,7 +300,13 @@ def _user_native_manifest_path() -> Path:
             / "NativeMessagingHosts"
             / f"{HOST_NAME}.json"
         )
-    return Path.home() / ".config" / "google-chrome" / "NativeMessagingHosts" / f"{HOST_NAME}.json"
+    return (
+        Path.home()
+        / ".config"
+        / "google-chrome"
+        / "NativeMessagingHosts"
+        / f"{HOST_NAME}.json"
+    )
 
 
 def install_native_messaging_host(
@@ -296,7 +315,9 @@ def install_native_messaging_host(
     host_executable: str | Path | None = None,
 ) -> BrowserNativeInstallResult:
     extension_id = extension_id.strip().lower()
-    if len(extension_id) != 32 or any(char < "a" or char > "p" for char in extension_id):
+    if len(extension_id) != 32 or any(
+        char < "a" or char > "p" for char in extension_id
+    ):
         raise ValueError("extension_id must be a 32-character Chrome extension id")
 
     source_extension = packaged_browser_native_extension_dir()
