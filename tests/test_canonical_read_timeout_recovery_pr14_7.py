@@ -5,8 +5,12 @@ from types import SimpleNamespace
 import pytest
 
 import chatgpt_web_adapter.browser_context_canonical_v2 as canonical_v2
-from chatgpt_web_adapter.browser_context_canonical import BrowserContextCanonicalReadError
-from chatgpt_web_adapter.browser_context_canonical_v2 import BrowserContextCanonicalTransportV2
+from chatgpt_web_adapter.browser_context_canonical import (
+    BrowserContextCanonicalReadError,
+)
+from chatgpt_web_adapter.browser_context_canonical_v2 import (
+    BrowserContextCanonicalTransportV2,
+)
 
 
 class _ProbeTransport(BrowserContextCanonicalTransportV2):
@@ -27,9 +31,7 @@ class _ProbeTransport(BrowserContextCanonicalTransportV2):
         include_all_pages: bool,
         lease_id: str | None,
     ) -> dict[str, object]:
-        self.calls.append(
-            (conversation_id, read_timeout, include_all_pages, lease_id)
-        )
+        self.calls.append((conversation_id, read_timeout, include_all_pages, lease_id))
         if self.reasons:
             reason = self.reasons.pop(0)
             raise BrowserContextCanonicalReadError(
@@ -67,9 +69,7 @@ def test_timeout_retry_exhaustion_fails_closed_with_specific_reason(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(canonical_v2.time, "sleep", lambda _delay: None)
-    transport = _ProbeTransport(
-        ["CANONICAL_READ_TIMEOUT", "CANONICAL_READ_TIMEOUT"]
-    )
+    transport = _ProbeTransport(["CANONICAL_READ_TIMEOUT", "CANONICAL_READ_TIMEOUT"])
 
     with pytest.raises(BrowserContextCanonicalReadError) as captured:
         transport._read_wire_conversation(
