@@ -5,6 +5,11 @@ const CWA_CANONICAL_CURRENT_NUM_TURNS = 20;
 const CWA_CANONICAL_MAX_PAGES = 100;
 const CWA_CANONICAL_SESSION_MAX_CHARS = 262_144;
 const CWA_CANONICAL_ACCESS_TOKEN_MAX_CHARS = 100_000;
+const CWA_CANONICAL_THROTTLE_MAX_RETRIES = 3;
+const CWA_CANONICAL_THROTTLE_BACKOFF_BASE_MS = 250;
+const CWA_CANONICAL_THROTTLE_BACKOFF_MAX_MS = 4_000;
+const CWA_CANONICAL_RETRY_AFTER_MAX_MS = 10_000;
+const CWA_CANONICAL_PAGE_PACE_MS = 75;
 
 function _cwaCanonicalConversationId(value) {
   const conversationId = typeof value === "string" ? value.trim() : "";
@@ -69,7 +74,26 @@ async function _cwaCanonicalFetch(
     const sessionEndpoint = ${JSON.stringify(sessionEndpoint)};
     const sessionMaxChars = ${JSON.stringify(CWA_CANONICAL_SESSION_MAX_CHARS)};
     const accessTokenMaxChars = ${JSON.stringify(CWA_CANONICAL_ACCESS_TOKEN_MAX_CHARS)};
+    const throttleMaxRetries = ${JSON.stringify(CWA_CANONICAL_THROTTLE_MAX_RETRIES)};
+    const throttleBackoffBaseMs = ${JSON.stringify(CWA_CANONICAL_THROTTLE_BACKOFF_BASE_MS)};
+    const throttleBackoffMaxMs = ${JSON.stringify(CWA_CANONICAL_THROTTLE_BACKOFF_MAX_MS)};
+    const retryAfterMaxMs = ${JSON.stringify(CWA_CANONICAL_RETRY_AFTER_MAX_MS)};
+    const pagePaceMs = ${JSON.stringify(CWA_CANONICAL_PAGE_PACE_MS)};
     let currentAccessToken = null;
+
+    const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+
+    const retryAfterMs = (response) => {
+      const raw = (response.headers.get("retry-after") || "").trim();
+      if (!raw) return null;
+      const seconds = Number(raw);
+      if (Number.isFinite(seconds) && seconds >= 0) {
+        return Math.min(retryAfterMaxMs, Math.round(seconds * 1000));
+      }
+      const dateMs = Date.parse(raw);
+      if (!Number.isFinite(dateMs)) return null;
+      return Math.min(retryAfterMaxMs, Math.max(0, dateMs - Date.now()));
+    };
 
     const failureForResponse = (response, contentType) => ({
       ok: false,
@@ -176,7 +200,7 @@ async function _cwaCanonicalFetch(
       return { ok: true };
     };
 
-    const fetchBytes = async (url, authorizeCurrent = false) => {
+    const fetchBytes = async (url, authorizeCurrent = false, retryThrottle = false) => {
       const headers = new Headers({ accept: "application/json" });
       if (authorizeCurrent) {
         const auth = await loadCurrentAccessToken();
@@ -184,58 +208,82 @@ async function _cwaCanonicalFetch(
         headers.set("authorization", "Bearer " + currentAccessToken);
       }
 
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-        headers,
-        signal: controller.signal
-      });
-      const contentType = (response.headers.get("content-type") || "").slice(0, 128);
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (!response.ok) {
-        return { ...failureForResponse(response, contentType), bytes };
-      }
-      if (!contentType.toLowerCase().includes("json")) {
+      for (let attempt = 0; ; attempt += 1) {
+        const response = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          headers,
+          signal: controller.signal
+        });
+        const contentType = (response.headers.get("content-type") || "").slice(0, 128);
+
+        if (response.status === 429 && retryThrottle) {
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          if (attempt >= throttleMaxRetries) {
+            return {
+              ok: false,
+              status: response.status,
+              contentType,
+              reasonCode: "CANONICAL_READ_THROTTLE_EXHAUSTED",
+              retryable: true,
+              bytes
+            };
+          }
+          const hintedDelay = retryAfterMs(response);
+          const fallbackDelay = Math.min(
+            throttleBackoffMaxMs,
+            throttleBackoffBaseMs * (2 ** attempt)
+          );
+          await sleep(hintedDelay === null ? fallbackDelay : hintedDelay);
+          continue;
+        }
+
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (!response.ok) {
+          return { ...failureForResponse(response, contentType), bytes };
+        }
+        if (!contentType.toLowerCase().includes("json")) {
+          return {
+            ok: false,
+            status: response.status,
+            contentType,
+            reasonCode: "CANONICAL_READ_NON_JSON",
+            retryable: false,
+            bytes
+          };
+        }
+        let payload;
+        try {
+          payload = JSON.parse(new TextDecoder().decode(bytes));
+        } catch {
+          return {
+            ok: false,
+            status: response.status,
+            contentType,
+            reasonCode: "CANONICAL_READ_MALFORMED_JSON",
+            retryable: false,
+            bytes
+          };
+        }
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+          return {
+            ok: false,
+            status: response.status,
+            contentType,
+            reasonCode: "CANONICAL_READ_JSON_OBJECT_REQUIRED",
+            retryable: false,
+            bytes
+          };
+        }
         return {
-          ok: false,
+          ok: true,
           status: response.status,
           contentType,
-          reasonCode: "CANONICAL_READ_NON_JSON",
-          retryable: false,
-          bytes
+          bytes,
+          payload
         };
       }
-      let payload;
-      try {
-        payload = JSON.parse(new TextDecoder().decode(bytes));
-      } catch {
-        return {
-          ok: false,
-          status: response.status,
-          contentType,
-          reasonCode: "CANONICAL_READ_MALFORMED_JSON",
-          retryable: false,
-          bytes
-        };
-      }
-      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-        return {
-          ok: false,
-          status: response.status,
-          contentType,
-          reasonCode: "CANONICAL_READ_JSON_OBJECT_REQUIRED",
-          retryable: false,
-          bytes
-        };
-      }
-      return {
-        ok: true,
-        status: response.status,
-        contentType,
-        bytes,
-        payload
-      };
     };
 
     const currentUrl = (before = null) => {
@@ -285,10 +333,10 @@ async function _cwaCanonicalFetch(
     };
 
     try {
-      const first = await fetchBytes(currentUrl(), true);
+      const first = await fetchBytes(currentUrl(), true, true);
       if (first.ok !== true) {
         if (first.status !== 404) return first;
-        const legacy = await fetchBytes(legacyEndpoint, false);
+        const legacy = await fetchBytes(legacyEndpoint, false, false);
         if (legacy.ok !== true) return legacy;
         if (!legacy.payload.mapping || typeof legacy.payload.mapping !== "object") {
           return {
@@ -344,7 +392,9 @@ async function _cwaCanonicalFetch(
             };
           }
           seenCursors.add(cursor);
-          const older = await fetchBytes(currentUrl(cursor), true);
+          if (pagePaceMs > 0) await sleep(pagePaceMs);
+          const pageUrl = currentUrl(cursor);
+          const older = await fetchBytes(pageUrl, true, true);
           if (older.ok !== true) return older;
           if (!Array.isArray(older.payload.messages)) {
             return {
