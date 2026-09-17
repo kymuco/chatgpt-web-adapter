@@ -108,6 +108,90 @@ def _package_identity() -> dict[str, Any]:
     }
 
 
+def _current_environment_host_executable() -> Path | None:
+    suffix = ".exe" if os.name == "nt" else ""
+    adjacent = Path(sys.executable).resolve().parent / f"chatgpt-web-adapter-native-host{suffix}"
+    return adjacent if adjacent.is_file() else None
+
+
+def browser_native_deployment_status() -> dict[str, Any]:
+    """Return deterministic package/install identity evidence without browser mutation."""
+
+    packaged = packaged_browser_native_extension_dir()
+    installed = installed_browser_native_extension_dir()
+    deployment_path = browser_native_deployment_manifest_path()
+    package_identity = _package_identity()
+    packaged_digest = _extension_tree_digest(packaged) if packaged.is_dir() else None
+    installed_digest = _extension_tree_digest(installed) if installed.is_dir() else None
+
+    deployment: dict[str, Any] | None = None
+    if deployment_path.is_file():
+        try:
+            value = json.loads(deployment_path.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                deployment = value
+        except (OSError, ValueError, json.JSONDecodeError):
+            deployment = None
+
+    current_host = _current_environment_host_executable()
+    expected_source_revision = package_identity.get("source_revision")
+    deployed_source_revision = deployment.get("source_revision") if deployment else None
+    source_revision_matches = (
+        expected_source_revision is None
+        or deployed_source_revision is None
+        or deployed_source_revision == expected_source_revision
+    )
+    expected_package_version = package_identity.get("package_version")
+    deployed_package_version = deployment.get("package_version") if deployment else None
+    package_version_matches = (
+        expected_package_version is None
+        or deployed_package_version is None
+        or deployed_package_version == expected_package_version
+    )
+    deployed_host = deployment.get("host_executable") if deployment else None
+    host_matches_current_environment = (
+        current_host is not None
+        and isinstance(deployed_host, str)
+        and Path(deployed_host).expanduser().resolve() == current_host
+    )
+    digest_matches = (
+        packaged_digest is not None
+        and installed_digest is not None
+        and packaged_digest == installed_digest
+        and deployment is not None
+        and deployment.get("extension_digest") == installed_digest
+    )
+    deployment_schema_matches = deployment is not None and deployment.get("schema") == DEPLOYMENT_SCHEMA
+    extension_id_matches = deployment is not None and deployment.get("extension_id") == EXTENSION_ID
+    healthy = all(
+        (
+            deployment_schema_matches,
+            extension_id_matches,
+            digest_matches,
+            source_revision_matches,
+            package_version_matches,
+            host_matches_current_environment,
+        )
+    )
+    return {
+        "healthy": healthy,
+        "packaged_extension_dir": str(packaged.resolve()),
+        "installed_extension_dir": str(installed.resolve()),
+        "deployment_manifest": str(deployment_path.resolve()),
+        "packaged_extension_digest": packaged_digest,
+        "installed_extension_digest": installed_digest,
+        "current_host_executable": str(current_host) if current_host is not None else None,
+        "deployment": deployment,
+        "deployment_schema_matches": deployment_schema_matches,
+        "extension_id_matches": extension_id_matches,
+        "extension_digest_matches": digest_matches,
+        "source_revision_matches": source_revision_matches,
+        "package_version_matches": package_version_matches,
+        "host_matches_current_environment": host_matches_current_environment,
+        **package_identity,
+    }
+
+
 def _materialize_extension(source: Path, target: Path) -> str:
     """Stage and swap one exact extension tree into the stable runtime path."""
 
@@ -173,6 +257,11 @@ def _resolve_host_executable(value: str | Path | None = None) -> Path:
         if not path.is_file():
             raise FileNotFoundError(path)
         return path
+
+    adjacent = _current_environment_host_executable()
+    if adjacent is not None:
+        return adjacent
+
     candidates = [
         shutil.which("chatgpt-web-adapter-native-host"),
         shutil.which("chatgpt-web-adapter-native-host.exe"),
@@ -180,10 +269,6 @@ def _resolve_host_executable(value: str | Path | None = None) -> Path:
     for candidate in candidates:
         if candidate:
             return Path(candidate).resolve()
-    suffix = ".exe" if os.name == "nt" else ""
-    adjacent = Path(sys.executable).resolve().parent / f"chatgpt-web-adapter-native-host{suffix}"
-    if adjacent.is_file():
-        return adjacent
     raise FileNotFoundError(
         "chatgpt-web-adapter-native-host executable not found; reinstall the package so console scripts are generated"
     )
