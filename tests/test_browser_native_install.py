@@ -27,11 +27,18 @@ def test_packaged_extension_identity_and_manifest() -> None:
     worker = manifest["background"]["service_worker"]
     assert isinstance(worker, str) and worker.endswith(".js")
     assert (root / worker).is_file()
-    assert set(manifest["permissions"]) == {"debugger", "tabs", "storage", "nativeMessaging"}
+    assert set(manifest["permissions"]) == {
+        "debugger",
+        "tabs",
+        "storage",
+        "nativeMessaging",
+    }
     assert manifest["host_permissions"] == ["https://chatgpt.com/*"]
 
 
-def test_materialize_extension_copies_exact_tree_to_stable_target(tmp_path: Path) -> None:
+def test_materialize_extension_copies_exact_tree_to_stable_target(
+    tmp_path: Path,
+) -> None:
     source = packaged_browser_native_extension_dir()
     target = tmp_path / "browser-native" / "extension"
 
@@ -55,7 +62,9 @@ def test_materialize_extension_replaces_stale_tree(tmp_path: Path) -> None:
     assert digest == _extension_tree_digest(target)
 
 
-def test_host_resolution_prefers_current_python_environment(monkeypatch, tmp_path: Path) -> None:
+def test_host_resolution_prefers_current_python_environment(
+    monkeypatch, tmp_path: Path
+) -> None:
     current = tmp_path / "current"
     other = tmp_path / "other"
     current.mkdir()
@@ -74,12 +83,18 @@ def test_host_resolution_prefers_current_python_environment(monkeypatch, tmp_pat
     assert _resolve_host_executable() == current_host.resolve()
 
 
-def test_deployment_status_binds_package_extension_and_current_host(monkeypatch, tmp_path: Path) -> None:
+def test_deployment_status_binds_package_extension_and_current_host(
+    monkeypatch, tmp_path: Path
+) -> None:
     state = tmp_path / "state"
     current_host = tmp_path / "chatgpt-web-adapter-native-host"
     current_host.write_text("host", encoding="utf-8")
     monkeypatch.setattr(install_mod, "default_browser_native_state_dir", lambda: state)
-    monkeypatch.setattr(install_mod, "_current_environment_host_executable", lambda: current_host.resolve())
+    monkeypatch.setattr(
+        install_mod,
+        "_current_environment_host_executable",
+        lambda: current_host.resolve(),
+    )
     monkeypatch.setattr(
         install_mod,
         "_package_identity",
