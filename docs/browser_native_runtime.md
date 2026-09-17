@@ -71,32 +71,51 @@ canonical assistant message through the existing SDK conversation APIs.
 
 ## Installation (development / unpacked extension)
 
-Reinstall the editable package so the Native Messaging console-script executable
-exists:
+Install the package/environment that must own the browser-native deployment:
 
 ```powershell
 pip install -e .
 ```
 
-Register the Native Messaging host:
+Register the Native Messaging host and materialize the packaged extension into
+the stable per-user runtime directory:
 
 ```powershell
 chatgpt-web-adapter browser-native install
 ```
 
-Print the packaged extension directory:
+On Windows the unpacked extension is installed under:
+
+```text
+%LOCALAPPDATA%\chatgpt-web-adapter\browser-native\extension
+```
+
+The corresponding runtime root is also used for the deployment manifest and the
+Windows Native Messaging host manifest. The extension source inside a checkout or
+virtual environment is no longer the recommended Chrome load target.
+
+Print the extension directory that Chrome should load:
 
 ```powershell
 chatgpt-web-adapter browser-native extension-dir
 ```
 
-Load that directory through `chrome://extensions` -> Developer mode -> Load
-unpacked. The manifest carries a stable public key, so the expected extension id
-is:
+After `browser-native install`, this command returns the stable installed runtime
+path. Before the first install it may fall back to the packaged source directory
+for inspection only.
+
+Load the printed directory through `chrome://extensions` -> Developer mode ->
+Load unpacked. The manifest carries a stable public key, so the expected extension
+id is:
 
 ```text
 kjfnkhajljnkbhikmfijcchenlfglaie
 ```
+
+When the Python package/revision changes, run `browser-native install` again to
+refresh the stable deployment, then reload that same unpacked extension in
+Chrome. Do not switch Chrome back to a checkout-specific `src/.../browser_native_extension`
+path merely because the source checkout changed.
 
 Then verify the bridge:
 
