@@ -184,9 +184,10 @@ def test_extension_dir_fails_closed_for_legacy_host_without_stable_install(
         lambda: legacy_manifest,
     )
 
-    assert browser_native_extension_dir() == (
-        state / "extension" / ".deployment-unhealthy"
-    ).resolve()
+    assert (
+        browser_native_extension_dir()
+        == (state / "extension" / ".deployment-unhealthy").resolve()
+    )
 
 
 def test_extension_dir_remains_readable_before_first_install(
