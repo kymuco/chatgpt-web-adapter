@@ -18,6 +18,7 @@ EXTENSION_PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5mWXlQie901D
 EXTENSION_ID = "kjfnkhajljnkbhikmfijcchenlfglaie"
 DEPLOYMENT_SCHEMA = 1
 _PACKAGE_NAME = "chatgpt-web-adapter"
+_DEPLOYMENT_UNHEALTHY_MARKER = ".deployment-unhealthy"
 
 
 @dataclass(frozen=True)
@@ -49,21 +50,6 @@ def installed_browser_native_extension_dir() -> Path:
 
 def browser_native_deployment_manifest_path() -> Path:
     return default_browser_native_state_dir() / "deployment.json"
-
-
-def browser_native_extension_dir() -> Path:
-    """Return the stable installed extension when present, else the packaged source.
-
-    The fallback keeps source-tree and wheel inspection compatible before the first
-    browser-native install. Chrome should be pointed at this command only after
-    `browser-native install`, at which point the returned path is stable across
-    checkout, virtual-environment, and package-source changes.
-    """
-
-    installed = installed_browser_native_extension_dir()
-    if (installed / "manifest.json").is_file():
-        return installed
-    return packaged_browser_native_extension_dir()
 
 
 def _extension_tree_digest(root: Path) -> str:
@@ -199,6 +185,26 @@ def browser_native_deployment_status() -> dict[str, Any]:
         "host_matches_current_environment": host_matches_current_environment,
         **package_identity,
     }
+
+
+def browser_native_extension_dir() -> Path:
+    """Return the Chrome load target for the current browser-native deployment.
+
+    Before first install, source inspection may use the packaged extension. Once a
+    legacy host registration or stable extension exists, deployment identity must
+    be healthy. A stale/mixed deployment maps to a deliberately missing sentinel
+    path so required doctor install checks fail closed instead of false-green.
+    """
+
+    packaged = packaged_browser_native_extension_dir()
+    installed = installed_browser_native_extension_dir()
+    stable_present = (installed / "manifest.json").is_file()
+    legacy_or_installed = stable_present or _user_native_manifest_path().is_file()
+    if not legacy_or_installed:
+        return packaged
+    if stable_present and browser_native_deployment_status()["healthy"]:
+        return installed
+    return installed / _DEPLOYMENT_UNHEALTHY_MARKER
 
 
 def _materialize_extension(source: Path, target: Path) -> str:
