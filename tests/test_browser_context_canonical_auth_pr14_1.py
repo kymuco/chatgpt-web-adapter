@@ -223,9 +223,9 @@ def test_canonical_session_auth_is_one_evaluation_and_never_exports_token() -> N
 
     assert "/api/auth/session" in source
     assert 'headers.set("authorization", "Bearer " + currentAccessToken);' in source
-    assert "fetchBytes(currentUrl(), true)" in source
-    assert "fetchBytes(currentUrl(cursor), true)" in source
-    assert "fetchBytes(legacyEndpoint, false)" in source
+    assert "fetchBytes(currentUrl(), true, true)" in source
+    assert "fetchBytes(pageUrl, true, true)" in source
+    assert "fetchBytes(legacyEndpoint, false, false)" in source
     assert "currentAccessToken = null;" in source
     assert "globalThis.fetch =" not in source
 
