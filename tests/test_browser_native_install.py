@@ -63,7 +63,8 @@ def test_materialize_extension_replaces_stale_tree(tmp_path: Path) -> None:
 
 
 def test_host_resolution_prefers_current_python_environment(
-    monkeypatch, tmp_path: Path
+    monkeypatch,
+    tmp_path: Path,
 ) -> None:
     current = tmp_path / "current"
     other = tmp_path / "other"
@@ -84,7 +85,8 @@ def test_host_resolution_prefers_current_python_environment(
 
 
 def test_deployment_status_binds_package_extension_and_current_host(
-    monkeypatch, tmp_path: Path
+    monkeypatch,
+    tmp_path: Path,
 ) -> None:
     state = tmp_path / "state"
     current_host = tmp_path / "chatgpt-web-adapter-native-host"
@@ -125,7 +127,81 @@ def test_deployment_status_binds_package_extension_and_current_host(
     assert stale["extension_digest_matches"] is False
 
 
-def test_extension_dir_remains_readable_before_first_install() -> None:
+def test_extension_dir_returns_stable_path_only_for_healthy_deployment(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    current_host = tmp_path / "chatgpt-web-adapter-native-host"
+    current_host.write_text("host", encoding="utf-8")
+    monkeypatch.setattr(install_mod, "default_browser_native_state_dir", lambda: state)
+    monkeypatch.setattr(
+        install_mod,
+        "_current_environment_host_executable",
+        lambda: current_host.resolve(),
+    )
+    monkeypatch.setattr(
+        install_mod,
+        "_package_identity",
+        lambda: {
+            "package": "chatgpt-web-adapter",
+            "package_version": "test-version",
+            "source_revision": "abc123",
+        },
+    )
+    monkeypatch.setattr(
+        install_mod,
+        "_user_native_manifest_path",
+        lambda: state / "native-host.json",
+    )
+
+    target = state / "extension"
+    digest = _materialize_extension(packaged_browser_native_extension_dir(), target)
+    _write_deployment_manifest(
+        extension_id=EXTENSION_ID,
+        extension_digest=digest,
+        host_executable=current_host,
+    )
+
+    assert browser_native_extension_dir() == target.resolve()
+
+    (target / "manifest.json").write_text("{}", encoding="utf-8")
+    assert browser_native_extension_dir() == target.resolve() / ".deployment-unhealthy"
+
+
+def test_extension_dir_fails_closed_for_legacy_host_without_stable_install(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    legacy_manifest = state / "native-host.json"
+    legacy_manifest.parent.mkdir(parents=True)
+    legacy_manifest.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(install_mod, "default_browser_native_state_dir", lambda: state)
+    monkeypatch.setattr(
+        install_mod,
+        "_user_native_manifest_path",
+        lambda: legacy_manifest,
+    )
+
+    assert browser_native_extension_dir() == (
+        state / "extension" / ".deployment-unhealthy"
+    ).resolve()
+
+
+def test_extension_dir_remains_readable_before_first_install(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    monkeypatch.setattr(install_mod, "default_browser_native_state_dir", lambda: state)
+    monkeypatch.setattr(
+        install_mod,
+        "_user_native_manifest_path",
+        lambda: state / "missing-native-host.json",
+    )
+
     root = browser_native_extension_dir()
+    assert root == packaged_browser_native_extension_dir()
     assert root.is_dir()
     assert (root / "manifest.json").is_file()
