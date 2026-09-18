@@ -90,6 +90,25 @@ def test_tab_or_worker_recreation_cannot_restore_temporary_write_authority() -> 
         assert marker not in source
 
 
+def test_explicit_end_recovers_cleanup_after_mv3_worker_restart() -> None:
+    source = _source()
+    assert "if (live === null)" in source
+    assert "await _pr813RetireOwnedTemporaryTab()" in source
+    assert "temporaryLifecycleEndRecovered: true" in source
+    assert (
+        'temporaryLifecycleEndProof: "NO_LIVE_AUTHORITY_OWNED_TAB_RETIRED_OR_ABSENT"'
+        in source
+    )
+    assert "temporaryLiveWriteAuthorityProven: false" in source
+
+
+def test_explicit_end_never_closes_different_live_lifecycle_with_stale_token() -> None:
+    source = _source()
+    assert 'if (live.token !== token || live.state !== "LIVE")' in source
+    assert 'throw new Error("PR8_13_TEMPORARY_LIFECYCLE_NOT_LIVE")' in source
+    assert 'temporaryLifecycleEndProof: "MATCHED_LIVE_TOKEN_AND_OWNED_TAB_RETIRED"' in source
+
+
 def test_explicit_end_closes_owned_tab_and_revokes_live_authority() -> None:
     source = _source()
     assert "endTemporaryLifecycle" in source
