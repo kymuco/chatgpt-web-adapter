@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 PRODUCTION = EXTENSION / "service_worker_temporary_chat_production_pr8_13.js"
@@ -15,7 +14,9 @@ def _source() -> str:
 
 def test_pr813_layer_loads_after_pr812_stream_and_answer_channel() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
-    activity = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    activity = (
+        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    )
     channel = 'importScripts("service_worker_answer_channel_pr8_12.js");'
     temporary = 'importScripts("service_worker_temporary_chat_production_pr8_13.js");'
     assert activity in source and channel in source and temporary in source
@@ -33,7 +34,9 @@ def test_temporary_write_is_paused_before_network_dispatch_for_mode_proof() -> N
     assert 'proofKind: "FETCH_PAUSED_HISTORY_AND_TRAINING_DISABLED_TRUE"' in source
 
 
-def test_unproven_or_wrong_identity_temporary_request_is_aborted_not_downgraded() -> None:
+def test_unproven_or_wrong_identity_temporary_request_is_aborted_not_downgraded() -> (
+    None
+):
     source = _source()
     assert '"Fetch.failRequest"' in source
     assert 'errorReason: "Aborted"' in source
@@ -60,7 +63,9 @@ def test_request_body_is_browser_local_proof_only_and_never_rewritten() -> None:
     assert "Network.setExtraHTTPHeaders" not in source
 
 
-def test_fresh_temporary_lifecycle_gets_dedicated_inactive_tab_and_private_token() -> None:
+def test_fresh_temporary_lifecycle_gets_dedicated_inactive_tab_and_private_token() -> (
+    None
+):
     source = _source()
     assert "browserNativeTemporaryRuntimeTabIdV1" in source
     assert "?temporary-chat=true" in source
@@ -106,7 +111,10 @@ def test_explicit_end_never_closes_different_live_lifecycle_with_stale_token() -
     source = _source()
     assert 'if (live.token !== token || live.state !== "LIVE")' in source
     assert 'throw new Error("PR8_13_TEMPORARY_LIFECYCLE_NOT_LIVE")' in source
-    assert 'temporaryLifecycleEndProof: "MATCHED_LIVE_TOKEN_AND_OWNED_TAB_RETIRED"' in source
+    assert (
+        'temporaryLifecycleEndProof: "MATCHED_LIVE_TOKEN_AND_OWNED_TAB_RETIRED"'
+        in source
+    )
 
 
 def test_explicit_end_closes_owned_tab_and_revokes_live_authority() -> None:
@@ -123,9 +131,15 @@ def test_explicit_end_closes_owned_tab_and_revokes_live_authority() -> None:
 def test_normal_mode_delegates_to_existing_production_chain() -> None:
     source = _source()
     assert "const _pr813PriorExecuteNativeTurn = executeNativeTurn;" in source
-    assert 'if (mode !== "temporary") return _pr813PriorExecuteNativeTurn(message);' in source
+    assert (
+        'if (mode !== "temporary") return _pr813PriorExecuteNativeTurn(message);'
+        in source
+    )
     assert "const _pr813PriorEnsureRuntimeTab = ensureRuntimeTab;" in source
-    assert "if (context === null) return _pr813PriorEnsureRuntimeTab(conversationId);" in source
+    assert (
+        "if (context === null) return _pr813PriorEnsureRuntimeTab(conversationId);"
+        in source
+    )
 
 
 def test_pr813_adds_no_retry_or_second_product_write_path() -> None:
