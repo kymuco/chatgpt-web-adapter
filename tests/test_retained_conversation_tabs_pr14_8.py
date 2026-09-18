@@ -2,13 +2,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-POOL = EXT / "service_worker_retained_conversation_tabs_pr14_8.js"
+POOL = EXT / "service_worker_retained_conversation_tabs.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 
 
 def test_pr14_8_is_assembled_before_rich_input_wrappers() -> None:
     write = WRITE.read_text(encoding="utf-8")
-    retained = 'importScripts("service_worker_retained_conversation_tabs_pr14_8.js");'
+    retained = 'importScripts("service_worker_retained_conversation_tabs.js");'
     rich = 'importScripts("service_worker_rich_input_pr9_2.js");'
 
     assert retained in write
@@ -25,7 +25,7 @@ def test_pr14_8_routes_saved_conversations_to_retained_background_tabs() -> None
         "const _pr148PriorEnsureRuntimeTab = ensureRuntimeTab",
         "ensureRuntimeTab = async function _pr148EnsureRetainedConversationTab",
         "chrome.tabs.create({ url: targetUrl, active: false })",
-        "conversationIdFromUrl(tab?.url || \"\") === conversationId",
+        'conversationIdFromUrl(tab?.url || "") === conversationId',
         "_pr148BindConversationTab(savedConversationId, legacy.id)",
         "await _pr148PruneStalePoolBindings()",
         "PR14_8_CONVERSATION_TAB_POOL_LIMIT_REACHED",
@@ -46,9 +46,7 @@ def test_pr14_8_never_repurposes_retained_saved_tab_for_fresh_chat() -> None:
 def test_pr14_8_preserves_temporary_chat_lifecycle_authority() -> None:
     source = POOL.read_text(encoding="utf-8")
 
-    temporary_guard = source.index(
-        'typeof _pr813TemporaryTurnContext !== "undefined"'
-    )
+    temporary_guard = source.index('typeof _pr813TemporaryTurnContext !== "undefined"')
     saved_parse = source.index(
         "const savedConversationId = _pr148ConversationId(conversationId)"
     )
