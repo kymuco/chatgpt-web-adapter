@@ -72,6 +72,26 @@ async function _pr148MutatePool(mutator) {
   return run;
 }
 
+async function _pr148PruneStalePoolBindings() {
+  return _pr148MutatePool(async (entries) => {
+    const live = [];
+    for (const entry of entries) {
+      try {
+        const tab = await chrome.tabs.get(entry.tabId);
+        if (
+          isChatGPTUrl(tab?.url || "") &&
+          conversationIdFromUrl(tab?.url || "") === entry.conversationId
+        ) {
+          live.push(entry);
+        }
+      } catch {
+        // Closed/missing tabs are stale retained state.
+      }
+    }
+    return live;
+  });
+}
+
 async function _pr148RemoveConversationBinding(conversationId) {
   await _pr148MutatePool((entries) =>
     entries.filter((entry) => entry.conversationId !== conversationId)
@@ -92,6 +112,7 @@ async function _pr148BindConversationTab(conversationId, tabId) {
     throw new Error("PR14_8_TAB_ID_REQUIRED");
   }
 
+  await _pr148PruneStalePoolBindings();
   await _pr148MutatePool((entries) => {
     const withoutTarget = entries.filter(
       (entry) =>
