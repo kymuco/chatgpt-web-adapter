@@ -109,7 +109,8 @@ class _FakeTemporaryProvider:
         return {
             "request_id": request_id,
             "ok": True,
-            "conversationId": payload.get("conversationId") or "temporary-conversation-1",
+            "conversationId": payload.get("conversationId")
+            or "temporary-conversation-1",
             "turnExchangeId": "turn-exchange-1",
             "responseStatus": 200,
             "conversationMode": "temporary",
@@ -163,7 +164,9 @@ def test_collector_prefers_explicit_final_over_commentary() -> None:
     assert collector.delivery_incomplete is False
 
 
-def test_temporary_runtime_returns_page_owned_final_and_private_live_authority() -> None:
+def test_temporary_runtime_returns_page_owned_final_and_private_live_authority() -> (
+    None
+):
     provider = _FakeTemporaryProvider()
     runtime = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
     visible_events: list[dict] = []
@@ -188,8 +191,14 @@ def test_temporary_runtime_returns_page_owned_final_and_private_live_authority()
     assert provenance.completion.source is CompletionSource.TRANSPORT_RETURN
     assert provenance.completion.canonical_completion_proven is False
     assert provenance.conversation_mode is not None
-    assert provenance.conversation_mode.requested_conversation_mode is ConversationMode.TEMPORARY
-    assert provenance.conversation_mode.observed_conversation_mode is ConversationMode.TEMPORARY
+    assert (
+        provenance.conversation_mode.requested_conversation_mode
+        is ConversationMode.TEMPORARY
+    )
+    assert (
+        provenance.conversation_mode.observed_conversation_mode
+        is ConversationMode.TEMPORARY
+    )
     assert (
         provenance.conversation_mode.observed_mode_evidence_source
         is ConversationModeEvidenceSource.PRODUCT_MODE_OBSERVATION
@@ -240,12 +249,17 @@ def test_same_runtime_continuation_reuses_private_lifecycle_token() -> None:
         if payload.get("endTemporaryLifecycle") is not True
     ]
     assert len(turn_payloads) == 2
-    assert turn_payloads[0]["temporaryLifecycleToken"] == turn_payloads[1]["temporaryLifecycleToken"]
+    assert (
+        turn_payloads[0]["temporaryLifecycleToken"]
+        == turn_payloads[1]["temporaryLifecycleToken"]
+    )
     assert turn_payloads[0]["conversationId"] is None
     assert turn_payloads[1]["conversationId"] == conversation_id
 
 
-def test_conversation_id_alone_cannot_recreate_temporary_continuation_authority() -> None:
+def test_conversation_id_alone_cannot_recreate_temporary_continuation_authority() -> (
+    None
+):
     provider = _FakeTemporaryProvider()
     original = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
     first = original.send_text_observed("first")
@@ -388,7 +402,9 @@ class _ModeAwareFakeTransport:
         return self.execution
 
 
-def test_product_runtime_dispatches_temporary_only_to_explicit_mode_aware_transport() -> None:
+def test_product_runtime_dispatches_temporary_only_to_explicit_mode_aware_transport() -> (
+    None
+):
     provider = _FakeTemporaryProvider()
     low_level = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
     execution = low_level.send_text_observed("seed")
@@ -399,7 +415,10 @@ def test_product_runtime_dispatches_temporary_only_to_explicit_mode_aware_transp
 
     assert result.provenance is not None
     assert result.provenance.conversation_mode is not None
-    assert result.provenance.conversation_mode.observed_conversation_mode is ConversationMode.TEMPORARY
+    assert (
+        result.provenance.conversation_mode.observed_conversation_mode
+        is ConversationMode.TEMPORARY
+    )
     assert len(transport.calls) == 1
     call = transport.calls[0]
     assert callable(call["on_event"])

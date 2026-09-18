@@ -52,7 +52,9 @@ class _BrokerHandler(socketserver.BaseRequestHandler):
         except Exception as error:
             response = {
                 "protocol": PROTOCOL_VERSION,
-                "request_id": request.get("request_id") if isinstance(request, dict) else None,
+                "request_id": request.get("request_id")
+                if isinstance(request, dict)
+                else None,
                 "ok": False,
                 "error": f"BROWSER_NATIVE_BROKER_ERROR:{error}",
             }
@@ -320,11 +322,7 @@ class BrowserNativeBroker:
         waiter: queue.Queue[dict[str, Any]] = queue.Queue()
         with self.pending_lock:
             self.pending[request_id] = waiter
-        forwarded = {
-            key: value
-            for key, value in request.items()
-            if key != "token"
-        }
+        forwarded = {key: value for key, value in request.items() if key != "token"}
         try:
             with self.write_lock:
                 write_native_message(sys.stdout.buffer, forwarded)
@@ -386,13 +384,21 @@ class BrowserNativeBroker:
         lease_id = self._request_lease_id(request)
         if operation == "canonical_read_complete":
             if lease_id is None:
-                return {**base, "ok": False, "error": "BROWSER_NATIVE_AUTHORITY_LEASE_REQUIRED"}
+                return {
+                    **base,
+                    "ok": False,
+                    "error": "BROWSER_NATIVE_AUTHORITY_LEASE_REQUIRED",
+                }
             completion = self._complete_authority_reservation(lease_id)
             if completion != "OK":
                 return {**base, "ok": False, "error": completion}
             return {**base, "ok": True, "type": "canonical_read_complete_result"}
         if not self.extension_connected:
-            return {**base, "ok": False, "error": "BROWSER_NATIVE_EXTENSION_NOT_CONNECTED"}
+            return {
+                **base,
+                "ok": False,
+                "error": "BROWSER_NATIVE_EXTENSION_NOT_CONNECTED",
+            }
         if not self._claim_authority_lane(operation, lease_id):
             return {**base, "ok": False, "error": "BROWSER_NATIVE_BRIDGE_BUSY"}
 
@@ -411,18 +417,16 @@ class BrowserNativeBroker:
             waiter: queue.Queue[dict[str, Any]] = queue.Queue()
             with self.pending_lock:
                 self.pending[request_id] = waiter
-            forwarded = {
-                key: value
-                for key, value in request.items()
-                if key != "token"
-            }
+            forwarded = {key: value for key, value in request.items() if key != "token"}
             try:
                 with self.write_lock:
                     write_native_message(sys.stdout.buffer, forwarded)
                 deadline = time.monotonic() + timeout + 5.0
                 while True:
                     try:
-                        message = waiter.get(timeout=max(0.01, deadline - time.monotonic()))
+                        message = waiter.get(
+                            timeout=max(0.01, deadline - time.monotonic())
+                        )
                     except queue.Empty:
                         return {
                             **base,
@@ -433,16 +437,13 @@ class BrowserNativeBroker:
                         if event_sink is not None:
                             event_sink(message)
                         continue
-                    if (
-                        lease_id is not None
-                        and (
-                            operation == "canonical_read"
-                            or (
-                                operation == "turn"
-                                and message.get("ok") is True
-                                and not self._temporary_turn_has_page_owned_finality(
-                                    message
-                                )
+                    if lease_id is not None and (
+                        operation == "canonical_read"
+                        or (
+                            operation == "turn"
+                            and message.get("ok") is True
+                            and not self._temporary_turn_has_page_owned_finality(
+                                message
                             )
                         )
                     ):
