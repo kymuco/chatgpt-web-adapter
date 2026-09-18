@@ -5,7 +5,12 @@
 // shared UI discovery, the ordinary-text protected commit boundary, and finally
 // the request-bound ordinary-text conversation-identity authority. Read/
 // observation modules are deliberately excluded from this domain.
+//
+// PR14.8 installs saved-conversation tab routing before rich-input wrappers so
+// those wrappers preserve their deadline/cleanup semantics around the retained
+// tab acquisition path.
 
+importScripts("service_worker_retained_conversation_tabs_pr14_8.js");
 importScripts("service_worker_rich_input_pr9_2.js");
 importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");
 importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
