@@ -142,6 +142,29 @@ class BrowserNativeBroker:
         value = request.get("browserAuthorityLeaseId")
         return value.strip() if isinstance(value, str) and value.strip() else None
 
+    @staticmethod
+    def _temporary_turn_has_page_owned_finality(message: dict[str, Any]) -> bool:
+        """Recognize only browser-proven Temporary success.
+
+        Temporary Chat intentionally uses page-owned stream finality and does not
+        perform the ordinary canonical GET readback. The broker must therefore not
+        retain the cross-request canonical-read lease after a fully proven
+        Temporary turn, or explicit lifecycle close is blocked by its own lease.
+
+        Request intent is deliberately insufficient here: only the browser-owned
+        result may suppress canonical-read reservation.
+        """
+
+        return (
+            message.get("ok") is True
+            and message.get("conversationMode") == "temporary"
+            and message.get("temporaryModeProven") is True
+            and message.get("temporaryPrewriteProof")
+            == "FETCH_PAUSED_HISTORY_AND_TRAINING_DISABLED_TRUE"
+            and message.get("temporaryLifecycleState") == "LIVE"
+            and message.get("temporaryLiveWriteAuthorityProven") is True
+        )
+
     def _expire_authority_reservation(self, lease_id: str) -> None:
         release_lane = False
         with self._authority_reservation_guard:
@@ -414,11 +437,19 @@ class BrowserNativeBroker:
                         lease_id is not None
                         and (
                             operation == "canonical_read"
-                            or (operation == "turn" and message.get("ok") is True)
+                            or (
+                                operation == "turn"
+                                and message.get("ok") is True
+                                and not self._temporary_turn_has_page_owned_finality(
+                                    message
+                                )
+                            )
                         )
                     ):
-                        # Retain the cross-request lane until Python has classified
-                        # terminal canonical readback for the matching lease.
+                        # Ordinary successful writes retain the cross-request lane
+                        # until Python classifies terminal canonical readback. A
+                        # browser-proven Temporary turn uses page-owned finality and
+                        # must release here so explicit lifecycle close can enter.
                         self._reserve_authority_for_readback(lease_id)
                         release_lane = False
                     return message

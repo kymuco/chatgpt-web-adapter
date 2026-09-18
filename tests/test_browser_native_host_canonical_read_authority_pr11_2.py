@@ -164,6 +164,131 @@ def test_authority_lane_stays_reserved_through_terminal_canonical_readback(
         broker._server.server_close()
 
 
+def test_proven_temporary_turn_releases_lane_for_explicit_close(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    broker = subject.BrowserNativeBroker(state_dir=tmp_path)
+    broker.extension_connected = True
+    forwarded: list[str] = []
+
+    def fake_write(stream, request):
+        del stream
+        if request.get("endTemporaryLifecycle") is True:
+            forwarded.append("temporary_close")
+            broker.route_native_message(
+                {
+                    "protocol": subject.PROTOCOL_VERSION,
+                    "type": "turn_result",
+                    "request_id": request["request_id"],
+                    "ok": True,
+                    "conversationMode": "temporary",
+                    "conversationId": request.get("conversationId"),
+                    "temporaryLifecycleState": "ENDED",
+                    "temporaryLifecycleEnded": True,
+                    "temporaryLiveWriteAuthorityProven": False,
+                }
+            )
+            return
+
+        forwarded.append("temporary_turn")
+        broker.route_native_message(
+            {
+                "protocol": subject.PROTOCOL_VERSION,
+                "type": "turn_result",
+                "request_id": request["request_id"],
+                "ok": True,
+                "conversationMode": "temporary",
+                "conversationId": "temporary-conversation-1",
+                "temporaryModeProven": True,
+                "temporaryPrewriteProof": (
+                    "FETCH_PAUSED_HISTORY_AND_TRAINING_DISABLED_TRUE"
+                ),
+                "temporaryLifecycleState": "LIVE",
+                "temporaryLiveWriteAuthorityProven": True,
+            }
+        )
+
+    monkeypatch.setattr(subject, "write_native_message", fake_write)
+    try:
+        turn_request = _request(
+            broker,
+            operation="turn",
+            request_id="temporary-turn-1",
+            lease_id="temporary-lease-1",
+        )
+        turn_request["conversationMode"] = "temporary"
+        turn_request["temporaryLifecycleToken"] = "opaque-token"
+
+        turn = broker.handle_local_request(turn_request)
+
+        assert turn["ok"] is True
+        assert broker.turn_lock.locked() is False
+        assert broker._authority_reserved_lease_id is None
+
+        close_request = _request(
+            broker,
+            operation="turn",
+            request_id="temporary-close-1",
+        )
+        close_request.update(
+            {
+                "endTemporaryLifecycle": True,
+                "temporaryLifecycleToken": "opaque-token",
+                "conversationId": "temporary-conversation-1",
+            }
+        )
+
+        close = broker.handle_local_request(close_request)
+
+        assert close["ok"] is True
+        assert close["temporaryLifecycleState"] == "ENDED"
+        assert forwarded == ["temporary_turn", "temporary_close"]
+    finally:
+        broker._clear_authority_reservation(release_lane=True)
+        broker._server.server_close()
+
+
+def test_temporary_request_intent_without_browser_proof_still_reserves_lane(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    broker = subject.BrowserNativeBroker(state_dir=tmp_path)
+    broker.extension_connected = True
+
+    def fake_write(stream, request):
+        del stream
+        broker.route_native_message(
+            {
+                "protocol": subject.PROTOCOL_VERSION,
+                "type": "turn_result",
+                "request_id": request["request_id"],
+                "ok": True,
+                "conversationMode": "temporary",
+                "browserAuthorityLeaseId": request["browserAuthorityLeaseId"],
+            }
+        )
+
+    monkeypatch.setattr(subject, "write_native_message", fake_write)
+    try:
+        request = _request(
+            broker,
+            operation="turn",
+            request_id="unproven-temporary-turn",
+            lease_id="lease-1",
+        )
+        request["conversationMode"] = "temporary"
+
+        result = broker.handle_local_request(request)
+
+        assert result["ok"] is True
+        assert broker.turn_lock.locked() is True
+        assert broker._authority_reserved_lease_id == "lease-1"
+    finally:
+        broker._clear_authority_reservation(release_lane=True)
+        broker._server.server_close()
+
+
 def test_retryable_canonical_reads_keep_same_lease_reserved_until_completion(
     monkeypatch,
     tmp_path,
