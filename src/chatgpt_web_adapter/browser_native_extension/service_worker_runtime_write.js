@@ -10,7 +10,7 @@
 // those wrappers preserve their deadline/cleanup semantics around the retained
 // tab acquisition path.
 
-importScripts("service_worker_retained_conversation_tabs_pr14_8.js");
+importScripts("service_worker_retained_conversation_tabs.js");
 importScripts("service_worker_rich_input_pr9_2.js");
 importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");
 importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
