@@ -27,6 +27,8 @@ def test_pr14_8_routes_saved_conversations_to_retained_background_tabs() -> None
         "chrome.tabs.create({ url: targetUrl, active: false })",
         "conversationIdFromUrl(tab?.url || \"\") === conversationId",
         "_pr148BindConversationTab(savedConversationId, legacy.id)",
+        "await _pr148PruneStalePoolBindings()",
+        "PR14_8_CONVERSATION_TAB_POOL_LIMIT_REACHED",
         "return _pr148CreateConversationTab(savedConversationId)",
     ):
         assert token in source
