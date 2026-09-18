@@ -40,6 +40,13 @@ TEMPORARY_WRITE_PLANE = "BROWSER_NATIVE_PAGE_OWNED_TEMPORARY_WRITE"
 TEMPORARY_READBACK_PLANE = "BROWSER_NATIVE_PAGE_OWNED_TEMPORARY_STREAM"
 TEMPORARY_SESSION_PLANE = "LIVE_TEMPORARY_PRODUCT_LIFECYCLE"
 TEMPORARY_PREWRITE_PROOF = "FETCH_PAUSED_HISTORY_AND_TRAINING_DISABLED_TRUE"
+TEMPORARY_LIFECYCLE_END_PROOFS = frozenset(
+    {
+        "NO_OWNED_TAB_RECORDED",
+        "OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT",
+        "OWNED_TAB_ALREADY_ABSENT_CONFIRMED",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -609,10 +616,21 @@ class TemporaryProductWriteRuntime:
                 },
                 timeout=10.0 + float(getattr(self.provider, "connect_timeout", 3.0)),
             )
+            end_proof = result.get("temporaryLifecycleEndProof")
+            end_recovered = result.get("temporaryLifecycleEndRecovered")
             if (
                 result.get("request_id") != request_id
                 or result.get("ok") is not True
+                or result.get("conversationMode") != "temporary"
                 or result.get("temporaryLifecycleState") != "ENDED"
+                or result.get("temporaryLifecycleEnded") is not True
+                or result.get("temporaryLiveWriteAuthorityProven") is not False
+                or not isinstance(end_recovered, bool)
+                or end_proof not in TEMPORARY_LIFECYCLE_END_PROOFS
+                or (
+                    conversation_id is not None
+                    and result.get("conversationId") != conversation_id
+                )
             ):
                 raise TemporaryProductWriteRuntimeError(
                     "PR8_13_TEMPORARY_LIFECYCLE_END_NOT_PROVEN",
