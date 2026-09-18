@@ -88,6 +88,7 @@ def test_legacy_domain_quarantines_historical_runtime_chain() -> None:
 def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
     source = _source(WRITE)
     ordered = [
+        "service_worker_retained_conversation_tabs.js",
         "service_worker_rich_input_pr9_2.js",
         "service_worker_rich_input_deadline_repair_pr9_2.js",
         "service_worker_rich_input_closure_repair_pr9_2.js",
