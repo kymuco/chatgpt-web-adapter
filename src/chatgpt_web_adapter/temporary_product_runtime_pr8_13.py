@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass, field
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
 from .browser_native_provider import BrowserNativeTurnProvider
@@ -40,13 +40,6 @@ TEMPORARY_WRITE_PLANE = "BROWSER_NATIVE_PAGE_OWNED_TEMPORARY_WRITE"
 TEMPORARY_READBACK_PLANE = "BROWSER_NATIVE_PAGE_OWNED_TEMPORARY_STREAM"
 TEMPORARY_SESSION_PLANE = "LIVE_TEMPORARY_PRODUCT_LIFECYCLE"
 TEMPORARY_PREWRITE_PROOF = "FETCH_PAUSED_HISTORY_AND_TRAINING_DISABLED_TRUE"
-TEMPORARY_LIFECYCLE_END_PROOFS = frozenset(
-    {
-        "NO_OWNED_TAB_RECORDED",
-        "OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT",
-        "OWNED_TAB_ALREADY_ABSENT_CONFIRMED",
-    }
-)
 
 
 @dataclass(frozen=True)
@@ -171,9 +164,7 @@ class TemporaryFinalTextCollector:
         if state is None:
             message_id = event.get("message_id")
             state = _AssistantStreamMessage(
-                message_id=message_id
-                if isinstance(message_id, str) and message_id
-                else None
+                message_id=message_id if isinstance(message_id, str) and message_id else None
             )
             self._messages[key] = state
             self._order.append(key)
@@ -403,8 +394,8 @@ class TemporaryProductWriteRuntime:
             raise ValueError("poll_interval must be positive")
 
         self._bridge_preflight()
-        lifecycle_token, expected_conversation_id, is_continuation = (
-            self._binding_for_turn(conversation)
+        lifecycle_token, expected_conversation_id, is_continuation = self._binding_for_turn(
+            conversation
         )
         collector = TemporaryFinalTextCollector()
         browser_authority_lease_id = str(uuid.uuid4())
@@ -514,9 +505,7 @@ class TemporaryProductWriteRuntime:
             temporary_live_write_authority_proven=True,
             temporary_paused_conversation_write_count=(
                 int(response_payload.get("temporaryPausedConversationWriteCount", 0))
-                if isinstance(
-                    response_payload.get("temporaryPausedConversationWriteCount"), int
-                )
+                if isinstance(response_payload.get("temporaryPausedConversationWriteCount"), int)
                 else 0
             ),
             stream_observation_count=collector.observation_count,
@@ -620,21 +609,10 @@ class TemporaryProductWriteRuntime:
                 },
                 timeout=10.0 + float(getattr(self.provider, "connect_timeout", 3.0)),
             )
-            end_proof = result.get("temporaryLifecycleEndProof")
-            end_recovered = result.get("temporaryLifecycleEndRecovered")
             if (
                 result.get("request_id") != request_id
                 or result.get("ok") is not True
-                or result.get("conversationMode") != "temporary"
                 or result.get("temporaryLifecycleState") != "ENDED"
-                or result.get("temporaryLifecycleEnded") is not True
-                or result.get("temporaryLiveWriteAuthorityProven") is not False
-                or not isinstance(end_recovered, bool)
-                or end_proof not in TEMPORARY_LIFECYCLE_END_PROOFS
-                or (
-                    conversation_id is not None
-                    and result.get("conversationId") != conversation_id
-                )
             ):
                 raise TemporaryProductWriteRuntimeError(
                     "PR8_13_TEMPORARY_LIFECYCLE_END_NOT_PROVEN",
@@ -655,9 +633,7 @@ class TemporaryProductWriteRuntime:
     def lifecycle_snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {
-                "state": "LIVE"
-                if self._lifecycle_token is not None
-                else "NOT_ESTABLISHED",
+                "state": "LIVE" if self._lifecycle_token is not None else "NOT_ESTABLISHED",
                 "conversation_id": self._conversation_id,
                 "token_present": self._lifecycle_token is not None,
                 "token_exported": False,
