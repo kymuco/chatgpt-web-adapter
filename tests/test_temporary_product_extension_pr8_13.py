@@ -131,7 +131,6 @@ def test_explicit_end_closes_owned_tab_and_revokes_live_authority() -> None:
     assert "temporaryLiveWriteAuthorityProven: false" in source
 
 
-
 def _run_temporary_close_scenario(tmp_path: Path, scenario: str) -> dict:
     node = shutil.which("node")
     if node is None:
