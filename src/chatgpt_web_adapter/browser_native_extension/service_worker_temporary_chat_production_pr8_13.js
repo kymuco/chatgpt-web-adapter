@@ -244,10 +244,35 @@ submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, t
 
 async function _pr813EndTemporaryLifecycle(message) {
   const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);
-  const live = _pr813LiveTemporaryLifecycle;
-  if (!token || !live || live.token !== token || live.state !== "LIVE") {
+  if (!token) {
     throw new Error("PR8_13_TEMPORARY_LIFECYCLE_NOT_LIVE");
   }
+
+  const live = _pr813LiveTemporaryLifecycle;
+  if (live === null) {
+    // MV3 may restart the extension service worker after a successful Temporary
+    // turn. That destroys live continuation authority by design, while the
+    // CWA-owned Temporary tab id may remain in chrome.storage for cleanup.
+    // Explicit close is a resource-revocation operation, not continuation
+    // authority: retire the owned tab if present and prove that no live browser
+    // lifecycle remains. Never recreate or accept write authority here.
+    await _pr813RetireOwnedTemporaryTab();
+    return {
+      conversationMode: "temporary",
+      conversationId: _pr813ConversationId(message?.conversationId),
+      temporaryLifecycleState: "ENDED",
+      temporaryLifecycleEnded: true,
+      temporaryLiveWriteAuthorityProven: false,
+      temporaryLifecycleEndRecovered: true,
+      temporaryLifecycleEndProof: "NO_LIVE_AUTHORITY_OWNED_TAB_RETIRED_OR_ABSENT",
+    };
+  }
+
+  if (live.token !== token || live.state !== "LIVE") {
+    // A different live lifecycle must never be closed by a stale token.
+    throw new Error("PR8_13_TEMPORARY_LIFECYCLE_NOT_LIVE");
+  }
+
   const conversationId = live.conversationId;
   const tabId = live.tabId;
   live.state = "ENDED";
@@ -260,6 +285,8 @@ async function _pr813EndTemporaryLifecycle(message) {
     temporaryLifecycleState: "ENDED",
     temporaryLifecycleEnded: true,
     temporaryLiveWriteAuthorityProven: false,
+    temporaryLifecycleEndRecovered: false,
+    temporaryLifecycleEndProof: "MATCHED_LIVE_TOKEN_AND_OWNED_TAB_RETIRED",
   };
 }
 
