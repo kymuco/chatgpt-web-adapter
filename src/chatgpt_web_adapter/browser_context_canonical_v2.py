@@ -26,6 +26,9 @@ from .browser_native_provider import BrowserNativeTurnProvider
 from .conversation_read_v2 import get_messages_v2, normalize_conversation_payload
 from .types import ConversationRef
 
+_CANONICAL_TIMEOUT_MAX_ATTEMPTS = 2
+_CANONICAL_TIMEOUT_RETRY_DELAY_SECONDS = 0.25
+
 
 class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport):
     """Read current ChatGPT conversation pages through the authenticated tab."""
@@ -42,6 +45,36 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
         if read_timeout <= 0:
             raise ValueError("timeout must be positive")
 
+        lease_id = self._lease_id()
+        for attempt in range(1, _CANONICAL_TIMEOUT_MAX_ATTEMPTS + 1):
+            try:
+                return self._read_wire_conversation_once(
+                    ref.conversation_id,
+                    read_timeout=read_timeout,
+                    include_all_pages=include_all_pages,
+                    lease_id=lease_id,
+                )
+            except BrowserContextCanonicalReadError as error:
+                if error.reason_code != "CANONICAL_READ_TIMEOUT":
+                    raise
+                if attempt >= _CANONICAL_TIMEOUT_MAX_ATTEMPTS:
+                    raise BrowserContextCanonicalReadError(
+                        "CANONICAL_READ_TIMEOUT_EXHAUSTED",
+                        conversation_id=ref.conversation_id,
+                        retryable=True,
+                    ) from error
+                time.sleep(_CANONICAL_TIMEOUT_RETRY_DELAY_SECONDS)
+
+        raise AssertionError("unreachable canonical-read retry state")
+
+    def _read_wire_conversation_once(
+        self,
+        conversation_id: str,
+        *,
+        read_timeout: float,
+        include_all_pages: bool,
+        lease_id: str | None,
+    ) -> dict[str, Any]:
         descriptor = self._descriptor()
         request_id = str(uuid.uuid4())
         request = {
@@ -49,9 +82,9 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
             "token": descriptor["token"],
             "type": "canonical_read",
             "request_id": request_id,
-            "conversationId": ref.conversation_id,
+            "conversationId": conversation_id,
             "timeoutMs": int(read_timeout * 1000),
-            "browserAuthorityLeaseId": self._lease_id(),
+            "browserAuthorityLeaseId": lease_id,
             "includeAllPages": bool(include_all_pages),
         }
         collector = _CanonicalReadChunkCollector(request_id=request_id)
@@ -73,12 +106,12 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
                     if frame.get("protocol") != PROTOCOL_VERSION:
                         raise BrowserContextCanonicalReadError(
                             "CANONICAL_READ_PROTOCOL_MISMATCH",
-                            conversation_id=ref.conversation_id,
+                            conversation_id=conversation_id,
                         )
                     if frame.get("request_id") != request_id:
                         raise BrowserContextCanonicalReadError(
                             "CANONICAL_READ_RESPONSE_MISMATCH",
-                            conversation_id=ref.conversation_id,
+                            conversation_id=conversation_id,
                         )
                     if frame.get("type") == "canonical_read_chunk":
                         try:
@@ -86,7 +119,7 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
                         except ValueError as error:
                             raise BrowserContextCanonicalReadError(
                                 str(error),
-                                conversation_id=ref.conversation_id,
+                                conversation_id=conversation_id,
                             ) from error
                         continue
                     response = frame
@@ -96,7 +129,7 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
         except (OSError, EOFError, ValueError) as error:
             raise BrowserContextCanonicalReadError(
                 "CANONICAL_READ_BRIDGE_FAILURE",
-                conversation_id=ref.conversation_id,
+                conversation_id=conversation_id,
             ) from error
 
         if response.get("ok") is not True:
@@ -109,7 +142,7 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
             )
             raise BrowserContextCanonicalReadError(
                 reason if isinstance(reason, str) else "CANONICAL_READ_FAILED",
-                conversation_id=ref.conversation_id,
+                conversation_id=conversation_id,
                 status_code=status_code,
                 content_type=(
                     response.get("contentType")
@@ -121,7 +154,7 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
         if response.get("type") != "canonical_read_result":
             raise BrowserContextCanonicalReadError(
                 "CANONICAL_READ_RESULT_TYPE_INVALID",
-                conversation_id=ref.conversation_id,
+                conversation_id=conversation_id,
             )
 
         try:
@@ -133,7 +166,7 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
                 reason
                 if reason.startswith("CANONICAL_READ_")
                 else "CANONICAL_READ_MALFORMED_JSON",
-                conversation_id=ref.conversation_id,
+                conversation_id=conversation_id,
                 status_code=(
                     response.get("status")
                     if isinstance(response.get("status"), int)
@@ -149,7 +182,7 @@ class BrowserContextCanonicalTransportV2(_LegacyBrowserContextCanonicalTransport
         if not isinstance(payload, dict):
             raise BrowserContextCanonicalReadError(
                 "CANONICAL_READ_JSON_OBJECT_REQUIRED",
-                conversation_id=ref.conversation_id,
+                conversation_id=conversation_id,
             )
         return payload
 
