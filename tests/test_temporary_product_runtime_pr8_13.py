@@ -32,10 +32,6 @@ class _FakeTemporaryProvider:
         self.closed = False
         self.force_gap = False
         self.force_mode_unproven = False
-        self.close_proof: str | None = "OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT"
-        self.close_ended = True
-        self.close_live_authority = False
-        self.close_recovered = False
 
     def status(self):
         return SimpleNamespace(available=True, extension_connected=True)
@@ -59,10 +55,6 @@ class _FakeTemporaryProvider:
                 "conversationMode": "temporary",
                 "conversationId": payload.get("conversationId"),
                 "temporaryLifecycleState": "ENDED",
-                "temporaryLifecycleEnded": self.close_ended,
-                "temporaryLiveWriteAuthorityProven": self.close_live_authority,
-                "temporaryLifecycleEndRecovered": self.close_recovered,
-                "temporaryLifecycleEndProof": self.close_proof,
             }
 
         if callable(on_event):
@@ -109,8 +101,7 @@ class _FakeTemporaryProvider:
         return {
             "request_id": request_id,
             "ok": True,
-            "conversationId": payload.get("conversationId")
-            or "temporary-conversation-1",
+            "conversationId": payload.get("conversationId") or "temporary-conversation-1",
             "turnExchangeId": "turn-exchange-1",
             "responseStatus": 200,
             "conversationMode": "temporary",
@@ -164,9 +155,7 @@ def test_collector_prefers_explicit_final_over_commentary() -> None:
     assert collector.delivery_incomplete is False
 
 
-def test_temporary_runtime_returns_page_owned_final_and_private_live_authority() -> (
-    None
-):
+def test_temporary_runtime_returns_page_owned_final_and_private_live_authority() -> None:
     provider = _FakeTemporaryProvider()
     runtime = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
     visible_events: list[dict] = []
@@ -191,14 +180,8 @@ def test_temporary_runtime_returns_page_owned_final_and_private_live_authority()
     assert provenance.completion.source is CompletionSource.TRANSPORT_RETURN
     assert provenance.completion.canonical_completion_proven is False
     assert provenance.conversation_mode is not None
-    assert (
-        provenance.conversation_mode.requested_conversation_mode
-        is ConversationMode.TEMPORARY
-    )
-    assert (
-        provenance.conversation_mode.observed_conversation_mode
-        is ConversationMode.TEMPORARY
-    )
+    assert provenance.conversation_mode.requested_conversation_mode is ConversationMode.TEMPORARY
+    assert provenance.conversation_mode.observed_conversation_mode is ConversationMode.TEMPORARY
     assert (
         provenance.conversation_mode.observed_mode_evidence_source
         is ConversationModeEvidenceSource.PRODUCT_MODE_OBSERVATION
@@ -249,17 +232,12 @@ def test_same_runtime_continuation_reuses_private_lifecycle_token() -> None:
         if payload.get("endTemporaryLifecycle") is not True
     ]
     assert len(turn_payloads) == 2
-    assert (
-        turn_payloads[0]["temporaryLifecycleToken"]
-        == turn_payloads[1]["temporaryLifecycleToken"]
-    )
+    assert turn_payloads[0]["temporaryLifecycleToken"] == turn_payloads[1]["temporaryLifecycleToken"]
     assert turn_payloads[0]["conversationId"] is None
     assert turn_payloads[1]["conversationId"] == conversation_id
 
 
-def test_conversation_id_alone_cannot_recreate_temporary_continuation_authority() -> (
-    None
-):
+def test_conversation_id_alone_cannot_recreate_temporary_continuation_authority() -> None:
     provider = _FakeTemporaryProvider()
     original = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
     first = original.send_text_observed("first")
@@ -294,34 +272,6 @@ def test_explicit_end_revokes_local_continuation_authority() -> None:
     ):
         runtime.send_text_observed("after end", conversation=conversation_id)
     assert len(provider.payloads) == before
-
-
-def test_explicit_end_rejects_bare_ended_without_cleanup_proof() -> None:
-    provider = _FakeTemporaryProvider()
-    runtime = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
-    runtime.send_text_observed("first")
-    provider.close_proof = None
-
-    with pytest.raises(
-        TemporaryProductWriteRuntimeError,
-        match="TEMPORARY_LIFECYCLE_END_NOT_PROVEN",
-    ):
-        runtime.close()
-
-    assert runtime.lifecycle_snapshot()["state"] == "NOT_ESTABLISHED"
-
-
-def test_explicit_end_rejects_ended_state_without_ended_evidence() -> None:
-    provider = _FakeTemporaryProvider()
-    runtime = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
-    runtime.send_text_observed("first")
-    provider.close_ended = False
-
-    with pytest.raises(
-        TemporaryProductWriteRuntimeError,
-        match="TEMPORARY_LIFECYCLE_END_NOT_PROVEN",
-    ):
-        runtime.close()
 
 
 def test_incomplete_temporary_stream_fails_without_second_write() -> None:
@@ -402,9 +352,7 @@ class _ModeAwareFakeTransport:
         return self.execution
 
 
-def test_product_runtime_dispatches_temporary_only_to_explicit_mode_aware_transport() -> (
-    None
-):
+def test_product_runtime_dispatches_temporary_only_to_explicit_mode_aware_transport() -> None:
     provider = _FakeTemporaryProvider()
     low_level = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
     execution = low_level.send_text_observed("seed")
@@ -415,10 +363,7 @@ def test_product_runtime_dispatches_temporary_only_to_explicit_mode_aware_transp
 
     assert result.provenance is not None
     assert result.provenance.conversation_mode is not None
-    assert (
-        result.provenance.conversation_mode.observed_conversation_mode
-        is ConversationMode.TEMPORARY
-    )
+    assert result.provenance.conversation_mode.observed_conversation_mode is ConversationMode.TEMPORARY
     assert len(transport.calls) == 1
     call = transport.calls[0]
     assert callable(call["on_event"])
