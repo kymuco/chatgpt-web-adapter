@@ -114,22 +114,45 @@ turn. Such a restart destroys the module-live Temporary lifecycle object and
 therefore already destroys continuation authority. The CWA-owned Temporary tab id
 may still remain in `chrome.storage.local` solely for cleanup.
 
-Explicit close is now restart-safe:
+Explicit close is now restart-safe and cleanup proof is observation-backed:
 
 ```text
 browser live lifecycle still present + matching token
-    -> close owned tab
-    -> ENDED
+    -> revoke live continuation authority
+    -> request owned-tab removal
+    -> freshly observe the Chrome tab set
+    -> ENDED only when the exact owned tab id is absent
 
 browser live lifecycle absent after worker restart
     -> do not recreate write authority
-    -> retire stored CWA-owned Temporary tab if present
-    -> ENDED (recovered cleanup)
+    -> use only the stored CWA-owned tab id as cleanup state
+    -> request removal when present
+    -> freshly observe the Chrome tab set
+    -> ENDED only when the exact owned tab id is absent
 
 different browser live lifecycle + stale token
     -> fail closed
     -> do not close the different lifecycle
 ```
+
+A successful `chrome.tabs.remove(...)` call is not itself cleanup proof. A failed
+remove is also not proof of failure, because the tab may already be absent. The
+post-remove tab observation is authoritative for this resource boundary.
+
+Successful end proof is restricted to:
+
+```text
+NO_OWNED_TAB_RECORDED
+OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT
+OWNED_TAB_ALREADY_ABSENT_CONFIRMED
+```
+
+If the owned tab is still present or tab absence cannot be observed, close fails
+with `PR8_13_TEMPORARY_LIFECYCLE_END_NOT_PROVEN`. The stored tab id is retained
+for later cleanup instead of being erased.
+
+The Python runtime validates the complete end contract rather than accepting the
+string `temporaryLifecycleState=ENDED` alone.
 
 Recovered cleanup is resource revocation only. It does not make a Temporary
 conversation id durable and does not recreate continuation authority.
