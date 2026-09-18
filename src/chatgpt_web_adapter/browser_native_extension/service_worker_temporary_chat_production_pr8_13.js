@@ -42,14 +42,40 @@ async function _pr813ClearStoredTemporaryTabId(expectedTabId = null) {
   await chrome.storage.local.remove(PR813_TEMPORARY_RUNTIME_TAB_KEY);
 }
 
-async function _pr813CloseTemporaryTab(tabId) {
+async function _pr813ConfirmTemporaryTabAbsent(tabId) {
   if (!Number.isInteger(tabId)) return false;
   try {
-    await chrome.tabs.remove(tabId);
-    return true;
+    const tabs = await chrome.tabs.query({});
+    if (!Array.isArray(tabs)) return false;
+    return !tabs.some((tab) => tab?.id === tabId);
   } catch {
     return false;
   }
+}
+
+async function _pr813CloseTemporaryTab(tabId) {
+  if (!Number.isInteger(tabId)) {
+    return { ended: false, proof: null };
+  }
+
+  let removeSucceeded = false;
+  try {
+    await chrome.tabs.remove(tabId);
+    removeSucceeded = true;
+  } catch {
+    // A remove error is ambiguous: the tab may still exist or may already be gone.
+    // Only a fresh full tab observation may prove resource retirement.
+  }
+
+  if (!(await _pr813ConfirmTemporaryTabAbsent(tabId))) {
+    return { ended: false, proof: null };
+  }
+  return {
+    ended: true,
+    proof: removeSucceeded
+      ? "OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT"
+      : "OWNED_TAB_ALREADY_ABSENT_CONFIRMED",
+  };
 }
 
 async function _pr813RetireOwnedTemporaryTab() {
@@ -59,8 +85,20 @@ async function _pr813RetireOwnedTemporaryTab() {
   const storedTabId = await _pr813StoredTemporaryTabId();
   const tabId = liveTabId ?? storedTabId;
   _pr813LiveTemporaryLifecycle = null;
-  if (Number.isInteger(tabId)) await _pr813CloseTemporaryTab(tabId);
-  await _pr813ClearStoredTemporaryTabId();
+
+  if (!Number.isInteger(tabId)) {
+    await _pr813ClearStoredTemporaryTabId();
+    return { ended: true, proof: "NO_OWNED_TAB_RECORDED" };
+  }
+
+  const retirement = await _pr813CloseTemporaryTab(tabId);
+  if (retirement.ended !== true || typeof retirement.proof !== "string") {
+    throw new Error(
+      "PR8_13_TEMPORARY_LIFECYCLE_END_NOT_PROVEN:OWNED_TAB_ABSENCE_UNPROVEN"
+    );
+  }
+  await _pr813ClearStoredTemporaryTabId(tabId);
+  return retirement;
 }
 
 async function _pr813CreateTemporaryTab() {
@@ -254,9 +292,9 @@ async function _pr813EndTemporaryLifecycle(message) {
     // turn. That destroys live continuation authority by design, while the
     // CWA-owned Temporary tab id may remain in chrome.storage for cleanup.
     // Explicit close is a resource-revocation operation, not continuation
-    // authority: retire the owned tab if present and prove that no live browser
-    // lifecycle remains. Never recreate or accept write authority here.
-    await _pr813RetireOwnedTemporaryTab();
+    // authority: retire the owned tab if present and prove its absence before
+    // declaring cleanup complete. Never recreate or accept write authority here.
+    const retirement = await _pr813RetireOwnedTemporaryTab();
     return {
       conversationMode: "temporary",
       conversationId: _pr813ConversationId(message?.conversationId),
@@ -264,7 +302,7 @@ async function _pr813EndTemporaryLifecycle(message) {
       temporaryLifecycleEnded: true,
       temporaryLiveWriteAuthorityProven: false,
       temporaryLifecycleEndRecovered: true,
-      temporaryLifecycleEndProof: "NO_LIVE_AUTHORITY_OWNED_TAB_RETIRED_OR_ABSENT",
+      temporaryLifecycleEndProof: retirement.proof,
     };
   }
 
@@ -277,7 +315,13 @@ async function _pr813EndTemporaryLifecycle(message) {
   const tabId = live.tabId;
   live.state = "ENDED";
   _pr813LiveTemporaryLifecycle = null;
-  await _pr813CloseTemporaryTab(tabId);
+
+  const retirement = await _pr813CloseTemporaryTab(tabId);
+  if (retirement.ended !== true || typeof retirement.proof !== "string") {
+    throw new Error(
+      "PR8_13_TEMPORARY_LIFECYCLE_END_NOT_PROVEN:OWNED_TAB_ABSENCE_UNPROVEN"
+    );
+  }
   await _pr813ClearStoredTemporaryTabId(tabId);
   return {
     conversationMode: "temporary",
@@ -286,7 +330,7 @@ async function _pr813EndTemporaryLifecycle(message) {
     temporaryLifecycleEnded: true,
     temporaryLiveWriteAuthorityProven: false,
     temporaryLifecycleEndRecovered: false,
-    temporaryLifecycleEndProof: "MATCHED_LIVE_TOKEN_AND_OWNED_TAB_RETIRED",
+    temporaryLifecycleEndProof: retirement.proof,
   };
 }
 
@@ -383,8 +427,10 @@ async function _pr813ExecuteTemporaryTurn(message) {
       _pr813LiveTemporaryLifecycle = null;
     }
     if (!delegated) {
-      await _pr813CloseTemporaryTab(tab.id);
-      await _pr813ClearStoredTemporaryTabId(tab.id);
+      const retirement = await _pr813CloseTemporaryTab(tab.id);
+      if (retirement.ended === true) {
+        await _pr813ClearStoredTemporaryTabId(tab.id);
+      }
     }
     throw error;
   } finally {
