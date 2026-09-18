@@ -32,6 +32,10 @@ class _FakeTemporaryProvider:
         self.closed = False
         self.force_gap = False
         self.force_mode_unproven = False
+        self.close_proof: str | None = "OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT"
+        self.close_ended = True
+        self.close_live_authority = False
+        self.close_recovered = False
 
     def status(self):
         return SimpleNamespace(available=True, extension_connected=True)
@@ -55,6 +59,10 @@ class _FakeTemporaryProvider:
                 "conversationMode": "temporary",
                 "conversationId": payload.get("conversationId"),
                 "temporaryLifecycleState": "ENDED",
+                "temporaryLifecycleEnded": self.close_ended,
+                "temporaryLiveWriteAuthorityProven": self.close_live_authority,
+                "temporaryLifecycleEndRecovered": self.close_recovered,
+                "temporaryLifecycleEndProof": self.close_proof,
             }
 
         if callable(on_event):
@@ -272,6 +280,34 @@ def test_explicit_end_revokes_local_continuation_authority() -> None:
     ):
         runtime.send_text_observed("after end", conversation=conversation_id)
     assert len(provider.payloads) == before
+
+
+def test_explicit_end_rejects_bare_ended_without_cleanup_proof() -> None:
+    provider = _FakeTemporaryProvider()
+    runtime = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
+    runtime.send_text_observed("first")
+    provider.close_proof = None
+
+    with pytest.raises(
+        TemporaryProductWriteRuntimeError,
+        match="TEMPORARY_LIFECYCLE_END_NOT_PROVEN",
+    ):
+        runtime.close()
+
+    assert runtime.lifecycle_snapshot()["state"] == "NOT_ESTABLISHED"
+
+
+def test_explicit_end_rejects_ended_state_without_ended_evidence() -> None:
+    provider = _FakeTemporaryProvider()
+    runtime = TemporaryProductWriteRuntime(provider)  # type: ignore[arg-type]
+    runtime.send_text_observed("first")
+    provider.close_ended = False
+
+    with pytest.raises(
+        TemporaryProductWriteRuntimeError,
+        match="TEMPORARY_LIFECYCLE_END_NOT_PROVEN",
+    ):
+        runtime.close()
 
 
 def test_incomplete_temporary_stream_fails_without_second_write() -> None:
