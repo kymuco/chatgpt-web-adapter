@@ -107,6 +107,33 @@ LIVE process-local lifecycle authority
 
 The route is session-scoped. Runtime/tab reconstruction does not recreate Temporary write authority.
 
+### Explicit close after MV3 service-worker restart
+
+Chrome may restart the MV3 extension service worker after a successful Temporary
+turn. Such a restart destroys the module-live Temporary lifecycle object and
+therefore already destroys continuation authority. The CWA-owned Temporary tab id
+may still remain in `chrome.storage.local` solely for cleanup.
+
+Explicit close is now restart-safe:
+
+```text
+browser live lifecycle still present + matching token
+    -> close owned tab
+    -> ENDED
+
+browser live lifecycle absent after worker restart
+    -> do not recreate write authority
+    -> retire stored CWA-owned Temporary tab if present
+    -> ENDED (recovered cleanup)
+
+different browser live lifecycle + stale token
+    -> fail closed
+    -> do not close the different lifecycle
+```
+
+Recovered cleanup is resource revocation only. It does not make a Temporary
+conversation id durable and does not recreate continuation authority.
+
 ## Prewrite safety boundary
 
 For every Temporary write, the ChatGPT page generates the conversation request. CDP Fetch pauses the request before network dispatch. CWA permits the request to continue only after browser-local inspection proves:
