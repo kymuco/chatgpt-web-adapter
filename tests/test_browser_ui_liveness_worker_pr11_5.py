@@ -41,7 +41,9 @@ def test_liveness_worker_serializes_non_liveness_messages_behind_active_probe() 
     assert "_cwaUiLivenessProbePromise = null;" in source
 
 
-def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives() -> None:
+def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives() -> (
+    None
+):
     source = LIVENESS.read_text(encoding="utf-8")
 
     for forbidden in (
