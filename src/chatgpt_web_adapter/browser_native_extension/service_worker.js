@@ -388,7 +388,12 @@ async function submitOfficialPageTurn(debuggee, timeoutMs) {
   }
 }
 
-async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
+async function executeOfficialPageTurn({
+  tabId,
+  text,
+  timeoutMs,
+  postDelegationObserverFailureProbe = null
+}) {
   if (!Number.isInteger(tabId)) throw new Error("TAB_ID_REQUIRED");
   if (typeof text !== "string" || !text.trim()) throw new Error("TEXT_REQUIRED");
   if (text.length > 200_000) throw new Error("TEXT_TOO_LARGE_FOR_BROWSER_NATIVE_TURN");
@@ -427,6 +432,7 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
     );
 
     let conversationRequestId = null;
+    let observerFailureProbeStarted = false;
     let resolveRequestSeen;
     let resolveCompleted;
     let rejectCompleted;
@@ -454,6 +460,29 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
         diagnostics.conversationResponseSeen = true;
         diagnostics.responseStatus = params?.response?.status ?? null;
         diagnostics.responseMimeType = params?.response?.mimeType ?? null;
+        if (
+          !observerFailureProbeStarted &&
+          typeof postDelegationObserverFailureProbe === "function"
+        ) {
+          observerFailureProbeStarted = true;
+          Promise.resolve(
+            postDelegationObserverFailureProbe({
+              requestId: conversationRequestId,
+              responseStatus: diagnostics.responseStatus,
+              responseMimeType: diagnostics.responseMimeType
+            })
+          )
+            .then((probeError) => {
+              if (probeError instanceof Error) rejectCompleted(probeError);
+            })
+            .catch((probeError) => {
+              rejectCompleted(
+                probeError instanceof Error
+                  ? probeError
+                  : new Error(String(probeError))
+              );
+            });
+        }
         return;
       }
       if (method === "Network.loadingFailed") {
