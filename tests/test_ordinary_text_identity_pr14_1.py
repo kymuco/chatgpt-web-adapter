@@ -10,6 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
+BASE = EXT / "service_worker.js"
 AUTHORITY = EXT / "service_worker_ordinary_text_identity_authority.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 
@@ -346,6 +347,17 @@ def test_authority_is_last_write_domain_layer_without_diagnostic_dependency() ->
     assert source.index(commit) < source.index(authority)
     assert source.rstrip().endswith(authority)
     assert "identity_capture_diag" not in source
+
+
+def test_turn_result_exports_only_bounded_post_delegation_identity_evidence() -> None:
+    source = _source(BASE)
+    assert "safeTurnFailureEvidence(error)" in source
+    assert "postDelegationRequestCorrelationProven" in source
+    assert "postDelegationUserMessageId" in source
+    assert "postDelegationConversationId" in source
+    assert "postDelegationRuntimeTabId" in source
+    assert "postDelegationPrompt" not in source
+    assert "postDelegationRequestBody" not in source
 
 
 def test_authority_reuses_schema29_request_and_protocol_parsers() -> None:
