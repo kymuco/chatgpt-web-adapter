@@ -33,9 +33,14 @@ request-bound identity evidence
 ```
 
 The existing ordinary request-correlation authority already identifies the exact
-product-generated user message id from the actual conversation request body. On a
-post-delegation conversation-request failure, CWA may export only the bounded
-identity tuple:
+product-generated user message id from the actual conversation request body. PR14.9
+applies this stronger reconciliation only to an existing-conversation continuation,
+where the expected conversation id was already bound before delegation. A failed
+fresh/new-chat turn does not gain identity from its URL or any post-failure guess and
+therefore remains `UNKNOWN`.
+
+On an eligible post-delegation conversation-request failure, CWA may export only the
+bounded identity tuple:
 
 ```text
 conversation_id
