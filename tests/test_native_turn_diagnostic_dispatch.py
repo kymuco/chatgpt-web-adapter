@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+WORKER = (
+    ROOT
+    / "src"
+    / "chatgpt_web_adapter"
+    / "browser_native_extension"
+    / "service_worker.js"
+)
+
+
+def test_native_turn_diagnostic_dispatch_has_single_owner_semantics() -> None:
+    source = WORKER.read_text(encoding="utf-8")
+
+    assert "const nativeTurnDiagnosticHandlers = new Map();" in source
+    assert "function registerNativeTurnDiagnosticHandler(name, matches, handle)" in source
+    assert "if (nativeTurnDiagnosticHandlers.has(key))" in source
+    assert "CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_DUPLICATE" in source
+    assert "if (matching.length > 1)" in source
+    assert "CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_AMBIGUOUS" in source
+
+
+def test_native_turn_diagnostic_dispatch_falls_through_to_single_runtime_owner() -> None:
+    source = WORKER.read_text(encoding="utf-8")
+
+    assert "async function dispatchNativeTurn(message)" in source
+    assert "return matching[0][1].handle(message);" in source
+    assert "return executeNativeTurn(message);" in source
+    assert "const result = await dispatchNativeTurn(message);" in source
