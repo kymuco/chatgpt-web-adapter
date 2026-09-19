@@ -50,16 +50,20 @@ def test_status_distinguishes_release_from_unreleased_main() -> None:
     assert "current main            post-0.3 development" in text
     assert "PR10.0 + PR10.1 merged" in text
     assert "Current `main` contains product/runtime work newer than the `v0.3.0` tag" in text
-    assert "consumer-driven runtime hardening" in text
+    assert "PR15 Architecture Reset" in text
+    assert "pr15_0_architecture_reset_inventory.md" in text
 
 
-def test_roadmap_is_current_and_consumer_driven() -> None:
+def test_roadmap_is_current_and_architecture_reset_driven() -> None:
     text = _read("ROADMAP.md")
 
     assert "_Last updated: 2026-09-02_" in text
     assert "PR10.0" in text
     assert "PR10.1" in text
-    assert "consumer-driven runtime hardening" in text
+    assert "PR15 Architecture Reset" in text
+    assert "PR15.1 explicit ChatGPT runtime" in text
+    assert "PR15.2 provider architecture proof with minimal DeepSeek support" in text
+    assert "consumer-driven runtime hardening remains the rule" in text.lower()
     assert "0.4.0" in text
 
 
