@@ -4,18 +4,19 @@
 
 Ordinary saved conversations previously shared one browser-owned runtime tab.
 
-That was sufficient for isolated requests, but a Codexia/worker loop repeatedly moved
-the same product surface between:
+That was sufficient for isolated requests, but any alternating use of two saved
+conversations repeatedly moved the same product surface between routes:
 
 ```text
-/c/<codexia>
--> /c/<worker>
--> /c/<codexia>
--> /c/<worker>
+/c/<conversation-a>
+-> /c/<conversation-b>
+-> /c/<conversation-a>
+-> /c/<conversation-b>
 ```
 
-The semantic loop was already correct, but this navigation churn increased product
-surface work and made long-lived multi-conversation use unnecessarily fragile.
+This navigation churn increased product-surface work and made long-lived
+multi-conversation use unnecessarily fragile. PR14.8 treats that as a CWA transport
+property rather than a consumer-specific workflow concern.
 
 PR14.8 changes only browser routing for normal **saved** conversations:
 
@@ -156,30 +157,46 @@ Regression coverage freezes these invariants:
 - removed, retargeted and replaced tabs reconcile bindings;
 - no product submit/read/retry primitive is introduced by this layer.
 
-## Live acceptance target
+## CWA-owned live acceptance
 
-The first consumer-driven live validation should use two existing saved
-conversations, ideally Codexia plus one persistent worker:
+PR14.8 is validated by CWA itself. No consumer runtime is part of the proof surface.
+
+The dedicated gate performs seven bounded product writes:
 
 ```text
-turn 1 -> Codexia conversation
-turn 2 -> Worker conversation
-turn 3 -> Codexia conversation
-turn 4 -> Worker conversation
+A seed
+A continuation -> bind retained tab A
+B seed
+B continuation -> bind retained tab B
+A revisit       -> exact tab A
+B revisit       -> exact tab B
+Temporary turn  -> dedicated Temporary tab -> explicit close
 ```
 
 Acceptance requires:
 
 ```text
-Codexia tab id remains stable across turns 1 and 3
-Worker tab id remains stable across turns 2 and 4
-Codexia tab id != Worker tab id
-both tabs remain inactive/background unless already user-activated
-conversation identities remain exact
+deployment identity is healthy and bound to the installed CWA revision
+conversation A tab id remains exact on revisit
+conversation B tab id remains exact on revisit
+conversation A tab id != conversation B tab id
+Temporary tab id differs from both saved-conversation tabs
+Temporary mode/prewrite/page-owned finality are proven
+explicit Temporary close enters after the proven turn
+ENDED is emitted only by the deployed extension after owned-tab absence proof
 no duplicate product turn
 no automatic retry
-Temporary Chat behavior unchanged
 ```
 
-This is deliberately a routing milestone. Multi-chat selection, naming, temporary
-Codexia sessions and general tab-management UI remain consumer-level follow-up work.
+Run the exact CWA-owned gate:
+
+```powershell
+python -m chatgpt_web_adapter.retained_conversation_tabs_live_gate_pr14_8 \`
+  --auth-file auth_data.json \`
+  --acknowledge-live-writes
+```
+
+The gate intentionally relies only on CWA's public runtime plus its deployment
+identity evidence. It does not inspect or depend on Codexia, HDE, or another
+consumer. Multi-chat naming/selection and consumer UI remain outside this routing
+milestone.
