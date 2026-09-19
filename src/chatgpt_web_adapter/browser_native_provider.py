@@ -312,11 +312,14 @@ class BrowserNativeTurnProvider:
             if response.get("postDelegationRequestCorrelationProven") is True:
                 failure_user_message_id = response.get("postDelegationUserMessageId")
                 failure_conversation_id = response.get("postDelegationConversationId")
+                failure_runtime_tab_id = response.get("postDelegationRuntimeTabId")
                 if (
                     isinstance(failure_user_message_id, str)
                     and failure_user_message_id.strip()
                     and isinstance(failure_conversation_id, str)
                     and failure_conversation_id.strip()
+                    and isinstance(failure_runtime_tab_id, int)
+                    and not isinstance(failure_runtime_tab_id, bool)
                 ):
                     request_error.post_delegation_request_correlation_proven = True
                     request_error.post_delegation_user_message_id = (
@@ -325,6 +328,7 @@ class BrowserNativeTurnProvider:
                     request_error.post_delegation_conversation_id = (
                         failure_conversation_id.strip()
                     )
+                    request_error.post_delegation_runtime_tab_id = failure_runtime_tab_id
             raise request_error
         result_conversation_id = response.get("conversationId")
         status = response.get("responseStatus")
