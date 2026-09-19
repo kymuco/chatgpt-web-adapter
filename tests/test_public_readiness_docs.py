@@ -38,8 +38,7 @@ def test_readme_points_to_current_status_and_post_0_3_boundaries() -> None:
     assert "PR10.1" in text
     assert "tools_connectors" in text
     assert (
-        "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY"
-        in text
+        "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY" in text
     )
 
 
@@ -49,7 +48,10 @@ def test_status_distinguishes_release_from_unreleased_main() -> None:
     assert "latest public release   v0.3.0" in text
     assert "current main            post-0.3 development" in text
     assert "PR10.0 + PR10.1 merged" in text
-    assert "Current `main` contains product/runtime work newer than the `v0.3.0` tag" in text
+    assert (
+        "Current `main` contains product/runtime work newer than the `v0.3.0` tag"
+        in text
+    )
     assert "PR15 Architecture Reset" in text
     assert "pr15_0_architecture_reset_inventory.md" in text
 
@@ -107,7 +109,10 @@ def test_unreleased_changelog_records_post_0_3_milestones() -> None:
 
     assert "connectors / required actions" in unreleased
     assert "generated artifacts" in unreleased
-    assert "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY" in unreleased
+    assert (
+        "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY"
+        in unreleased
+    )
     assert "docs/public readiness" in unreleased
 
 
