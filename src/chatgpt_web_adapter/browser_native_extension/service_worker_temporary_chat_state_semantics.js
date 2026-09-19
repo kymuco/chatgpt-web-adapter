@@ -123,22 +123,3 @@ _pr87TemporaryControlSnapshotExpression = function _pr87TemporaryControlSnapshot
     };
   })()`;
 };
-
-// Add the newly observed safe structural state signal to probe results without
-// changing normal production turn behavior.
-const _pr87PriorExecuteNativeTurnStateSemantics = executeNativeTurn;
-executeNativeTurn = async function _executeNativeTurnWithTemporaryStateSignalResult(message) {
-  const result = await _pr87PriorExecuteNativeTurnStateSemantics(message);
-  if (message?.probeTemporaryMode !== true || !result || typeof result !== "object") {
-    return result;
-  }
-
-  // Re-observe only the already-open probe flow through the existing result.
-  // The underlying probe closes its isolated tab before returning, so no raw
-  // label or additional page data is exported here. proofSignals already carry
-  // the action-semantic evidence when it proves selection.
-  return {
-    ...result,
-    temporaryStateSemantics: "aria_label_action_v1"
-  };
-};
