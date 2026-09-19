@@ -9,6 +9,7 @@ ROUTE = EXTENSION / "service_worker_retained_route_identity_pr8_8.js"
 PICKER = EXTENSION / "service_worker_retained_picker_forensics_pr8_8.js"
 FAILURE = EXTENSION / "service_worker_instant_failure_forensics_pr8_8.js"
 POPUP = EXTENSION / "service_worker_instant_popup_subtree_forensics_pr8_8.js"
+OBSERVABILITY = EXTENSION / "service_worker_observability.js"
 
 
 def test_native_turn_diagnostic_dispatch_has_single_owner_semantics() -> None:
@@ -68,3 +69,27 @@ def test_instant_failure_diagnostics_have_one_explicit_owner() -> None:
     assert "await _pr88FailureSupport(message)" in popup
     assert "await _pr88FailureRecord(message)" in popup
     assert "_pr88PopupPriorLocateAndFocusComposer" in popup
+
+
+def test_native_turn_observer_pipeline_has_one_core_runtime_call() -> None:
+    source = WORKER.read_text(encoding="utf-8")
+
+    assert "const nativeTurnObservers = new Map();" in source
+    assert "function registerNativeTurnObserver(name, observer)" in source
+    assert "CHATGPT_NATIVE_TURN_OBSERVER_DUPLICATE" in source
+    assert "async function _executeNativeTurnWithObservers(message)" in source
+    assert source.count("let result = await executeNativeTurn(message);") == 1
+    assert "await observer.before(message)" in source
+    assert "await observer.afterSuccess(message, result, context)" in source
+    assert "await observer.finish(message, context)" in source
+
+
+def test_provisioning_observability_is_registered_not_wrapped() -> None:
+    source = OBSERVABILITY.read_text(encoding="utf-8")
+
+    assert "executeNativeTurn = async function" not in source
+    assert "_pr824aOriginalExecuteNativeTurn" not in source
+    assert 'registerNativeTurnObserver("provisioning-observability"' in source
+    assert "runtimeTabPreexisting" in source
+    assert "runtimeTabCreatedForTurn" in source
+    assert "foregroundActivationObserved" in source
