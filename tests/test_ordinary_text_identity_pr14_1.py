@@ -283,7 +283,7 @@ globalThis.executeOfficialPageTurn = async (args) => {
       request,
       responseStatusCode: 200
     });
-    await delay(0);
+    await delay(scenario.probeWaitMs || 0);
     if (scenario.probeAborted) {
       throw new Error("CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED");
     }
@@ -503,6 +503,33 @@ def test_live_abort_probe_fails_exact_correlated_response_after_headers() -> Non
     assert "FETCH_ENABLED" in result["events"]
     assert "FETCH_ABORTED" in result["events"]
     assert "FETCH_DISABLED" in result["events"]
+
+
+def test_live_abort_probe_waits_for_async_request_post_data_identity() -> None:
+    text = "post delegation delayed identity probe"
+    requested = "7cc0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "useLookup": True,
+            "lookupPostData": _valid_post_data(text, requested),
+            "lookupDelayMs": 25,
+            "probeWaitMs": 40,
+            "postDelegationAbortProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationAbortProbeTriggered"] is True
+    assert "POST_DATA_RESOLVED" in result["events"]
+    assert result["events"].index("POST_DATA_RESOLVED") < result["events"].index(
+        "FETCH_ABORTED"
+    )
 
 
 def test_live_abort_probe_never_aborts_uncorrelated_request() -> None:
