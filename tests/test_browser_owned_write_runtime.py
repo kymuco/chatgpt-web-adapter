@@ -198,6 +198,7 @@ def test_delegated_abort_with_exact_request_identity_classifies_persisted_user(
         error.post_delegation_user_message_id = "user-message-1"
         error.post_delegation_conversation_id = "conversation-1"
         error.post_delegation_runtime_tab_id = 42
+        error.post_delegation_abort_probe_triggered = True
         raise error
 
     class Reconciliation:
@@ -244,6 +245,7 @@ def test_delegated_abort_with_exact_request_identity_classifies_persisted_user(
     payload = error.to_dict()
     assert payload["post_delegation_reconciliation"]["user_turn_persisted"] is True
     assert payload["post_delegation_runtime_tab_id"] == 42
+    assert payload["post_delegation_abort_probe_triggered"] is True
 
 
 def test_delegated_abort_conversation_mismatch_stays_unknown(
