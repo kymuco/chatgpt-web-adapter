@@ -106,7 +106,9 @@ _pr88EffortProbe = async () => ({ probe: "reasoning-topology" });
         os.unlink(path)
 
 
-def test_explicit_control_diagnostics_bypass_ordinary_requests_and_route_exactly() -> None:
+def test_explicit_control_diagnostics_bypass_ordinary_requests_and_route_exactly() -> (
+    None
+):
     result = _run_harness()
 
     assert result["names"] == [
