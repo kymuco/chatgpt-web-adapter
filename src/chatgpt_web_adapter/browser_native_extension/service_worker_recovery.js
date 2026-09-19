@@ -154,6 +154,7 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTermin
 
     let conversationRequestId = null;
     let observerFailureProbeStarted = false;
+    let observerFailureProbePromise = null;
     let resolveRequestSeen;
     let resolveCompleted;
     let rejectCompleted;
@@ -186,23 +187,16 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTermin
           typeof postDelegationObserverFailureProbe === "function"
         ) {
           observerFailureProbeStarted = true;
-          Promise.resolve(
+          observerFailureProbePromise = Promise.resolve(
             postDelegationObserverFailureProbe({
               requestId: conversationRequestId,
               responseStatus: diagnostics.responseStatus,
               responseMimeType: diagnostics.responseMimeType
             })
-          )
-            .then((probeError) => {
-              if (probeError instanceof Error) rejectCompleted(probeError);
-            })
-            .catch((probeError) => {
-              rejectCompleted(
-                probeError instanceof Error
-                  ? probeError
-                  : new Error(String(probeError))
-              );
-            });
+          ).then((probeError) => {
+            if (probeError instanceof Error) throw probeError;
+            return null;
+          });
         }
         return;
       }
@@ -257,6 +251,10 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTermin
           timeoutResult
         ])
       : await Promise.race([networkResult, timeoutResult]);
+
+    if (observerFailureProbePromise !== null) {
+      await observerFailureProbePromise;
+    }
 
     let requestId = conversationRequestId;
     let safeMetadata = { conversationId: null, turnExchangeId: null };
