@@ -56,7 +56,6 @@ function _cwaOrdinaryIdentityEligible(message) {
     ? message.conversationMode.trim().toLowerCase()
     : "normal";
   if (mode !== "normal") return false;
-  if (message?.canonicalCompleted === true) return false;
 
   for (const flag of [
     "characterizeRichInputSupport",
@@ -705,6 +704,8 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
       ordinaryTextRequestCorrelation: CWA_ORDINARY_IDENTITY_REQUEST_CORRELATION,
       ordinaryTextConversationIdentitySource: identity.source,
       ordinaryTextMatchingRequestCount: identity.matchingRequestCount,
+      ordinaryTextCanonicalCompletedRecoveryObserved:
+        message?.canonicalCompleted === true,
       routeConversationIdentityAuthoritative: false
     };
   } finally {
