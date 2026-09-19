@@ -345,6 +345,10 @@ class BrowserNativeTurnProvider:
                     request_error.post_delegation_runtime_tab_id = (
                         failure_runtime_tab_id
                     )
+                    request_error.post_delegation_recovery_continuation_observed = (
+                        response.get("postDelegationRecoveryContinuationObserved")
+                        is True
+                    )
                     request_error.post_delegation_observer_failure_probe_triggered = (
                         response.get("postDelegationObserverFailureProbeTriggered")
                         is True
