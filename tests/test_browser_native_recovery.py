@@ -20,7 +20,8 @@ def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() ->
     assert "postDelegationObserverFailureProbe = null" in block
     assert 'method === "Network.responseReceived"' in block
     assert "postDelegationObserverFailureProbe({" in block
-    assert "rejectCompleted(probeError)" in block
+    assert "observerFailureProbePromise = Promise.resolve(" in block
+    assert "await observerFailureProbePromise" in block
 
 
 def test_pr811_recovery_worker_is_packaged() -> None:
