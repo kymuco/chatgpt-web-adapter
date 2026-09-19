@@ -283,6 +283,8 @@ async function _pr87TurnProbeExecute(message) {
   };
 }
 
+// Compatibility marker: characterizeTemporaryTurn is dispatched by the single
+// "temporary-characterization" owner in service_worker_runtime_legacy_impl.js.
 async function _pr87HandleTemporaryTurnCharacterization(message) {
   if (message?.probeTemporaryMode === true) {
     throw new Error("TEMPORARY_CHAT_TURN_PROBE_FLAG_CONFLICT");
