@@ -22,7 +22,9 @@ def test_native_turn_diagnostic_dispatch_has_single_owner_semantics() -> None:
     assert "CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_AMBIGUOUS" in source
 
 
-def test_native_turn_diagnostic_dispatch_falls_through_to_single_runtime_owner() -> None:
+def test_native_turn_diagnostic_dispatch_falls_through_to_single_runtime_owner() -> (
+    None
+):
     source = WORKER.read_text(encoding="utf-8")
 
     assert "async function dispatchNativeTurn(message)" in source
@@ -37,12 +39,12 @@ def test_retained_route_and_picker_diagnostics_do_not_wrap_native_turn() -> None
 
     assert "executeNativeTurn = async function" not in route
     assert "_pr88RoutePriorExecuteNativeTurn" not in route
-    assert 'registerNativeTurnDiagnosticHandler(' in route
+    assert "registerNativeTurnDiagnosticHandler(" in route
     assert '"retained-route-identity"' in route
 
     assert "executeNativeTurn = async function" not in picker
     assert "_pr88ForensicsPriorExecuteNativeTurn" not in picker
-    assert 'registerNativeTurnDiagnosticHandler(' in picker
+    assert "registerNativeTurnDiagnosticHandler(" in picker
     assert '"retained-picker-forensics"' in picker
     assert "characterizeRetainedRouteIdentitySupport" in picker
     assert "characterizeRetainedRouteIdentity" in picker
