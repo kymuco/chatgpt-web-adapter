@@ -39,6 +39,15 @@ where the expected conversation id was already bound before delegation. A failed
 fresh/new-chat turn does not gain identity from its URL or any post-failure guess and
 therefore remains `UNKNOWN`.
 
+Production continuations normally enter the stale-UI recovery send path after the
+canonical preflight proves the conversation is completed. That provider path sets
+`canonicalCompleted=true`. PR14.9 therefore explicitly extends the same
+request-bound ordinary identity authority across `canonicalCompleted` recovery
+continuations. The recovery layer still owns reload/stale-UI behavior; the identity
+layer only observes and correlates the exact delegated product POST. Disabling
+identity authority merely because `canonicalCompleted=true` would make the
+post-delegation classifier unreachable on the actual production continuation path.
+
 On an eligible post-delegation conversation-request failure, CWA may export only the
 bounded identity tuple:
 
@@ -245,3 +254,28 @@ consumer_dependency = false
 `UNKNOWN` is a safe runtime classification, but it is not sufficient to graduate
 this PR's live acceptance because the live gate exists specifically to prove that
 the stronger request-bound + canonical evidence path works on the real product.
+
+
+## Recovery-continuation reachability receipt
+
+The live acceptance requires an explicit bounded receipt:
+
+```text
+post_delegation_recovery_continuation_observed = true
+```
+
+This receipt proves that the failing turn was a `canonicalCompleted` stale-UI
+recovery continuation **and** that request-bound ordinary identity authority was
+active around it. It is separate from the observer-failure-probe receipt and from
+canonical persistence proof.
+
+The proof chain is therefore:
+
+```text
+production recovery continuation observed
+→ exact request correlation proven
+→ observer failure probe triggered
+→ canonical snapshot complete
+→ exact user turn persisted
+→ precise submitted outcome
+```
