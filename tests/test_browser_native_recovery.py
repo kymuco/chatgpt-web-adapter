@@ -1,3 +1,23 @@
+def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() -> None:
+    root = Path(__file__).resolve().parents[1] / "src" / "chatgpt_web_adapter" / "browser_native_extension"
+    text = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
+
+    start = text.index(
+        "executeOfficialPageTurn = async function "
+        "_executeOfficialPageTurnWithEarlyTerminalBoundary"
+    )
+    end = text.index(
+        "executeNativeTurn = async function _executeNativeTurnWithStaleUiRecovery",
+        start,
+    )
+    block = text[start:end]
+
+    assert "postDelegationObserverFailureProbe = null" in block
+    assert 'method === "Network.responseReceived"' in block
+    assert "postDelegationObserverFailureProbe({" in block
+    assert "rejectCompleted(probeError)" in block
+
+
 from __future__ import annotations
 
 from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
