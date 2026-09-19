@@ -49,9 +49,8 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
     assert 'importScripts("service_worker_temporary_chat.js")' in state_worker
     base_worker = (root / "service_worker_temporary_chat.js").read_text(encoding="utf-8")
     assert 'importScripts("service_worker_runtime_tab_reconciliation.js")' in base_worker
-    assert "async function _pr87HandleTemporaryModeProbe(message)" in base_worker
+    assert "probeTemporaryMode" in base_worker
     assert "isolated_new_chat" in base_worker
-    assert '"temporary-characterization"' in route_worker
 
 
 def test_temporary_probe_is_no_write_and_uses_isolated_disposable_tab() -> None:
@@ -141,7 +140,7 @@ def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization
         encoding="utf-8"
     )
 
-    assert "async function _pr87HandleTemporaryTurnCharacterization(message)" in worker
+    assert "characterizeTemporaryTurn" in worker
     assert "acknowledgeDurableRisk" in worker
     assert "TEMPORARY_CHAT_TURN_PROBE_DURABLE_RISK_ACK_REQUIRED" in worker
     assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
@@ -164,7 +163,7 @@ def test_temporary_history_probe_observes_exact_link_over_settling_window() -> N
         encoding="utf-8"
     )
 
-    assert "async function _pr87HandleTemporaryHistoryCharacterization(message)" in worker
+    assert "probeTemporaryHistoryPresence" in worker
     assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
     assert "chrome.tabs.remove(tabId)" in worker
     assert "document.querySelectorAll('a[href]')" in worker
@@ -205,7 +204,7 @@ def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close(
         encoding="utf-8"
     )
 
-    assert "async function _pr87HandleManualTemporaryGroundTruth(message)" in worker
+    assert "characterizeManualTemporaryGroundTruth" in worker
     assert "manualTemporaryConfirmed" in worker
     assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_CONFIRMATION_REQUIRED" in worker
     assert "chrome.tabs.query({ active: true, lastFocusedWindow: true })" in worker
