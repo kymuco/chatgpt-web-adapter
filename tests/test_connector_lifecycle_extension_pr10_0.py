@@ -15,8 +15,8 @@ def test_connector_overlay_requires_explicit_connector_or_app_identity() -> None
     assert "metadata.app_id" in source
     assert "metadata.plugin_id" in source
     assert "if (!connectorId) return null;" in source
-    assert "role === \"tool\"" not in source
-    assert "recipient !== \"all\"" not in source
+    assert 'role === "tool"' not in source
+    assert 'recipient !== "all"' not in source
 
 
 def test_connector_overlay_does_not_use_generic_message_status_as_lifecycle() -> None:
@@ -32,7 +32,7 @@ def test_connector_overlay_does_not_use_generic_message_status_as_lifecycle() ->
 def test_connector_overlay_supports_point_evidence_without_inferred_pairing() -> None:
     source = CONNECTOR_JS.read_text(encoding="utf-8")
 
-    assert 'eventType = connector.explicitActivityId' in source
+    assert "eventType = connector.explicitActivityId" in source
     assert '"product_connector_observed"' in source
     assert "connector-message:${messageId}" in source
     assert "connector?.explicitActivityId || null" in source
@@ -82,7 +82,9 @@ def test_overlay_loads_after_normalized_stream_and_before_patch_protocol() -> No
     source = OBSERVABILITY_JS.read_text(encoding="utf-8")
     activity = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
     connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
-    patch = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    patch = (
+        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    )
 
     assert activity in source and connector in source and patch in source
     assert source.index(activity) < source.index(connector) < source.index(patch)
