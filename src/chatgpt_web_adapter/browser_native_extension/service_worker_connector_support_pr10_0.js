@@ -9,8 +9,6 @@
 // These probes never type, submit, stage attachments, click controls, acquire
 // write/approval authority, change canonical finality, retry, or select a fallback.
 
-const _pr100SupportPriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr100SupportRejectWriteBearingMessage(message, code) {
   if (
     message?.text != null ||
@@ -239,7 +237,14 @@ async function _pr100CharacterizeRequiredActionSurface() {
   };
 }
 
-executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportProbe(message) {
+function _pr100SupportDiagnosticMatches(message) {
+  return (
+    message?.characterizeConnectorObservationSupport === true ||
+    message?.characterizeRequiredActionSurface === true
+  );
+}
+
+async function _pr100HandleSupportDiagnostic(message) {
   if (message?.characterizeConnectorObservationSupport === true) {
     _pr100SupportRejectWriteBearingMessage(
       message,
@@ -267,13 +272,15 @@ executeNativeTurn = async function _pr100ExecuteNativeTurnWithOutermostSupportPr
     };
   }
 
-  if (message?.characterizeRequiredActionSurface === true) {
-    _pr100SupportRejectWriteBearingMessage(
-      message,
-      'PR10_0_REQUIRED_ACTION_SURFACE_PROBE_MUST_BE_NO_WRITE'
-    );
-    return _pr100CharacterizeRequiredActionSurface();
-  }
+  _pr100SupportRejectWriteBearingMessage(
+    message,
+    'PR10_0_REQUIRED_ACTION_SURFACE_PROBE_MUST_BE_NO_WRITE'
+  );
+  return _pr100CharacterizeRequiredActionSurface();
+}
 
-  return _pr100SupportPriorExecuteNativeTurn(message);
-};
+registerNativeTurnDiagnosticHandler(
+  "connector-support",
+  _pr100SupportDiagnosticMatches,
+  _pr100HandleSupportDiagnostic
+);
