@@ -28,7 +28,7 @@ def test_temporary_characterization_has_one_explicit_dispatch_owner() -> None:
         assert "PriorExecuteNativeTurn" not in source, name
 
     owner = sources["service_worker_runtime_legacy_impl.js"]
-    assert 'registerNativeTurnDiagnosticHandler(' in owner
+    assert "registerNativeTurnDiagnosticHandler(" in owner
     assert '"temporary-characterization"' in owner
     assert "function _cwaTemporaryCharacterizationMatches(message)" in owner
     assert "async function _cwaHandleTemporaryCharacterization(message)" in owner
@@ -43,7 +43,9 @@ def test_temporary_characterization_preserves_historical_route_precedence() -> N
     )
     history = source.index("message?.probeTemporaryHistoryPresence === true", manual)
     turn = source.index("message?.characterizeTemporaryTurn === true", history)
-    mode_call = source.index("return _pr87HandleTemporaryModeProbeWithAX(message);", turn)
+    mode_call = source.index(
+        "return _pr87HandleTemporaryModeProbeWithAX(message);", turn
+    )
 
     assert route < manual < history < turn < mode_call
 
@@ -59,7 +61,7 @@ def test_temporary_mode_composition_remains_snapshot_based() -> None:
     assert "executeNativeTurn" not in state
     assert "async function _pr87HandleTemporaryModeProbeWithAX(message)" in ax
     assert "await _pr87HandleTemporaryModeProbe(message)" in ax
-    assert "temporaryStateSemantics: \"accessibility_tree_v1\"" in ax
+    assert 'temporaryStateSemantics: "accessibility_tree_v1"' in ax
     assert "_pr87TemporaryControlSnapshot =" in semantic
     assert "modeMarkerObserved" in semantic
 
