@@ -146,8 +146,9 @@ Preferred direction:
 
 ```text
 PR15 Architecture Reset
-→ consolidate ChatGPT runtime in-place
-→ remove historical wrapper/import-order ownership
+→ PR15.1 explicit diagnostic / observer composition [merged]
+→ PR15.2 detach Temporary characterization from ordinary runtime [active]
+→ finish evidence-driven ChatGPT consolidation
 → then prove a provider-neutral boundary with DeepSeek
 ```
 

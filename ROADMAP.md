@@ -143,13 +143,19 @@ Can CWA preserve its proven product behavior
 while replacing historical repair layering with one explicit runtime path?
 ```
 
-The PR15 sequence is:
+The PR15 sequence is evidence-driven:
 
 ```text
 PR15.0 inventory + consolidation boundary
-PR15.1 explicit ChatGPT runtime
-PR15.2 provider architecture proof with minimal DeepSeek support
+PR15.1 explicit diagnostic / observer composition
+PR15.2 detach Temporary characterization from ordinary runtime
+remaining ChatGPT consolidation slices
+provider architecture proof with minimal DeepSeek support
 ```
+
+The provider proof intentionally has no frozen PR number yet. PR15.1 exposed
+additional active historical ownership inside the ChatGPT runtime; abstracting that
+structure into a second provider would preserve the wrong boundary.
 
 Do not create a parallel v2 repository. Migrate slice-by-slice inside the existing
 repository:

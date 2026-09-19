@@ -12,7 +12,6 @@ importScripts("service_worker_temporary_chat_history_probe.js");
 // source tab open. It performs no canonical read and no history probe itself so
 // later experiments can observe history BEFORE any direct-id readback.
 
-const _pr87ManualPriorExecuteNativeTurn = executeNativeTurn;
 const PR87_MANUAL_DEFAULT_TIMEOUT_MS = 150_000;
 const PR87_MANUAL_MAX_TIMEOUT_MS = 300_000;
 
@@ -394,10 +393,9 @@ async function _pr87ManualGroundTruthTurn(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithManualTemporaryGroundTruth(message) {
-  if (message?.characterizeManualTemporaryGroundTruth !== true) {
-    return _pr87ManualPriorExecuteNativeTurn(message);
-  }
+// Compatibility marker: characterizeManualTemporaryGroundTruth is dispatched by
+// the single "temporary-characterization" owner in service_worker_runtime_legacy_impl.js.
+async function _pr87HandleManualTemporaryGroundTruth(message) {
   if (
     message?.probeTemporaryMode === true ||
     message?.characterizeTemporaryTurn === true ||
@@ -407,4 +405,4 @@ executeNativeTurn = async function _executeNativeTurnWithManualTemporaryGroundTr
     throw new Error("TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_FLAG_CONFLICT");
   }
   return _pr87ManualGroundTruthTurn(message);
-};
+}

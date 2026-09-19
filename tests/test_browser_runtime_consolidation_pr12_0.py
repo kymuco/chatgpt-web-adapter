@@ -74,7 +74,9 @@ def test_legacy_domain_quarantines_historical_runtime_chain() -> None:
     ]
 
     legacy_impl = _source(LEGACY_IMPL)
-    assert "_executeNativeTurnWithTemporaryRouteReopenProbe" in legacy_impl
+    assert '"temporary-characterization"' in legacy_impl
+    assert "registerNativeTurnDiagnosticHandler(" in legacy_impl
+    assert "executeNativeTurn = async function" not in legacy_impl
     for cross_domain_import in (
         "service_worker_rich_input_pr9_2.js",
         "service_worker_rich_input_deadline_repair_pr9_2.js",

@@ -63,8 +63,9 @@ def test_roadmap_is_current_and_architecture_reset_driven() -> None:
     assert "PR10.0" in text
     assert "PR10.1" in text
     assert "PR15 Architecture Reset" in text
-    assert "PR15.1 explicit ChatGPT runtime" in text
-    assert "PR15.2 provider architecture proof with minimal DeepSeek support" in text
+    assert "PR15.1 explicit diagnostic / observer composition" in text
+    assert "PR15.2 detach Temporary characterization from ordinary runtime" in text
+    assert "provider architecture proof with minimal DeepSeek support" in text
     assert "consumer-driven runtime hardening remains the rule" in text.lower()
     assert "0.4.0" in text
 

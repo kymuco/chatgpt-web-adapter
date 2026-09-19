@@ -9,7 +9,6 @@ importScripts("service_worker_temporary_chat_manual_ground_truth.js");
 // A single transient /c/<id> URL is not stable reopenability. Recovery evidence
 // requires visible conversation turns while the exact target route is observed.
 
-const _pr87RouteReopenPriorExecuteNativeTurn = executeNativeTurn;
 const PR87_ROUTE_REOPEN_DEFAULT_TIMEOUT_MS = 30_000;
 const PR87_ROUTE_REOPEN_MAX_OBSERVATION_MS = 15_000;
 const PR87_ROUTE_REOPEN_SAMPLE_MS = 250;
@@ -338,9 +337,35 @@ async function _pr87ProbeTemporaryRouteReopen(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithTemporaryRouteReopenProbe(message) {
-  if (message?.probeTemporaryRouteReopen !== true) {
-    return _pr87RouteReopenPriorExecuteNativeTurn(message);
+function _cwaTemporaryCharacterizationMatches(message) {
+  return (
+    message?.probeTemporaryMode === true ||
+    message?.characterizeTemporaryTurn === true ||
+    message?.probeTemporaryHistoryPresence === true ||
+    message?.characterizeManualTemporaryGroundTruth === true ||
+    message?.probeTemporaryRouteReopen === true
+  );
+}
+
+async function _cwaHandleTemporaryCharacterization(message) {
+  // Preserve the historical outer-to-inner conflict precedence exactly.
+  if (message?.probeTemporaryRouteReopen === true) {
+    return _pr87ProbeTemporaryRouteReopen(message);
   }
-  return _pr87ProbeTemporaryRouteReopen(message);
-};
+  if (message?.characterizeManualTemporaryGroundTruth === true) {
+    return _pr87HandleManualTemporaryGroundTruth(message);
+  }
+  if (message?.probeTemporaryHistoryPresence === true) {
+    return _pr87HandleTemporaryHistoryCharacterization(message);
+  }
+  if (message?.characterizeTemporaryTurn === true) {
+    return _pr87HandleTemporaryTurnCharacterization(message);
+  }
+  return _pr87HandleTemporaryModeProbeWithAX(message);
+}
+
+registerNativeTurnDiagnosticHandler(
+  "temporary-characterization",
+  _cwaTemporaryCharacterizationMatches,
+  _cwaHandleTemporaryCharacterization
+);
