@@ -273,6 +273,8 @@ async function _pr87ExecuteTemporaryModeProbe(message) {
   };
 }
 
+// Compatibility marker: probeTemporaryMode is dispatched by the single
+// "temporary-characterization" owner in service_worker_runtime_legacy_impl.js.
 async function _pr87HandleTemporaryModeProbe(message) {
   if (message?.conversationId != null) {
     throw new Error("TEMPORARY_CHAT_PROBE_REQUIRES_NEW_CHAT");
