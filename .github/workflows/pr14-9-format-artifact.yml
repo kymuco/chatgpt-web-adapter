@@ -1,15 +1,21 @@
-name: PR14.9 formatter artifact
+name: PR14.9 formatter
 
 on:
   push:
     branches:
       - pr14-9-post-delegation-reconciliation
 
+permissions:
+  contents: write
+
 jobs:
   format:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: pr14-9-post-delegation-reconciliation
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -37,17 +43,12 @@ jobs:
             tests/test_canonical_conversation_read_v2_pr13_0.py \
             tests/test_ordinary_text_identity_pr14_1.py \
             tests/test_post_delegation_reconciliation.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pr14-9-formatted
-          path: |
-            src/chatgpt_web_adapter/browser_context_canonical_v2.py
-            src/chatgpt_web_adapter/browser_native_provider.py
-            src/chatgpt_web_adapter/browser_owned_write_runtime.py
-            src/chatgpt_web_adapter/post_delegation_reconciliation.py
-            tests/test_browser_native_provider.py
-            tests/test_browser_owned_write_runtime.py
-            tests/test_browser_owned_write_runtime_pr8_8.py
-            tests/test_canonical_conversation_read_v2_pr13_0.py
-            tests/test_ordinary_text_identity_pr14_1.py
-            tests/test_post_delegation_reconciliation.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests
+          if git diff --cached --quiet; then
+            echo "No formatter changes"
+          else
+            git commit -m "Format PR14.9 touched Python files [format]"
+            git push origin HEAD:pr14-9-post-delegation-reconciliation
+          fi
