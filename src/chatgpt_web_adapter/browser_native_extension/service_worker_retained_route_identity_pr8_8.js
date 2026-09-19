@@ -6,7 +6,6 @@
 // request, navigates/reloads a tab, or closes Browser Authority.
 
 const PR88_RETAINED_ROUTE_IDENTITY_SCHEMA_VERSION = 1;
-const _pr88RoutePriorExecuteNativeTurn = executeNativeTurn;
 
 function _pr88RouteConversationId(value) {
   const conversationId = typeof value === "string" ? value.trim() : "";
@@ -152,7 +151,14 @@ async function _pr88RetainedRouteIdentityProbe(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithRetainedRouteIdentity(message) {
+function _pr88RouteDiagnosticMatches(message) {
+  return (
+    message?.characterizeRetainedRouteIdentitySupport === true ||
+    message?.characterizeRetainedRouteIdentity === true
+  );
+}
+
+async function _pr88HandleRouteDiagnostic(message) {
   if (message?.characterizeRetainedRouteIdentitySupport === true) {
     if (_pr88RouteQueryConflict(message) || message?.conversationId != null) {
       throw new Error("PR8_8_RETAINED_ROUTE_IDENTITY_SUPPORT_FLAG_CONFLICT");
@@ -171,9 +177,11 @@ executeNativeTurn = async function _executeNativeTurnWithRetainedRouteIdentity(m
     };
   }
 
-  if (message?.characterizeRetainedRouteIdentity === true) {
-    return _pr88RetainedRouteIdentityProbe(message);
-  }
+  return _pr88RetainedRouteIdentityProbe(message);
+}
 
-  return _pr88RoutePriorExecuteNativeTurn(message);
-};
+registerNativeTurnDiagnosticHandler(
+  "retained-route-identity",
+  _pr88RouteDiagnosticMatches,
+  _pr88HandleRouteDiagnostic
+);
