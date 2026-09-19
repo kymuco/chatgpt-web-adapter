@@ -145,12 +145,24 @@ Neither milestone changes the underlying ChatGPT product capability boundary.
 Preferred direction:
 
 ```text
-consumer-driven runtime hardening
+PR15 Architecture Reset
+→ consolidate ChatGPT runtime in-place
+→ remove historical wrapper/import-order ownership
+→ then prove a provider-neutral boundary with DeepSeek
 ```
 
-Use CWA as a real dependency from CMA, HDE, or another application and fix the public contract based on actual consumer friction rather than continuing open-ended product reverse engineering.
+PR14.9 showed that the next highest-leverage work is structural rather than another
+feature or diagnostic layer. The repository remains `chatgpt-web-adapter`; there is
+no parallel v2 repository. Existing public compatibility and proven authority/finality
+invariants remain while production ownership is consolidated and displaced historical
+layers are deleted.
 
-See [`ROADMAP.md`](ROADMAP.md).
+Consumer-driven runtime hardening remains the decision rule after consolidation:
+provider/core changes should be justified by real consumers and product evidence, not
+open-ended surface discovery.
+
+See [`ROADMAP.md`](ROADMAP.md) and
+[`docs/engineering/pr15_0_architecture_reset_inventory.md`](docs/engineering/pr15_0_architecture_reset_inventory.md).
 
 ## Release policy
 
