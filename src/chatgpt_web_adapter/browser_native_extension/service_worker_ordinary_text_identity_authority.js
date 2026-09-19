@@ -338,129 +338,49 @@ function _cwaOrdinaryIdentityRecordRequest(context, source, params) {
   }
 }
 
-async function _cwaOrdinaryIdentityEnableAbortProbe(context) {
-  if (context.postDelegationAbortProbe !== true || context.debuggee === null) return;
-  await chrome.debugger.sendCommand(
-    context.debuggee,
-    "Fetch.enable",
-    {
-      patterns: [
-        {
-          urlPattern: "*conversation*",
-          requestStage: "Response"
-        }
-      ]
-    }
-  );
-  context.postDelegationAbortProbeFetchEnabled = true;
-}
-
-async function _cwaOrdinaryIdentityContinueAbortProbeResponse(
-  source,
-  fetchRequestId
-) {
-  if (fetchRequestId === null) return false;
-  await chrome.debugger.sendCommand(
-    source,
-    "Fetch.continueResponse",
-    { requestId: fetchRequestId }
-  );
-  return true;
-}
-
-async function _cwaOrdinaryIdentityHandleAbortProbePause(
+async function _cwaOrdinaryIdentityObserverFailureProbe(
   context,
-  source,
-  params
+  evidence
 ) {
-  if (
-    context.postDelegationAbortProbe !== true ||
-    context.postDelegationAbortProbeFetchEnabled !== true
-  ) {
-    return false;
-  }
+  if (context.postDelegationObserverFailureProbe !== true) return null;
 
-  const fetchRequestId = _cwaOrdinaryIdentityText(params?.requestId);
-  if (fetchRequestId === null) return false;
-  if (context.postDelegationAbortProbeTriggered === true) {
-    return _cwaOrdinaryIdentityContinueAbortProbeResponse(
-      source,
-      fetchRequestId
-    );
-  }
-
-  const networkId = _cwaOrdinaryIdentityText(params?.networkId);
-  if (networkId === null) {
-    return _cwaOrdinaryIdentityContinueAbortProbeResponse(
-      source,
-      fetchRequestId
-    );
-  }
-
-  const entry = context.entries.find(
-    (candidate) => candidate.requestId === networkId
-  );
-  if (entry?.postDataLookupPromise) {
-    await _cwaOrdinaryIdentityAwaitBounded(
-      [entry.postDataLookupPromise],
-      _cwaOrdinaryIdentityRemainingBudget(
-        context,
-        CWA_ORDINARY_IDENTITY_POSTDATA_SETTLE_CAP_MS
-      )
-    );
-  }
-
-  const status = Number.isFinite(params?.responseStatusCode)
-    ? Number(params.responseStatusCode)
+  const requestId = _cwaOrdinaryIdentityText(evidence?.requestId);
+  const status = Number.isFinite(evidence?.responseStatus)
+    ? Number(evidence.responseStatus)
     : null;
   if (
-    entry?.matched !== true ||
-    entry.logicalMessageId === null ||
+    requestId === null ||
     status === null ||
     status < 200 ||
     status >= 300
   ) {
-    return _cwaOrdinaryIdentityContinueAbortProbeResponse(
-      source,
-      fetchRequestId
-    );
+    return null;
   }
 
-  try {
-    await chrome.debugger.sendCommand(
-      source,
-      "Fetch.failRequest",
-      {
-        requestId: fetchRequestId,
-        errorReason: "Aborted"
-      }
-    );
-  } catch (error) {
-    try {
-      await _cwaOrdinaryIdentityContinueAbortProbeResponse(
-        source,
-        fetchRequestId
-      );
-    } catch {
-      // Preserve the original failRequest error as the diagnostic cause.
-    }
-    throw error;
+  const entry = context.entries.find(
+    (candidate) => candidate.requestId === requestId
+  );
+  if (!entry) return null;
+
+  await _cwaOrdinaryIdentitySettlePostData(context);
+  const correlation = _cwaOrdinaryIdentityEvaluateCorrelation(context);
+  context.correlation = correlation;
+  if (
+    !correlation.ok ||
+    !correlation.matchingEntries.some(
+      (candidate) => candidate.requestId === requestId
+    )
+  ) {
+    return null;
   }
 
-  context.postDelegationAbortProbeTriggered = true;
-  context.postDelegationAbortProbeNetworkRequestId = networkId;
-  return true;
+  context.postDelegationObserverFailureProbeTriggered = true;
+  context.postDelegationObserverFailureProbeRequestId = requestId;
+  return new Error("CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED");
 }
 
 function _cwaOrdinaryIdentityObserve(context, source, method, params) {
   if (context.debuggee === null || source?.tabId !== context.debuggee.tabId) return;
-
-  if (method === "Fetch.requestPaused") {
-    _cwaOrdinaryIdentityHandleAbortProbePause(context, source, params).catch(() => {
-      context.observationErrorCount += 1;
-    });
-    return;
-  }
 
   if (method === "Network.requestWillBeSent") {
     _cwaOrdinaryIdentityRecordRequest(context, source, params);
@@ -592,8 +512,8 @@ async function _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
   annotated.cwaPostDelegationUserMessageId = userMessageId;
   annotated.cwaPostDelegationConversationId = conversationId;
   annotated.cwaPostDelegationRuntimeTabId = runtimeTabId;
-  annotated.cwaPostDelegationAbortProbeTriggered =
-    context.postDelegationAbortProbeTriggered === true;
+  annotated.cwaPostDelegationObserverFailureProbeTriggered =
+    context.postDelegationObserverFailureProbeTriggered === true;
   return annotated;
 }
 
@@ -726,9 +646,6 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
   const tabId = args?.tabId;
   context.debuggee = { tabId };
   context.officialActive = true;
-  if (context.postDelegationAbortProbe === true) {
-    await _cwaOrdinaryIdentityEnableAbortProbe(context);
-  }
   const observer = (source, method, params) => {
     try {
       _cwaOrdinaryIdentityObserve(context, source, method, params);
@@ -747,7 +664,14 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
   try {
     let result;
     try {
-      result = await _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn(args);
+      result = await _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn({
+        ...args,
+        postDelegationObserverFailureProbe:
+          context.postDelegationObserverFailureProbe === true
+            ? (evidence) =>
+                _cwaOrdinaryIdentityObserverFailureProbe(context, evidence)
+            : null
+      });
     } catch (error) {
       throw await _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
         context,
@@ -785,14 +709,6 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
     };
   } finally {
     context.officialActive = false;
-    if (context.postDelegationAbortProbeFetchEnabled === true) {
-      try {
-        await chrome.debugger.sendCommand(context.debuggee, "Fetch.disable", {});
-      } catch {
-        // Probe teardown never grants retry/write authority.
-      }
-      context.postDelegationAbortProbeFetchEnabled = false;
-    }
     if (listenerInstalled) {
       try {
         chrome.debugger.onEvent.removeListener(observer);
@@ -821,12 +737,11 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
   const context = {
     expectedText: message.text,
     expectedConversationId: _cwaOrdinaryIdentityText(message?.conversationId),
-    postDelegationAbortProbe:
-      message?.postDelegationAbortProbe === true &&
+    postDelegationObserverFailureProbe:
+      message?.postDelegationObserverFailureProbe === true &&
       _cwaOrdinaryIdentityText(message?.conversationId) !== null,
-    postDelegationAbortProbeFetchEnabled: false,
-    postDelegationAbortProbeTriggered: false,
-    postDelegationAbortProbeNetworkRequestId: null,
+    postDelegationObserverFailureProbeTriggered: false,
+    postDelegationObserverFailureProbeRequestId: null,
     deadlineAt: performance.now() + timeoutMs,
     debuggee: null,
     officialActive: false,
