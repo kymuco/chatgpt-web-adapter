@@ -191,7 +191,7 @@ no automatic retry
 Run the exact CWA-owned gate:
 
 ```powershell
-python -m chatgpt_web_adapter.retained_conversation_tabs_live_gate_pr14_8 \`
+python -m chatgpt_web_adapter.retained_conversation_tabs_live_gate \`
   --auth-file auth_data.json \`
   --acknowledge-live-writes
 ```
