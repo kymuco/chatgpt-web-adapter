@@ -444,6 +444,30 @@ function _cwaOrdinaryIdentityEvaluateCorrelation(context) {
   };
 }
 
+async function _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
+  context,
+  error
+) {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (!detail.startsWith("CHATGPT_CONVERSATION_REQUEST_FAILED:")) return error;
+
+  await _cwaOrdinaryIdentitySettlePostData(context);
+  const correlation = _cwaOrdinaryIdentityEvaluateCorrelation(context);
+  context.correlation = correlation;
+  if (!correlation.ok) return error;
+
+  const entry = correlation.matchingEntries[0];
+  const userMessageId = _cwaOrdinaryIdentityText(entry?.logicalMessageId);
+  const conversationId = _cwaOrdinaryIdentityText(context.expectedConversationId);
+  if (userMessageId === null || conversationId === null) return error;
+
+  const annotated = error instanceof Error ? error : new Error(detail);
+  annotated.cwaPostDelegationRequestCorrelationProven = true;
+  annotated.cwaPostDelegationUserMessageId = userMessageId;
+  annotated.cwaPostDelegationConversationId = conversationId;
+  return annotated;
+}
+
 function _cwaOrdinaryIdentityConsensus(values, requestedConversationId) {
   const distinct = Array.from(new Set(values.filter((value) => value !== null)));
   if (distinct.length === 0) {
@@ -589,7 +613,15 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
   }
 
   try {
-    const result = await _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn(args);
+    let result;
+    try {
+      result = await _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn(args);
+    } catch (error) {
+      throw await _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
+        context,
+        error
+      );
+    }
     await _cwaOrdinaryIdentitySettlePostData(context);
     const correlation = _cwaOrdinaryIdentityEvaluateCorrelation(context);
     context.correlation = correlation;
