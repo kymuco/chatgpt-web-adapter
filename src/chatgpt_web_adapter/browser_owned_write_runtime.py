@@ -212,6 +212,7 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         post_delegation_outcome: str | None = None,
         post_delegation_reconciliation: dict[str, Any] | None = None,
         post_delegation_runtime_tab_id: int | None = None,
+        post_delegation_abort_probe_triggered: bool = False,
     ) -> None:
         self.failure_kind = failure_kind
         self.automatic_retry_allowed = bool(automatic_retry_allowed)
@@ -235,6 +236,9 @@ class BrowserOwnedWriteRuntimeError(RequestError):
             if isinstance(post_delegation_runtime_tab_id, int)
             and not isinstance(post_delegation_runtime_tab_id, bool)
             else None
+        )
+        self.post_delegation_abort_probe_triggered = bool(
+            post_delegation_abort_probe_triggered
         )
         super().__init__(
             message,
@@ -264,6 +268,9 @@ class BrowserOwnedWriteRuntimeError(RequestError):
                     else None
                 ),
                 "post_delegation_runtime_tab_id": self.post_delegation_runtime_tab_id,
+                "post_delegation_abort_probe_triggered": (
+                    self.post_delegation_abort_probe_triggered
+                ),
                 "browser_authority_lease": (
                     self.browser_authority_lease.to_dict()
                     if self.browser_authority_lease is not None
@@ -977,6 +984,7 @@ class BrowserOwnedProductWriteRuntime:
             readback_failure = write_event_observed
             post_reconciliation = None
             post_delegation_runtime_tab_id = None
+            post_delegation_abort_probe_triggered = False
             if (
                 not readback_failure
                 and delegated_conversation_id is not None
@@ -1010,6 +1018,13 @@ class BrowserOwnedProductWriteRuntime:
                     and not isinstance(failure_runtime_tab_id, bool)
                 ):
                     post_delegation_runtime_tab_id = failure_runtime_tab_id
+                    post_delegation_abort_probe_triggered = bool(
+                        getattr(
+                            error,
+                            "post_delegation_abort_probe_triggered",
+                            False,
+                        )
+                    )
                     post_reconciliation = reconcile_post_delegation_failure(
                         self.client,
                         conversation_id=delegated_conversation_id,
@@ -1099,6 +1114,9 @@ class BrowserOwnedProductWriteRuntime:
                     else None
                 ),
                 post_delegation_runtime_tab_id=post_delegation_runtime_tab_id,
+                post_delegation_abort_probe_triggered=(
+                    post_delegation_abort_probe_triggered
+                ),
             ) from error
         finally:
             try:
