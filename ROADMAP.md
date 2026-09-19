@@ -115,28 +115,64 @@ Current `main` is a strong post-0.3 product-runtime baseline with coherent publi
 
 The immediate goal is no longer “discover one more hidden ChatGPT surface” or “polish one more repository page.” The next work should be driven primarily by real consumer needs and observed product drift.
 
-## Next vertical milestone: consumer-driven runtime hardening
+## Next vertical milestone: PR15 Architecture Reset
 
-The preferred next product milestone is a real-consumer pass using CWA as a dependency from CMA, HDE, or another application without reaching into CWA internals.
+PR14.9 closed an important post-delegation failure class, but the acceptance work
+also exposed a broader structural issue: historical research/repair generations are
+still active participants in production composition.
 
-The key question is:
+The next milestone therefore changes from feature expansion to in-place
+consolidation.
 
 ```text
-Can a real application use ChatGPTProductRuntime
-without depending on browser/transport implementation details?
+same repository
+same public compatibility
+same proven safety/finality invariants
+
+but
+
+fewer active owners
+explicit call graphs
+no monkeypatch-by-import-order architecture
 ```
 
-Candidate outcomes may include:
+The key question is now:
 
-- ergonomics fixes in the public Python runtime;
-- richer but still bounded observation consumption;
-- continuation/cancellation improvements;
-- clearer capability/provider composition;
-- stable rich-input helpers if real consumers need them;
-- compatibility-drift diagnostics based on actual failures;
-- downstream migration guidance and version pinning.
+```text
+Can CWA preserve its proven product behavior
+while replacing historical repair layering with one explicit runtime path?
+```
 
-Do not pre-commit to a feature merely because the ChatGPT UI contains it. A new surface should enter CWA when there is product evidence **and** a credible application need.
+The PR15 sequence is:
+
+```text
+PR15.0 inventory + consolidation boundary
+PR15.1 explicit ChatGPT runtime
+PR15.2 provider architecture proof with minimal DeepSeek support
+```
+
+Do not create a parallel v2 repository. Migrate slice-by-slice inside the existing
+repository:
+
+```text
+old owner
+→ new explicit owner
+→ deterministic equivalence
+→ bounded live proof when required
+→ delete old owner
+```
+
+Only after ChatGPT is consolidated should provider-neutral contracts be extracted.
+ChatGPT becomes provider #1; DeepSeek is the second proof because it provides a
+materially different web-session/API shape. Gemini is deferred until the abstraction
+survives two providers.
+
+Consumer-driven runtime hardening remains the rule for what enters the resulting
+public contract. A provider or web capability does not become production scope merely
+because its UI exposes it.
+
+See
+[`docs/engineering/pr15_0_architecture_reset_inventory.md`](docs/engineering/pr15_0_architecture_reset_inventory.md).
 
 ## Reopen conditions for conservative boundaries
 
