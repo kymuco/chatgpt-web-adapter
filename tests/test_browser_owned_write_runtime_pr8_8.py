@@ -8,16 +8,16 @@ import pytest
 import chatgpt_web_adapter.browser_owned_write_runtime as subject
 from chatgpt_web_adapter.browser_authority_lease import (
     BrowserAuthorityLeaseState,
-    BrowserAuthorityPolicy,
     TurnLifecycleState,
 )
 
 
 class FakeProvider:
     def __init__(self, statuses=None):
-        self.statuses = list(statuses or [
-            subject.BrowserNativeBridgeStatus(True, True, runtime_tab_id=41)
-        ])
+        self.statuses = list(
+            statuses
+            or [subject.BrowserNativeBridgeStatus(True, True, runtime_tab_id=41)]
+        )
         self.last = self.statuses[-1]
         self.bound = None
         self.releases = []
@@ -258,7 +258,10 @@ def test_delegated_ambiguous_error_never_disposes_without_release_proof(monkeypa
         )
 
     error = caught.value
-    assert error.browser_authority_lease.state is BrowserAuthorityLeaseState.RELEASE_UNKNOWN
+    assert (
+        error.browser_authority_lease.state
+        is BrowserAuthorityLeaseState.RELEASE_UNKNOWN
+    )
     assert error.turn_lifecycle.state is TurnLifecycleState.AMBIGUOUS
     assert provider.releases == []
 
@@ -287,7 +290,9 @@ def test_governance_declares_pr88_lease_invariants():
     assert policy["turn_scoped_zero_ttl_allowed"] is True
 
 
-def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(monkeypatch):
+def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(
+    monkeypatch,
+):
     class NoReleaseProvider:
         def send_text(self, *args, **kwargs):
             raise AssertionError(
@@ -298,8 +303,12 @@ def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(monk
             return subject.BrowserNativeBridgeStatus(True, True, runtime_tab_id=41)
 
     delegated = []
-    monkeypatch.setattr(subject, "send_browser_native", lambda *a, **k: delegated.append((a, k)))
-    rt = subject.BrowserOwnedProductWriteRuntime(FakeClient(), provider=NoReleaseProvider())
+    monkeypatch.setattr(
+        subject, "send_browser_native", lambda *a, **k: delegated.append((a, k))
+    )
+    rt = subject.BrowserOwnedProductWriteRuntime(
+        FakeClient(), provider=NoReleaseProvider()
+    )
 
     with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
         rt.send_text("hello", browser_authority_policy="TURN_SCOPED")
@@ -308,3 +317,79 @@ def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(monk
     assert caught.value.write_may_have_been_submitted is False
     assert delegated == []
     assert rt.lifecycle_snapshot()["browser_authority_lease"] is None
+
+
+def test_post_delegation_reconciliation_releases_exact_failed_turn_tab(
+    monkeypatch,
+):
+    provider = FakeProvider()
+
+    class BrowserContextClient(FakeClient):
+        def __init__(self):
+            super().__init__()
+            self.complete_calls = 0
+
+        def complete_canonical_readback(self):
+            self.complete_calls += 1
+            return True
+
+    client = BrowserContextClient()
+    rt = subject.BrowserOwnedProductWriteRuntime(
+        client,
+        provider=provider,
+    )
+
+    def fail(*args, **kwargs):
+        error = subject.RequestError(
+            "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+        )
+        error.post_delegation_request_correlation_proven = True
+        error.post_delegation_user_message_id = "user-message-1"
+        error.post_delegation_conversation_id = "c1"
+        error.post_delegation_runtime_tab_id = 41
+        raise error
+
+    class Reconciliation:
+        outcome = subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE
+        canonical_read_performed = True
+
+        @staticmethod
+        def to_dict():
+            return {
+                "outcome": subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
+                "canonical_read_performed": True,
+                "canonical_read_complete": True,
+                "conversation_id": "c1",
+                "user_message_id": "user-message-1",
+                "user_turn_persisted": True,
+                "canonical_status": "user_last_message",
+            }
+
+    monkeypatch.setattr(subject, "send_browser_native", fail)
+    monkeypatch.setattr(
+        subject,
+        "reconcile_post_delegation_failure",
+        lambda *args, **kwargs: Reconciliation(),
+    )
+
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text(
+            "hello",
+            conversation="c1",
+            browser_authority_policy="TURN_SCOPED",
+            browser_authority_ttl_ms=0,
+        )
+
+    error = caught.value
+    assert error.failure_kind == subject.WRITE_SUBMITTED_GENERATION_INCOMPLETE
+    assert error.browser_authority_lease.state is BrowserAuthorityLeaseState.RELEASED
+    assert error.browser_authority_lease.runtime_tab_id_at_release == 41
+    assert error.post_delegation_runtime_tab_id == 41
+    assert client.complete_calls == 1
+
+    deadline = time.time() + 1.0
+    while time.time() < deadline and not provider.releases:
+        time.sleep(0.01)
+
+    assert len(provider.releases) == 1
+    assert provider.releases[0][0] == 41

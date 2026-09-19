@@ -10,6 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
+BASE = EXT / "service_worker.js"
 AUTHORITY = EXT / "service_worker_ordinary_text_identity_authority.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 
@@ -256,8 +257,23 @@ globalThis.executeOfficialPageTurn = async (args) => {
     requestId: "request-1",
     response: { status: 200, mimeType: "text/event-stream" }
   });
+  if (typeof args.postDelegationObserverFailureProbe === "function") {
+    events.push("OBSERVER_FAILURE_PROBE_CALL");
+    const probeError = await args.postDelegationObserverFailureProbe({
+      requestId: "request-1",
+      responseStatus: 200,
+      responseMimeType: "text/event-stream"
+    });
+    if (probeError instanceof Error) {
+      events.push("OBSERVER_FAILURE_PROBE_REJECT");
+      throw probeError;
+    }
+  }
   if (scenario.loadingFinished) {
     emit("Network.loadingFinished", { requestId: "request-1" });
+  }
+  if (scenario.failAfterRequest) {
+    throw new Error("CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED");
   }
   return {
     conversationId: "WEB:route-display-identity",
@@ -280,6 +296,8 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
     conversationId: scenario.requestedConversationId || null,
     attachmentPaths: [],
     conversationMode: "normal",
+    canonicalCompleted: scenario.canonicalCompleted === true,
+    postDelegationObserverFailureProbe: scenario.postDelegationObserverFailureProbe === true,
     timeoutMs: 5000
   };
   try {
@@ -289,6 +307,24 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
     console.log(JSON.stringify({
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      postDelegationRequestCorrelationProven:
+        error?.cwaPostDelegationRequestCorrelationProven === true,
+      postDelegationUserMessageId:
+        typeof error?.cwaPostDelegationUserMessageId === "string"
+          ? error.cwaPostDelegationUserMessageId
+          : null,
+      postDelegationConversationId:
+        typeof error?.cwaPostDelegationConversationId === "string"
+          ? error.cwaPostDelegationConversationId
+          : null,
+      postDelegationRuntimeTabId:
+        Number.isInteger(error?.cwaPostDelegationRuntimeTabId)
+          ? error.cwaPostDelegationRuntimeTabId
+          : null,
+      postDelegationRecoveryContinuationObserved:
+        error?.cwaPostDelegationRecoveryContinuationObserved === true,
+      postDelegationObserverFailureProbeTriggered:
+        error?.cwaPostDelegationObserverFailureProbeTriggered === true,
       events
     }));
   }
@@ -329,6 +365,17 @@ def test_authority_is_last_write_domain_layer_without_diagnostic_dependency() ->
     assert source.index(commit) < source.index(authority)
     assert source.rstrip().endswith(authority)
     assert "identity_capture_diag" not in source
+
+
+def test_turn_result_exports_only_bounded_post_delegation_identity_evidence() -> None:
+    source = _source(BASE)
+    assert "safeTurnFailureEvidence(error)" in source
+    assert "postDelegationRequestCorrelationProven" in source
+    assert "postDelegationUserMessageId" in source
+    assert "postDelegationConversationId" in source
+    assert "postDelegationRuntimeTabId" in source
+    assert "postDelegationPrompt" not in source
+    assert "postDelegationRequestBody" not in source
 
 
 def test_authority_reuses_schema29_request_and_protocol_parsers() -> None:
@@ -394,6 +441,121 @@ def test_async_get_request_post_data_settles_before_identity_authority() -> None
     events = result["events"]
     assert events.index("POST_DATA_RESOLVED") < events.index("STREAM_ENABLED")
     assert result["result"]["conversationId"] == expected
+
+
+def test_aborted_correlated_continuation_retains_exact_request_bound_user_identity() -> (
+    None
+):
+    text = "post delegation abort probe"
+    requested = "6bb0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "failAfterRequest": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationRuntimeTabId"] == 1
+
+
+def test_observer_failure_probe_rejects_exact_correlated_turn_after_headers() -> None:
+    text = "post delegation observer failure probe"
+    requested = "7bb0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "postDelegationObserverFailureProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationRuntimeTabId"] == 1
+    assert result["postDelegationObserverFailureProbeTriggered"] is True
+    assert "OBSERVER_FAILURE_PROBE_CALL" in result["events"]
+    assert "OBSERVER_FAILURE_PROBE_REJECT" in result["events"]
+
+
+def test_observer_failure_probe_waits_for_async_request_post_data_identity() -> None:
+    text = "post delegation delayed observer identity probe"
+    requested = "7cc0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "useLookup": True,
+            "lookupPostData": _valid_post_data(text, requested),
+            "lookupDelayMs": 25,
+            "postDelegationObserverFailureProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationObserverFailureProbeTriggered"] is True
+    assert "POST_DATA_RESOLVED" in result["events"]
+    assert result["events"].index("POST_DATA_RESOLVED") < result["events"].index(
+        "OBSERVER_FAILURE_PROBE_REJECT"
+    )
+
+
+def test_recovery_continuation_keeps_request_bound_identity_authority() -> None:
+    text = "recovery continuation identity probe"
+    requested = "7ff0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "canonicalCompleted": True,
+            "postDelegationObserverFailureProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationRecoveryContinuationObserved"] is True
+    assert result["postDelegationObserverFailureProbeTriggered"] is True
+    assert "OBSERVER_FAILURE_PROBE_CALL" in result["events"]
+    assert "OBSERVER_FAILURE_PROBE_REJECT" in result["events"]
+
+
+def test_observer_failure_probe_never_rejects_uncorrelated_request() -> None:
+    result = _run_harness(
+        {
+            "messageText": "intended text",
+            "requestedConversationId": "8bb0c074-5d4c-83ec-b16d-92e095b71bf9",
+            "eventPostData": _valid_post_data(
+                "different text",
+                "8bb0c074-5d4c-83ec-b16d-92e095b71bf9",
+            ),
+            "postDelegationObserverFailureProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert "ORDINARY_REQUEST_CORRELATION_UNRESOLVED" in result["error"]
+    assert result["postDelegationObserverFailureProbeTriggered"] is False
+    assert "OBSERVER_FAILURE_PROBE_CALL" in result["events"]
+    assert "OBSERVER_FAILURE_PROBE_REJECT" not in result["events"]
 
 
 def test_exact_request_body_mismatch_fails_closed() -> None:

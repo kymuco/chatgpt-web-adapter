@@ -19,7 +19,9 @@ class FakeProvider:
         return self._status
 
     def send_text(self, *args, **kwargs):
-        raise AssertionError("low-level provider should be called through send_browser_native")
+        raise AssertionError(
+            "low-level provider should be called through send_browser_native"
+        )
 
 
 class FakeClient:
@@ -29,7 +31,11 @@ class FakeClient:
         self._browser_native_turn_provider = None
 
     def get_status(self, conversation):
-        value = self.status_values.pop(0) if self.status_values is not None and self.status_values else self.status_value
+        value = (
+            self.status_values.pop(0)
+            if self.status_values is not None and self.status_values
+            else self.status_value
+        )
         if isinstance(value, BaseException):
             raise value
         return SimpleNamespace(status=value)
@@ -83,7 +89,9 @@ def test_unreadable_continuation_is_blocked() -> None:
 
 def test_preflight_failure_never_delegates_write(monkeypatch) -> None:
     calls = []
-    monkeypatch.setattr(subject, "send_browser_native", lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr(
+        subject, "send_browser_native", lambda *a, **k: calls.append((a, k))
+    )
     rt = runtime(connected=False)
     with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
         rt.send_text("hello")
@@ -95,10 +103,13 @@ def test_preflight_failure_never_delegates_write(monkeypatch) -> None:
     assert error.reconciliation_required is False
 
 
-
-def test_continuation_commit_point_recheck_blocks_completed_to_running_race(monkeypatch) -> None:
+def test_continuation_commit_point_recheck_blocks_completed_to_running_race(
+    monkeypatch,
+) -> None:
     calls = []
-    monkeypatch.setattr(subject, "send_browser_native", lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr(
+        subject, "send_browser_native", lambda *a, **k: calls.append((a, k))
+    )
     rt = runtime(status=["completed", "running"])
     with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
         rt.send_text("hello", conversation="conversation-1")
@@ -169,3 +180,169 @@ def test_governance_keeps_browser_confined_to_write() -> None:
     assert policy["runtime_tab_required_before_turn"] is False
     assert policy["automatic_write_retry"] is False
     assert policy["direct_private_product_write"] is False
+
+
+def test_delegated_abort_with_exact_request_identity_classifies_persisted_user(
+    monkeypatch,
+) -> None:
+    calls = 0
+    reconciliations = []
+
+    def fail(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        error = subject.RequestError(
+            "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+        )
+        error.post_delegation_request_correlation_proven = True
+        error.post_delegation_user_message_id = "user-message-1"
+        error.post_delegation_conversation_id = "conversation-1"
+        error.post_delegation_runtime_tab_id = 42
+        error.post_delegation_recovery_continuation_observed = True
+        error.post_delegation_observer_failure_probe_triggered = True
+        raise error
+
+    class Reconciliation:
+        outcome = subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE
+        canonical_read_performed = False
+
+        @staticmethod
+        def to_dict():
+            return {
+                "outcome": subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
+                "canonical_read_performed": False,
+                "canonical_read_complete": True,
+                "conversation_id": "conversation-1",
+                "user_message_id": "user-message-1",
+                "user_turn_persisted": True,
+                "canonical_status": "user_last_message",
+            }
+
+    def reconcile(client, *, conversation_id, user_message_id):
+        reconciliations.append((client, conversation_id, user_message_id))
+        return Reconciliation()
+
+    monkeypatch.setattr(subject, "send_browser_native", fail)
+    monkeypatch.setattr(subject, "reconcile_post_delegation_failure", reconcile)
+
+    rt = runtime()
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text("hello", conversation="conversation-1")
+
+    assert calls == 1
+    assert len(reconciliations) == 1
+    assert reconciliations[0][1:] == ("conversation-1", "user-message-1")
+    error = caught.value
+    assert error.failure_kind == subject.WRITE_SUBMITTED_GENERATION_INCOMPLETE
+    assert (
+        error.post_delegation_outcome
+        == subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE
+    )
+    assert error.write_may_have_been_submitted is True
+    assert error.reconciliation_required is True
+    assert error.automatic_retry_allowed is False
+    assert error.manual_retry_safe_after_repair is False
+    assert error.turn_lifecycle.state.value == "READBACK_INCOMPLETE"
+    payload = error.to_dict()
+    assert payload["post_delegation_reconciliation"]["user_turn_persisted"] is True
+    assert payload["post_delegation_runtime_tab_id"] == 42
+    assert payload["post_delegation_recovery_continuation_observed"] is True
+    assert payload["post_delegation_observer_failure_probe_triggered"] is True
+
+
+def test_delegated_abort_conversation_mismatch_stays_unknown(
+    monkeypatch,
+) -> None:
+    calls = 0
+    reconciliations = []
+
+    def fail(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        error = subject.RequestError(
+            "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+        )
+        error.post_delegation_request_correlation_proven = True
+        error.post_delegation_user_message_id = "user-message-1"
+        error.post_delegation_conversation_id = "different-conversation"
+        error.post_delegation_runtime_tab_id = 42
+        raise error
+
+    def reconcile(*args, **kwargs):
+        reconciliations.append((args, kwargs))
+        raise AssertionError("mismatched identity must not enter reconciliation")
+
+    monkeypatch.setattr(subject, "send_browser_native", fail)
+    monkeypatch.setattr(subject, "reconcile_post_delegation_failure", reconcile)
+
+    rt = runtime()
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text("hello", conversation="conversation-1")
+
+    assert calls == 1
+    assert reconciliations == []
+    error = caught.value
+    assert error.failure_kind == subject.WRITE_OUTCOME_UNKNOWN
+    assert error.post_delegation_outcome is None
+    assert error.reconciliation_required is True
+    assert error.automatic_retry_allowed is False
+    assert error.turn_lifecycle.state.value == "AMBIGUOUS"
+
+
+def test_delegated_abort_with_canonical_terminal_assistant_finalizes_logical_turn(
+    monkeypatch,
+) -> None:
+    calls = 0
+
+    def fail(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        error = subject.RequestError(
+            "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+        )
+        error.post_delegation_request_correlation_proven = True
+        error.post_delegation_user_message_id = "user-message-1"
+        error.post_delegation_conversation_id = "conversation-1"
+        error.post_delegation_runtime_tab_id = 42
+        raise error
+
+    class Reconciliation:
+        outcome = subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT
+        canonical_read_performed = False
+
+        @staticmethod
+        def to_dict():
+            return {
+                "outcome": subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
+                "canonical_read_performed": False,
+                "canonical_read_complete": True,
+                "conversation_id": "conversation-1",
+                "user_message_id": "user-message-1",
+                "user_turn_persisted": True,
+                "canonical_status": "completed",
+                "terminal_assistant_message_id": "assistant-message-1",
+            }
+
+    monkeypatch.setattr(subject, "send_browser_native", fail)
+    monkeypatch.setattr(
+        subject,
+        "reconcile_post_delegation_failure",
+        lambda *args, **kwargs: Reconciliation(),
+    )
+
+    rt = runtime()
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text("hello", conversation="conversation-1")
+
+    assert calls == 1
+    error = caught.value
+    assert error.failure_kind == subject.WRITE_SUBMITTED_TERMINAL_ASSISTANT
+    assert (
+        error.post_delegation_outcome
+        == subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT
+    )
+    assert error.write_may_have_been_submitted is True
+    assert error.reconciliation_required is False
+    assert error.automatic_retry_allowed is False
+    assert error.manual_retry_safe_after_repair is False
+    assert error.turn_lifecycle.state.value == "FINALIZED"

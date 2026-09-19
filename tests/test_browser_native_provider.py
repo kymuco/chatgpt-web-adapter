@@ -4,8 +4,14 @@ import json
 import socket
 import threading
 
-from chatgpt_web_adapter.browser_native_protocol import recv_local_message, send_local_message
+import pytest
+
+from chatgpt_web_adapter.browser_native_protocol import (
+    recv_local_message,
+    send_local_message,
+)
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeTurnProvider
+from chatgpt_web_adapter.exceptions import RequestError
 
 
 def _round_trip(tmp_path, invoke):
@@ -77,7 +83,9 @@ def test_provider_round_trip_uses_loopback_token_and_safe_result(tmp_path) -> No
     assert result.runtime_reload_ms == 321
 
 
-def test_provider_serializes_fresh_canonical_completion_recovery_evidence(tmp_path) -> None:
+def test_provider_serializes_fresh_canonical_completion_recovery_evidence(
+    tmp_path,
+) -> None:
     _, captured, result = _round_trip(
         tmp_path,
         lambda provider: provider.send_text_with_stale_ui_recovery(
@@ -93,3 +101,41 @@ def test_provider_serializes_fresh_canonical_completion_recovery_evidence(tmp_pa
     assert captured["canonicalCompletedAtMs"] == 123456
     assert result.runtime_reloaded is True
     assert result.runtime_reload_ms == 321
+
+
+def test_provider_preserves_bounded_post_delegation_identity_evidence(
+    monkeypatch,
+) -> None:
+    provider = BrowserNativeTurnProvider()
+
+    def fake_rpc(payload, *, timeout, on_event=None):
+        return {
+            "protocol": 1,
+            "type": "turn_result",
+            "request_id": payload["request_id"],
+            "ok": False,
+            "error": "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED",
+            "postDelegationRequestCorrelationProven": True,
+            "postDelegationUserMessageId": "user-message-1",
+            "postDelegationConversationId": "conversation-1",
+            "postDelegationRuntimeTabId": 42,
+            "postDelegationRecoveryContinuationObserved": True,
+            "postDelegationObserverFailureProbeTriggered": True,
+        }
+
+    monkeypatch.setattr(provider, "_rpc", fake_rpc)
+
+    with pytest.raises(RequestError) as caught:
+        provider.send_text(
+            "hello",
+            conversation="conversation-1",
+            timeout=2,
+        )
+
+    error = caught.value
+    assert error.post_delegation_request_correlation_proven is True
+    assert error.post_delegation_user_message_id == "user-message-1"
+    assert error.post_delegation_conversation_id == "conversation-1"
+    assert error.post_delegation_runtime_tab_id == 42
+    assert error.post_delegation_recovery_continuation_observed is True
+    assert error.post_delegation_observer_failure_probe_triggered is True

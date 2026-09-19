@@ -388,7 +388,12 @@ async function submitOfficialPageTurn(debuggee, timeoutMs) {
   }
 }
 
-async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
+async function executeOfficialPageTurn({
+  tabId,
+  text,
+  timeoutMs,
+  postDelegationObserverFailureProbe = null
+}) {
   if (!Number.isInteger(tabId)) throw new Error("TAB_ID_REQUIRED");
   if (typeof text !== "string" || !text.trim()) throw new Error("TEXT_REQUIRED");
   if (text.length > 200_000) throw new Error("TEXT_TOO_LARGE_FOR_BROWSER_NATIVE_TURN");
@@ -427,6 +432,8 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
     );
 
     let conversationRequestId = null;
+    let observerFailureProbeStarted = false;
+    let observerFailureProbePromise = null;
     let resolveRequestSeen;
     let resolveCompleted;
     let rejectCompleted;
@@ -454,6 +461,22 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
         diagnostics.conversationResponseSeen = true;
         diagnostics.responseStatus = params?.response?.status ?? null;
         diagnostics.responseMimeType = params?.response?.mimeType ?? null;
+        if (
+          !observerFailureProbeStarted &&
+          typeof postDelegationObserverFailureProbe === "function"
+        ) {
+          observerFailureProbeStarted = true;
+          observerFailureProbePromise = Promise.resolve(
+            postDelegationObserverFailureProbe({
+              requestId: conversationRequestId,
+              responseStatus: diagnostics.responseStatus,
+              responseMimeType: diagnostics.responseMimeType
+            })
+          ).then((probeError) => {
+            if (probeError instanceof Error) throw probeError;
+            return null;
+          });
+        }
         return;
       }
       if (method === "Network.loadingFailed") {
@@ -495,6 +518,9 @@ async function executeOfficialPageTurn({ tabId, text, timeoutMs }) {
         remainingMs(startedAt, timeoutMs)
       ))
     ]);
+    if (observerFailureProbePromise !== null) {
+      await observerFailureProbePromise;
+    }
 
     let safeMetadata = { conversationId: null, turnExchangeId: null };
     try {
@@ -575,6 +601,33 @@ async function executeNativeTurn(message) {
   };
 }
 
+function safeTurnFailureEvidence(error) {
+  if (!(error instanceof Error)) return {};
+  if (error.cwaPostDelegationRequestCorrelationProven !== true) return {};
+
+  const userMessageId = typeof error.cwaPostDelegationUserMessageId === "string"
+    ? error.cwaPostDelegationUserMessageId.trim()
+    : "";
+  const conversationId = typeof error.cwaPostDelegationConversationId === "string"
+    ? error.cwaPostDelegationConversationId.trim()
+    : "";
+  const runtimeTabId = Number.isInteger(error.cwaPostDelegationRuntimeTabId)
+    ? error.cwaPostDelegationRuntimeTabId
+    : null;
+  if (!userMessageId || !conversationId || runtimeTabId === null) return {};
+
+  return {
+    postDelegationRequestCorrelationProven: true,
+    postDelegationUserMessageId: userMessageId,
+    postDelegationConversationId: conversationId,
+    postDelegationRuntimeTabId: runtimeTabId,
+    postDelegationRecoveryContinuationObserved:
+      error.cwaPostDelegationRecoveryContinuationObserved === true,
+    postDelegationObserverFailureProbeTriggered:
+      error.cwaPostDelegationObserverFailureProbeTriggered === true
+  };
+}
+
 function safePortPost(port, message) {
   if (!port) return false;
   try {
@@ -621,7 +674,8 @@ async function onNativeMessage(message, port) {
       type: "turn_result",
       request_id: requestId,
       ok: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      ...safeTurnFailureEvidence(error)
     });
   } finally {
     activeRequestId = null;

@@ -56,7 +56,6 @@ function _cwaOrdinaryIdentityEligible(message) {
     ? message.conversationMode.trim().toLowerCase()
     : "normal";
   if (mode !== "normal") return false;
-  if (message?.canonicalCompleted === true) return false;
 
   for (const flag of [
     "characterizeRichInputSupport",
@@ -338,6 +337,47 @@ function _cwaOrdinaryIdentityRecordRequest(context, source, params) {
   }
 }
 
+async function _cwaOrdinaryIdentityObserverFailureProbe(
+  context,
+  evidence
+) {
+  if (context.postDelegationObserverFailureProbe !== true) return null;
+
+  const requestId = _cwaOrdinaryIdentityText(evidence?.requestId);
+  const status = Number.isFinite(evidence?.responseStatus)
+    ? Number(evidence.responseStatus)
+    : null;
+  if (
+    requestId === null ||
+    status === null ||
+    status < 200 ||
+    status >= 300
+  ) {
+    return null;
+  }
+
+  const entry = context.entries.find(
+    (candidate) => candidate.requestId === requestId
+  );
+  if (!entry) return null;
+
+  await _cwaOrdinaryIdentitySettlePostData(context);
+  const correlation = _cwaOrdinaryIdentityEvaluateCorrelation(context);
+  context.correlation = correlation;
+  if (
+    !correlation.ok ||
+    !correlation.matchingEntries.some(
+      (candidate) => candidate.requestId === requestId
+    )
+  ) {
+    return null;
+  }
+
+  context.postDelegationObserverFailureProbeTriggered = true;
+  context.postDelegationObserverFailureProbeRequestId = requestId;
+  return new Error("CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED");
+}
+
 function _cwaOrdinaryIdentityObserve(context, source, method, params) {
   if (context.debuggee === null || source?.tabId !== context.debuggee.tabId) return;
 
@@ -442,6 +482,40 @@ function _cwaOrdinaryIdentityEvaluateCorrelation(context) {
     requestOverflow: context.requestOverflow === true,
     matchingEntries
   };
+}
+
+async function _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
+  context,
+  error
+) {
+  const detail = error instanceof Error ? error.message : String(error);
+  if (!detail.startsWith("CHATGPT_CONVERSATION_REQUEST_FAILED:")) return error;
+
+  await _cwaOrdinaryIdentitySettlePostData(context);
+  const correlation = _cwaOrdinaryIdentityEvaluateCorrelation(context);
+  context.correlation = correlation;
+  if (!correlation.ok) return error;
+
+  const entry = correlation.matchingEntries[0];
+  const userMessageId = _cwaOrdinaryIdentityText(entry?.logicalMessageId);
+  const conversationId = _cwaOrdinaryIdentityText(context.expectedConversationId);
+  if (userMessageId === null || conversationId === null) return error;
+
+  const annotated = error instanceof Error ? error : new Error(detail);
+  const runtimeTabId = Number.isInteger(context?.debuggee?.tabId)
+    ? context.debuggee.tabId
+    : null;
+  if (runtimeTabId === null) return error;
+
+  annotated.cwaPostDelegationRequestCorrelationProven = true;
+  annotated.cwaPostDelegationUserMessageId = userMessageId;
+  annotated.cwaPostDelegationConversationId = conversationId;
+  annotated.cwaPostDelegationRuntimeTabId = runtimeTabId;
+  annotated.cwaPostDelegationRecoveryContinuationObserved =
+    context.canonicalCompletedRecoveryObserved === true;
+  annotated.cwaPostDelegationObserverFailureProbeTriggered =
+    context.postDelegationObserverFailureProbeTriggered === true;
+  return annotated;
 }
 
 function _cwaOrdinaryIdentityConsensus(values, requestedConversationId) {
@@ -589,7 +663,22 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
   }
 
   try {
-    const result = await _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn(args);
+    let result;
+    try {
+      result = await _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn({
+        ...args,
+        postDelegationObserverFailureProbe:
+          context.postDelegationObserverFailureProbe === true
+            ? (evidence) =>
+                _cwaOrdinaryIdentityObserverFailureProbe(context, evidence)
+            : null
+      });
+    } catch (error) {
+      throw await _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
+        context,
+        error
+      );
+    }
     await _cwaOrdinaryIdentitySettlePostData(context);
     const correlation = _cwaOrdinaryIdentityEvaluateCorrelation(context);
     context.correlation = correlation;
@@ -617,6 +706,8 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
       ordinaryTextRequestCorrelation: CWA_ORDINARY_IDENTITY_REQUEST_CORRELATION,
       ordinaryTextConversationIdentitySource: identity.source,
       ordinaryTextMatchingRequestCount: identity.matchingRequestCount,
+      ordinaryTextCanonicalCompletedRecoveryObserved:
+        context.canonicalCompletedRecoveryObserved === true,
       routeConversationIdentityAuthoritative: false
     };
   } finally {
@@ -649,6 +740,12 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
   const context = {
     expectedText: message.text,
     expectedConversationId: _cwaOrdinaryIdentityText(message?.conversationId),
+    postDelegationObserverFailureProbe:
+      message?.postDelegationObserverFailureProbe === true &&
+      _cwaOrdinaryIdentityText(message?.conversationId) !== null,
+    canonicalCompletedRecoveryObserved: message?.canonicalCompleted === true,
+    postDelegationObserverFailureProbeTriggered: false,
+    postDelegationObserverFailureProbeRequestId: null,
     deadlineAt: performance.now() + timeoutMs,
     debuggee: null,
     officialActive: false,
