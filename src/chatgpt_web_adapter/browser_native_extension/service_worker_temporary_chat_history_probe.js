@@ -275,6 +275,8 @@ async function _pr87ProbeHistoryPresence(message) {
   };
 }
 
+// Compatibility marker: probeTemporaryHistoryPresence is dispatched by the single
+// "temporary-characterization" owner in service_worker_runtime_legacy_impl.js.
 async function _pr87HandleTemporaryHistoryCharacterization(message) {
   if (
     message?.probeTemporaryMode === true ||
