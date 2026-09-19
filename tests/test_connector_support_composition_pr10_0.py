@@ -52,8 +52,8 @@ def test_connector_support_registers_explicit_diagnostic_handler() -> None:
 def test_connector_support_diagnostics_are_no_write_and_do_not_wrap_runtime() -> None:
     source = SUPPORT.read_text(encoding="utf-8")
 
-    connector_flag = 'message?.characterizeConnectorObservationSupport === true'
-    surface_flag = 'message?.characterizeRequiredActionSurface === true'
+    connector_flag = "message?.characterizeConnectorObservationSupport === true"
+    surface_flag = "message?.characterizeRequiredActionSurface === true"
     contract = "connectorObservationSupported: true"
 
     assert connector_flag in source
