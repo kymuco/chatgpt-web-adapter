@@ -511,6 +511,8 @@ async function _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
   annotated.cwaPostDelegationUserMessageId = userMessageId;
   annotated.cwaPostDelegationConversationId = conversationId;
   annotated.cwaPostDelegationRuntimeTabId = runtimeTabId;
+  annotated.cwaPostDelegationRecoveryContinuationObserved =
+    context.canonicalCompletedRecoveryObserved === true;
   annotated.cwaPostDelegationObserverFailureProbeTriggered =
     context.postDelegationObserverFailureProbeTriggered === true;
   return annotated;
@@ -741,6 +743,7 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
     postDelegationObserverFailureProbe:
       message?.postDelegationObserverFailureProbe === true &&
       _cwaOrdinaryIdentityText(message?.conversationId) !== null,
+    canonicalCompletedRecoveryObserved: message?.canonicalCompleted === true,
     postDelegationObserverFailureProbeTriggered: false,
     postDelegationObserverFailureProbeRequestId: null,
     deadlineAt: performance.now() + timeoutMs,
