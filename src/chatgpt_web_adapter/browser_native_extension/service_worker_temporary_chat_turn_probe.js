@@ -13,7 +13,6 @@ importScripts("service_worker_temporary_chat_semantic_notice.js");
 
 const PR87_TEMPORARY_TURN_PROBE_DEFAULT_TIMEOUT_MS = 150_000;
 const PR87_TEMPORARY_TURN_PROBE_MAX_TIMEOUT_MS = 300_000;
-const _pr87TurnProbePriorExecuteNativeTurn = executeNativeTurn;
 
 function _pr87ClampTurnProbeTimeoutMs(value) {
   if (!Number.isFinite(value)) return PR87_TEMPORARY_TURN_PROBE_DEFAULT_TIMEOUT_MS;
@@ -284,10 +283,7 @@ async function _pr87TurnProbeExecute(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithTemporaryTurnCharacterization(message) {
-  if (message?.characterizeTemporaryTurn !== true) {
-    return _pr87TurnProbePriorExecuteNativeTurn(message);
-  }
+async function _pr87HandleTemporaryTurnCharacterization(message) {
   if (message?.probeTemporaryMode === true) {
     throw new Error("TEMPORARY_CHAT_TURN_PROBE_FLAG_CONFLICT");
   }
@@ -298,4 +294,4 @@ executeNativeTurn = async function _executeNativeTurnWithTemporaryTurnCharacteri
     throw new Error("TEMPORARY_CHAT_TURN_PROBE_DURABLE_RISK_ACK_REQUIRED");
   }
   return _pr87TurnProbeExecute(message);
-};
+}
