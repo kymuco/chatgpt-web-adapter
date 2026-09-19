@@ -345,6 +345,9 @@ class BrowserNativeTurnProvider:
                     request_error.post_delegation_runtime_tab_id = (
                         failure_runtime_tab_id
                     )
+                    request_error.post_delegation_abort_probe_triggered = (
+                        response.get("postDelegationAbortProbeTriggered") is True
+                    )
                     raise request_error
             raise RequestError(error, request_stage="browser_native_turn")
         result_conversation_id = response.get("conversationId")
