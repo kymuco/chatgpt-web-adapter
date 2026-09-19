@@ -303,9 +303,25 @@ Deliver:
 - bounded live proofs for preserved authority/finality boundaries;
 - deletion of displaced repair generations.
 
-### PR15.2 — provider architecture proof
+### PR15.2 — detach Temporary characterization
+
+PR15.1 exposed a closed historical Temporary characterization chain that still owned
+ordinary `executeNativeTurn` composition. PR15.2 removes that research/probe
+dispatch ownership before provider extraction.
 
 Deliver:
+
+- one explicit owner for Temporary characterization RPCs;
+- no characterization-layer `executeNativeTurn` wrappers;
+- preserved historical conflict precedence and probe behavior;
+- production PR8.13 Temporary lifecycle left unchanged.
+
+### Provider architecture proof — after ChatGPT consolidation
+
+Do not freeze a PR number until the remaining ChatGPT ownership clusters satisfy the
+architecture-reset exit criteria.
+
+Deliver when ready:
 
 - provider-neutral contracts extracted from consolidated behavior;
 - ChatGPT as provider #1;
