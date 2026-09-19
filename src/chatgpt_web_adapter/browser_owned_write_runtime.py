@@ -212,6 +212,7 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         post_delegation_outcome: str | None = None,
         post_delegation_reconciliation: dict[str, Any] | None = None,
         post_delegation_runtime_tab_id: int | None = None,
+        post_delegation_recovery_continuation_observed: bool = False,
         post_delegation_observer_failure_probe_triggered: bool = False,
     ) -> None:
         self.failure_kind = failure_kind
@@ -236,6 +237,9 @@ class BrowserOwnedWriteRuntimeError(RequestError):
             if isinstance(post_delegation_runtime_tab_id, int)
             and not isinstance(post_delegation_runtime_tab_id, bool)
             else None
+        )
+        self.post_delegation_recovery_continuation_observed = bool(
+            post_delegation_recovery_continuation_observed
         )
         self.post_delegation_observer_failure_probe_triggered = bool(
             post_delegation_observer_failure_probe_triggered
@@ -268,6 +272,9 @@ class BrowserOwnedWriteRuntimeError(RequestError):
                     else None
                 ),
                 "post_delegation_runtime_tab_id": self.post_delegation_runtime_tab_id,
+                "post_delegation_recovery_continuation_observed": (
+                    self.post_delegation_recovery_continuation_observed
+                ),
                 "post_delegation_observer_failure_probe_triggered": (
                     self.post_delegation_observer_failure_probe_triggered
                 ),
@@ -984,6 +991,7 @@ class BrowserOwnedProductWriteRuntime:
             readback_failure = write_event_observed
             post_reconciliation = None
             post_delegation_runtime_tab_id = None
+            post_delegation_recovery_continuation_observed = False
             post_delegation_observer_failure_probe_triggered = False
             if (
                 not readback_failure
@@ -1018,6 +1026,13 @@ class BrowserOwnedProductWriteRuntime:
                     and not isinstance(failure_runtime_tab_id, bool)
                 ):
                     post_delegation_runtime_tab_id = failure_runtime_tab_id
+                    post_delegation_recovery_continuation_observed = bool(
+                        getattr(
+                            error,
+                            "post_delegation_recovery_continuation_observed",
+                            False,
+                        )
+                    )
                     post_delegation_observer_failure_probe_triggered = bool(
                         getattr(
                             error,
@@ -1114,6 +1129,9 @@ class BrowserOwnedProductWriteRuntime:
                     else None
                 ),
                 post_delegation_runtime_tab_id=post_delegation_runtime_tab_id,
+                post_delegation_recovery_continuation_observed=(
+                    post_delegation_recovery_continuation_observed
+                ),
                 post_delegation_observer_failure_probe_triggered=(
                     post_delegation_observer_failure_probe_triggered
                 ),
