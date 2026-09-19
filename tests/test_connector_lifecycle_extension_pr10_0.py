@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 CONNECTOR_JS = EXTENSION / "service_worker_connector_lifecycle_pr10_0.js"
