@@ -2,8 +2,6 @@
 // Zero product writes. Optional UI navigation is limited to opening the quick
 // effort picker and opening Advanced; no slider/model/effort choice is clicked.
 
-const _pr88EffortPriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr88EffortConversationId(value) {
   const id = typeof value === "string" ? value.trim() : "";
   return id && !/[\/?#]/.test(id) ? id : null;
@@ -136,12 +134,22 @@ async function _pr88EffortProbe(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithReasoningEffortSlider(message) {
+function _pr88ReasoningEffortDiagnosticMatches(message) {
+  return (
+    message?.characterizeReasoningEffortSliderSupport === true ||
+    message?.characterizeReasoningEffortSliderTopology === true
+  );
+}
+
+async function _pr88HandleReasoningEffortDiagnostic(message) {
   if (message?.characterizeReasoningEffortSliderSupport === true) {
-    if (_pr88EffortConflict(message)) throw new Error("PR8_8_REASONING_EFFORT_SUPPORT_FLAG_CONFLICT");
+    if (_pr88EffortConflict(message)) {
+      throw new Error("PR8_8_REASONING_EFFORT_SUPPORT_FLAG_CONFLICT");
+    }
     return {
       reasoningEffortSliderSupported: true,
-      reasoningEffortSliderSchemaVersion: PR88_REASONING_EFFORT_SLIDER_SCHEMA_VERSION,
+      reasoningEffortSliderSchemaVersion:
+        PR88_REASONING_EFFORT_SLIDER_SCHEMA_VERSION,
       retainedExistingTabProbeSupported: true,
       sliderTopologySupported: true,
       discreteStepMappingSupported: true,
@@ -155,6 +163,11 @@ executeNativeTurn = async function _executeNativeTurnWithReasoningEffortSlider(m
       automaticRetry: false
     };
   }
-  if (message?.characterizeReasoningEffortSliderTopology === true) return _pr88EffortProbe(message);
-  return _pr88EffortPriorExecuteNativeTurn(message);
-};
+  return _pr88EffortProbe(message);
+}
+
+registerNativeTurnDiagnosticHandler(
+  "reasoning-effort-characterization",
+  _pr88ReasoningEffortDiagnosticMatches,
+  _pr88HandleReasoningEffortDiagnostic
+);
