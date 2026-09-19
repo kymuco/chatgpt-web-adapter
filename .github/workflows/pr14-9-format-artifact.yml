@@ -1,0 +1,53 @@
+name: PR14.9 formatter artifact
+
+on:
+  push:
+    branches:
+      - pr14-9-post-delegation-reconciliation
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: |
+          python -m pip install -e ".[test]"
+          python -m ruff check --fix \
+            src/chatgpt_web_adapter/browser_context_canonical_v2.py \
+            src/chatgpt_web_adapter/browser_native_provider.py \
+            src/chatgpt_web_adapter/browser_owned_write_runtime.py \
+            src/chatgpt_web_adapter/post_delegation_reconciliation.py \
+            tests/test_browser_native_provider.py \
+            tests/test_browser_owned_write_runtime.py \
+            tests/test_browser_owned_write_runtime_pr8_8.py \
+            tests/test_canonical_conversation_read_v2_pr13_0.py \
+            tests/test_ordinary_text_identity_pr14_1.py \
+            tests/test_post_delegation_reconciliation.py
+          python -m ruff format \
+            src/chatgpt_web_adapter/browser_context_canonical_v2.py \
+            src/chatgpt_web_adapter/browser_native_provider.py \
+            src/chatgpt_web_adapter/browser_owned_write_runtime.py \
+            src/chatgpt_web_adapter/post_delegation_reconciliation.py \
+            tests/test_browser_native_provider.py \
+            tests/test_browser_owned_write_runtime.py \
+            tests/test_browser_owned_write_runtime_pr8_8.py \
+            tests/test_canonical_conversation_read_v2_pr13_0.py \
+            tests/test_ordinary_text_identity_pr14_1.py \
+            tests/test_post_delegation_reconciliation.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr14-9-formatted
+          path: |
+            src/chatgpt_web_adapter/browser_context_canonical_v2.py
+            src/chatgpt_web_adapter/browser_native_provider.py
+            src/chatgpt_web_adapter/browser_owned_write_runtime.py
+            src/chatgpt_web_adapter/post_delegation_reconciliation.py
+            tests/test_browser_native_provider.py
+            tests/test_browser_owned_write_runtime.py
+            tests/test_browser_owned_write_runtime_pr8_8.py
+            tests/test_canonical_conversation_read_v2_pr13_0.py
+            tests/test_ordinary_text_identity_pr14_1.py
+            tests/test_post_delegation_reconciliation.py
