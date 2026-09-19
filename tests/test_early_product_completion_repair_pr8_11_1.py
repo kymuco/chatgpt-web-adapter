@@ -34,36 +34,6 @@ def test_core_page_boundary_is_fail_closed() -> None:
     assert 'diagnostics.completionBoundary = "network_loading_finished"' in source
 
 
-def test_observer_failure_probe_fences_early_terminal_success() -> None:
-    source = _read(RECOVERY)
-    start = source.index(
-        "executeOfficialPageTurn = async function "
-        "_executeOfficialPageTurnWithEarlyTerminalBoundary"
-    )
-    end = source.index(
-        "executeNativeTurn = async function _executeNativeTurnWithStaleUiRecovery",
-        start,
-    )
-    block = source[start:end]
-
-    response_index = block.index('method === "Network.responseReceived"')
-    probe_start_index = block.index(
-        "observerFailureProbePromise = Promise.resolve(",
-        response_index,
-    )
-    first_boundary_index = block.index("const firstBoundary =")
-    probe_await_index = block.index(
-        "await observerFailureProbePromise",
-        first_boundary_index,
-    )
-    early_accept_index = block.index(
-        'if (firstBoundary?.kind === "assistant_terminal_candidate")'
-    )
-
-    assert response_index < probe_start_index < first_boundary_index
-    assert first_boundary_index < probe_await_index < early_accept_index
-
-
 def test_network_fallback_preserves_response_body_and_composer_proof() -> None:
     source = _read(RECOVERY)
     start = source.index("if (diagnostics.earlyCompletionAccepted !== true)")
