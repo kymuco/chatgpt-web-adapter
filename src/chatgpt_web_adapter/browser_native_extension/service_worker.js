@@ -624,8 +624,8 @@ function safeTurnFailureEvidence(error) {
     postDelegationUserMessageId: userMessageId,
     postDelegationConversationId: conversationId,
     postDelegationRuntimeTabId: runtimeTabId,
-    postDelegationAbortProbeTriggered:
-      error.cwaPostDelegationAbortProbeTriggered === true
+    postDelegationObserverFailureProbeTriggered:
+      error.cwaPostDelegationObserverFailureProbeTriggered === true
   };
 }
 
