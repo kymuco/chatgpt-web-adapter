@@ -81,7 +81,7 @@ class _Runtime:
                 "canonical_status": "user_last_message",
             },
             post_delegation_runtime_tab_id=41,
-            post_delegation_abort_probe_triggered=True,
+            post_delegation_observer_failure_probe_triggered=True,
         )
 
 
@@ -120,12 +120,12 @@ def test_live_gate_proves_precise_submitted_outcome_without_replay(
     assert report["product_write_budget"] == 2
     assert report["product_write_attempts"] == 2
     assert report["probe"]["failure_kind"] == WRITE_SUBMITTED_GENERATION_INCOMPLETE
-    assert report["probe"]["abort_probe_triggered"] is True
+    assert report["probe"]["observer_failure_probe_triggered"] is True
     assert report["probe"]["automatic_retry_allowed"] is False
     assert report["probe"]["reconciliation"]["user_turn_persisted"] is True
     assert len(runtime.write_transport.provider.payloads) == 1
     assert (
-        runtime.write_transport.provider.payloads[0]["postDelegationAbortProbe"] is True
+        runtime.write_transport.provider.payloads[0]["postDelegationObserverFailureProbe"] is True
     )
 
 
