@@ -89,8 +89,7 @@ def test_architecture_covers_current_planes_and_artifact_boundary() -> None:
     assert "Browser-owned transport — `PRODUCTION`" in text
     assert "Browserless request transport — `EXPERIMENTAL`" in text
     assert (
-        "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY"
-        in text
+        "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY" in text
     )
 
 
