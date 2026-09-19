@@ -18,6 +18,11 @@ from .browser_context_canonical import BROWSER_CONTEXT_CANONICAL_READ_PLANE
 from .browser_native_client import send_browser_native, set_browser_native_turn_provider
 from .browser_native_provider import BrowserNativeBridgeStatus, BrowserNativeTurnProvider
 from .exceptions import ConversationTimeoutError, RequestError, WebChatAdapterError
+from .post_delegation_reconciliation import (
+    POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
+    POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
+    reconcile_post_delegation_failure,
+)
 from .types import ChatConversation, ChatResponse, ConversationRef
 
 READY = "READY_FOR_BROWSER_OWNED_WRITE"
@@ -27,6 +32,10 @@ CANONICAL_READ_UNAVAILABLE = "CANONICAL_READ_UNAVAILABLE"
 CONVERSATION_NOT_COMPLETED = "CANONICAL_CONVERSATION_NOT_COMPLETED"
 WRITE_OUTCOME_UNKNOWN = "BROWSER_OWNED_WRITE_OUTCOME_UNKNOWN"
 WRITE_ACCEPTED_READBACK_INCOMPLETE = "BROWSER_OWNED_WRITE_ACCEPTED_READBACK_INCOMPLETE"
+WRITE_SUBMITTED_GENERATION_INCOMPLETE = (
+    "BROWSER_OWNED_WRITE_SUBMITTED_GENERATION_INCOMPLETE"
+)
+WRITE_SUBMITTED_TERMINAL_ASSISTANT = "BROWSER_OWNED_WRITE_SUBMITTED_TERMINAL_ASSISTANT"
 BROWSER_AUTHORITY_RELEASE_UNSUPPORTED = "BROWSER_AUTHORITY_RELEASE_UNSUPPORTED"
 BROWSER_AUTHORITY_NOT_FRESH = "BROWSER_AUTHORITY_NOT_FRESH"
 
@@ -173,6 +182,8 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         content_type: str | None = None,
         browser_authority_lease: BrowserAuthorityLease | None = None,
         turn_lifecycle: TurnLifecycle | None = None,
+        post_delegation_outcome: str | None = None,
+        post_delegation_reconciliation: dict[str, Any] | None = None,
     ) -> None:
         self.failure_kind = failure_kind
         self.automatic_retry_allowed = bool(automatic_retry_allowed)
@@ -185,6 +196,12 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         self.content_type = content_type
         self.browser_authority_lease = browser_authority_lease
         self.turn_lifecycle = turn_lifecycle
+        self.post_delegation_outcome = post_delegation_outcome
+        self.post_delegation_reconciliation = (
+            dict(post_delegation_reconciliation)
+            if isinstance(post_delegation_reconciliation, dict)
+            else None
+        )
         super().__init__(
             message,
             status_code=status_code,
@@ -204,6 +221,12 @@ class BrowserOwnedWriteRuntimeError(RequestError):
                 "conversation_id": self.conversation_id,
                 "reason_code": self.reason_code,
                 "content_type": self.content_type,
+                "post_delegation_outcome": self.post_delegation_outcome,
+                "post_delegation_reconciliation": (
+                    dict(self.post_delegation_reconciliation)
+                    if self.post_delegation_reconciliation is not None
+                    else None
+                ),
                 "browser_authority_lease": (
                     self.browser_authority_lease.to_dict()
                     if self.browser_authority_lease is not None
@@ -883,36 +906,95 @@ class BrowserOwnedProductWriteRuntime:
             ) from error
         except WebChatAdapterError as error:
             readback_failure = write_event_observed
+            post_reconciliation = None
+            if (
+                not readback_failure
+                and delegated_conversation_id is not None
+                and getattr(
+                    error,
+                    "post_delegation_request_correlation_proven",
+                    False,
+                )
+                is True
+            ):
+                failure_conversation_id = getattr(
+                    error,
+                    "post_delegation_conversation_id",
+                    None,
+                )
+                failure_user_message_id = getattr(
+                    error,
+                    "post_delegation_user_message_id",
+                    None,
+                )
+                if (
+                    failure_conversation_id == delegated_conversation_id
+                    and isinstance(failure_user_message_id, str)
+                    and failure_user_message_id
+                ):
+                    post_reconciliation = reconcile_post_delegation_failure(
+                        self.client,
+                        conversation_id=delegated_conversation_id,
+                        user_message_id=failure_user_message_id,
+                    )
+
+            post_outcome = (
+                post_reconciliation.outcome
+                if post_reconciliation is not None
+                else None
+            )
+            submitted_reconciled = post_outcome in {
+                POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
+                POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
+            }
             turn_ref = self._fail_turn(
                 turn_ref,
                 state=(
                     TurnLifecycleState.READBACK_INCOMPLETE
-                    if readback_failure
+                    if readback_failure or submitted_reconciled
                     else TurnLifecycleState.AMBIGUOUS
                 ),
             )
-            if browser_context_readback and readback_failure and acknowledge_readback():
+
+            reconciliation_read_performed = bool(
+                post_reconciliation is not None
+                and post_reconciliation.canonical_read_performed
+            )
+            if (
+                browser_context_readback
+                and (readback_failure or reconciliation_read_performed)
+                and acknowledge_readback()
+            ):
                 lease_ref = self._release_authority_after_readback(
                     lease_ref,
                     runtime_tab_id=runtime_tab_id,
                 )
             elif lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
                 lease_ref = self._mark_release_unknown(lease_ref)
+
+            failure_kind = (
+                WRITE_ACCEPTED_READBACK_INCOMPLETE
+                if readback_failure
+                else WRITE_OUTCOME_UNKNOWN
+            )
+            reconciliation_required = True
+            if post_outcome == POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE:
+                failure_kind = WRITE_SUBMITTED_GENERATION_INCOMPLETE
+            elif post_outcome == POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT:
+                failure_kind = WRITE_SUBMITTED_TERMINAL_ASSISTANT
+                reconciliation_required = False
+
             raise BrowserOwnedWriteRuntimeError(
                 str(error),
-                failure_kind=(
-                    WRITE_ACCEPTED_READBACK_INCOMPLETE
-                    if readback_failure
-                    else WRITE_OUTCOME_UNKNOWN
-                ),
+                failure_kind=failure_kind,
                 automatic_retry_allowed=False,
                 manual_retry_safe_after_repair=False,
                 write_may_have_been_submitted=True,
-                reconciliation_required=True,
+                reconciliation_required=reconciliation_required,
                 cause=error,
                 request_stage=(
                     "browser_owned_write_readback"
-                    if readback_failure
+                    if readback_failure or submitted_reconciled
                     else "browser_owned_write"
                 ),
                 conversation_id=(
@@ -924,6 +1006,12 @@ class BrowserOwnedProductWriteRuntime:
                 content_type=getattr(error, "content_type", None),
                 browser_authority_lease=lease_ref,
                 turn_lifecycle=turn_ref,
+                post_delegation_outcome=post_outcome,
+                post_delegation_reconciliation=(
+                    post_reconciliation.to_dict()
+                    if post_reconciliation is not None
+                    else None
+                ),
             ) from error
         finally:
             try:
