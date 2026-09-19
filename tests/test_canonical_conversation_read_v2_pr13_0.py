@@ -322,6 +322,29 @@ def test_message_limit_uses_full_reader_when_latest_page_is_insufficient() -> No
     assert (reader.latest_reads, reader.full_reads) == (1, 1)
 
 
+def test_browser_context_v2_exposes_complete_first_class_snapshot() -> None:
+    class _Provider:
+        connect_timeout = 1.0
+
+        def _load_descriptor(self):
+            raise AssertionError("wire transport is replaced for this unit test")
+
+    class _Source:
+        pass
+
+    client = BrowserContextCanonicalClientV2(_Source(), _Provider())
+    client._get_full_conversation_payload = lambda _conversation_id: _legacy_payload(
+        "u1",
+        "a2",
+    )
+
+    snapshot = client.get_conversation_snapshot("conversation-1")
+
+    assert snapshot.conversation_id == "conversation-1"
+    assert snapshot.complete is True
+    assert [message.message_id for message in snapshot.messages] == ["u1", "a2"]
+
+
 def test_default_browser_owned_transport_uses_v2_canonical_client() -> None:
     class _Canonical:
         def get_status(self, conversation):
