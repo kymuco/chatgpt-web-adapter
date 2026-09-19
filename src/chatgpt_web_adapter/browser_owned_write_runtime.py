@@ -184,6 +184,7 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         turn_lifecycle: TurnLifecycle | None = None,
         post_delegation_outcome: str | None = None,
         post_delegation_reconciliation: dict[str, Any] | None = None,
+        post_delegation_runtime_tab_id: int | None = None,
     ) -> None:
         self.failure_kind = failure_kind
         self.automatic_retry_allowed = bool(automatic_retry_allowed)
@@ -200,6 +201,12 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         self.post_delegation_reconciliation = (
             dict(post_delegation_reconciliation)
             if isinstance(post_delegation_reconciliation, dict)
+            else None
+        )
+        self.post_delegation_runtime_tab_id = (
+            post_delegation_runtime_tab_id
+            if isinstance(post_delegation_runtime_tab_id, int)
+            and not isinstance(post_delegation_runtime_tab_id, bool)
             else None
         )
         super().__init__(
@@ -227,6 +234,7 @@ class BrowserOwnedWriteRuntimeError(RequestError):
                     if self.post_delegation_reconciliation is not None
                     else None
                 ),
+                "post_delegation_runtime_tab_id": self.post_delegation_runtime_tab_id,
                 "browser_authority_lease": (
                     self.browser_authority_lease.to_dict()
                     if self.browser_authority_lease is not None
@@ -907,6 +915,7 @@ class BrowserOwnedProductWriteRuntime:
         except WebChatAdapterError as error:
             readback_failure = write_event_observed
             post_reconciliation = None
+            post_delegation_runtime_tab_id = None
             if (
                 not readback_failure
                 and delegated_conversation_id is not None
@@ -927,11 +936,19 @@ class BrowserOwnedProductWriteRuntime:
                     "post_delegation_user_message_id",
                     None,
                 )
+                failure_runtime_tab_id = getattr(
+                    error,
+                    "post_delegation_runtime_tab_id",
+                    None,
+                )
                 if (
                     failure_conversation_id == delegated_conversation_id
                     and isinstance(failure_user_message_id, str)
                     and failure_user_message_id
+                    and isinstance(failure_runtime_tab_id, int)
+                    and not isinstance(failure_runtime_tab_id, bool)
                 ):
+                    post_delegation_runtime_tab_id = failure_runtime_tab_id
                     post_reconciliation = reconcile_post_delegation_failure(
                         self.client,
                         conversation_id=delegated_conversation_id,
@@ -967,7 +984,11 @@ class BrowserOwnedProductWriteRuntime:
             ):
                 lease_ref = self._release_authority_after_readback(
                     lease_ref,
-                    runtime_tab_id=runtime_tab_id,
+                    runtime_tab_id=(
+                        runtime_tab_id
+                        if runtime_tab_id is not None
+                        else post_delegation_runtime_tab_id
+                    ),
                 )
             elif lease_ref.state is BrowserAuthorityLeaseState.ACTIVE:
                 lease_ref = self._mark_release_unknown(lease_ref)
@@ -1012,6 +1033,7 @@ class BrowserOwnedProductWriteRuntime:
                     if post_reconciliation is not None
                     else None
                 ),
+                post_delegation_runtime_tab_id=post_delegation_runtime_tab_id,
             ) from error
         finally:
             try:
