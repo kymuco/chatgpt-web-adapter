@@ -135,6 +135,9 @@ registerNativeTurnObserver("provisioning-observability", {
   finish: _pr824aProvisioningObserverFinish
 });
 
+// Migration marker for the frozen PR11 source-order contract:
+// _executeNativeTurnWithProvisioningObservability is now the explicit
+// "provisioning-observability" registration above, not a runtime override.
 
 // PR11.0: product chrome is read-only with respect to ChatGPT. It consumes only
 // local bridge state and never participates in product-write/finality semantics.
