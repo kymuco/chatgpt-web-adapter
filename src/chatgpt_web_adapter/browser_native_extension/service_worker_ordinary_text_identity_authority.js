@@ -355,6 +355,19 @@ async function _cwaOrdinaryIdentityEnableAbortProbe(context) {
   context.postDelegationAbortProbeFetchEnabled = true;
 }
 
+async function _cwaOrdinaryIdentityContinueAbortProbeResponse(
+  source,
+  fetchRequestId
+) {
+  if (fetchRequestId === null) return false;
+  await chrome.debugger.sendCommand(
+    source,
+    "Fetch.continueResponse",
+    { requestId: fetchRequestId }
+  );
+  return true;
+}
+
 async function _cwaOrdinaryIdentityHandleAbortProbePause(
   context,
   source,
@@ -362,14 +375,27 @@ async function _cwaOrdinaryIdentityHandleAbortProbePause(
 ) {
   if (
     context.postDelegationAbortProbe !== true ||
-    context.postDelegationAbortProbeFetchEnabled !== true ||
-    context.postDelegationAbortProbeTriggered === true
+    context.postDelegationAbortProbeFetchEnabled !== true
   ) {
     return false;
   }
-  const networkId = _cwaOrdinaryIdentityText(params?.networkId);
+
   const fetchRequestId = _cwaOrdinaryIdentityText(params?.requestId);
-  if (networkId === null || fetchRequestId === null) return false;
+  if (fetchRequestId === null) return false;
+  if (context.postDelegationAbortProbeTriggered === true) {
+    return _cwaOrdinaryIdentityContinueAbortProbeResponse(
+      source,
+      fetchRequestId
+    );
+  }
+
+  const networkId = _cwaOrdinaryIdentityText(params?.networkId);
+  if (networkId === null) {
+    return _cwaOrdinaryIdentityContinueAbortProbeResponse(
+      source,
+      fetchRequestId
+    );
+  }
 
   const entry = context.entries.find(
     (candidate) => candidate.requestId === networkId
@@ -394,24 +420,35 @@ async function _cwaOrdinaryIdentityHandleAbortProbePause(
     status < 200 ||
     status >= 300
   ) {
+    return _cwaOrdinaryIdentityContinueAbortProbeResponse(
+      source,
+      fetchRequestId
+    );
+  }
+
+  try {
     await chrome.debugger.sendCommand(
       source,
-      "Fetch.continueResponse",
-      { requestId: fetchRequestId }
+      "Fetch.failRequest",
+      {
+        requestId: fetchRequestId,
+        errorReason: "Aborted"
+      }
     );
-    return true;
+  } catch (error) {
+    try {
+      await _cwaOrdinaryIdentityContinueAbortProbeResponse(
+        source,
+        fetchRequestId
+      );
+    } catch {
+      // Preserve the original failRequest error as the diagnostic cause.
+    }
+    throw error;
   }
 
   context.postDelegationAbortProbeTriggered = true;
   context.postDelegationAbortProbeNetworkRequestId = networkId;
-  await chrome.debugger.sendCommand(
-    source,
-    "Fetch.failRequest",
-    {
-      requestId: fetchRequestId,
-      errorReason: "Aborted"
-    }
-  );
   return true;
 }
 
