@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = (
     ROOT
@@ -17,7 +16,9 @@ def test_native_turn_diagnostic_dispatch_has_single_owner_semantics() -> None:
     source = WORKER.read_text(encoding="utf-8")
 
     assert "const nativeTurnDiagnosticHandlers = new Map();" in source
-    assert "function registerNativeTurnDiagnosticHandler(name, matches, handle)" in source
+    assert (
+        "function registerNativeTurnDiagnosticHandler(name, matches, handle)" in source
+    )
     assert "if (nativeTurnDiagnosticHandlers.has(key))" in source
     assert "CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_DUPLICATE" in source
     assert "if (matching.length > 1)" in source
