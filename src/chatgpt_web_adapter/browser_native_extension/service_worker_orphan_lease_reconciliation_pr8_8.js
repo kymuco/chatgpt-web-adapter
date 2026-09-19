@@ -1,7 +1,5 @@
 // PR8.8 explicit zero-product-write orphan Browser Authority lease reconciliation.
 const PR88_ORPHAN_LEASE_SCHEMA = 1;
-const _pr88OrphanPriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr88OrphanAssertReadOnly(message) {
   if (
     message?.text != null || message?.conversationId != null ||
@@ -104,8 +102,22 @@ async function _pr88ReconcileOrphanLease(message) {
   );
 }
 
-executeNativeTurn = async function _executeNativeTurnWithOrphanLeaseReconciliation(message) {
-  if (message?.characterizeOrphanLeaseReconciliationSupport === true) return _pr88OrphanSupport(message);
-  if (message?.reconcileOrphanedBrowserAuthorityLease === true) return _pr88ReconcileOrphanLease(message);
-  return _pr88OrphanPriorExecuteNativeTurn(message);
-};
+function _pr88OrphanDiagnosticMatches(message) {
+  return (
+    message?.characterizeOrphanLeaseReconciliationSupport === true ||
+    message?.reconcileOrphanedBrowserAuthorityLease === true
+  );
+}
+
+async function _pr88HandleOrphanLeaseDiagnostic(message) {
+  if (message?.characterizeOrphanLeaseReconciliationSupport === true) {
+    return _pr88OrphanSupport(message);
+  }
+  return _pr88ReconcileOrphanLease(message);
+}
+
+registerNativeTurnDiagnosticHandler(
+  "orphan-lease-reconciliation",
+  _pr88OrphanDiagnosticMatches,
+  _pr88HandleOrphanLeaseDiagnostic
+);
