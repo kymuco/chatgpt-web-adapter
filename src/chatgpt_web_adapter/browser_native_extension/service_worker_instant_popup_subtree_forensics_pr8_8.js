@@ -14,7 +14,6 @@ const PR88_INSTANT_POPUP_MAX_SURFACES = 8;
 const PR88_INSTANT_POPUP_MAX_MODE_LABELS = 16;
 const PR88_INSTANT_POPUP_MAX_ACTIONABLES = 32;
 
-const _pr88PopupPriorExecuteNativeTurn = executeNativeTurn;
 const _pr88PopupPriorLocateAndFocusComposer = locateAndFocusComposer;
 
 function _pr88PopupLeaseId(value) {
@@ -371,9 +370,16 @@ function _pr88PopupPublicRecord(record) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithInstantPopupSubtreeForensics(message) {
+function _pr88FailureForensicsDiagnosticMatches(message) {
+  return (
+    message?.characterizeInstantFailureForensicsSupport === true ||
+    message?.characterizeInstantFailureForensicsRecord === true
+  );
+}
+
+async function _pr88HandleFailureForensicsDiagnostic(message) {
   if (message?.characterizeInstantFailureForensicsSupport === true) {
-    const prior = await _pr88PopupPriorExecuteNativeTurn(message);
+    const prior = await _pr88FailureSupport(message);
     return {
       ...prior,
       popupSubtreeCaptureSupported: true,
@@ -385,21 +391,25 @@ executeNativeTurn = async function _executeNativeTurnWithInstantPopupSubtreeFore
     };
   }
 
-  if (message?.characterizeInstantFailureForensicsRecord === true) {
-    const prior = await _pr88PopupPriorExecuteNativeTurn(message);
-    const expectedLeaseId = _pr88PopupLeaseId(message?.expectedBrowserAuthorityLeaseId);
-    const stored = await _pr88PopupStoredRecord();
-    const popupAvailable = (
-      expectedLeaseId !== null &&
-      stored !== null &&
-      _pr88PopupLeaseId(stored.leaseId) === expectedLeaseId
-    );
-    return {
-      ...prior,
-      popupSubtreeRecordAvailable: popupAvailable,
-      popupSubtree: popupAvailable ? _pr88PopupPublicRecord(stored) : null
-    };
-  }
+  const prior = await _pr88FailureRecord(message);
+  const expectedLeaseId = _pr88PopupLeaseId(
+    message?.expectedBrowserAuthorityLeaseId
+  );
+  const stored = await _pr88PopupStoredRecord();
+  const popupAvailable = (
+    expectedLeaseId !== null &&
+    stored !== null &&
+    _pr88PopupLeaseId(stored.leaseId) === expectedLeaseId
+  );
+  return {
+    ...prior,
+    popupSubtreeRecordAvailable: popupAvailable,
+    popupSubtree: popupAvailable ? _pr88PopupPublicRecord(stored) : null
+  };
+}
 
-  return _pr88PopupPriorExecuteNativeTurn(message);
-};
+registerNativeTurnDiagnosticHandler(
+  "instant-failure-forensics",
+  _pr88FailureForensicsDiagnosticMatches,
+  _pr88HandleFailureForensicsDiagnostic
+);
