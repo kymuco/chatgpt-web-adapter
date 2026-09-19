@@ -585,12 +585,16 @@ function safeTurnFailureEvidence(error) {
   const conversationId = typeof error.cwaPostDelegationConversationId === "string"
     ? error.cwaPostDelegationConversationId.trim()
     : "";
-  if (!userMessageId || !conversationId) return {};
+  const runtimeTabId = Number.isInteger(error.cwaPostDelegationRuntimeTabId)
+    ? error.cwaPostDelegationRuntimeTabId
+    : null;
+  if (!userMessageId || !conversationId || runtimeTabId === null) return {};
 
   return {
     postDelegationRequestCorrelationProven: true,
     postDelegationUserMessageId: userMessageId,
-    postDelegationConversationId: conversationId
+    postDelegationConversationId: conversationId,
+    postDelegationRuntimeTabId: runtimeTabId
   };
 }
 
