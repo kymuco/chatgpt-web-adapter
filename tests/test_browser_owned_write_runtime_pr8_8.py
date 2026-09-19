@@ -8,16 +8,16 @@ import pytest
 import chatgpt_web_adapter.browser_owned_write_runtime as subject
 from chatgpt_web_adapter.browser_authority_lease import (
     BrowserAuthorityLeaseState,
-    BrowserAuthorityPolicy,
     TurnLifecycleState,
 )
 
 
 class FakeProvider:
     def __init__(self, statuses=None):
-        self.statuses = list(statuses or [
-            subject.BrowserNativeBridgeStatus(True, True, runtime_tab_id=41)
-        ])
+        self.statuses = list(
+            statuses
+            or [subject.BrowserNativeBridgeStatus(True, True, runtime_tab_id=41)]
+        )
         self.last = self.statuses[-1]
         self.bound = None
         self.releases = []
@@ -258,7 +258,10 @@ def test_delegated_ambiguous_error_never_disposes_without_release_proof(monkeypa
         )
 
     error = caught.value
-    assert error.browser_authority_lease.state is BrowserAuthorityLeaseState.RELEASE_UNKNOWN
+    assert (
+        error.browser_authority_lease.state
+        is BrowserAuthorityLeaseState.RELEASE_UNKNOWN
+    )
     assert error.turn_lifecycle.state is TurnLifecycleState.AMBIGUOUS
     assert provider.releases == []
 
@@ -287,7 +290,9 @@ def test_governance_declares_pr88_lease_invariants():
     assert policy["turn_scoped_zero_ttl_allowed"] is True
 
 
-def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(monkeypatch):
+def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(
+    monkeypatch,
+):
     class NoReleaseProvider:
         def send_text(self, *args, **kwargs):
             raise AssertionError(
@@ -298,8 +303,12 @@ def test_nonpersistent_policy_requires_release_and_fencing_before_any_lease(monk
             return subject.BrowserNativeBridgeStatus(True, True, runtime_tab_id=41)
 
     delegated = []
-    monkeypatch.setattr(subject, "send_browser_native", lambda *a, **k: delegated.append((a, k)))
-    rt = subject.BrowserOwnedProductWriteRuntime(FakeClient(), provider=NoReleaseProvider())
+    monkeypatch.setattr(
+        subject, "send_browser_native", lambda *a, **k: delegated.append((a, k))
+    )
+    rt = subject.BrowserOwnedProductWriteRuntime(
+        FakeClient(), provider=NoReleaseProvider()
+    )
 
     with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
         rt.send_text("hello", browser_authority_policy="TURN_SCOPED")

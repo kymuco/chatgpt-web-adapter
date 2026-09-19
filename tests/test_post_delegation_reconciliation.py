@@ -75,7 +75,9 @@ class _Client:
         return canonical_snapshot_from_payload(conversation, self.payload)
 
 
-def test_reconciliation_classifies_persisted_user_without_assistant_as_incomplete() -> None:
+def test_reconciliation_classifies_persisted_user_without_assistant_as_incomplete() -> (
+    None
+):
     client = _Client(_snapshot_payload(include_terminal_assistant=False))
 
     result = reconcile_post_delegation_failure(

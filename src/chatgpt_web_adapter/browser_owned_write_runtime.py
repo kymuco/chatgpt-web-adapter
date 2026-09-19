@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import threading
 import time
+from dataclasses import asdict, dataclass
 from typing import Any, Callable
 
 from .browser_authority_lease import (
@@ -16,7 +16,10 @@ from .browser_authority_lease import (
 )
 from .browser_context_canonical import BROWSER_CONTEXT_CANONICAL_READ_PLANE
 from .browser_native_client import send_browser_native, set_browser_native_turn_provider
-from .browser_native_provider import BrowserNativeBridgeStatus, BrowserNativeTurnProvider
+from .browser_native_provider import (
+    BrowserNativeBridgeStatus,
+    BrowserNativeTurnProvider,
+)
 from .exceptions import ConversationTimeoutError, RequestError, WebChatAdapterError
 from .post_delegation_reconciliation import (
     POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
@@ -118,19 +121,43 @@ class BrowserOwnedWriteObservation:
         tab_id = event.get("runtime_tab_id")
         return cls(
             write_event_observed=True,
-            runtime_tab_id=tab_id if isinstance(tab_id, int) and not isinstance(tab_id, bool) else None,
-            runtime_tab_preexisting=_optional_bool(event.get("runtime_tab_preexisting")),
-            runtime_tab_created_for_turn=_optional_bool(event.get("runtime_tab_created_for_turn")),
-            tab_was_active_at_write_start=_optional_bool(event.get("tab_was_active_at_write_start")),
+            runtime_tab_id=tab_id
+            if isinstance(tab_id, int) and not isinstance(tab_id, bool)
+            else None,
+            runtime_tab_preexisting=_optional_bool(
+                event.get("runtime_tab_preexisting")
+            ),
+            runtime_tab_created_for_turn=_optional_bool(
+                event.get("runtime_tab_created_for_turn")
+            ),
+            tab_was_active_at_write_start=_optional_bool(
+                event.get("tab_was_active_at_write_start")
+            ),
             tab_active_after_write=_optional_bool(event.get("tab_active_after_write")),
-            tab_activated_during_turn=_optional_bool(event.get("tab_activated_during_turn")),
-            foreground_activation_observed=_optional_bool(event.get("foreground_activation_observed")),
-            browser_authority_lease_id=_optional_text(event.get("browser_authority_lease_id")),
-            browser_authority_generation=_optional_int(event.get("browser_authority_generation")),
-            browser_authority_policy=_optional_text(event.get("browser_authority_policy")),
-            browser_authority_ttl_ms=_optional_int(event.get("browser_authority_ttl_ms")),
-            browser_authority_issued_at_ms=_optional_int(event.get("browser_authority_issued_at_ms")),
-            browser_authority_released_at_ms=_optional_int(event.get("browser_authority_released_at_ms")),
+            tab_activated_during_turn=_optional_bool(
+                event.get("tab_activated_during_turn")
+            ),
+            foreground_activation_observed=_optional_bool(
+                event.get("foreground_activation_observed")
+            ),
+            browser_authority_lease_id=_optional_text(
+                event.get("browser_authority_lease_id")
+            ),
+            browser_authority_generation=_optional_int(
+                event.get("browser_authority_generation")
+            ),
+            browser_authority_policy=_optional_text(
+                event.get("browser_authority_policy")
+            ),
+            browser_authority_ttl_ms=_optional_int(
+                event.get("browser_authority_ttl_ms")
+            ),
+            browser_authority_issued_at_ms=_optional_int(
+                event.get("browser_authority_issued_at_ms")
+            ),
+            browser_authority_released_at_ms=_optional_int(
+                event.get("browser_authority_released_at_ms")
+            ),
             browser_authority_disposal_due_at_ms=_optional_int(
                 event.get("browser_authority_disposal_due_at_ms")
             ),
@@ -212,7 +239,9 @@ class BrowserOwnedWriteRuntimeError(RequestError):
         super().__init__(
             message,
             status_code=status_code,
-            endpoint="conversation" if request_stage == "browser_owned_write_readback" else None,
+            endpoint="conversation"
+            if request_stage == "browser_owned_write_readback"
+            else None,
             request_stage=request_stage,
         )
 
@@ -338,7 +367,11 @@ class BrowserOwnedProductWriteRuntime:
 
     def health(
         self,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        conversation: ConversationRef
+        | ChatConversation
+        | dict[str, Any]
+        | str
+        | None = None,
     ) -> BrowserOwnedWriteRuntimeHealth:
         conversation_id = _conversation_id(conversation)
         bridge: BrowserNativeBridgeStatus = self.provider.status()
@@ -389,7 +422,9 @@ class BrowserOwnedProductWriteRuntime:
                 conversation_id=conversation_id,
                 canonical_status=None,
                 canonical_read_checked=True,
-                canonical_read_reason_code=getattr(error, "reason_code", type(error).__name__),
+                canonical_read_reason_code=getattr(
+                    error, "reason_code", type(error).__name__
+                ),
                 canonical_read_status_code=getattr(error, "status_code", None),
                 canonical_read_content_type=getattr(error, "content_type", None),
             )
@@ -576,7 +611,8 @@ class BrowserOwnedProductWriteRuntime:
             if (
                 current_turn is not None
                 and current_turn.lifecycle_id == turn.lifecycle_id
-                and current_turn.state in {
+                and current_turn.state
+                in {
                     TurnLifecycleState.PREPARED,
                     TurnLifecycleState.DISPATCHED,
                 }
@@ -629,7 +665,8 @@ class BrowserOwnedProductWriteRuntime:
             if (
                 current_turn is not None
                 and current_turn.lifecycle_id == turn.lifecycle_id
-                and current_turn.state in {
+                and current_turn.state
+                in {
                     TurnLifecycleState.PREPARED,
                     TurnLifecycleState.DISPATCHED,
                 }
@@ -720,7 +757,11 @@ class BrowserOwnedProductWriteRuntime:
         self,
         text: str,
         *,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        conversation: ConversationRef
+        | ChatConversation
+        | dict[str, Any]
+        | str
+        | None = None,
         timeout: float = 150.0,
         poll_interval: float = 0.5,
         on_token: Callable[[str], None] | None = None,
@@ -820,11 +861,22 @@ class BrowserOwnedProductWriteRuntime:
             return readback_acknowledged
 
         def runtime_event(event: dict[str, Any]) -> None:
-            nonlocal lease_ref, turn_ref, write_event_observed, delegated_conversation_id, runtime_tab_id
+            nonlocal \
+                lease_ref, \
+                turn_ref, \
+                write_event_observed, \
+                delegated_conversation_id, \
+                runtime_tab_id
             forwarded = event
-            if isinstance(event, dict) and event.get("type") == "browser_native_write_completed":
+            if (
+                isinstance(event, dict)
+                and event.get("type") == "browser_native_write_completed"
+            ):
                 write_event_observed = True
-                delegated_conversation_id = _optional_text(event.get("conversation_id")) or delegated_conversation_id
+                delegated_conversation_id = (
+                    _optional_text(event.get("conversation_id"))
+                    or delegated_conversation_id
+                )
                 runtime_tab_id = _optional_int(event.get("runtime_tab_id"))
                 if browser_context_readback:
                     lease_ref, turn_ref, forwarded = self._record_write_completion(
@@ -833,12 +885,17 @@ class BrowserOwnedProductWriteRuntime:
                         event,
                     )
                 else:
-                    lease_ref, turn_ref, forwarded = self._release_authority_from_write_event(
-                        lease_ref,
-                        turn_ref,
-                        event,
+                    lease_ref, turn_ref, forwarded = (
+                        self._release_authority_from_write_event(
+                            lease_ref,
+                            turn_ref,
+                            event,
+                        )
                     )
-            elif isinstance(event, dict) and event.get("type") == "browser_native_readback_completed":
+            elif (
+                isinstance(event, dict)
+                and event.get("type") == "browser_native_readback_completed"
+            ):
                 if browser_context_readback and write_event_observed:
                     if not acknowledge_readback():
                         raise RequestError(
@@ -891,7 +948,11 @@ class BrowserOwnedProductWriteRuntime:
                 turn_ref,
                 state=TurnLifecycleState.READBACK_INCOMPLETE,
             )
-            if browser_context_readback and write_event_observed and acknowledge_readback():
+            if (
+                browser_context_readback
+                and write_event_observed
+                and acknowledge_readback()
+            ):
                 lease_ref = self._release_authority_after_readback(
                     lease_ref,
                     runtime_tab_id=runtime_tab_id,
@@ -956,9 +1017,7 @@ class BrowserOwnedProductWriteRuntime:
                     )
 
             post_outcome = (
-                post_reconciliation.outcome
-                if post_reconciliation is not None
-                else None
+                post_reconciliation.outcome if post_reconciliation is not None else None
             )
             submitted_reconciled = post_outcome in {
                 POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
@@ -1026,8 +1085,7 @@ class BrowserOwnedProductWriteRuntime:
                     else "browser_owned_write"
                 ),
                 conversation_id=(
-                    getattr(error, "conversation_id", None)
-                    or delegated_conversation_id
+                    getattr(error, "conversation_id", None) or delegated_conversation_id
                 ),
                 reason_code=getattr(error, "reason_code", None),
                 status_code=getattr(error, "status_code", None),
@@ -1054,7 +1112,11 @@ class BrowserOwnedProductWriteRuntime:
         self,
         text: str,
         *,
-        conversation: ConversationRef | ChatConversation | dict[str, Any] | str | None = None,
+        conversation: ConversationRef
+        | ChatConversation
+        | dict[str, Any]
+        | str
+        | None = None,
         timeout: float = 150.0,
         poll_interval: float = 0.5,
         on_token: Callable[[str], None] | None = None,
@@ -1066,7 +1128,10 @@ class BrowserOwnedProductWriteRuntime:
 
         def capture_event(event: dict[str, Any]) -> None:
             nonlocal write_event
-            if isinstance(event, dict) and event.get("type") == "browser_native_write_completed":
+            if (
+                isinstance(event, dict)
+                and event.get("type") == "browser_native_write_completed"
+            ):
                 write_event = dict(event)
             elif (
                 isinstance(event, dict)

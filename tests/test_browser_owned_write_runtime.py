@@ -19,7 +19,9 @@ class FakeProvider:
         return self._status
 
     def send_text(self, *args, **kwargs):
-        raise AssertionError("low-level provider should be called through send_browser_native")
+        raise AssertionError(
+            "low-level provider should be called through send_browser_native"
+        )
 
 
 class FakeClient:
@@ -29,7 +31,11 @@ class FakeClient:
         self._browser_native_turn_provider = None
 
     def get_status(self, conversation):
-        value = self.status_values.pop(0) if self.status_values is not None and self.status_values else self.status_value
+        value = (
+            self.status_values.pop(0)
+            if self.status_values is not None and self.status_values
+            else self.status_value
+        )
         if isinstance(value, BaseException):
             raise value
         return SimpleNamespace(status=value)
@@ -83,7 +89,9 @@ def test_unreadable_continuation_is_blocked() -> None:
 
 def test_preflight_failure_never_delegates_write(monkeypatch) -> None:
     calls = []
-    monkeypatch.setattr(subject, "send_browser_native", lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr(
+        subject, "send_browser_native", lambda *a, **k: calls.append((a, k))
+    )
     rt = runtime(connected=False)
     with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
         rt.send_text("hello")
@@ -95,10 +103,13 @@ def test_preflight_failure_never_delegates_write(monkeypatch) -> None:
     assert error.reconciliation_required is False
 
 
-
-def test_continuation_commit_point_recheck_blocks_completed_to_running_race(monkeypatch) -> None:
+def test_continuation_commit_point_recheck_blocks_completed_to_running_race(
+    monkeypatch,
+) -> None:
     calls = []
-    monkeypatch.setattr(subject, "send_browser_native", lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr(
+        subject, "send_browser_native", lambda *a, **k: calls.append((a, k))
+    )
     rt = runtime(status=["completed", "running"])
     with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
         rt.send_text("hello", conversation="conversation-1")
@@ -322,7 +333,10 @@ def test_delegated_abort_with_canonical_terminal_assistant_finalizes_logical_tur
     assert calls == 1
     error = caught.value
     assert error.failure_kind == subject.WRITE_SUBMITTED_TERMINAL_ASSISTANT
-    assert error.post_delegation_outcome == subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT
+    assert (
+        error.post_delegation_outcome
+        == subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT
+    )
     assert error.write_may_have_been_submitted is True
     assert error.reconciliation_required is False
     assert error.automatic_retry_allowed is False

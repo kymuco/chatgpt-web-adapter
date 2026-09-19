@@ -413,7 +413,9 @@ def test_async_get_request_post_data_settles_before_identity_authority() -> None
     assert result["result"]["conversationId"] == expected
 
 
-def test_aborted_correlated_continuation_retains_exact_request_bound_user_identity() -> None:
+def test_aborted_correlated_continuation_retains_exact_request_bound_user_identity() -> (
+    None
+):
     text = "post delegation abort probe"
     requested = "6bb0c074-5d4c-83ec-b16d-92e095b71bf9"
     result = _run_harness(
