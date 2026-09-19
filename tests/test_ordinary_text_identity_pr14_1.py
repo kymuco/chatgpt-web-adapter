@@ -296,6 +296,7 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
     conversationId: scenario.requestedConversationId || null,
     attachmentPaths: [],
     conversationMode: "normal",
+    canonicalCompleted: scenario.canonicalCompleted === true,
     postDelegationObserverFailureProbe: scenario.postDelegationObserverFailureProbe === true,
     timeoutMs: 5000
   };
@@ -320,6 +321,8 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
         Number.isInteger(error?.cwaPostDelegationRuntimeTabId)
           ? error.cwaPostDelegationRuntimeTabId
           : null,
+      postDelegationRecoveryContinuationObserved:
+        error?.cwaPostDelegationRecoveryContinuationObserved === true,
       postDelegationObserverFailureProbeTriggered:
         error?.cwaPostDelegationObserverFailureProbeTriggered === true,
       events
@@ -509,6 +512,30 @@ def test_observer_failure_probe_waits_for_async_request_post_data_identity() -> 
     assert result["events"].index("POST_DATA_RESOLVED") < result["events"].index(
         "OBSERVER_FAILURE_PROBE_REJECT"
     )
+
+
+def test_recovery_continuation_keeps_request_bound_identity_authority() -> None:
+    text = "recovery continuation identity probe"
+    requested = "7ff0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "canonicalCompleted": True,
+            "postDelegationObserverFailureProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationRecoveryContinuationObserved"] is True
+    assert result["postDelegationObserverFailureProbeTriggered"] is True
+    assert "OBSERVER_FAILURE_PROBE_CALL" in result["events"]
+    assert "OBSERVER_FAILURE_PROBE_REJECT" in result["events"]
 
 
 def test_observer_failure_probe_never_rejects_uncorrelated_request() -> None:
