@@ -621,6 +621,8 @@ function safeTurnFailureEvidence(error) {
     postDelegationUserMessageId: userMessageId,
     postDelegationConversationId: conversationId,
     postDelegationRuntimeTabId: runtimeTabId,
+    postDelegationRecoveryContinuationObserved:
+      error.cwaPostDelegationRecoveryContinuationObserved === true,
     postDelegationObserverFailureProbeTriggered:
       error.cwaPostDelegationObserverFailureProbeTriggered === true
   };
