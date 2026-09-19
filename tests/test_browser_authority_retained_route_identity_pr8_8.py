@@ -230,6 +230,10 @@ def test_extension_route_layer_is_additive_and_read_only():
         "fragmentExported: false",
     ):
         assert token in route_worker
+    assert "registerNativeTurnDiagnosticHandler(" in route_worker
+    assert '"retained-route-identity"' in route_worker
+    assert "executeNativeTurn = async function" not in route_worker
+    assert "_pr88RoutePriorExecuteNativeTurn" not in route_worker
     for forbidden in (
         "chrome.debugger.attach",
         "Runtime.evaluate",
