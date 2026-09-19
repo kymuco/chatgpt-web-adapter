@@ -124,7 +124,9 @@ def test_live_gate_proves_precise_submitted_outcome_without_replay(
     assert report["probe"]["automatic_retry_allowed"] is False
     assert report["probe"]["reconciliation"]["user_turn_persisted"] is True
     assert len(runtime.write_transport.provider.payloads) == 1
-    assert runtime.write_transport.provider.payloads[0]["postDelegationAbortProbe"] is True
+    assert (
+        runtime.write_transport.provider.payloads[0]["postDelegationAbortProbe"] is True
+    )
 
 
 def test_live_gate_blocks_second_probe_turn_before_send(
