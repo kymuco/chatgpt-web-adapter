@@ -95,6 +95,25 @@ globalThis.chrome = {
         events.push("RESPONSE_BODY_READ");
         return { body: scenario.responseBody || "", base64Encoded: false };
       }
+      if (method === "Fetch.enable") {
+        scenario.fetchEnabled = true;
+        events.push("FETCH_ENABLED");
+        return {};
+      }
+      if (method === "Fetch.continueResponse") {
+        events.push("FETCH_CONTINUED");
+        return {};
+      }
+      if (method === "Fetch.failRequest") {
+        scenario.probeAborted = true;
+        events.push("FETCH_ABORTED");
+        return {};
+      }
+      if (method === "Fetch.disable") {
+        scenario.fetchEnabled = false;
+        events.push("FETCH_DISABLED");
+        return {};
+      }
       throw new Error(`unexpected debugger command: ${method}`);
     }
   }
@@ -257,6 +276,18 @@ globalThis.executeOfficialPageTurn = async (args) => {
     requestId: "request-1",
     response: { status: 200, mimeType: "text/event-stream" }
   });
+  if (scenario.postDelegationAbortProbe && scenario.fetchEnabled) {
+    emit("Fetch.requestPaused", {
+      requestId: "fetch-1",
+      networkId: "request-1",
+      request,
+      responseStatusCode: 200
+    });
+    await delay(0);
+    if (scenario.probeAborted) {
+      throw new Error("CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED");
+    }
+  }
   if (scenario.loadingFinished) {
     emit("Network.loadingFinished", { requestId: "request-1" });
   }
@@ -284,6 +315,7 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
     conversationId: scenario.requestedConversationId || null,
     attachmentPaths: [],
     conversationMode: "normal",
+    postDelegationAbortProbe: scenario.postDelegationAbortProbe === true,
     timeoutMs: 5000
   };
   try {
@@ -307,6 +339,8 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
         Number.isInteger(error?.cwaPostDelegationRuntimeTabId)
           ? error.cwaPostDelegationRuntimeTabId
           : null,
+      postDelegationAbortProbeTriggered:
+        error?.cwaPostDelegationAbortProbeTriggered === true,
       events
     }));
   }
@@ -445,6 +479,50 @@ def test_aborted_correlated_continuation_retains_exact_request_bound_user_identi
     assert result["postDelegationUserMessageId"] == "client-message-1"
     assert result["postDelegationConversationId"] == requested
     assert result["postDelegationRuntimeTabId"] == 1
+
+
+def test_live_abort_probe_fails_exact_correlated_response_after_headers() -> None:
+    text = "post delegation live abort probe"
+    requested = "7bb0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "postDelegationAbortProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationRuntimeTabId"] == 1
+    assert result["postDelegationAbortProbeTriggered"] is True
+    assert "FETCH_ENABLED" in result["events"]
+    assert "FETCH_ABORTED" in result["events"]
+    assert "FETCH_DISABLED" in result["events"]
+
+
+def test_live_abort_probe_never_aborts_uncorrelated_request() -> None:
+    result = _run_harness(
+        {
+            "messageText": "intended text",
+            "requestedConversationId": "8bb0c074-5d4c-83ec-b16d-92e095b71bf9",
+            "eventPostData": _valid_post_data(
+                "different text",
+                "8bb0c074-5d4c-83ec-b16d-92e095b71bf9",
+            ),
+            "postDelegationAbortProbe": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert "ORDINARY_REQUEST_CORRELATION_UNRESOLVED" in result["error"]
+    assert result["postDelegationAbortProbeTriggered"] is False
+    assert "FETCH_ABORTED" not in result["events"]
+    assert "FETCH_CONTINUED" in result["events"]
 
 
 def test_exact_request_body_mismatch_fails_closed() -> None:
