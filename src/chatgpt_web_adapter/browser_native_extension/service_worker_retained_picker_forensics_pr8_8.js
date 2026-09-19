@@ -10,7 +10,6 @@ const PR88_RETAINED_PICKER_FORENSICS_SCHEMA_VERSION = 1;
 const PR88_FORENSICS_MAX_DOM_CANDIDATES = 80;
 const PR88_FORENSICS_MAX_AX_CANDIDATES = 80;
 const PR88_FORENSICS_MAX_POPUPS = 24;
-const _pr88ForensicsPriorExecuteNativeTurn = executeNativeTurn;
 
 function _pr88ForensicsConversationId(value) {
   const conversationId = typeof value === "string" ? value.trim() : "";
@@ -439,7 +438,20 @@ async function _pr88ForensicsProbe(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithRetainedPickerForensics(message) {
+function _pr88ForensicsDiagnosticMatches(message) {
+  if (
+    message?.characterizeRetainedRouteIdentitySupport === true ||
+    message?.characterizeRetainedRouteIdentity === true
+  ) {
+    return false;
+  }
+  return (
+    message?.characterizeRetainedPickerForensicsSupport === true ||
+    message?.characterizeRetainedPickerSurfaceForensics === true
+  );
+}
+
+async function _pr88HandleRetainedPickerDiagnostic(message) {
   if (message?.characterizeRetainedPickerForensicsSupport === true) {
     if (_pr88ForensicsQueryConflict(message) || message?.conversationId != null) {
       throw new Error("PR8_8_RETAINED_PICKER_FORENSICS_SUPPORT_FLAG_CONFLICT");
@@ -458,9 +470,11 @@ executeNativeTurn = async function _executeNativeTurnWithRetainedPickerForensics
     };
   }
 
-  if (message?.characterizeRetainedPickerSurfaceForensics === true) {
-    return _pr88ForensicsProbe(message);
-  }
+  return _pr88ForensicsProbe(message);
+}
 
-  return _pr88ForensicsPriorExecuteNativeTurn(message);
-};
+registerNativeTurnDiagnosticHandler(
+  "retained-picker-forensics",
+  _pr88ForensicsDiagnosticMatches,
+  _pr88HandleRetainedPickerDiagnostic
+);
