@@ -549,9 +549,11 @@ def test_live_abort_probe_continues_response_without_network_identity() -> None:
         }
     )
 
-    assert result["ok"] is True
+    assert result["ok"] is False
+    assert "SSE_IDENTITY_UNRESOLVED" in result["error"]
     assert "FETCH_CONTINUED" in result["events"]
     assert "FETCH_ABORTED" not in result["events"]
+    assert result["postDelegationAbortProbeTriggered"] is False
 
 
 def test_live_abort_probe_never_claims_trigger_when_fail_request_rejected() -> None:
@@ -568,10 +570,11 @@ def test_live_abort_probe_never_claims_trigger_when_fail_request_rejected() -> N
         }
     )
 
-    assert result["ok"] is True
+    assert result["ok"] is False
+    assert "SSE_IDENTITY_UNRESOLVED" in result["error"]
     assert "FETCH_ABORT_REJECTED" in result["events"]
     assert "FETCH_CONTINUED" in result["events"]
-    assert result.get("postDelegationAbortProbeTriggered") is not True
+    assert result["postDelegationAbortProbeTriggered"] is False
 
 
 def test_live_abort_probe_never_aborts_uncorrelated_request() -> None:
