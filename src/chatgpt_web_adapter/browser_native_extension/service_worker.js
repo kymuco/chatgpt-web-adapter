@@ -594,7 +594,9 @@ function safeTurnFailureEvidence(error) {
     postDelegationRequestCorrelationProven: true,
     postDelegationUserMessageId: userMessageId,
     postDelegationConversationId: conversationId,
-    postDelegationRuntimeTabId: runtimeTabId
+    postDelegationRuntimeTabId: runtimeTabId,
+    postDelegationAbortProbeTriggered:
+      error.cwaPostDelegationAbortProbeTriggered === true
   };
 }
 
