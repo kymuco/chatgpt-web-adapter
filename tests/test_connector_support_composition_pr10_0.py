@@ -12,6 +12,7 @@ OBSERVATION = EXT / "service_worker_runtime_observation.js"
 SUPPORT = EXT / "service_worker_connector_support_pr10_0.js"
 LIFECYCLE = EXT / "service_worker_connector_lifecycle_pr10_0.js"
 MANIFEST = EXT / "manifest.json"
+WORKER = EXT / "service_worker.js"
 
 
 def test_manifest_entrypoint_stays_historically_stable() -> None:
@@ -26,40 +27,42 @@ def test_manifest_entrypoint_stays_historically_stable() -> None:
     assert 'importScripts("service_worker_runtime.js");' in bootstrap
 
 
-def test_connector_support_is_single_turn_owner_for_support_probes() -> None:
+def test_connector_support_registers_explicit_diagnostic_handler() -> None:
     write = WRITE.read_text(encoding="utf-8")
     observation = OBSERVATION.read_text(encoding="utf-8")
+    support_source = SUPPORT.read_text(encoding="utf-8")
+    lifecycle_source = LIFECYCLE.read_text(encoding="utf-8")
+    worker_source = WORKER.read_text(encoding="utf-8")
+
     schema7 = 'importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");'
     support = 'importScripts("service_worker_connector_support_pr10_0.js");'
     liveness = 'importScripts("service_worker_ui_liveness.js");'
 
     assert schema7 in write
     assert observation.index(support) < observation.index(liveness)
-
-    support_source = SUPPORT.read_text(encoding="utf-8")
-    lifecycle_source = LIFECYCLE.read_text(encoding="utf-8")
-    final_wrapper = "executeNativeTurn = async function _pr100"
-    assert final_wrapper in support_source
+    assert "executeNativeTurn = async function" not in support_source
     assert "executeNativeTurn = async function" not in lifecycle_source
+    assert "_pr100SupportPriorExecuteNativeTurn" not in support_source
     assert "_pr100PriorExecuteNativeTurn" not in lifecycle_source
-    assert liveness not in support_source
-    assert support_source.rstrip().endswith("};")
+    assert "registerNativeTurnDiagnosticHandler(" in support_source
+    assert '"connector-support"' in support_source
+    assert "registerNativeTurnDiagnosticHandler" in worker_source
+    assert "dispatchNativeTurn(message)" in worker_source
 
 
-def test_outer_support_probes_are_direct_no_write_and_other_turns_delegate() -> None:
+def test_connector_support_diagnostics_are_no_write_and_do_not_wrap_runtime() -> None:
     source = SUPPORT.read_text(encoding="utf-8")
 
     connector_flag = 'message?.characterizeConnectorObservationSupport === true'
     surface_flag = 'message?.characterizeRequiredActionSurface === true'
-    delegation = "return _pr100SupportPriorExecuteNativeTurn(message);"
     contract = "connectorObservationSupported: true"
 
-    assert "const _pr100SupportPriorExecuteNativeTurn = executeNativeTurn;" in source
     assert connector_flag in source
     assert surface_flag in source
     assert contract in source
-    assert source.count(delegation) == 1
-    assert source.rfind(delegation) > source.index(surface_flag)
+    assert "_pr100SupportDiagnosticMatches" in source
+    assert "_pr100HandleSupportDiagnostic" in source
+    assert "executeNativeTurn" not in source
     assert "message?.text != null" in source
     assert "message?.conversationId != null" in source
     assert "message?.attachmentPaths != null" in source
@@ -81,3 +84,4 @@ def test_outer_support_probes_are_direct_no_write_and_other_turns_delegate() -> 
         "wait_and_approve",
     ):
         assert forbidden not in source
+
