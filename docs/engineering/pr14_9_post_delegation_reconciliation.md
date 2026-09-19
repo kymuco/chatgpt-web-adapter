@@ -172,3 +172,67 @@ The deterministic gate must prove:
 - incomplete canonical proof leaves reconciliation required;
 - browser-context reconciliation releases authority against the exact failed-turn
   tab, including disposable Browser Authority policies.
+
+
+## CWA-owned live acceptance
+
+The live gate is intentionally self-contained and consumer-independent.
+
+It performs exactly two product writes:
+
+```text
+1. seed one disposable saved conversation
+2. send one existing-conversation continuation with a one-shot abort probe
+```
+
+The probe is not a second transport implementation. The live gate injects one
+diagnostic field into exactly one normal `turn` RPC. The extension recognizes that
+field only for an existing conversation and enables CDP `Fetch` interception at
+the response stage. Once the exact request-bound conversation POST has both:
+
+- matched the intended user message id; and
+- received a 2xx response-stage pause,
+
+the probe executes:
+
+```text
+Fetch.failRequest(errorReason="Aborted")
+```
+
+This preserves the ChatGPT page/tab and therefore the browser-context canonical read
+plane, while deliberately terminating the already-delegated response stream.
+
+The probe exports an explicit `postDelegationAbortProbeTriggered=true` evidence bit.
+A random network abort cannot satisfy the live gate without that proof.
+
+The live gate itself wraps the provider RPC and permits exactly one probe
+`type="turn"`. Any attempted second probe turn fails locally before it can be sent.
+This makes the no-replay acceptance criterion executable rather than inferred.
+
+Run:
+
+```powershell
+python -m chatgpt_web_adapter.post_delegation_reconciliation_live_gate \`
+  --auth-file auth_data.json \`
+  --acknowledge-live-writes
+```
+
+Acceptance requires:
+
+```text
+deployment identity healthy
+seed write succeeds exactly once
+probe turn sent exactly once
+response-stage abort probe triggered
+request-bound user message canonically persisted
+outcome = SUBMITTED_GENERATION_INCOMPLETE
+       or SUBMITTED_TERMINAL_ASSISTANT
+automatic_retry_allowed = false
+manual_retry_safe_after_repair = false
+no third product write
+consumer_dependency = false
+```
+
+`UNKNOWN` is a safe runtime classification, but it is not sufficient to graduate
+this PR's live acceptance because the live gate exists specifically to prove that
+the stronger request-bound + canonical evidence path works on the real product.
