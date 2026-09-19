@@ -83,4 +83,3 @@ def test_connector_support_diagnostics_are_no_write_and_do_not_wrap_runtime() ->
         "wait_and_approve",
     ):
         assert forbidden not in source
-
