@@ -17,7 +17,7 @@ from .product_runtime import assemble_product_runtime
 from .temporary_chat_production_live_gate_pr8_13 import _prompt
 
 SEED_EXPECTED = "CWA_PR14_9_SEED_OK"
-PROBE_EXPECTED = "CWA_PR14_9_ABORT_PROBE_SHOULD_NOT_RETURN"
+PROBE_EXPECTED = "CWA_PR14_9_OBSERVER_FAILURE_PROBE_SHOULD_NOT_RETURN"
 
 
 def _require_deployment_identity() -> dict[str, Any]:
@@ -48,7 +48,7 @@ def _require_deployment_identity() -> dict[str, Any]:
 
 
 @contextmanager
-def _one_shot_abort_probe(
+def _one_shot_observer_failure_probe(
     provider: Any,
     *,
     conversation_id: str,
@@ -77,7 +77,7 @@ def _one_shot_abort_probe(
             turn_rpc_count += 1
             forwarded = {
                 **payload,
-                "postDelegationAbortProbe": True,
+                "postDelegationObserverFailureProbe": True,
             }
         return original_rpc(
             forwarded,
@@ -143,7 +143,7 @@ def run_live_gate(
         raise RuntimeError("PR14_9_BROWSER_PROVIDER_UNAVAILABLE")
 
     probe_error: BrowserOwnedWriteRuntimeError | None = None
-    with _one_shot_abort_probe(
+    with _one_shot_observer_failure_probe(
         provider,
         conversation_id=conversation_id,
     ) as probe_turn_count:
@@ -156,16 +156,16 @@ def run_live_gate(
         except BrowserOwnedWriteRuntimeError as error:
             probe_error = error
         else:
-            raise RuntimeError("PR14_9_ABORT_PROBE_UNEXPECTEDLY_RETURNED_SUCCESS")
+            raise RuntimeError("PR14_9_OBSERVER_FAILURE_PROBE_UNEXPECTEDLY_RETURNED_SUCCESS")
         finally:
             report["product_write_attempts"] += probe_turn_count()
 
     if probe_error is None:
-        raise RuntimeError("PR14_9_ABORT_PROBE_ERROR_MISSING")
+        raise RuntimeError("PR14_9_OBSERVER_FAILURE_PROBE_ERROR_MISSING")
     if report["product_write_attempts"] != report["product_write_budget"]:
         raise RuntimeError("PR14_9_PRODUCT_WRITE_BUDGET_MISMATCH")
-    if probe_error.post_delegation_abort_probe_triggered is not True:
-        raise RuntimeError("PR14_9_ABORT_PROBE_TRIGGER_NOT_PROVEN")
+    if probe_error.post_delegation_observer_failure_probe_triggered is not True:
+        raise RuntimeError("PR14_9_OBSERVER_FAILURE_PROBE_TRIGGER_NOT_PROVEN")
     if probe_error.failure_kind not in {
         WRITE_SUBMITTED_GENERATION_INCOMPLETE,
         WRITE_SUBMITTED_TERMINAL_ASSISTANT,
@@ -198,7 +198,7 @@ def run_live_gate(
         "write_may_have_been_submitted": probe_error.write_may_have_been_submitted,
         "reconciliation_required": probe_error.reconciliation_required,
         "runtime_tab_id": probe_error.post_delegation_runtime_tab_id,
-        "abort_probe_triggered": probe_error.post_delegation_abort_probe_triggered,
+        "observer_failure_probe_triggered": probe_error.post_delegation_observer_failure_probe_triggered,
         "turn_lifecycle": (
             probe_error.turn_lifecycle.to_dict()
             if probe_error.turn_lifecycle is not None
@@ -210,7 +210,7 @@ def run_live_gate(
         "one_seed_write": True,
         "one_probe_write": True,
         "second_probe_turn_forbidden_before_send": True,
-        "response_stage_abort_probe_triggered": True,
+        "response_stage_observer_failure_probe_triggered": True,
         "exact_request_bound_user_persisted": True,
         "precise_submitted_outcome_proven": True,
         "automatic_write_retry": False,
