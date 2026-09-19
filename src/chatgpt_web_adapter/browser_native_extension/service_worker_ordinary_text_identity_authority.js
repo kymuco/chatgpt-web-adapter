@@ -355,7 +355,7 @@ async function _cwaOrdinaryIdentityEnableAbortProbe(context) {
   context.postDelegationAbortProbeFetchEnabled = true;
 }
 
-function _cwaOrdinaryIdentityHandleAbortProbePause(
+async function _cwaOrdinaryIdentityHandleAbortProbePause(
   context,
   source,
   params
@@ -374,6 +374,16 @@ function _cwaOrdinaryIdentityHandleAbortProbePause(
   const entry = context.entries.find(
     (candidate) => candidate.requestId === networkId
   );
+  if (entry?.postDataLookupPromise) {
+    await _cwaOrdinaryIdentityAwaitBounded(
+      [entry.postDataLookupPromise],
+      _cwaOrdinaryIdentityRemainingBudget(
+        context,
+        CWA_ORDINARY_IDENTITY_POSTDATA_SETTLE_CAP_MS
+      )
+    );
+  }
+
   const status = Number.isFinite(params?.responseStatusCode)
     ? Number(params.responseStatusCode)
     : null;
@@ -384,24 +394,24 @@ function _cwaOrdinaryIdentityHandleAbortProbePause(
     status < 200 ||
     status >= 300
   ) {
-    chrome.debugger.sendCommand(
+    await chrome.debugger.sendCommand(
       source,
       "Fetch.continueResponse",
       { requestId: fetchRequestId }
-    ).catch(() => {});
+    );
     return true;
   }
 
   context.postDelegationAbortProbeTriggered = true;
   context.postDelegationAbortProbeNetworkRequestId = networkId;
-  chrome.debugger.sendCommand(
+  await chrome.debugger.sendCommand(
     source,
     "Fetch.failRequest",
     {
       requestId: fetchRequestId,
       errorReason: "Aborted"
     }
-  ).catch(() => {});
+  );
   return true;
 }
 
@@ -409,7 +419,9 @@ function _cwaOrdinaryIdentityObserve(context, source, method, params) {
   if (context.debuggee === null || source?.tabId !== context.debuggee.tabId) return;
 
   if (method === "Fetch.requestPaused") {
-    _cwaOrdinaryIdentityHandleAbortProbePause(context, source, params);
+    _cwaOrdinaryIdentityHandleAbortProbePause(context, source, params).catch(() => {
+      context.observationErrorCount += 1;
+    });
     return;
   }
 
