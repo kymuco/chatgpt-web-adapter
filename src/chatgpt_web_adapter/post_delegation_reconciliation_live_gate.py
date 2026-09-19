@@ -166,6 +166,8 @@ def run_live_gate(
         raise RuntimeError("PR14_9_OBSERVER_FAILURE_PROBE_ERROR_MISSING")
     if report["product_write_attempts"] != report["product_write_budget"]:
         raise RuntimeError("PR14_9_PRODUCT_WRITE_BUDGET_MISMATCH")
+    if probe_error.post_delegation_recovery_continuation_observed is not True:
+        raise RuntimeError("PR14_9_RECOVERY_CONTINUATION_NOT_OBSERVED")
     if probe_error.post_delegation_observer_failure_probe_triggered is not True:
         raise RuntimeError("PR14_9_OBSERVER_FAILURE_PROBE_TRIGGER_NOT_PROVEN")
     if probe_error.failure_kind not in {
@@ -200,7 +202,12 @@ def run_live_gate(
         "write_may_have_been_submitted": probe_error.write_may_have_been_submitted,
         "reconciliation_required": probe_error.reconciliation_required,
         "runtime_tab_id": probe_error.post_delegation_runtime_tab_id,
-        "observer_failure_probe_triggered": probe_error.post_delegation_observer_failure_probe_triggered,
+        "recovery_continuation_observed": (
+            probe_error.post_delegation_recovery_continuation_observed
+        ),
+        "observer_failure_probe_triggered": (
+            probe_error.post_delegation_observer_failure_probe_triggered
+        ),
         "turn_lifecycle": (
             probe_error.turn_lifecycle.to_dict()
             if probe_error.turn_lifecycle is not None
@@ -212,6 +219,7 @@ def run_live_gate(
         "one_seed_write": True,
         "one_probe_write": True,
         "second_probe_turn_forbidden_before_send": True,
+        "recovery_continuation_identity_authority_observed": True,
         "response_stage_observer_failure_probe_triggered": True,
         "exact_request_bound_user_persisted": True,
         "precise_submitted_outcome_proven": True,
