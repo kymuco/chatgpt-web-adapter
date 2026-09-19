@@ -575,6 +575,25 @@ async function executeNativeTurn(message) {
   };
 }
 
+function safeTurnFailureEvidence(error) {
+  if (!(error instanceof Error)) return {};
+  if (error.cwaPostDelegationRequestCorrelationProven !== true) return {};
+
+  const userMessageId = typeof error.cwaPostDelegationUserMessageId === "string"
+    ? error.cwaPostDelegationUserMessageId.trim()
+    : "";
+  const conversationId = typeof error.cwaPostDelegationConversationId === "string"
+    ? error.cwaPostDelegationConversationId.trim()
+    : "";
+  if (!userMessageId || !conversationId) return {};
+
+  return {
+    postDelegationRequestCorrelationProven: true,
+    postDelegationUserMessageId: userMessageId,
+    postDelegationConversationId: conversationId
+  };
+}
+
 function safePortPost(port, message) {
   if (!port) return false;
   try {
@@ -621,7 +640,8 @@ async function onNativeMessage(message, port) {
       type: "turn_result",
       request_id: requestId,
       ok: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      ...safeTurnFailureEvidence(error)
     });
   } finally {
     activeRequestId = null;
