@@ -12,7 +12,6 @@ importScripts("service_worker_temporary_chat_turn_probe.js");
 // a full settling window completes. If readiness is not proven, the result is
 // explicitly INCONCLUSIVE rather than a negative history claim.
 
-const _pr87HistoryProbePriorExecuteNativeTurn = executeNativeTurn;
 const PR87_HISTORY_DEFAULT_TIMEOUT_MS = 30_000;
 const PR87_HISTORY_MIN_SETTLE_MS = 8_000;
 const PR87_HISTORY_MAX_SETTLE_MS = 15_000;
@@ -276,12 +275,12 @@ async function _pr87ProbeHistoryPresence(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithTemporaryHistoryCharacterization(message) {
-  if (message?.probeTemporaryHistoryPresence !== true) {
-    return _pr87HistoryProbePriorExecuteNativeTurn(message);
-  }
-  if (message?.probeTemporaryMode === true || message?.characterizeTemporaryTurn === true) {
+async function _pr87HandleTemporaryHistoryCharacterization(message) {
+  if (
+    message?.probeTemporaryMode === true ||
+    message?.characterizeTemporaryTurn === true
+  ) {
     throw new Error("TEMPORARY_CHAT_HISTORY_PROBE_FLAG_CONFLICT");
   }
   return _pr87ProbeHistoryPresence(message);
-};
+}
