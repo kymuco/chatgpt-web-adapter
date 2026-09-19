@@ -191,6 +191,12 @@ def test_extension_forensics_layer_is_additive_and_contains_no_product_ui_mutati
         "instantAxCandidateCount",
     ):
         assert token in worker
+    assert "registerNativeTurnDiagnosticHandler(" in worker
+    assert '"retained-picker-forensics"' in worker
+    assert "executeNativeTurn = async function" not in worker
+    assert "_pr88ForensicsPriorExecuteNativeTurn" not in worker
+    assert "characterizeRetainedRouteIdentitySupport" in worker
+    assert "characterizeRetainedRouteIdentity" in worker
     for forbidden in (
         "Input.dispatchMouseEvent",
         "Input.insertText",
