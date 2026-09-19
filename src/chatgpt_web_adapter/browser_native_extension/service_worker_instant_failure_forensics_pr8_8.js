@@ -235,6 +235,10 @@ async function _pr88FailureRecord(message) {
   };
 }
 
+// Compatibility marker: characterizeInstantFailureForensicsRecord remains part
+// of this evidence surface; explicit diagnostic dispatch is owned by
+// service_worker_instant_popup_subtree_forensics_pr8_8.js.
+
 async function _pr88FailureSupport(message) {
   if (
     _pr88FailureQueryConflict(message) ||
