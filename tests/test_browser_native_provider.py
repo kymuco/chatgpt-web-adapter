@@ -111,6 +111,7 @@ def test_provider_preserves_bounded_post_delegation_identity_evidence(monkeypatc
             "postDelegationRequestCorrelationProven": True,
             "postDelegationUserMessageId": "user-message-1",
             "postDelegationConversationId": "conversation-1",
+            "postDelegationRuntimeTabId": 42,
         }
 
     monkeypatch.setattr(provider, "_rpc", fake_rpc)
@@ -126,3 +127,4 @@ def test_provider_preserves_bounded_post_delegation_identity_evidence(monkeypatc
     assert error.post_delegation_request_correlation_proven is True
     assert error.post_delegation_user_message_id == "user-message-1"
     assert error.post_delegation_conversation_id == "conversation-1"
+    assert error.post_delegation_runtime_tab_id == 42
