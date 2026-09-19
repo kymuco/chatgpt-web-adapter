@@ -338,8 +338,80 @@ function _cwaOrdinaryIdentityRecordRequest(context, source, params) {
   }
 }
 
+async function _cwaOrdinaryIdentityEnableAbortProbe(context) {
+  if (context.postDelegationAbortProbe !== true || context.debuggee === null) return;
+  await chrome.debugger.sendCommand(
+    context.debuggee,
+    "Fetch.enable",
+    {
+      patterns: [
+        {
+          urlPattern: "*conversation*",
+          requestStage: "Response"
+        }
+      ]
+    }
+  );
+  context.postDelegationAbortProbeFetchEnabled = true;
+}
+
+function _cwaOrdinaryIdentityHandleAbortProbePause(
+  context,
+  source,
+  params
+) {
+  if (
+    context.postDelegationAbortProbe !== true ||
+    context.postDelegationAbortProbeFetchEnabled !== true ||
+    context.postDelegationAbortProbeTriggered === true
+  ) {
+    return false;
+  }
+  const networkId = _cwaOrdinaryIdentityText(params?.networkId);
+  const fetchRequestId = _cwaOrdinaryIdentityText(params?.requestId);
+  if (networkId === null || fetchRequestId === null) return false;
+
+  const entry = context.entries.find(
+    (candidate) => candidate.requestId === networkId
+  );
+  const status = Number.isFinite(params?.responseStatusCode)
+    ? Number(params.responseStatusCode)
+    : null;
+  if (
+    entry?.matched !== true ||
+    entry.logicalMessageId === null ||
+    status === null ||
+    status < 200 ||
+    status >= 300
+  ) {
+    chrome.debugger.sendCommand(
+      source,
+      "Fetch.continueResponse",
+      { requestId: fetchRequestId }
+    ).catch(() => {});
+    return true;
+  }
+
+  context.postDelegationAbortProbeTriggered = true;
+  context.postDelegationAbortProbeNetworkRequestId = networkId;
+  chrome.debugger.sendCommand(
+    source,
+    "Fetch.failRequest",
+    {
+      requestId: fetchRequestId,
+      errorReason: "Aborted"
+    }
+  ).catch(() => {});
+  return true;
+}
+
 function _cwaOrdinaryIdentityObserve(context, source, method, params) {
   if (context.debuggee === null || source?.tabId !== context.debuggee.tabId) return;
+
+  if (method === "Fetch.requestPaused") {
+    _cwaOrdinaryIdentityHandleAbortProbePause(context, source, params);
+    return;
+  }
 
   if (method === "Network.requestWillBeSent") {
     _cwaOrdinaryIdentityRecordRequest(context, source, params);
@@ -471,6 +543,8 @@ async function _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
   annotated.cwaPostDelegationUserMessageId = userMessageId;
   annotated.cwaPostDelegationConversationId = conversationId;
   annotated.cwaPostDelegationRuntimeTabId = runtimeTabId;
+  annotated.cwaPostDelegationAbortProbeTriggered =
+    context.postDelegationAbortProbeTriggered === true;
   return annotated;
 }
 
@@ -603,6 +677,9 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
   const tabId = args?.tabId;
   context.debuggee = { tabId };
   context.officialActive = true;
+  if (context.postDelegationAbortProbe === true) {
+    await _cwaOrdinaryIdentityEnableAbortProbe(context);
+  }
   const observer = (source, method, params) => {
     try {
       _cwaOrdinaryIdentityObserve(context, source, method, params);
@@ -659,6 +736,14 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
     };
   } finally {
     context.officialActive = false;
+    if (context.postDelegationAbortProbeFetchEnabled === true) {
+      try {
+        await chrome.debugger.sendCommand(context.debuggee, "Fetch.disable", {});
+      } catch {
+        // Probe teardown never grants retry/write authority.
+      }
+      context.postDelegationAbortProbeFetchEnabled = false;
+    }
     if (listenerInstalled) {
       try {
         chrome.debugger.onEvent.removeListener(observer);
@@ -687,6 +772,12 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
   const context = {
     expectedText: message.text,
     expectedConversationId: _cwaOrdinaryIdentityText(message?.conversationId),
+    postDelegationAbortProbe:
+      message?.postDelegationAbortProbe === true &&
+      _cwaOrdinaryIdentityText(message?.conversationId) !== null,
+    postDelegationAbortProbeFetchEnabled: false,
+    postDelegationAbortProbeTriggered: false,
+    postDelegationAbortProbeNetworkRequestId: null,
     deadlineAt: performance.now() + timeoutMs,
     debuggee: null,
     officialActive: false,
