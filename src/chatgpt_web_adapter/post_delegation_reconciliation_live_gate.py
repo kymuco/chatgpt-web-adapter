@@ -9,9 +9,9 @@ from typing import Any, Callable, Iterator
 from .auth import DEFAULT_AUTH_FILE
 from .browser_native_install import browser_native_deployment_status
 from .browser_owned_write_runtime import (
-    BrowserOwnedWriteRuntimeError,
     WRITE_SUBMITTED_GENERATION_INCOMPLETE,
     WRITE_SUBMITTED_TERMINAL_ASSISTANT,
+    BrowserOwnedWriteRuntimeError,
 )
 from .product_runtime import assemble_product_runtime
 from .temporary_chat_production_live_gate_pr8_13 import _prompt
@@ -171,8 +171,7 @@ def run_live_gate(
         WRITE_SUBMITTED_TERMINAL_ASSISTANT,
     }:
         raise RuntimeError(
-            "PR14_9_PRECISE_SUBMITTED_OUTCOME_NOT_PROVEN:"
-            f"{probe_error.failure_kind}"
+            f"PR14_9_PRECISE_SUBMITTED_OUTCOME_NOT_PROVEN:{probe_error.failure_kind}"
         )
     if probe_error.automatic_retry_allowed is not False:
         raise RuntimeError("PR14_9_AUTOMATIC_RETRY_MUST_BE_FALSE")
