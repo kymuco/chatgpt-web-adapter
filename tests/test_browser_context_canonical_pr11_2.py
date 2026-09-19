@@ -208,7 +208,8 @@ def test_extension_layers_canonical_read_without_replacing_frozen_boundaries() -
         == "service_worker_temporary_chat_route_reopen_probe.js"
     )
     assert bootstrap.rstrip().endswith('importScripts("service_worker_runtime.js");')
-    assert connector.rstrip().endswith("};")
+    assert "registerNativeTurnDiagnosticHandler(" in connector
+    assert "executeNativeTurn = async function" not in connector
     citations = 'importScripts("service_worker_product_source_citations_pr9_3.js");'
     canonical = 'importScripts("service_worker_canonical_read_v2.js");'
     assert read.index(citations) < read.index(canonical)
