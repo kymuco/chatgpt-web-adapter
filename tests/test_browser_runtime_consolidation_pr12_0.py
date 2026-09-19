@@ -145,7 +145,7 @@ def test_read_domain_is_explicit_and_excludes_write_and_observation() -> None:
     assert "service_worker_ui_liveness.js" not in source
 
 
-def test_observation_domain_keeps_connector_turn_wrapper_before_liveness() -> None:
+def test_observation_domain_registers_connector_diagnostics_before_liveness() -> None:
     source = _source(OBSERVATION)
     connector = 'importScripts("service_worker_connector_support_pr10_0.js");'
     liveness = 'importScripts("service_worker_ui_liveness.js");'
@@ -155,4 +155,5 @@ def test_observation_domain_keeps_connector_turn_wrapper_before_liveness() -> No
 
     support = _source(CONNECTOR_SUPPORT)
     assert "service_worker_ui_liveness.js" not in support
-    assert support.rstrip().endswith("};")
+    assert "registerNativeTurnDiagnosticHandler(" in support
+    assert "executeNativeTurn = async function" not in support
