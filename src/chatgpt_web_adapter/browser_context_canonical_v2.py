@@ -23,6 +23,9 @@ from .browser_native_protocol import (
     send_local_message,
 )
 from .browser_native_provider import BrowserNativeTurnProvider
+from .canonical_conversation_snapshot import (
+    get_conversation_snapshot as _get_conversation_snapshot,
+)
 from .conversation_read_v2 import get_messages_v2, normalize_conversation_payload
 from .types import ConversationRef
 
@@ -232,6 +235,7 @@ class BrowserContextCanonicalClientV2(_LegacyBrowserContextCanonicalClient):
     def _get_full_conversation_payload(self, conversation_id: str) -> dict[str, Any]:
         return self.transport.read_full_conversation(conversation_id)
 
+    get_conversation_snapshot = _get_conversation_snapshot
     get_messages = get_messages_v2
 
 
