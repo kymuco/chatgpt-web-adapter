@@ -10,6 +10,7 @@ BOOTSTRAP = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 OBSERVATION = EXT / "service_worker_runtime_observation.js"
 SUPPORT = EXT / "service_worker_connector_support_pr10_0.js"
+LIFECYCLE = EXT / "service_worker_connector_lifecycle_pr10_0.js"
 MANIFEST = EXT / "manifest.json"
 
 
@@ -25,7 +26,7 @@ def test_manifest_entrypoint_stays_historically_stable() -> None:
     assert 'importScripts("service_worker_runtime.js");' in bootstrap
 
 
-def test_connector_support_remains_outermost_turn_wrapper() -> None:
+def test_connector_support_is_single_turn_owner_for_support_probes() -> None:
     write = WRITE.read_text(encoding="utf-8")
     observation = OBSERVATION.read_text(encoding="utf-8")
     schema7 = 'importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");'
@@ -36,8 +37,11 @@ def test_connector_support_remains_outermost_turn_wrapper() -> None:
     assert observation.index(support) < observation.index(liveness)
 
     support_source = SUPPORT.read_text(encoding="utf-8")
+    lifecycle_source = LIFECYCLE.read_text(encoding="utf-8")
     final_wrapper = "executeNativeTurn = async function _pr100"
     assert final_wrapper in support_source
+    assert "executeNativeTurn = async function" not in lifecycle_source
+    assert "_pr100PriorExecuteNativeTurn" not in lifecycle_source
     assert liveness not in support_source
     assert support_source.rstrip().endswith("};")
 
