@@ -393,6 +393,8 @@ async function _pr87ManualGroundTruthTurn(message) {
   }
 }
 
+// Compatibility marker: characterizeManualTemporaryGroundTruth is dispatched by
+// the single "temporary-characterization" owner in service_worker_runtime_legacy_impl.js.
 async function _pr87HandleManualTemporaryGroundTruth(message) {
   if (
     message?.probeTemporaryMode === true ||
