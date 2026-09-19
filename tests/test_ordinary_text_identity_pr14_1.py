@@ -105,6 +105,10 @@ globalThis.chrome = {
         return {};
       }
       if (method === "Fetch.failRequest") {
+        if (scenario.failRequestReject) {
+          events.push("FETCH_ABORT_REJECTED");
+          throw new Error("failRequest rejected");
+        }
         scenario.probeAborted = true;
         events.push("FETCH_ABORTED");
         return {};
@@ -279,7 +283,7 @@ globalThis.executeOfficialPageTurn = async (args) => {
   if (scenario.postDelegationAbortProbe && scenario.fetchEnabled) {
     emit("Fetch.requestPaused", {
       requestId: "fetch-1",
-      networkId: "request-1",
+      ...(scenario.omitFetchNetworkId ? {} : { networkId: "request-1" }),
       request,
       responseStatusCode: 200
     });
@@ -530,6 +534,44 @@ def test_live_abort_probe_waits_for_async_request_post_data_identity() -> None:
     assert result["events"].index("POST_DATA_RESOLVED") < result["events"].index(
         "FETCH_ABORTED"
     )
+
+
+def test_live_abort_probe_continues_response_without_network_identity() -> None:
+    text = "post delegation missing network id probe"
+    requested = "7dd0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "postDelegationAbortProbe": True,
+            "omitFetchNetworkId": True,
+        }
+    )
+
+    assert result["ok"] is True
+    assert "FETCH_CONTINUED" in result["events"]
+    assert "FETCH_ABORTED" not in result["events"]
+
+
+def test_live_abort_probe_never_claims_trigger_when_fail_request_rejected() -> None:
+    text = "post delegation rejected abort command probe"
+    requested = "7ee0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "postDelegationAbortProbe": True,
+            "failRequestReject": True,
+            "probeWaitMs": 1,
+        }
+    )
+
+    assert result["ok"] is True
+    assert "FETCH_ABORT_REJECTED" in result["events"]
+    assert "FETCH_CONTINUED" in result["events"]
+    assert result.get("postDelegationAbortProbeTriggered") is not True
 
 
 def test_live_abort_probe_never_aborts_uncorrelated_request() -> None:
