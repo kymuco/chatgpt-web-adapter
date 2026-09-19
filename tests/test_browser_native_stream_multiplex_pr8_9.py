@@ -29,6 +29,7 @@ def test_broker_multiplexes_turn_events_before_final_result(monkeypatch, tmp_pat
         "text": "hello",
         "timeoutMs": 5000,
         "streamTextObservations": True,
+        "postDelegationObserverFailureProbe": True,
     }
 
     def run() -> None:
@@ -41,6 +42,7 @@ def test_broker_multiplexes_turn_events_before_final_result(monkeypatch, tmp_pat
             break
         threading.Event().wait(0.001)
     assert forwarded and forwarded[0]["request_id"] == "r1"
+    assert forwarded[0]["postDelegationObserverFailureProbe"] is True
 
     broker.route_native_message(
         {
