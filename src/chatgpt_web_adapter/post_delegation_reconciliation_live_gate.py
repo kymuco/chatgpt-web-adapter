@@ -156,7 +156,9 @@ def run_live_gate(
         except BrowserOwnedWriteRuntimeError as error:
             probe_error = error
         else:
-            raise RuntimeError("PR14_9_OBSERVER_FAILURE_PROBE_UNEXPECTEDLY_RETURNED_SUCCESS")
+            raise RuntimeError(
+                "PR14_9_OBSERVER_FAILURE_PROBE_UNEXPECTEDLY_RETURNED_SUCCESS"
+            )
         finally:
             report["product_write_attempts"] += probe_turn_count()
 
