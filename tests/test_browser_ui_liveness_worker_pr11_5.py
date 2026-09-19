@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 LIVENESS = EXT / "service_worker_ui_liveness.js"
@@ -42,7 +41,9 @@ def test_liveness_worker_serializes_non_liveness_messages_behind_active_probe() 
     assert "_cwaUiLivenessProbePromise = null;" in source
 
 
-def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives() -> None:
+def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives() -> (
+    None
+):
     source = LIVENESS.read_text(encoding="utf-8")
 
     for forbidden in (
@@ -72,7 +73,7 @@ def test_liveness_worker_has_no_write_navigation_or_runtime_creation_primitives(
         assert contract in source
 
 
-def test_liveness_loads_after_outer_turn_support_without_replacing_it() -> None:
+def test_liveness_loads_after_connector_diagnostics_without_replacing_them() -> None:
     support = SUPPORT.read_text(encoding="utf-8")
     observation = OBSERVATION.read_text(encoding="utf-8")
 
@@ -80,4 +81,5 @@ def test_liveness_loads_after_outer_turn_support_without_replacing_it() -> None:
     liveness_import = 'importScripts("service_worker_ui_liveness.js");'
     assert observation.index(support_import) < observation.index(liveness_import)
     assert "service_worker_ui_liveness.js" not in support
-    assert support.rstrip().endswith("};")
+    assert "registerNativeTurnDiagnosticHandler(" in support
+    assert "executeNativeTurn = async function" not in support

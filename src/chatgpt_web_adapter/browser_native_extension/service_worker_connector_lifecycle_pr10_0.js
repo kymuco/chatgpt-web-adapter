@@ -7,7 +7,6 @@
 
 const PR100_CONNECTOR_OBSERVATION_SCHEMA = 1;
 const _pr100PriorInspectMessage = _pr812InspectMessage;
-const _pr100PriorExecuteNativeTurn = executeNativeTurn;
 const _pr100EmissionState = new WeakMap();
 
 function _pr100OwnObject(value) {
@@ -226,24 +225,4 @@ _pr812InspectMessage = function _pr100InspectMessageOverlay(context, state, mess
   } catch {
     // PR10.0 observations are non-authoritative and may never perturb the turn.
   }
-};
-
-executeNativeTurn = async function _pr100ExecuteNativeTurnWithSupportProbe(message) {
-  if (message?.characterizeConnectorObservationSupport !== true) {
-    return _pr100PriorExecuteNativeTurn(message);
-  }
-  return {
-    connectorObservationSupported: true,
-    connectorObservationSchemaVersion: PR100_CONNECTOR_OBSERVATION_SCHEMA,
-    explicitConnectorIdentityRequired: true,
-    explicitLifecycleCorrelationRequired: true,
-    genericToolActivityImpliesConnector: false,
-    rawConnectorPayloadExported: false,
-    connectorObservationGrantsApprovalAuthority: false,
-    connectorObservationChangesCanonicalFinality: false,
-    connectorObservationChangesRetryAuthority: false,
-    automaticWriteRetry: false,
-    fallbackTransport: null,
-    writePerformed: false
-  };
 };

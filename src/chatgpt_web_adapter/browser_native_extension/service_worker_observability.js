@@ -58,8 +58,6 @@ importScripts("service_worker_temporary_session_identity_pr8_13.js");
 importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");
 importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");
 
-const _pr824aOriginalExecuteNativeTurn = executeNativeTurn;
-
 async function _pr824aExistingRuntimeTabSnapshot() {
   const storedId = await storedRuntimeTabId();
   if (!Number.isInteger(storedId)) {
@@ -76,48 +74,70 @@ async function _pr824aExistingRuntimeTabSnapshot() {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithProvisioningObservability(message) {
+async function _pr824aProvisioningObserverBefore() {
   const before = await _pr824aExistingRuntimeTabSnapshot();
   const activatedTabIds = new Set();
   const onActivated = (activeInfo) => {
     if (Number.isInteger(activeInfo?.tabId)) activatedTabIds.add(activeInfo.tabId);
   };
   chrome.tabs.onActivated.addListener(onActivated);
+  return { before, activatedTabIds, onActivated };
+}
 
-  try {
-    const result = await _pr824aOriginalExecuteNativeTurn(message);
-    const tabId = Number.isInteger(result?.tabId) ? result.tabId : null;
-    let tabActiveAfter = null;
-    if (tabId !== null) {
-      try {
-        const finalTab = await chrome.tabs.get(tabId);
-        tabActiveAfter = Boolean(finalTab?.active);
-      } catch {
-        tabActiveAfter = null;
-      }
+async function _pr824aProvisioningObserverAfterSuccess(
+  _message,
+  result,
+  context
+) {
+  const tabId = Number.isInteger(result?.tabId) ? result.tabId : null;
+  let tabActiveAfter = null;
+  if (tabId !== null) {
+    try {
+      const finalTab = await chrome.tabs.get(tabId);
+      tabActiveAfter = Boolean(finalTab?.active);
+    } catch {
+      tabActiveAfter = null;
     }
-
-    const runtimeTabPreexisting = Boolean(before.preexisting && before.tabId === tabId);
-    const runtimeTabCreatedForTurn = Boolean(tabId !== null && !runtimeTabPreexisting);
-    const tabActivatedDuringTurn = Boolean(tabId !== null && activatedTabIds.has(tabId));
-    const foregroundActivationObserved = Boolean(
-      result?.tabWasActive === true ||
-      tabActiveAfter === true ||
-      tabActivatedDuringTurn
-    );
-
-    return {
-      ...result,
-      runtimeTabPreexisting,
-      runtimeTabCreatedForTurn,
-      tabActiveAfter,
-      tabActivatedDuringTurn,
-      foregroundActivationObserved
-    };
-  } finally {
-    chrome.tabs.onActivated.removeListener(onActivated);
   }
-};
+
+  const runtimeTabPreexisting = Boolean(
+    context.before.preexisting && context.before.tabId === tabId
+  );
+  const runtimeTabCreatedForTurn = Boolean(
+    tabId !== null && !runtimeTabPreexisting
+  );
+  const tabActivatedDuringTurn = Boolean(
+    tabId !== null && context.activatedTabIds.has(tabId)
+  );
+  const foregroundActivationObserved = Boolean(
+    result?.tabWasActive === true ||
+    tabActiveAfter === true ||
+    tabActivatedDuringTurn
+  );
+
+  return {
+    ...result,
+    runtimeTabPreexisting,
+    runtimeTabCreatedForTurn,
+    tabActiveAfter,
+    tabActivatedDuringTurn,
+    foregroundActivationObserved
+  };
+}
+
+function _pr824aProvisioningObserverFinish(_message, context) {
+  chrome.tabs.onActivated.removeListener(context.onActivated);
+}
+
+registerNativeTurnObserver("provisioning-observability", {
+  before: _pr824aProvisioningObserverBefore,
+  afterSuccess: _pr824aProvisioningObserverAfterSuccess,
+  finish: _pr824aProvisioningObserverFinish
+});
+
+// Migration marker for the frozen PR11 source-order contract:
+// _executeNativeTurnWithProvisioningObservability is now the explicit
+// "provisioning-observability" registration above, not a runtime override.
 
 // PR11.0: product chrome is read-only with respect to ChatGPT. It consumes only
 // local bridge state and never participates in product-write/finality semantics.

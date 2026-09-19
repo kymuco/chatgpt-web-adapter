@@ -13,7 +13,6 @@ const PR88_INSTANT_FAILURE_FORENSICS_SCHEMA_VERSION = 1;
 const PR88_INSTANT_FAILURE_FORENSICS_STORAGE_KEY =
   "browserAuthorityLastInstantFailureForensicsV1";
 
-const _pr88FailurePriorExecuteNativeTurn = executeNativeTurn;
 const _pr88FailurePriorLocateAndFocusComposer = locateAndFocusComposer;
 
 function _pr88FailureLeaseId(value) {
@@ -236,31 +235,30 @@ async function _pr88FailureRecord(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithInstantFailureForensics(message) {
-  if (message?.characterizeInstantFailureForensicsSupport === true) {
-    if (_pr88FailureQueryConflict(message) || message?.expectedBrowserAuthorityLeaseId != null) {
-      throw new Error("PR8_8_INSTANT_FAILURE_FORENSICS_SUPPORT_FLAG_CONFLICT");
-    }
-    return {
-      probeContext: "instant_failure_forensics_support",
-      readOnly: true,
-      zeroProductWrites: true,
-      automaticRetry: false,
-      instantFailureForensicsSupported: true,
-      instantFailureForensicsSchemaVersion:
-        PR88_INSTANT_FAILURE_FORENSICS_SCHEMA_VERSION,
-      failureRecordPersistenceSupported: true,
-      preInputFailureBoundarySupported: true,
-      retainedRouteForensicsCompositionSupported: true,
-      retainedPickerForensicsCompositionSupported: true,
-      rawErrorRedactionSupported: true,
-      leaseIdExported: false
-    };
-  }
+// Compatibility marker: characterizeInstantFailureForensicsRecord remains part
+// of this evidence surface; explicit diagnostic dispatch is owned by
+// service_worker_instant_popup_subtree_forensics_pr8_8.js.
 
-  if (message?.characterizeInstantFailureForensicsRecord === true) {
-    return _pr88FailureRecord(message);
+async function _pr88FailureSupport(message) {
+  if (
+    _pr88FailureQueryConflict(message) ||
+    message?.expectedBrowserAuthorityLeaseId != null
+  ) {
+    throw new Error("PR8_8_INSTANT_FAILURE_FORENSICS_SUPPORT_FLAG_CONFLICT");
   }
-
-  return _pr88FailurePriorExecuteNativeTurn(message);
-};
+  return {
+    probeContext: "instant_failure_forensics_support",
+    readOnly: true,
+    zeroProductWrites: true,
+    automaticRetry: false,
+    instantFailureForensicsSupported: true,
+    instantFailureForensicsSchemaVersion:
+      PR88_INSTANT_FAILURE_FORENSICS_SCHEMA_VERSION,
+    failureRecordPersistenceSupported: true,
+    preInputFailureBoundarySupported: true,
+    retainedRouteForensicsCompositionSupported: true,
+    retainedPickerForensicsCompositionSupported: true,
+    rawErrorRedactionSupported: true,
+    leaseIdExported: false
+  };
+}

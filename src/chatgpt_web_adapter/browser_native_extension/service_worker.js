@@ -13,6 +13,91 @@ let reconnectDelayMs = 1000;
 let reconnectTimer = null;
 let activeRequestId = null;
 
+const nativeTurnDiagnosticHandlers = new Map();
+const nativeTurnObservers = new Map();
+
+function registerNativeTurnObserver(name, observer) {
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("CHATGPT_NATIVE_TURN_OBSERVER_NAME_REQUIRED");
+  }
+  if (!observer || typeof observer !== "object") {
+    throw new Error("CHATGPT_NATIVE_TURN_OBSERVER_INVALID");
+  }
+  const key = name.trim();
+  if (nativeTurnObservers.has(key)) {
+    throw new Error(`CHATGPT_NATIVE_TURN_OBSERVER_DUPLICATE:${key}`);
+  }
+  nativeTurnObservers.set(key, observer);
+}
+
+async function _executeNativeTurnWithObservers(message) {
+  const registered = Array.from(nativeTurnObservers.entries());
+  const active = [];
+
+  try {
+    for (let index = registered.length - 1; index >= 0; index -= 1) {
+      const [name, observer] = registered[index];
+      const context = typeof observer.before === "function"
+        ? await observer.before(message)
+        : undefined;
+      active.push([name, observer, context]);
+    }
+
+    let result = await executeNativeTurn(message);
+
+    for (let index = active.length - 1; index >= 0; index -= 1) {
+      const [, observer, context] = active[index];
+      if (typeof observer.afterSuccess !== "function") continue;
+      const observed = await observer.afterSuccess(message, result, context);
+      if (observed !== undefined) result = observed;
+    }
+
+    return result;
+  } finally {
+    for (let index = active.length - 1; index >= 0; index -= 1) {
+      const [, observer, context] = active[index];
+      if (typeof observer.finish !== "function") continue;
+      try {
+        await observer.finish(message, context);
+      } catch {
+        // Observer cleanup must never replace the product-turn outcome.
+      }
+    }
+  }
+}
+
+function registerNativeTurnDiagnosticHandler(name, matches, handle) {
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_NAME_REQUIRED");
+  }
+  if (typeof matches !== "function" || typeof handle !== "function") {
+    throw new Error("CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_INVALID");
+  }
+  const key = name.trim();
+  if (nativeTurnDiagnosticHandlers.has(key)) {
+    throw new Error(`CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_DUPLICATE:${key}`);
+  }
+  nativeTurnDiagnosticHandlers.set(key, { matches, handle });
+}
+
+async function dispatchNativeTurn(message) {
+  const matching = [];
+  for (const [name, handler] of nativeTurnDiagnosticHandlers.entries()) {
+    if (handler.matches(message) === true) matching.push([name, handler]);
+  }
+  if (matching.length > 1) {
+    throw new Error(
+      `CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_AMBIGUOUS:${matching
+        .map(([name]) => name)
+        .join(",")}`
+    );
+  }
+  if (matching.length === 1) {
+    return matching[0][1].handle(message);
+  }
+  return _executeNativeTurnWithObservers(message);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -660,7 +745,7 @@ async function onNativeMessage(message, port) {
 
   activeRequestId = requestId;
   try {
-    const result = await executeNativeTurn(message);
+    const result = await dispatchNativeTurn(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: "turn_result",
