@@ -180,15 +180,10 @@ _pr87TemporaryControlSnapshot = async function _pr87TemporaryControlSnapshotWith
   };
 };
 
-const _pr87AxPriorExecuteNativeTurn = executeNativeTurn;
-executeNativeTurn = async function _executeNativeTurnWithTemporaryAXEvidence(message) {
-  if (message?.probeTemporaryMode !== true) {
-    return _pr87AxPriorExecuteNativeTurn(message);
-  }
-
+async function _pr87HandleTemporaryModeProbeWithAX(message) {
   _pr87AxCaptureSnapshots = [];
   try {
-    const result = await _pr87AxPriorExecuteNativeTurn(message);
+    const result = await _pr87HandleTemporaryModeProbe(message);
     const snapshots = _pr87AxCaptureSnapshots;
     const before = snapshots.length > 0 ? snapshots[0] : null;
     const after = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
@@ -201,4 +196,4 @@ executeNativeTurn = async function _executeNativeTurnWithTemporaryAXEvidence(mes
   } finally {
     _pr87AxCaptureSnapshots = null;
   }
-};
+}
