@@ -186,6 +186,7 @@ def test_delegated_abort_with_exact_request_identity_classifies_persisted_user(
         error.post_delegation_request_correlation_proven = True
         error.post_delegation_user_message_id = "user-message-1"
         error.post_delegation_conversation_id = "conversation-1"
+        error.post_delegation_runtime_tab_id = 42
         raise error
 
     class Reconciliation:
@@ -231,6 +232,7 @@ def test_delegated_abort_with_exact_request_identity_classifies_persisted_user(
     assert error.turn_lifecycle.state.value == "READBACK_INCOMPLETE"
     payload = error.to_dict()
     assert payload["post_delegation_reconciliation"]["user_turn_persisted"] is True
+    assert payload["post_delegation_runtime_tab_id"] == 42
 
 
 def test_delegated_abort_conversation_mismatch_stays_unknown(
@@ -248,6 +250,7 @@ def test_delegated_abort_conversation_mismatch_stays_unknown(
         error.post_delegation_request_correlation_proven = True
         error.post_delegation_user_message_id = "user-message-1"
         error.post_delegation_conversation_id = "different-conversation"
+        error.post_delegation_runtime_tab_id = 42
         raise error
 
     def reconcile(*args, **kwargs):
