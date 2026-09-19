@@ -151,8 +151,12 @@ If the owned tab is still present or tab absence cannot be observed, close fails
 with `PR8_13_TEMPORARY_LIFECYCLE_END_NOT_PROVEN`. The stored tab id is retained
 for later cleanup instead of being erased.
 
-The Python runtime validates the complete end contract rather than accepting the
-string `temporaryLifecycleState=ENDED` alone.
+The deployed extension owns the physical cleanup proof boundary: it emits
+`temporaryLifecycleState=ENDED` only after one of the observation-backed outcomes
+above. The current Python runtime validates the successful `ENDED` result but does
+not independently re-validate the extension's `temporaryLifecycleEndProof` field.
+Deterministic extension regressions and exact deployment identity therefore remain
+part of the cleanup proof chain.
 
 Recovered cleanup is resource revocation only. It does not make a Temporary
 conversation id durable and does not recreate continuation authority.
