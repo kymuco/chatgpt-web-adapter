@@ -107,7 +107,8 @@ async function _pr811MaybeRecoverStaleRuntimeUi(message) {
 executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTerminalBoundary({
   tabId,
   text,
-  timeoutMs
+  timeoutMs,
+  postDelegationObserverFailureProbe = null
 }) {
   if (!Number.isInteger(tabId)) throw new Error("TAB_ID_REQUIRED");
   if (typeof text !== "string" || !text.trim()) throw new Error("TEXT_REQUIRED");
@@ -152,6 +153,7 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTermin
     );
 
     let conversationRequestId = null;
+    let observerFailureProbeStarted = false;
     let resolveRequestSeen;
     let resolveCompleted;
     let rejectCompleted;
@@ -179,6 +181,29 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTermin
         diagnostics.conversationResponseSeen = true;
         diagnostics.responseStatus = params?.response?.status ?? null;
         diagnostics.responseMimeType = params?.response?.mimeType ?? null;
+        if (
+          !observerFailureProbeStarted &&
+          typeof postDelegationObserverFailureProbe === "function"
+        ) {
+          observerFailureProbeStarted = true;
+          Promise.resolve(
+            postDelegationObserverFailureProbe({
+              requestId: conversationRequestId,
+              responseStatus: diagnostics.responseStatus,
+              responseMimeType: diagnostics.responseMimeType
+            })
+          )
+            .then((probeError) => {
+              if (probeError instanceof Error) rejectCompleted(probeError);
+            })
+            .catch((probeError) => {
+              rejectCompleted(
+                probeError instanceof Error
+                  ? probeError
+                  : new Error(String(probeError))
+              );
+            });
+        }
         return;
       }
       if (method === "Network.loadingFailed") {
