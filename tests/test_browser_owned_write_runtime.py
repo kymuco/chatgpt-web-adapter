@@ -169,3 +169,103 @@ def test_governance_keeps_browser_confined_to_write() -> None:
     assert policy["runtime_tab_required_before_turn"] is False
     assert policy["automatic_write_retry"] is False
     assert policy["direct_private_product_write"] is False
+
+
+def test_delegated_abort_with_exact_request_identity_classifies_persisted_user(
+    monkeypatch,
+) -> None:
+    calls = 0
+    reconciliations = []
+
+    def fail(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        error = subject.RequestError(
+            "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+        )
+        error.post_delegation_request_correlation_proven = True
+        error.post_delegation_user_message_id = "user-message-1"
+        error.post_delegation_conversation_id = "conversation-1"
+        raise error
+
+    class Reconciliation:
+        outcome = subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE
+        canonical_read_performed = False
+
+        @staticmethod
+        def to_dict():
+            return {
+                "outcome": subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
+                "canonical_read_performed": False,
+                "canonical_read_complete": True,
+                "conversation_id": "conversation-1",
+                "user_message_id": "user-message-1",
+                "user_turn_persisted": True,
+                "canonical_status": "user_last_message",
+            }
+
+    def reconcile(client, *, conversation_id, user_message_id):
+        reconciliations.append((client, conversation_id, user_message_id))
+        return Reconciliation()
+
+    monkeypatch.setattr(subject, "send_browser_native", fail)
+    monkeypatch.setattr(subject, "reconcile_post_delegation_failure", reconcile)
+
+    rt = runtime()
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text("hello", conversation="conversation-1")
+
+    assert calls == 1
+    assert len(reconciliations) == 1
+    assert reconciliations[0][1:] == ("conversation-1", "user-message-1")
+    error = caught.value
+    assert error.failure_kind == subject.WRITE_SUBMITTED_GENERATION_INCOMPLETE
+    assert (
+        error.post_delegation_outcome
+        == subject.POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE
+    )
+    assert error.write_may_have_been_submitted is True
+    assert error.reconciliation_required is True
+    assert error.automatic_retry_allowed is False
+    assert error.manual_retry_safe_after_repair is False
+    assert error.turn_lifecycle.state.value == "READBACK_INCOMPLETE"
+    payload = error.to_dict()
+    assert payload["post_delegation_reconciliation"]["user_turn_persisted"] is True
+
+
+def test_delegated_abort_conversation_mismatch_stays_unknown(
+    monkeypatch,
+) -> None:
+    calls = 0
+    reconciliations = []
+
+    def fail(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        error = subject.RequestError(
+            "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+        )
+        error.post_delegation_request_correlation_proven = True
+        error.post_delegation_user_message_id = "user-message-1"
+        error.post_delegation_conversation_id = "different-conversation"
+        raise error
+
+    def reconcile(*args, **kwargs):
+        reconciliations.append((args, kwargs))
+        raise AssertionError("mismatched identity must not enter reconciliation")
+
+    monkeypatch.setattr(subject, "send_browser_native", fail)
+    monkeypatch.setattr(subject, "reconcile_post_delegation_failure", reconcile)
+
+    rt = runtime()
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text("hello", conversation="conversation-1")
+
+    assert calls == 1
+    assert reconciliations == []
+    error = caught.value
+    assert error.failure_kind == subject.WRITE_OUTCOME_UNKNOWN
+    assert error.post_delegation_outcome is None
+    assert error.reconciliation_required is True
+    assert error.automatic_retry_allowed is False
+    assert error.turn_lifecycle.state.value == "AMBIGUOUS"
