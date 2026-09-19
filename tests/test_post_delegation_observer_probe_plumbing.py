@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 import threading
-from pathlib import Path
 
 import chatgpt_web_adapter.browser_native_host as host_module
 from chatgpt_web_adapter.browser_native_host import BrowserNativeBroker
-
-
-ROOT = Path(__file__).resolve().parents[1]
-EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-RECOVERY = EXTENSION / "service_worker_recovery.js"
+from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
 
 def test_broker_forwards_observer_failure_probe_without_whitelisting(
@@ -69,7 +64,8 @@ def test_broker_forwards_observer_failure_probe_without_whitelisting(
 
 
 def test_recovery_awaits_probe_decision_before_early_terminal_success() -> None:
-    source = RECOVERY.read_text(encoding="utf-8")
+    recovery = browser_native_extension_dir() / "service_worker_recovery.js"
+    source = recovery.read_text(encoding="utf-8")
     start = source.index(
         "executeOfficialPageTurn = async function "
         "_executeOfficialPageTurnWithEarlyTerminalBoundary"
