@@ -707,7 +707,7 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
       ordinaryTextConversationIdentitySource: identity.source,
       ordinaryTextMatchingRequestCount: identity.matchingRequestCount,
       ordinaryTextCanonicalCompletedRecoveryObserved:
-        message?.canonicalCompleted === true,
+        context.canonicalCompletedRecoveryObserved === true,
       routeConversationIdentityAuthoritative: false
     };
   } finally {
