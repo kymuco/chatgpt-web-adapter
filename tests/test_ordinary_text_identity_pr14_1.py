@@ -259,6 +259,9 @@ globalThis.executeOfficialPageTurn = async (args) => {
   if (scenario.loadingFinished) {
     emit("Network.loadingFinished", { requestId: "request-1" });
   }
+  if (scenario.failAfterRequest) {
+    throw new Error("CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED");
+  }
   return {
     conversationId: "WEB:route-display-identity",
     responseStatus: 200,
@@ -289,6 +292,16 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
     console.log(JSON.stringify({
       ok: false,
       error: error instanceof Error ? error.message : String(error),
+      postDelegationRequestCorrelationProven:
+        error?.cwaPostDelegationRequestCorrelationProven === true,
+      postDelegationUserMessageId:
+        typeof error?.cwaPostDelegationUserMessageId === "string"
+          ? error.cwaPostDelegationUserMessageId
+          : null,
+      postDelegationConversationId:
+        typeof error?.cwaPostDelegationConversationId === "string"
+          ? error.cwaPostDelegationConversationId
+          : null,
       events
     }));
   }
@@ -394,6 +407,25 @@ def test_async_get_request_post_data_settles_before_identity_authority() -> None
     events = result["events"]
     assert events.index("POST_DATA_RESOLVED") < events.index("STREAM_ENABLED")
     assert result["result"]["conversationId"] == expected
+
+
+def test_aborted_correlated_continuation_retains_exact_request_bound_user_identity() -> None:
+    text = "post delegation abort probe"
+    requested = "6bb0c074-5d4c-83ec-b16d-92e095b71bf9"
+    result = _run_harness(
+        {
+            "messageText": text,
+            "requestedConversationId": requested,
+            "eventPostData": _valid_post_data(text, requested),
+            "failAfterRequest": True,
+        }
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    assert result["postDelegationRequestCorrelationProven"] is True
+    assert result["postDelegationUserMessageId"] == "client-message-1"
+    assert result["postDelegationConversationId"] == requested
 
 
 def test_exact_request_body_mismatch_fails_closed() -> None:
