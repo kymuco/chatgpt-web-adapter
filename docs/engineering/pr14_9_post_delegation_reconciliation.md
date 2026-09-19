@@ -182,28 +182,37 @@ It performs exactly two product writes:
 
 ```text
 1. seed one disposable saved conversation
-2. send one existing-conversation continuation with a one-shot abort probe
+2. send one existing-conversation continuation with a one-shot observer-failure probe
 ```
 
-The probe is not a second transport implementation. The live gate injects one
-diagnostic field into exactly one normal `turn` RPC. The extension recognizes that
-field only for an existing conversation and enables CDP `Fetch` interception at
-the response stage. Once the exact request-bound conversation POST has both:
+The probe does **not** modify, cancel, replay, or retry the product request. It
+injects one diagnostic field into exactly one normal `turn` RPC. The ordinary-text
+identity authority passes a diagnostic callback through the existing
+`executeOfficialPageTurn` wrapper stack.
 
-- matched the intended user message id; and
-- received a 2xx response-stage pause,
-
-the probe executes:
+After the exact conversation POST has been delegated and its 2xx response headers
+are observed, the callback boundedly settles the existing request-body identity
+lookup. Only if the exact request correlation is proven does the callback return:
 
 ```text
-Fetch.failRequest(errorReason="Aborted")
+CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED
 ```
 
-This preserves the ChatGPT page/tab and therefore the browser-context canonical read
-plane, while deliberately terminating the already-delegated response stream.
+That error is injected at the same local `completed`-promise failure boundary used
+by real `Network.loadingFailed` events. The underlying ChatGPT network request is
+left untouched and may continue independently; the CWA transport observer fails and
+then performs canonical reconciliation.
 
-The probe exports an explicit `postDelegationAbortProbeTriggered=true` evidence bit.
-A random network abort cannot satisfy the live gate without that proof.
+This distinction is deliberate:
+
+```text
+product network cancellation != required proof surface
+post-delegation CWA transport failure == required proof surface
+```
+
+The probe exports an explicit
+`postDelegationObserverFailureProbeTriggered=true` evidence bit. A random network
+failure cannot satisfy the live gate without that proof.
 
 The live gate itself wraps the provider RPC and permits exactly one probe
 `type="turn"`. Any attempted second probe turn fails locally before it can be sent.
@@ -223,7 +232,7 @@ Acceptance requires:
 deployment identity healthy
 seed write succeeds exactly once
 probe turn sent exactly once
-response-stage abort probe triggered
+response-stage observer-failure probe triggered
 request-bound user message canonically persisted
 outcome = SUBMITTED_GENERATION_INCOMPLETE
        or SUBMITTED_TERMINAL_ASSISTANT
