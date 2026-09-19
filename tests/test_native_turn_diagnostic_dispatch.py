@@ -32,7 +32,7 @@ def test_native_turn_diagnostic_dispatch_falls_through_to_single_runtime_owner()
 
     assert "async function dispatchNativeTurn(message)" in source
     assert "return matching[0][1].handle(message);" in source
-    assert "return executeNativeTurn(message);" in source
+    assert "return _executeNativeTurnWithObservers(message);" in source
     assert "const result = await dispatchNativeTurn(message);" in source
 
 
