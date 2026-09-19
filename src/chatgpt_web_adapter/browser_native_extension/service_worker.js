@@ -13,6 +13,40 @@ let reconnectDelayMs = 1000;
 let reconnectTimer = null;
 let activeRequestId = null;
 
+const nativeTurnDiagnosticHandlers = new Map();
+
+function registerNativeTurnDiagnosticHandler(name, matches, handle) {
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_NAME_REQUIRED");
+  }
+  if (typeof matches !== "function" || typeof handle !== "function") {
+    throw new Error("CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_INVALID");
+  }
+  const key = name.trim();
+  if (nativeTurnDiagnosticHandlers.has(key)) {
+    throw new Error(`CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_DUPLICATE:${key}`);
+  }
+  nativeTurnDiagnosticHandlers.set(key, { matches, handle });
+}
+
+async function dispatchNativeTurn(message) {
+  const matching = [];
+  for (const [name, handler] of nativeTurnDiagnosticHandlers.entries()) {
+    if (handler.matches(message) === true) matching.push([name, handler]);
+  }
+  if (matching.length > 1) {
+    throw new Error(
+      `CHATGPT_NATIVE_TURN_DIAGNOSTIC_HANDLER_AMBIGUOUS:${matching
+        .map(([name]) => name)
+        .join(",")}`
+    );
+  }
+  if (matching.length === 1) {
+    return matching[0][1].handle(message);
+  }
+  return executeNativeTurn(message);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -660,7 +694,7 @@ async function onNativeMessage(message, port) {
 
   activeRequestId = requestId;
   try {
-    const result = await executeNativeTurn(message);
+    const result = await dispatchNativeTurn(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: "turn_result",
