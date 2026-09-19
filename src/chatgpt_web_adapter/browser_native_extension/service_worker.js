@@ -14,6 +14,57 @@ let reconnectTimer = null;
 let activeRequestId = null;
 
 const nativeTurnDiagnosticHandlers = new Map();
+const nativeTurnObservers = new Map();
+
+function registerNativeTurnObserver(name, observer) {
+  if (typeof name !== "string" || !name.trim()) {
+    throw new Error("CHATGPT_NATIVE_TURN_OBSERVER_NAME_REQUIRED");
+  }
+  if (!observer || typeof observer !== "object") {
+    throw new Error("CHATGPT_NATIVE_TURN_OBSERVER_INVALID");
+  }
+  const key = name.trim();
+  if (nativeTurnObservers.has(key)) {
+    throw new Error(`CHATGPT_NATIVE_TURN_OBSERVER_DUPLICATE:${key}`);
+  }
+  nativeTurnObservers.set(key, observer);
+}
+
+async function _executeNativeTurnWithObservers(message) {
+  const registered = Array.from(nativeTurnObservers.entries());
+  const active = [];
+
+  try {
+    for (let index = registered.length - 1; index >= 0; index -= 1) {
+      const [name, observer] = registered[index];
+      const context = typeof observer.before === "function"
+        ? await observer.before(message)
+        : undefined;
+      active.push([name, observer, context]);
+    }
+
+    let result = await executeNativeTurn(message);
+
+    for (let index = active.length - 1; index >= 0; index -= 1) {
+      const [, observer, context] = active[index];
+      if (typeof observer.afterSuccess !== "function") continue;
+      const observed = await observer.afterSuccess(message, result, context);
+      if (observed !== undefined) result = observed;
+    }
+
+    return result;
+  } finally {
+    for (let index = active.length - 1; index >= 0; index -= 1) {
+      const [, observer, context] = active[index];
+      if (typeof observer.finish !== "function") continue;
+      try {
+        await observer.finish(message, context);
+      } catch {
+        // Observer cleanup must never replace the product-turn outcome.
+      }
+    }
+  }
+}
 
 function registerNativeTurnDiagnosticHandler(name, matches, handle) {
   if (typeof name !== "string" || !name.trim()) {
@@ -44,7 +95,7 @@ async function dispatchNativeTurn(message) {
   if (matching.length === 1) {
     return matching[0][1].handle(message);
   }
-  return executeNativeTurn(message);
+  return _executeNativeTurnWithObservers(message);
 }
 
 function sleep(ms) {
