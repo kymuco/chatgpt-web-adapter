@@ -308,7 +308,24 @@ class BrowserNativeTurnProvider:
                     timeout=total_timeout,
                     last_status="browser_native_write_completed_identity_unresolved",
                 )
-            raise RequestError(error, request_stage="browser_native_turn")
+            request_error = RequestError(error, request_stage="browser_native_turn")
+            if response.get("postDelegationRequestCorrelationProven") is True:
+                failure_user_message_id = response.get("postDelegationUserMessageId")
+                failure_conversation_id = response.get("postDelegationConversationId")
+                if (
+                    isinstance(failure_user_message_id, str)
+                    and failure_user_message_id.strip()
+                    and isinstance(failure_conversation_id, str)
+                    and failure_conversation_id.strip()
+                ):
+                    request_error.post_delegation_request_correlation_proven = True
+                    request_error.post_delegation_user_message_id = (
+                        failure_user_message_id.strip()
+                    )
+                    request_error.post_delegation_conversation_id = (
+                        failure_conversation_id.strip()
+                    )
+            raise request_error
         result_conversation_id = response.get("conversationId")
         status = response.get("responseStatus")
         if not isinstance(result_conversation_id, str) or not result_conversation_id.strip():
