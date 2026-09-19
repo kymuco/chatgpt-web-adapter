@@ -302,6 +302,10 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
         typeof error?.cwaPostDelegationConversationId === "string"
           ? error.cwaPostDelegationConversationId
           : null,
+      postDelegationRuntimeTabId:
+        Number.isInteger(error?.cwaPostDelegationRuntimeTabId)
+          ? error.cwaPostDelegationRuntimeTabId
+          : null,
       events
     }));
   }
@@ -426,6 +430,7 @@ def test_aborted_correlated_continuation_retains_exact_request_bound_user_identi
     assert result["postDelegationRequestCorrelationProven"] is True
     assert result["postDelegationUserMessageId"] == "client-message-1"
     assert result["postDelegationConversationId"] == requested
+    assert result["postDelegationRuntimeTabId"] == 1
 
 
 def test_exact_request_body_mismatch_fails_closed() -> None:
