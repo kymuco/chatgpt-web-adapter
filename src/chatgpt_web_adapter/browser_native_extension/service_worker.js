@@ -433,6 +433,7 @@ async function executeOfficialPageTurn({
 
     let conversationRequestId = null;
     let observerFailureProbeStarted = false;
+    let observerFailureProbePromise = null;
     let resolveRequestSeen;
     let resolveCompleted;
     let rejectCompleted;
@@ -465,23 +466,16 @@ async function executeOfficialPageTurn({
           typeof postDelegationObserverFailureProbe === "function"
         ) {
           observerFailureProbeStarted = true;
-          Promise.resolve(
+          observerFailureProbePromise = Promise.resolve(
             postDelegationObserverFailureProbe({
               requestId: conversationRequestId,
               responseStatus: diagnostics.responseStatus,
               responseMimeType: diagnostics.responseMimeType
             })
-          )
-            .then((probeError) => {
-              if (probeError instanceof Error) rejectCompleted(probeError);
-            })
-            .catch((probeError) => {
-              rejectCompleted(
-                probeError instanceof Error
-                  ? probeError
-                  : new Error(String(probeError))
-              );
-            });
+          ).then((probeError) => {
+            if (probeError instanceof Error) throw probeError;
+            return null;
+          });
         }
         return;
       }
@@ -524,6 +518,9 @@ async function executeOfficialPageTurn({
         remainingMs(startedAt, timeoutMs)
       ))
     ]);
+    if (observerFailureProbePromise !== null) {
+      await observerFailureProbePromise;
+    }
 
     let safeMetadata = { conversationId: null, turnExchangeId: null };
     try {
