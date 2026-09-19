@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+
+
 def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() -> None:
-    root = Path(__file__).resolve().parents[1] / "src" / "chatgpt_web_adapter" / "browser_native_extension"
+    root = browser_native_extension_dir()
     text = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
 
     start = text.index(
@@ -16,11 +21,6 @@ def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() ->
     assert 'method === "Network.responseReceived"' in block
     assert "postDelegationObserverFailureProbe({" in block
     assert "rejectCompleted(probeError)" in block
-
-
-from __future__ import annotations
-
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
 
 def test_pr811_recovery_worker_is_packaged() -> None:
