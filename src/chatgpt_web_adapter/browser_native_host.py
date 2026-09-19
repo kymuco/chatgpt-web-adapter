@@ -52,7 +52,9 @@ class _BrokerHandler(socketserver.BaseRequestHandler):
         except Exception as error:
             response = {
                 "protocol": PROTOCOL_VERSION,
-                "request_id": request.get("request_id") if isinstance(request, dict) else None,
+                "request_id": request.get("request_id")
+                if isinstance(request, dict)
+                else None,
                 "ok": False,
                 "error": f"BROWSER_NATIVE_BROKER_ERROR:{error}",
             }
@@ -141,6 +143,29 @@ class BrowserNativeBroker:
     def _request_lease_id(request: dict[str, Any]) -> str | None:
         value = request.get("browserAuthorityLeaseId")
         return value.strip() if isinstance(value, str) and value.strip() else None
+
+    @staticmethod
+    def _temporary_turn_has_page_owned_finality(message: dict[str, Any]) -> bool:
+        """Recognize only browser-proven Temporary success.
+
+        Temporary Chat intentionally uses page-owned stream finality and does not
+        perform the ordinary canonical GET readback. The broker must therefore not
+        retain the cross-request canonical-read lease after a fully proven
+        Temporary turn, or explicit lifecycle close is blocked by its own lease.
+
+        Request intent is deliberately insufficient here: only the browser-owned
+        result may suppress canonical-read reservation.
+        """
+
+        return (
+            message.get("ok") is True
+            and message.get("conversationMode") == "temporary"
+            and message.get("temporaryModeProven") is True
+            and message.get("temporaryPrewriteProof")
+            == "FETCH_PAUSED_HISTORY_AND_TRAINING_DISABLED_TRUE"
+            and message.get("temporaryLifecycleState") == "LIVE"
+            and message.get("temporaryLiveWriteAuthorityProven") is True
+        )
 
     def _expire_authority_reservation(self, lease_id: str) -> None:
         release_lane = False
@@ -297,11 +322,7 @@ class BrowserNativeBroker:
         waiter: queue.Queue[dict[str, Any]] = queue.Queue()
         with self.pending_lock:
             self.pending[request_id] = waiter
-        forwarded = {
-            key: value
-            for key, value in request.items()
-            if key != "token"
-        }
+        forwarded = {key: value for key, value in request.items() if key != "token"}
         try:
             with self.write_lock:
                 write_native_message(sys.stdout.buffer, forwarded)
@@ -363,13 +384,21 @@ class BrowserNativeBroker:
         lease_id = self._request_lease_id(request)
         if operation == "canonical_read_complete":
             if lease_id is None:
-                return {**base, "ok": False, "error": "BROWSER_NATIVE_AUTHORITY_LEASE_REQUIRED"}
+                return {
+                    **base,
+                    "ok": False,
+                    "error": "BROWSER_NATIVE_AUTHORITY_LEASE_REQUIRED",
+                }
             completion = self._complete_authority_reservation(lease_id)
             if completion != "OK":
                 return {**base, "ok": False, "error": completion}
             return {**base, "ok": True, "type": "canonical_read_complete_result"}
         if not self.extension_connected:
-            return {**base, "ok": False, "error": "BROWSER_NATIVE_EXTENSION_NOT_CONNECTED"}
+            return {
+                **base,
+                "ok": False,
+                "error": "BROWSER_NATIVE_EXTENSION_NOT_CONNECTED",
+            }
         if not self._claim_authority_lane(operation, lease_id):
             return {**base, "ok": False, "error": "BROWSER_NATIVE_BRIDGE_BUSY"}
 
@@ -388,18 +417,16 @@ class BrowserNativeBroker:
             waiter: queue.Queue[dict[str, Any]] = queue.Queue()
             with self.pending_lock:
                 self.pending[request_id] = waiter
-            forwarded = {
-                key: value
-                for key, value in request.items()
-                if key != "token"
-            }
+            forwarded = {key: value for key, value in request.items() if key != "token"}
             try:
                 with self.write_lock:
                     write_native_message(sys.stdout.buffer, forwarded)
                 deadline = time.monotonic() + timeout + 5.0
                 while True:
                     try:
-                        message = waiter.get(timeout=max(0.01, deadline - time.monotonic()))
+                        message = waiter.get(
+                            timeout=max(0.01, deadline - time.monotonic())
+                        )
                     except queue.Empty:
                         return {
                             **base,
@@ -410,15 +437,20 @@ class BrowserNativeBroker:
                         if event_sink is not None:
                             event_sink(message)
                         continue
-                    if (
-                        lease_id is not None
-                        and (
-                            operation == "canonical_read"
-                            or (operation == "turn" and message.get("ok") is True)
+                    if lease_id is not None and (
+                        operation == "canonical_read"
+                        or (
+                            operation == "turn"
+                            and message.get("ok") is True
+                            and not self._temporary_turn_has_page_owned_finality(
+                                message
+                            )
                         )
                     ):
-                        # Retain the cross-request lane until Python has classified
-                        # terminal canonical readback for the matching lease.
+                        # Ordinary successful writes retain the cross-request lane
+                        # until Python classifies terminal canonical readback. A
+                        # browser-proven Temporary turn uses page-owned finality and
+                        # must release here so explicit lifecycle close can enter.
                         self._reserve_authority_for_readback(lease_id)
                         release_lane = False
                     return message

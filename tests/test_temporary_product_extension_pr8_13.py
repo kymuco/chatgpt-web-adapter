@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -15,7 +19,9 @@ def _source() -> str:
 
 def test_pr813_layer_loads_after_pr812_stream_and_answer_channel() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
-    activity = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    activity = (
+        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    )
     channel = 'importScripts("service_worker_answer_channel_pr8_12.js");'
     temporary = 'importScripts("service_worker_temporary_chat_production_pr8_13.js");'
     assert activity in source and channel in source and temporary in source
@@ -33,7 +39,9 @@ def test_temporary_write_is_paused_before_network_dispatch_for_mode_proof() -> N
     assert 'proofKind: "FETCH_PAUSED_HISTORY_AND_TRAINING_DISABLED_TRUE"' in source
 
 
-def test_unproven_or_wrong_identity_temporary_request_is_aborted_not_downgraded() -> None:
+def test_unproven_or_wrong_identity_temporary_request_is_aborted_not_downgraded() -> (
+    None
+):
     source = _source()
     assert '"Fetch.failRequest"' in source
     assert 'errorReason: "Aborted"' in source
@@ -60,7 +68,9 @@ def test_request_body_is_browser_local_proof_only_and_never_rewritten() -> None:
     assert "Network.setExtraHTTPHeaders" not in source
 
 
-def test_fresh_temporary_lifecycle_gets_dedicated_inactive_tab_and_private_token() -> None:
+def test_fresh_temporary_lifecycle_gets_dedicated_inactive_tab_and_private_token() -> (
+    None
+):
     source = _source()
     assert "browserNativeTemporaryRuntimeTabIdV1" in source
     assert "?temporary-chat=true" in source
@@ -90,6 +100,26 @@ def test_tab_or_worker_recreation_cannot_restore_temporary_write_authority() -> 
         assert marker not in source
 
 
+def test_explicit_end_recovers_cleanup_after_mv3_worker_restart() -> None:
+    source = _source()
+    assert "if (live === null)" in source
+    assert "const retirement = await _pr813RetireOwnedTemporaryTab()" in source
+    assert "temporaryLifecycleEndRecovered: true" in source
+    assert "temporaryLifecycleEndProof: retirement.proof" in source
+    assert "temporaryLiveWriteAuthorityProven: false" in source
+    assert "chrome.tabs.query({})" in source
+    assert "OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT" in source
+    assert "OWNED_TAB_ALREADY_ABSENT_CONFIRMED" in source
+    assert "NO_OWNED_TAB_RECORDED" in source
+
+
+def test_explicit_end_never_closes_different_live_lifecycle_with_stale_token() -> None:
+    source = _source()
+    assert 'if (live.token !== token || live.state !== "LIVE")' in source
+    assert 'throw new Error("PR8_13_TEMPORARY_LIFECYCLE_NOT_LIVE")' in source
+    assert "temporaryLifecycleEndProof: retirement.proof" in source
+
+
 def test_explicit_end_closes_owned_tab_and_revokes_live_authority() -> None:
     source = _source()
     assert "endTemporaryLifecycle" in source
@@ -101,12 +131,212 @@ def test_explicit_end_closes_owned_tab_and_revokes_live_authority() -> None:
     assert "temporaryLiveWriteAuthorityProven: false" in source
 
 
+def _run_temporary_close_scenario(tmp_path: Path, scenario: str) -> dict:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable; source-contract tests remain active")
+
+    harness = tmp_path / f"pr8_13_close_{scenario}.js"
+    harness.write_text(
+        """
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(process.argv[2], "utf8");
+const scenario = process.argv[3];
+const storage = new Map();
+const tabs = new Map();
+const key = "browserNativeTemporaryRuntimeTabIdV1";
+storage.set(key, 77);
+
+if (scenario !== "already_absent") {
+  tabs.set(77, { id: 77, url: "https://chatgpt.com/?temporary-chat=true" });
+}
+
+let removeCalls = 0;
+const chrome = {
+  storage: {
+    local: {
+      get: async (requested) => ({ [requested]: storage.get(requested) }),
+      set: async (values) => {
+        for (const [name, value] of Object.entries(values)) storage.set(name, value);
+      },
+      remove: async (requested) => { storage.delete(requested); }
+    }
+  },
+  tabs: {
+    remove: async (tabId) => {
+      removeCalls += 1;
+      if (
+        scenario === "remove_fails_present" ||
+        scenario === "already_absent" ||
+        scenario === "matched_live_remove_fails_present"
+      ) {
+        throw new Error("synthetic remove failure");
+      }
+      tabs.delete(tabId);
+    },
+    query: async () => {
+      if (scenario === "query_fails") throw new Error("synthetic query failure");
+      return Array.from(tabs.values());
+    },
+    get: async (tabId) => {
+      if (!tabs.has(tabId)) throw new Error("missing tab");
+      return tabs.get(tabId);
+    },
+    create: async () => ({ id: 99 }),
+    onRemoved: { addListener: () => {} }
+  },
+  debugger: {
+    onEvent: { addListener: () => {} },
+    sendCommand: async () => ({})
+  }
+};
+
+const context = {
+  console,
+  Number,
+  Error,
+  Promise,
+  Array,
+  Object,
+  JSON,
+  setTimeout,
+  clearTimeout,
+  chrome,
+  executeNativeTurn: async () => ({}),
+  ensureRuntimeTab: async () => ({}),
+  submitOfficialPageTurn: async () => ({}),
+  CHATGPT_ORIGIN: "https://chatgpt.com",
+  waitForTabComplete: async (tabId) => ({ id: tabId }),
+  isChatGPTUrl: () => true,
+  isConversationWrite: () => false,
+  sendCommand: async () => ({})
+};
+context.globalThis = context;
+vm.createContext(context);
+vm.runInContext(
+  source + "\\n;globalThis.__exports = { end: _pr813EndTemporaryLifecycle, setLive: (value) => { _pr813LiveTemporaryLifecycle = value; } };",
+  context
+);
+
+(async () => {
+  if (scenario === "matched_live_remove_fails_present") {
+    context.__exports.setLive({
+      token: "token-1",
+      tabId: 77,
+      conversationId: "temporary-1",
+      state: "LIVE"
+    });
+  }
+
+  let result = null;
+  let error = null;
+  try {
+    result = await context.__exports.end({
+      temporaryLifecycleToken: "token-1",
+      conversationId: "temporary-1"
+    });
+  } catch (exc) {
+    error = String(exc && exc.message ? exc.message : exc);
+  }
+
+  console.log(JSON.stringify({
+    result,
+    error,
+    removeCalls,
+    storedTabId: storage.has(key) ? storage.get(key) : null,
+    tabPresent: tabs.has(77)
+  }));
+})();
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [node, str(harness), str(PRODUCTION), scenario],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(completed.stdout.strip().splitlines()[-1])
+
+
+def test_restart_close_proves_removed_tab_absent_before_ended(tmp_path: Path) -> None:
+    result = _run_temporary_close_scenario(tmp_path, "remove_succeeds")
+
+    assert result["error"] is None
+    assert result["result"]["temporaryLifecycleState"] == "ENDED"
+    assert (
+        result["result"]["temporaryLifecycleEndProof"]
+        == "OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT"
+    )
+    assert result["result"]["temporaryLifecycleEndRecovered"] is True
+    assert result["tabPresent"] is False
+    assert result["storedTabId"] is None
+
+
+def test_restart_close_accepts_already_absent_tab_only_after_observation(
+    tmp_path: Path,
+) -> None:
+    result = _run_temporary_close_scenario(tmp_path, "already_absent")
+
+    assert result["error"] is None
+    assert (
+        result["result"]["temporaryLifecycleEndProof"]
+        == "OWNED_TAB_ALREADY_ABSENT_CONFIRMED"
+    )
+    assert result["removeCalls"] == 1
+    assert result["tabPresent"] is False
+    assert result["storedTabId"] is None
+
+
+def test_restart_close_keeps_cleanup_handle_when_remove_fails_and_tab_remains(
+    tmp_path: Path,
+) -> None:
+    result = _run_temporary_close_scenario(tmp_path, "remove_fails_present")
+
+    assert result["result"] is None
+    assert "TEMPORARY_LIFECYCLE_END_NOT_PROVEN" in result["error"]
+    assert result["tabPresent"] is True
+    assert result["storedTabId"] == 77
+
+
+def test_restart_close_fails_closed_when_absence_observation_fails(
+    tmp_path: Path,
+) -> None:
+    result = _run_temporary_close_scenario(tmp_path, "query_fails")
+
+    assert result["result"] is None
+    assert "TEMPORARY_LIFECYCLE_END_NOT_PROVEN" in result["error"]
+    assert result["storedTabId"] == 77
+
+
+def test_matching_live_close_does_not_claim_ended_when_owned_tab_remains(
+    tmp_path: Path,
+) -> None:
+    result = _run_temporary_close_scenario(
+        tmp_path,
+        "matched_live_remove_fails_present",
+    )
+
+    assert result["result"] is None
+    assert "TEMPORARY_LIFECYCLE_END_NOT_PROVEN" in result["error"]
+    assert result["tabPresent"] is True
+    assert result["storedTabId"] == 77
+
+
 def test_normal_mode_delegates_to_existing_production_chain() -> None:
     source = _source()
     assert "const _pr813PriorExecuteNativeTurn = executeNativeTurn;" in source
-    assert 'if (mode !== "temporary") return _pr813PriorExecuteNativeTurn(message);' in source
+    assert (
+        'if (mode !== "temporary") return _pr813PriorExecuteNativeTurn(message);'
+        in source
+    )
     assert "const _pr813PriorEnsureRuntimeTab = ensureRuntimeTab;" in source
-    assert "if (context === null) return _pr813PriorEnsureRuntimeTab(conversationId);" in source
+    assert (
+        "if (context === null) return _pr813PriorEnsureRuntimeTab(conversationId);"
+        in source
+    )
 
 
 def test_pr813_adds_no_retry_or_second_product_write_path() -> None:

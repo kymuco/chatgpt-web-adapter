@@ -107,6 +107,60 @@ LIVE process-local lifecycle authority
 
 The route is session-scoped. Runtime/tab reconstruction does not recreate Temporary write authority.
 
+### Explicit close after MV3 service-worker restart
+
+Chrome may restart the MV3 extension service worker after a successful Temporary
+turn. Such a restart destroys the module-live Temporary lifecycle object and
+therefore already destroys continuation authority. The CWA-owned Temporary tab id
+may still remain in `chrome.storage.local` solely for cleanup.
+
+Explicit close is now restart-safe and cleanup proof is observation-backed:
+
+```text
+browser live lifecycle still present + matching token
+    -> revoke live continuation authority
+    -> request owned-tab removal
+    -> freshly observe the Chrome tab set
+    -> ENDED only when the exact owned tab id is absent
+
+browser live lifecycle absent after worker restart
+    -> do not recreate write authority
+    -> use only the stored CWA-owned tab id as cleanup state
+    -> request removal when present
+    -> freshly observe the Chrome tab set
+    -> ENDED only when the exact owned tab id is absent
+
+different browser live lifecycle + stale token
+    -> fail closed
+    -> do not close the different lifecycle
+```
+
+A successful `chrome.tabs.remove(...)` call is not itself cleanup proof. A failed
+remove is also not proof of failure, because the tab may already be absent. The
+post-remove tab observation is authoritative for this resource boundary.
+
+Successful end proof is restricted to:
+
+```text
+NO_OWNED_TAB_RECORDED
+OWNED_TAB_REMOVED_AND_CONFIRMED_ABSENT
+OWNED_TAB_ALREADY_ABSENT_CONFIRMED
+```
+
+If the owned tab is still present or tab absence cannot be observed, close fails
+with `PR8_13_TEMPORARY_LIFECYCLE_END_NOT_PROVEN`. The stored tab id is retained
+for later cleanup instead of being erased.
+
+The deployed extension owns the physical cleanup proof boundary: it emits
+`temporaryLifecycleState=ENDED` only after one of the observation-backed outcomes
+above. The current Python runtime validates the successful `ENDED` result but does
+not independently re-validate the extension's `temporaryLifecycleEndProof` field.
+Deterministic extension regressions and exact deployment identity therefore remain
+part of the cleanup proof chain.
+
+Recovered cleanup is resource revocation only. It does not make a Temporary
+conversation id durable and does not recreate continuation authority.
+
 ## Prewrite safety boundary
 
 For every Temporary write, the ChatGPT page generates the conversation request. CDP Fetch pauses the request before network dispatch. CWA permits the request to continue only after browser-local inspection proves:
