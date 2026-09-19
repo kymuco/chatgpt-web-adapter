@@ -3,8 +3,6 @@ importScripts("service_worker_runtime_tab_reconciliation.js");
 const PR87_TEMPORARY_PROBE_DEFAULT_TIMEOUT_MS = 30_000;
 const PR87_TEMPORARY_PROBE_MAX_TIMEOUT_MS = 120_000;
 const PR87_TEMPORARY_SELECTION_TIMEOUT_MS = 5_000;
-const _pr87OriginalExecuteNativeTurn = executeNativeTurn;
-
 function _pr87ClampProbeTimeoutMs(value) {
   if (!Number.isFinite(value)) return PR87_TEMPORARY_PROBE_DEFAULT_TIMEOUT_MS;
   return Math.max(10_000, Math.min(Number(value), PR87_TEMPORARY_PROBE_MAX_TIMEOUT_MS));
@@ -275,10 +273,7 @@ async function _pr87ExecuteTemporaryModeProbe(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithTemporaryModeProbe(message) {
-  if (message?.probeTemporaryMode !== true) {
-    return _pr87OriginalExecuteNativeTurn(message);
-  }
+async function _pr87HandleTemporaryModeProbe(message) {
   if (message?.conversationId != null) {
     throw new Error("TEMPORARY_CHAT_PROBE_REQUIRES_NEW_CHAT");
   }
@@ -286,4 +281,4 @@ executeNativeTurn = async function _executeNativeTurnWithTemporaryModeProbe(mess
     throw new Error("TEMPORARY_CHAT_PROBE_MUST_NOT_INCLUDE_TEXT");
   }
   return _pr87ExecuteTemporaryModeProbe(message);
-};
+}
