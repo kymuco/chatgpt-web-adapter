@@ -964,14 +964,21 @@ class BrowserOwnedProductWriteRuntime:
                 POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
                 POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
             }
-            turn_ref = self._fail_turn(
-                turn_ref,
-                state=(
-                    TurnLifecycleState.READBACK_INCOMPLETE
-                    if readback_failure or submitted_reconciled
-                    else TurnLifecycleState.AMBIGUOUS
-                ),
-            )
+            if post_outcome == POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT:
+                turn_ref = self._finalize_turn(turn_ref)
+            else:
+                turn_ref = self._fail_turn(
+                    turn_ref,
+                    state=(
+                        TurnLifecycleState.READBACK_INCOMPLETE
+                        if (
+                            readback_failure
+                            or post_outcome
+                            == POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE
+                        )
+                        else TurnLifecycleState.AMBIGUOUS
+                    ),
+                )
 
             reconciliation_read_performed = bool(
                 post_reconciliation is not None
