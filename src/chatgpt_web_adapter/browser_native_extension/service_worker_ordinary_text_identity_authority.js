@@ -462,9 +462,15 @@ async function _cwaOrdinaryIdentityAnnotatePostDelegationFailure(
   if (userMessageId === null || conversationId === null) return error;
 
   const annotated = error instanceof Error ? error : new Error(detail);
+  const runtimeTabId = Number.isInteger(context?.debuggee?.tabId)
+    ? context.debuggee.tabId
+    : null;
+  if (runtimeTabId === null) return error;
+
   annotated.cwaPostDelegationRequestCorrelationProven = true;
   annotated.cwaPostDelegationUserMessageId = userMessageId;
   annotated.cwaPostDelegationConversationId = conversationId;
+  annotated.cwaPostDelegationRuntimeTabId = runtimeTabId;
   return annotated;
 }
 
