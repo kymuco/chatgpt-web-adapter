@@ -272,3 +272,59 @@ def test_delegated_abort_conversation_mismatch_stays_unknown(
     assert error.reconciliation_required is True
     assert error.automatic_retry_allowed is False
     assert error.turn_lifecycle.state.value == "AMBIGUOUS"
+
+
+def test_delegated_abort_with_canonical_terminal_assistant_finalizes_logical_turn(
+    monkeypatch,
+) -> None:
+    calls = 0
+
+    def fail(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        error = subject.RequestError(
+            "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+        )
+        error.post_delegation_request_correlation_proven = True
+        error.post_delegation_user_message_id = "user-message-1"
+        error.post_delegation_conversation_id = "conversation-1"
+        error.post_delegation_runtime_tab_id = 42
+        raise error
+
+    class Reconciliation:
+        outcome = subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT
+        canonical_read_performed = False
+
+        @staticmethod
+        def to_dict():
+            return {
+                "outcome": subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
+                "canonical_read_performed": False,
+                "canonical_read_complete": True,
+                "conversation_id": "conversation-1",
+                "user_message_id": "user-message-1",
+                "user_turn_persisted": True,
+                "canonical_status": "completed",
+                "terminal_assistant_message_id": "assistant-message-1",
+            }
+
+    monkeypatch.setattr(subject, "send_browser_native", fail)
+    monkeypatch.setattr(
+        subject,
+        "reconcile_post_delegation_failure",
+        lambda *args, **kwargs: Reconciliation(),
+    )
+
+    rt = runtime()
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text("hello", conversation="conversation-1")
+
+    assert calls == 1
+    error = caught.value
+    assert error.failure_kind == subject.WRITE_SUBMITTED_TERMINAL_ASSISTANT
+    assert error.post_delegation_outcome == subject.POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT
+    assert error.write_may_have_been_submitted is True
+    assert error.reconciliation_required is False
+    assert error.automatic_retry_allowed is False
+    assert error.manual_retry_safe_after_repair is False
+    assert error.turn_lifecycle.state.value == "FINALIZED"
