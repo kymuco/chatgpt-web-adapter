@@ -41,8 +41,9 @@ def test_surface_worker_is_additive_observability_overlay() -> None:
         in observability
     )
     assert "importScripts(" not in source
-    assert "_pr101ArtifactSurfacePriorExecuteNativeTurn = executeNativeTurn" in source
-    assert "return _pr101ArtifactSurfacePriorExecuteNativeTurn(message);" in source
+    assert "executeNativeTurn = async function" not in source
+    assert "_pr101ArtifactSurfacePriorExecuteNativeTurn" not in source
+    assert "async function _pr101ExecuteNativeTurnWithArtifactSurfaceProbe(message)" in source
 
 
 def test_surface_worker_requires_assistant_owned_filename_match() -> None:
