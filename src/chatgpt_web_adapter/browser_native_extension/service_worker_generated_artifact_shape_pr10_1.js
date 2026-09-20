@@ -16,7 +16,6 @@ const PR101_ARTIFACT_SHAPE_MAX_FINDINGS = 16;
 const PR101_ARTIFACT_SHAPE_MAX_JSON_TEXT = 200000;
 
 const _pr101ShapePriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
-const _pr101ShapePriorExecuteNativeTurn = executeNativeTurn;
 const _pr101ShapeEmissionState = new WeakMap();
 
 function _pr101ShapeSafeKey(value) {
@@ -187,7 +186,7 @@ _pr89BrowserStreamProcessSseEvent = async function _pr101ArtifactShapeProcessSse
   return result;
 };
 
-executeNativeTurn = async function _pr101ArtifactShapeSupportOverlay(message) {
+async function _pr101ArtifactShapeSupportOverlay(message) {
   if (message?.characterizeGeneratedArtifactShapeSupport === true) {
     return {
       request_id: message.request_id,
@@ -200,5 +199,5 @@ executeNativeTurn = async function _pr101ArtifactShapeSupportOverlay(message) {
       writePerformed: false
     };
   }
-  return _pr101ShapePriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };
