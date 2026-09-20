@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chatgpt_web_adapter.post_answer_tail_latency_pr8_11 import PostAnswerTailTimingProvider
+from chatgpt_web_adapter.post_answer_tail_latency_pr8_11 import (
+    PostAnswerTailTimingProvider,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]

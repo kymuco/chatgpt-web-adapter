@@ -23,7 +23,7 @@ Import order implicitly defined runtime nesting.
 The six modules keep their lower-level SSE, assistant-record, and page-turn hooks,
 but expose their native-turn behavior as composable `(message, next)` layers.
 
-`service_worker_response_lifecycle_pr15_8.js` is the single native-turn owner for
+`service_worker_response_lifecycle.js` is the single native-turn owner for
 the cluster and freezes the historical outer-to-inner order explicitly:
 
 ```text

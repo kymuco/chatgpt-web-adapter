@@ -15,7 +15,7 @@ LAYERS = (
     "service_worker_revision_safe_text_delivery_pr8_9.js",
     "service_worker_safe_browser_response_stream_pr8_9.js",
 )
-OWNER = "service_worker_response_lifecycle_pr15_8.js"
+OWNER = "service_worker_response_lifecycle.js"
 
 
 def _source(name: str) -> str:
@@ -81,9 +81,16 @@ def test_response_lifecycle_has_one_explicit_owner_at_same_assembly_boundary() -
     connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
 
     assert activity in assembly and owner_import in assembly and connector in assembly
-    assert assembly.index(activity) < assembly.index(owner_import) < assembly.index(connector)
+    assert (
+        assembly.index(activity)
+        < assembly.index(owner_import)
+        < assembly.index(connector)
+    )
     assert owner.count("executeNativeTurn =") == 1
-    assert "const _cwaResponseLifecyclePriorExecuteNativeTurn = executeNativeTurn;" in owner
+    assert (
+        "const _cwaResponseLifecyclePriorExecuteNativeTurn = executeNativeTurn;"
+        in owner
+    )
 
 
 def test_response_lifecycle_preserves_historical_outer_to_inner_order() -> None:
