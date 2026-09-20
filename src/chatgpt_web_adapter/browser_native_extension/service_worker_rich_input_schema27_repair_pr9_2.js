@@ -251,18 +251,15 @@ function _pr92Schema27DiagnosticRemovalNormalization(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema27Repair(message) {
-  const result = await _pr92Schema27PriorExecuteNativeTurn(message);
+function _pr92Schema27AugmentComposerDiagnostic(result) {
+  return {
+    ...result,
+    richInputSchemaVersion: PR92_SCHEMA27_REPAIR_SCHEMA,
+    schema27RemovalNormalizationProof: _pr92Schema27DiagnosticRemovalNormalization(result)
+  };
+}
 
-  if (message?.diagnosePr92ComposerEvidence === true && result && typeof result === "object") {
-    return {
-      ...result,
-      richInputSchemaVersion: PR92_SCHEMA27_REPAIR_SCHEMA,
-      schema27RemovalNormalizationProof: _pr92Schema27DiagnosticRemovalNormalization(result)
-    };
-  }
-
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema27AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA27_REPAIR_SCHEMA,
@@ -273,4 +270,15 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema27Repair(mess
     unindexedRemovalLiteralSemanticsPreserved: true,
     indexedRemovalInterpretationSelectedByExactFilenameGroupOnly: true
   };
+}
+
+executeNativeTurn = async function _executeNativeTurnWithPr92Schema27Repair(message) {
+  const result = await _pr92Schema27PriorExecuteNativeTurn(message);
+
+  if (message?.diagnosePr92ComposerEvidence === true && result && typeof result === "object") {
+    return _pr92Schema27AugmentComposerDiagnostic(result);
+  }
+
+  if (message?.characterizeRichInputSupport !== true) return result;
+  return _pr92Schema27AugmentSupportResult(result);
 };
