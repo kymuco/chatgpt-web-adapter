@@ -92,7 +92,7 @@ def test_schema_20_raw_observer_records_post_arm_requests_independently_of_gated
 def test_schema_20_success_requires_one_non_user_gesture_request_after_marker():
     text = SCHEMA20.read_text(encoding="utf-8")
     start = text.index("executeOfficialPageTurn = async function")
-    end = text.index("executeNativeTurn = async function", start)
+    end = text.index("function _pr92Schema20AugmentSupportResult", start)
     block = text[start:end]
     assert 'method === "Runtime.consoleAPICalled"' in block
     assert 'method === "Network.requestWillBeSent"' in block
@@ -107,7 +107,9 @@ def test_schema_20_ambiguous_request_correlation_cannot_trigger_retry():
     text = SCHEMA20.read_text(encoding="utf-8")
     assert "ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: true" in text
     assert "automaticWriteRetryAfterSubmitCorrelationFailure: false" in text
-    assert "retry" not in text[text.index("executeOfficialPageTurn = async function"):text.index("executeNativeTurn = async function")].lower().replace("never retry", "")
+    start = text.index("executeOfficialPageTurn = async function")
+    end = text.index("function _pr92Schema20AugmentSupportResult", start)
+    assert "retry" not in text[start:end].lower().replace("never retry", "")
 
 
 def test_schema_20_request_id_is_returned_only_as_diagnostic_after_correlation():
