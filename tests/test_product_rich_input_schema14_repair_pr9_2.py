@@ -26,7 +26,7 @@ def test_schema_14_rejects_rich_input_model_profile_before_prior_chain():
     assert "_pr92Schema14HasAttachmentPaths(message)" in text
     assert "_pr92Schema14HasModelProfileRequirement(message)" in text
     error = 'throw new Error("PR9_2_RICH_INPUT_MODEL_PROFILE_COMBINATION_UNAVAILABLE");'
-    prior = "const result = await _pr92Schema14PriorExecuteNativeTurn(message);"
+    prior = "return _pr92Schema14PriorExecuteNativeTurn(message);"
     assert error in text
     assert prior in text
     assert text.index(error) < text.index(prior)
@@ -36,7 +36,7 @@ def test_schema_14_guard_is_specific_to_new_composition():
     text = SCHEMA14.read_text(encoding="utf-8")
     assert "Array.isArray(message?.attachmentPaths) && message.attachmentPaths.length > 0" in text
     assert 'typeof message?.requiredModelMode === "string"' in text
-    assert "message?.characterizeRichInputSupport !== true" in text
+    assert "characterizeRichInputSupport" not in text
     assert "Text-only model-profile turns and ordinary rich-input turns are unchanged." in text
 
 
