@@ -11,8 +11,6 @@
 // submit primitive. Staging may upload the selected file to the official page; that
 // page mutation is reported explicitly and is distinct from a conversation write.
 
-const _pr92Schema26StagingDiagnosticPriorExecuteNativeTurn = executeNativeTurn;
-
 async function _pr92Schema26ReadStagedDiagnosticEvidence(tabId, attachmentPaths, context) {
   const debuggee = { tabId };
   let attached = false;
@@ -58,10 +56,7 @@ async function _pr92Schema26ReadStagedDiagnosticEvidence(tabId, attachmentPaths,
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema26StagingDiagnostic(message) {
-  if (message?.diagnosePr92StagedAttachmentEvidence !== true) {
-    return _pr92Schema26StagingDiagnosticPriorExecuteNativeTurn(message);
-  }
+async function _pr92RunSchema26StagingDiagnostic(message) {
   if (message?.text != null) {
     throw new Error("PR9_2_SCHEMA26_STAGING_DIAGNOSTIC_TEXT_FORBIDDEN");
   }
@@ -164,4 +159,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema26StagingDiag
   } finally {
     _pr92ActiveTurnContext = null;
   }
-};
+}
