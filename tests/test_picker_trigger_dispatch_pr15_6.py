@@ -17,7 +17,9 @@ def test_picker_trigger_timeline_no_longer_owns_native_turn() -> None:
     assert "PriorExecuteNativeTurn" not in persistence
 
 
-def test_instant_failure_forensics_owner_preserves_picker_trigger_support_contract() -> None:
+def test_instant_failure_forensics_owner_preserves_picker_trigger_support_contract() -> (
+    None
+):
     owner = _source("service_worker_instant_popup_subtree_forensics_pr8_8.js")
 
     assert '"instant-failure-forensics"' in owner
@@ -32,7 +34,9 @@ def test_instant_failure_forensics_owner_preserves_picker_trigger_support_contra
         assert token in owner
 
 
-def test_instant_failure_forensics_owner_preserves_picker_trigger_record_contract() -> None:
+def test_instant_failure_forensics_owner_preserves_picker_trigger_record_contract() -> (
+    None
+):
     owner = _source("service_worker_instant_popup_subtree_forensics_pr8_8.js")
 
     assert "await _pr88TriggerStoredRecord()" in owner
@@ -50,4 +54,6 @@ def test_picker_trigger_helpers_are_loaded_before_diagnostic_dispatch_can_run() 
     persistence = 'importScripts("service_worker_picker_trigger_persistence_pr8_8.js");'
 
     assert owner in assembly and identity in assembly and persistence in assembly
-    assert assembly.index(owner) < assembly.index(identity) < assembly.index(persistence)
+    assert (
+        assembly.index(owner) < assembly.index(identity) < assembly.index(persistence)
+    )
