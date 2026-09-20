@@ -2,7 +2,6 @@
 // Raw attachment child keys, array element values, string values, locator values, and React state values never leave the page.
 
 const PR101_ARTIFACT_ARRAY_ELEMENT_SHAPE_V10_SCHEMA = 10;
-const _pr101ArtifactArrayElementShapeV10PriorExecuteNativeTurn = executeNativeTurn;
 
 function _pr101ArtifactArrayElementShapeV10RejectWriteBearingMessage(message, code) {
   if (message?.text != null || message?.conversationId != null || message?.attachmentPaths != null || message?.browserAuthorityLeaseId != null) {
@@ -522,7 +521,7 @@ async function _pr101CharacterizeGeneratedArtifactArrayElementShapeV10() {
   };
 }
 
-executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactArrayElementShapeV10(message) {
+async function _pr101ExecuteNativeTurnWithArtifactArrayElementShapeV10(message) {
   if (message?.characterizeGeneratedArtifactArrayElementShapeV10Support === true) {
     _pr101ArtifactArrayElementShapeV10RejectWriteBearingMessage(message, "PR10_1_ARTIFACT_ARRAY_ELEMENT_SHAPE_V10_SUPPORT_PROBE_MUST_BE_NO_WRITE");
     return {
@@ -541,5 +540,85 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactArrayEleme
     _pr101ArtifactArrayElementShapeV10RejectWriteBearingMessage(message, "PR10_1_ARTIFACT_ARRAY_ELEMENT_SHAPE_V10_PROBE_MUST_BE_NO_WRITE");
     return _pr101CharacterizeGeneratedArtifactArrayElementShapeV10();
   }
-  return _pr101ArtifactArrayElementShapeV10PriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };
+
+function _cwaGeneratedArtifactCharacterizationMatches(message) {
+  return (
+    message?.characterizeGeneratedArtifactShapeSupport === true ||
+    message?.characterizeGeneratedArtifactSurfaceSupport === true ||
+    message?.characterizeGeneratedArtifactSurface === true ||
+    message?.characterizeGeneratedArtifactSurfaceV2Support === true ||
+    message?.characterizeGeneratedArtifactSurfaceV2 === true ||
+    message?.characterizeGeneratedArtifactTopologyV3Support === true ||
+    message?.characterizeGeneratedArtifactTopologyV3 === true ||
+    message?.characterizeGeneratedArtifactNonCodeV4Support === true ||
+    message?.characterizeGeneratedArtifactNonCodeV4 === true ||
+    message?.characterizeGeneratedArtifactActionV5Support === true ||
+    message?.characterizeGeneratedArtifactActionV5 === true ||
+    message?.characterizeGeneratedArtifactFiberStateV6Support === true ||
+    message?.characterizeGeneratedArtifactFiberStateV6 === true ||
+    message?.characterizeGeneratedArtifactSubtreeV7Support === true ||
+    message?.characterizeGeneratedArtifactSubtreeV7 === true ||
+    message?.characterizeGeneratedArtifactRootShapeV8Support === true ||
+    message?.characterizeGeneratedArtifactRootShapeV8 === true ||
+    message?.characterizeGeneratedArtifactRootKeyShapeV9Support === true ||
+    message?.characterizeGeneratedArtifactRootKeyShapeV9 === true ||
+    message?.characterizeGeneratedArtifactArrayElementShapeV10Support === true ||
+    message?.characterizeGeneratedArtifactArrayElementShapeV10 === true
+  );
+}
+
+async function _cwaHandleGeneratedArtifactCharacterization(message) {
+  // Preserve the historical outer-to-inner wrapper precedence exactly.
+  if (
+    message?.characterizeGeneratedArtifactArrayElementShapeV10Support === true ||
+    message?.characterizeGeneratedArtifactArrayElementShapeV10 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactArrayElementShapeV10(message);
+  if (
+    message?.characterizeGeneratedArtifactRootKeyShapeV9Support === true ||
+    message?.characterizeGeneratedArtifactRootKeyShapeV9 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactRootKeyShapeV9(message);
+  if (
+    message?.characterizeGeneratedArtifactRootShapeV8Support === true ||
+    message?.characterizeGeneratedArtifactRootShapeV8 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactRootShapeV8(message);
+  if (
+    message?.characterizeGeneratedArtifactSubtreeV7Support === true ||
+    message?.characterizeGeneratedArtifactSubtreeV7 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactSubtreeV7(message);
+  if (
+    message?.characterizeGeneratedArtifactFiberStateV6Support === true ||
+    message?.characterizeGeneratedArtifactFiberStateV6 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactFiberStateV6(message);
+  if (
+    message?.characterizeGeneratedArtifactActionV5Support === true ||
+    message?.characterizeGeneratedArtifactActionV5 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactActionV5(message);
+  if (
+    message?.characterizeGeneratedArtifactNonCodeV4Support === true ||
+    message?.characterizeGeneratedArtifactNonCodeV4 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactNonCodeV4(message);
+  if (
+    message?.characterizeGeneratedArtifactTopologyV3Support === true ||
+    message?.characterizeGeneratedArtifactTopologyV3 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactTopologyV3(message);
+  if (
+    message?.characterizeGeneratedArtifactSurfaceV2Support === true ||
+    message?.characterizeGeneratedArtifactSurfaceV2 === true
+  ) return _pr101ExecuteNativeTurnWithArtifactSurfaceV2(message);
+  if (
+    message?.characterizeGeneratedArtifactSurfaceSupport === true ||
+    message?.characterizeGeneratedArtifactSurface === true
+  ) return _pr101ExecuteNativeTurnWithArtifactSurfaceProbe(message);
+  if (message?.characterizeGeneratedArtifactShapeSupport === true) {
+    return _pr101ArtifactShapeSupportOverlay(message);
+  }
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
+}
+
+registerNativeTurnDiagnosticHandler(
+  "generated-artifact-characterization",
+  _cwaGeneratedArtifactCharacterizationMatches,
+  _cwaHandleGeneratedArtifactCharacterization
+);
