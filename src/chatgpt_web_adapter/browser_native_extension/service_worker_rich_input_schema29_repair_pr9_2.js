@@ -713,13 +713,17 @@ function _pr92Schema29AugmentSupportResult(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(message) {
+function _pr92Schema29PrepareRichWriteDiagnostics(message) {
   const isRichWrite =
     Array.isArray(message?.attachmentPaths) && message.attachmentPaths.length > 0;
   if (isRichWrite) {
     _pr92Schema29LastIdentityParseDiagnostics = null;
     _pr92Schema29LastSubmitCorrelationDiagnostics = null;
   }
+}
+
+executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(message) {
+  _pr92Schema29PrepareRichWriteDiagnostics(message);
 
   let result;
   try {
