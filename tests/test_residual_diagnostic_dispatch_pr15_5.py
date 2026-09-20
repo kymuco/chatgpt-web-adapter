@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -53,7 +52,9 @@ def test_reasoning_effort_geometry_joins_existing_explicit_owner():
     assert "_pr88HandleReasoningEffortGeometryDiagnostic(message)" in governance
     assert "async function _pr88HandleReasoningEffortGeometryDiagnostic" in geometry
 
-    handler = governance[governance.index("async function _pr88HandleReasoningEffortDiagnostic") :]
+    handler = governance[
+        governance.index("async function _pr88HandleReasoningEffortDiagnostic") :
+    ]
     geometry_branch = handler.index("characterizeReasoningEffortGeometrySupport")
     slider_branch = handler.index("characterizeReasoningEffortSliderSupport")
     assert geometry_branch < slider_branch
