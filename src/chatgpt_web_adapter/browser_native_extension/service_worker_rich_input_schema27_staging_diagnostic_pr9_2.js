@@ -6,12 +6,7 @@
 // schema-27 page-owned evidence expression, then requires the schema-27 ambiguity
 // proof before invoking the existing durable-fence destructive cleanup.
 
-const _pr92Schema27StagingDiagnosticPriorExecuteNativeTurn = executeNativeTurn;
-
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema27StagingDiagnostic(message) {
-  if (message?.diagnosePr92StagedAttachmentEvidenceSchema27 !== true) {
-    return _pr92Schema27StagingDiagnosticPriorExecuteNativeTurn(message);
-  }
+async function _pr92RunSchema27StagingDiagnostic(message) {
   if (message?.text != null) {
     throw new Error("PR9_2_SCHEMA27_STAGING_DIAGNOSTIC_TEXT_FORBIDDEN");
   }
@@ -129,4 +124,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema27StagingDiag
   } finally {
     _pr92ActiveTurnContext = null;
   }
-};
+}
