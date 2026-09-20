@@ -11,7 +11,6 @@ const PR89_BROWSER_STREAM_MAX_OBSERVATIONS = 64;
 const PR89_BROWSER_STREAM_MAX_PREVIEW_CHARS = 160;
 const PR89_BROWSER_STREAM_MAX_SSE_BUFFER_CHARS = 262144;
 
-const _pr89BrowserStreamPriorExecuteNativeTurn = executeNativeTurn;
 const _pr89BrowserStreamPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
 let _pr89BrowserStreamContext = null;
@@ -430,7 +429,7 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithSafeBrowser
   }
 };
 
-executeNativeTurn = async function _executeNativeTurnWithSafeBrowserStream(message) {
+async function _executeNativeTurnWithSafeBrowserStream(message, next) {
   if (message?.characterizeSafeBrowserResponseStreamingSupport === true) {
     if (message?.text != null || message?.conversationId != null) {
       throw new Error("PR8_9_BROWSER_STREAM_SUPPORT_FLAG_CONFLICT");
@@ -446,7 +445,7 @@ executeNativeTurn = async function _executeNativeTurnWithSafeBrowserStream(messa
   }
 
   if (message?.characterizeSafeBrowserResponseStreaming !== true) {
-    return _pr89BrowserStreamPriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const text = typeof message?.text === "string" ? message.text.trim() : "";
@@ -463,7 +462,7 @@ executeNativeTurn = async function _executeNativeTurnWithSafeBrowserStream(messa
   const context = _pr89BrowserStreamCreateContext();
   _pr89BrowserStreamContext = context;
   try {
-    const result = await _pr89BrowserStreamPriorExecuteNativeTurn(message);
+    const result = await next(message);
     await context.processing;
     return {
       ...result,

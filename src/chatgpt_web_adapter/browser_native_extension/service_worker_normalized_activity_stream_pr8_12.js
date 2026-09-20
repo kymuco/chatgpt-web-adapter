@@ -11,7 +11,6 @@ const PR812_MAX_ACTIVITY_TEXT_CHARS = 12000;
 const PR812_MAX_OPERATION_DEPTH = 7;
 
 const _pr812PriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
-const _pr812PriorExecuteNativeTurn = executeNativeTurn;
 
 let _pr812RequestId = null;
 let _pr812Sequence = 0;
@@ -451,12 +450,12 @@ _pr89BrowserStreamProcessSseEvent = async function _pr812ProcessSseEvent(context
   return result;
 };
 
-executeNativeTurn = async function _pr812ExecuteNativeTurn(message) {
+async function _pr812ExecuteNativeTurn(message, next) {
   const streaming = message?.streamTextObservations === true;
-  if (!streaming) return _pr812PriorExecuteNativeTurn(message);
+  if (!streaming) return next(message);
 
   const requestId = typeof message?.request_id === "string" ? message.request_id.trim() : "";
-  if (!requestId) return _pr812PriorExecuteNativeTurn(message);
+  if (!requestId) return next(message);
   if (_pr812RequestId !== null) {
     throw new Error("PR8_12_ACTIVITY_STREAM_ALREADY_ACTIVE");
   }
@@ -464,7 +463,7 @@ executeNativeTurn = async function _pr812ExecuteNativeTurn(message) {
   _pr812RequestId = requestId;
   _pr812Sequence = 0;
   try {
-    return await _pr812PriorExecuteNativeTurn(message);
+    return await next(message);
   } finally {
     _pr812RequestId = null;
   }

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chatgpt_web_adapter.post_answer_tail_latency_pr8_11 import PostAnswerTailTimingProvider
-
+from chatgpt_web_adapter.post_answer_tail_latency_pr8_11 import (
+    PostAnswerTailTimingProvider,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -73,7 +74,7 @@ def test_pr8111_composer_poll_is_gated_after_assistant_text() -> None:
 def test_pr8111_does_not_export_raw_text_or_sse() -> None:
     source = _source()
     record_start = source.index("function _pr8111Record(context)")
-    record_end = source.index("\nexecuteNativeTurn =", record_start)
+    record_end = source.index("\nasync function _pr8111ExecuteNativeTurn", record_start)
     record = source[record_start:record_end]
     assert "sseBuffer" not in record
     assert "responseBody" not in record

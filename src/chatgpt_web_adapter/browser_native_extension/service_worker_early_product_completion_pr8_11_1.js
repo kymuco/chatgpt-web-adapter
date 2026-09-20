@@ -13,7 +13,6 @@ const PR8111_COMPOSER_POLL_TIMEOUT_MS = 120000;
 const _pr8111PriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
 const _pr8111PriorRecordAssistant = _pr89BrowserStreamRecordAssistant;
 const _pr8111PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr8111PriorExecuteNativeTurn = executeNativeTurn;
 
 let _pr8111Context = null;
 
@@ -387,7 +386,7 @@ function _pr8111Record(context) {
   };
 }
 
-executeNativeTurn = async function _pr8111ExecuteNativeTurn(message) {
+async function _pr8111ExecuteNativeTurn(message, next) {
   if (message?.characterizeEarlyProductCompletionSupport === true) {
     if (_pr8111QueryConflict(message)) {
       throw new Error("PR8_11_1_EARLY_COMPLETION_SUPPORT_FLAG_CONFLICT");
@@ -429,7 +428,7 @@ executeNativeTurn = async function _pr8111ExecuteNativeTurn(message) {
     Boolean(message.text.trim()) &&
     leaseId !== null
   );
-  if (!ordinaryWrite) return _pr8111PriorExecuteNativeTurn(message);
+  if (!ordinaryWrite) return next(message);
   if (_pr8111Context !== null) {
     throw new Error("PR8_11_1_EARLY_COMPLETION_CONTEXT_ALREADY_ACTIVE");
   }
@@ -462,7 +461,7 @@ executeNativeTurn = async function _pr8111ExecuteNativeTurn(message) {
   _pr8111Context = context;
 
   try {
-    const result = await _pr8111PriorExecuteNativeTurn(message);
+    const result = await next(message);
     const record = _pr8111Record(context);
     try {
       await chrome.storage.local.set({

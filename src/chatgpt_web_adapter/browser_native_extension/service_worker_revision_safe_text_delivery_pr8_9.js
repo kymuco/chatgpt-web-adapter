@@ -6,7 +6,6 @@
 // material never leave the browser worker.
 
 const _pr89DeliveryPriorRecordAssistant = _pr89BrowserStreamRecordAssistant;
-const _pr89DeliveryPriorExecuteNativeTurn = executeNativeTurn;
 
 let _pr89DeliveryRequestId = null;
 
@@ -67,9 +66,9 @@ _pr89BrowserStreamRecordAssistant = async function _pr89RecordAssistantWithDeliv
   });
 };
 
-executeNativeTurn = async function _executeNativeTurnWithRevisionSafeTextDelivery(message) {
+async function _executeNativeTurnWithRevisionSafeTextDelivery(message, next) {
   if (message?.streamTextObservations !== true) {
-    return _pr89DeliveryPriorExecuteNativeTurn(message);
+    return next(message);
   }
   const requestId = typeof message?.request_id === "string" ? message.request_id.trim() : "";
   if (!requestId) throw new Error("PR8_9_STREAM_DELIVERY_REQUEST_ID_REQUIRED");
@@ -80,7 +79,7 @@ executeNativeTurn = async function _executeNativeTurnWithRevisionSafeTextDeliver
   const alreadyCharacterizing = message?.characterizeSafeBrowserResponseStreaming === true;
   _pr89DeliveryRequestId = requestId;
   try {
-    const result = await _pr89DeliveryPriorExecuteNativeTurn(
+    const result = await next(
       alreadyCharacterizing
         ? message
         : { ...message, characterizeSafeBrowserResponseStreaming: true }
