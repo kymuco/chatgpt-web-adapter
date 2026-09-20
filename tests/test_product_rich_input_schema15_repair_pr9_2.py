@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -56,7 +55,9 @@ def test_schema_15_post_stage_success_detach_is_deadline_bounded_before_evidence
     assert "attached = false;" in block
     assert "return pageOwnedCount;" in block
     success_detached = block.rindex("attached = false;")
-    assert block.index(detach) < success_detached < block.index("return pageOwnedCount;")
+    assert (
+        block.index(detach) < success_detached < block.index("return pageOwnedCount;")
+    )
     assert "if (attached) _pr92Schema12BestEffortDetach(debuggee);" in block
 
 
@@ -90,7 +91,7 @@ def test_schema_15_gate_preserves_schema_14_and_requires_both_handoffs():
     text = GATE15.read_text(encoding="utf-8")
     assert "SCHEMA = 15" in text
     assert "class ProductRichInputSchema15LiveProvider" in text
-    assert "legacy[\"schema\"] = _v14.SCHEMA" in text
+    assert 'legacy["schema"] = _v14.SCHEMA' in text
     assert "_v14._validate_support(legacy)" in text
     required = [
         "pre_stage_successful_debugger_detach_deadline_bounded",
@@ -107,7 +108,9 @@ def test_schema_15_gate_preserves_schema_14_and_requires_both_handoffs():
 
 def test_schema_15_support_probe_is_ninth_no_write_characterization_rpc():
     text = GATE15.read_text(encoding="utf-8")
-    assert "This ninth characterization-only RPC carries neither text nor paths." in text
+    assert (
+        "This ninth characterization-only RPC carries neither text nor paths." in text
+    )
     marker = '"characterizeRichInputSupport": True'
     assert marker in text
     start = text.index("request_id = str(uuid.uuid4())")

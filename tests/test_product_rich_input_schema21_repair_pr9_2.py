@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -47,7 +46,10 @@ def test_schema_21_marker_is_inserted_immediately_before_atomic_click():
     schema7 = SCHEMA7.read_text(encoding="utf-8")
     validation = "if (Date.now() >= deadlineEpochMs)"
     click = "button.click();"
-    assert schema7.index(validation, schema7.index("function _pr92Schema7AtomicAttachmentSubmitExpression")) < schema7.index(click)
+    assert schema7.index(
+        validation,
+        schema7.index("function _pr92Schema7AtomicAttachmentSubmitExpression"),
+    ) < schema7.index(click)
 
 
 def test_schema_21_has_no_prevalidation_marker_path():
@@ -74,7 +76,9 @@ def test_schema_21_gate_preserves_schema_20_and_requires_boundary_fields():
 
 def test_schema_21_support_probe_is_fifteenth_no_write_characterization_rpc():
     text = GATE21.read_text(encoding="utf-8")
-    assert "Fifteenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Fifteenth characterization-only RPC: no text and no attachment paths." in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -34,7 +33,9 @@ def test_schema_18_optional_postwrite_work_preserves_dedicated_identity_reserve(
 
 def test_schema_18_identity_resolution_is_deadline_bounded_and_has_no_write_primitive():
     text = SCHEMA18.read_text(encoding="utf-8")
-    start = text.index("async function _pr92Schema18ResolvePostWriteConversationIdentity")
+    start = text.index(
+        "async function _pr92Schema18ResolvePostWriteConversationIdentity"
+    )
     end = text.index("executeOfficialPageTurn = async function", start)
     block = text[start:end]
     assert "chrome.tabs.onUpdated.addListener(routeListener);" in block
@@ -68,8 +69,12 @@ def test_schema_18_success_requires_real_identity_after_write_completion_proof()
 def test_schema_18_unresolved_identity_is_explicit_committed_failure_not_success():
     text = SCHEMA18.read_text(encoding="utf-8")
     assert '"PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED"' in text
-    resolver_start = text.index("async function _pr92Schema18ResolvePostWriteConversationIdentity")
-    resolver_end = text.index("executeOfficialPageTurn = async function", resolver_start)
+    resolver_start = text.index(
+        "async function _pr92Schema18ResolvePostWriteConversationIdentity"
+    )
+    resolver_end = text.index(
+        "executeOfficialPageTurn = async function", resolver_start
+    )
     resolver = text[resolver_start:resolver_end]
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in resolver
 
@@ -80,7 +85,10 @@ def test_schema_18_unresolved_identity_is_explicit_committed_failure_not_success
     assert "detail.includes(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)" in native
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in native
     assert "missingConversationIdentityCanReturnTransportSuccess: false" in support
-    assert "unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true" in support
+    assert (
+        "unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true"
+        in support
+    )
     assert "automaticWriteRetryAfterIdentityFailure: false" in support
 
 
@@ -90,7 +98,9 @@ def test_provider_maps_committed_identity_failure_to_readback_incomplete_timeout
     start = text.index('if not response.get("ok"):')
     end = text.index("result_conversation_id = response.get", start)
     block = text[start:end]
-    assert 'error.startswith("PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED")' in block
+    assert (
+        'error.startswith("PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED")' in block
+    )
     assert "raise ConversationTimeoutError(" in block
     assert 'last_status="browser_native_write_completed_identity_unresolved"' in block
     assert block.index("raise ConversationTimeoutError(") < block.index(
@@ -136,7 +146,9 @@ def test_schema_18_gate_preserves_schema_17_and_requires_identity_fields():
 
 def test_schema_18_support_probe_is_twelfth_no_write_characterization_rpc():
     text = GATE18.read_text(encoding="utf-8")
-    assert "This twelfth characterization-only RPC carries neither text nor paths." in text
+    assert (
+        "This twelfth characterization-only RPC carries neither text nor paths." in text
+    )
     marker = '"characterizeRichInputSupport": True'
     assert marker in text
     start = text.index("request_id = str(uuid.uuid4())")

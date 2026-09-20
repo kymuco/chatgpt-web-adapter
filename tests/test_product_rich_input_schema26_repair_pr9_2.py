@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
@@ -63,7 +62,9 @@ def test_schema_26_ambiguous_indexed_removal_only_evidence_fails_closed():
 
 def test_schema_26_indexed_candidate_must_match_independent_group_exactly():
     assert not _matches("Remove file 1: report.txt", "report.txt", ["old-report.txt"])
-    assert not _matches("Remove file 1: report.txt", "old-report.txt", ["old-report.txt"])
+    assert not _matches(
+        "Remove file 1: report.txt", "old-report.txt", ["old-report.txt"]
+    )
     assert not _matches("Remove file x: report.txt", "report.txt", ["report.txt"])
     assert not _matches("Remove file 1 report.txt", "report.txt", ["report.txt"])
     assert not _matches("Remove unknown 1: report.txt", "report.txt", ["report.txt"])
@@ -73,7 +74,11 @@ def test_schema_26_production_matcher_is_literal_first_then_group_corroborated()
     text = SCHEMA26.read_text(encoding="utf-8")
     assert "function _pr92Schema26RemovalPostActionPayload" in text
     assert "function _pr92Schema26IndexedRemovalCandidate" in text
-    matcher = text[text.index("const exactRemovalBasename") : text.index("const matchesExpectedExactly")]
+    matcher = text[
+        text.index("const exactRemovalBasename") : text.index(
+            "const matchesExpectedExactly"
+        )
+    ]
     assert "if (payload === name) return true" in matcher
     assert "candidate === name && groupLabels.includes(candidate)" in matcher
     assert ".endsWith(" not in matcher
@@ -89,7 +94,10 @@ def test_schema_26_keeps_existing_exact_set_cross_channel_authority():
     assert "exactAttachmentSet = crossEvidenceChannelExact" in text
     assert "unknownRoleGroupsFailClosed: true" in text
     assert "filenameGroupIndependentOfRemovalControl: true" in text
-    assert "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema26AttachmentEvidenceExpression" in text
+    assert (
+        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema26AttachmentEvidenceExpression"
+        in text
+    )
 
 
 def test_schema_26_diagnostic_exposes_literal_and_corroborated_interpretations():
@@ -131,7 +139,9 @@ def test_schema_26_gate_preserves_schema25_and_requires_new_fields():
 
 def test_schema_26_support_probe_is_twentieth_no_write_characterization_rpc():
     text = GATE26.read_text(encoding="utf-8")
-    assert "Twentieth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Twentieth characterization-only RPC: no text and no attachment paths." in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -38,15 +37,21 @@ def test_schema_19_causal_identity_is_captured_only_from_safe_stream_metadata():
     end = text.index("_pr92Schema17OptionalPostWrite = async function", start)
     block = text[start:end]
     assert "_pr92Schema19PriorExtractSafeStreamMetadata(body, base64Encoded)" in block
-    assert "context.schema19CausalConversationId = metadata.conversationId.trim()" in block
-    assert "context.schema19CausalTurnExchangeId = metadata.turnExchangeId.trim()" in block
+    assert (
+        "context.schema19CausalConversationId = metadata.conversationId.trim()" in block
+    )
+    assert (
+        "context.schema19CausalTurnExchangeId = metadata.turnExchangeId.trim()" in block
+    )
     assert "conversationIdFromUrl" not in block
     assert "chrome.tabs" not in block
 
 
 def test_schema_19_causal_stream_metadata_is_bound_to_exact_completed_request_id():
     schema17 = SCHEMA17.read_text(encoding="utf-8")
-    response_start = schema17.index("const responseBodyAttempt = _pr92Schema17OptionalPostWrite(")
+    response_start = schema17.index(
+        "const responseBodyAttempt = _pr92Schema17OptionalPostWrite("
+    )
     response_end = schema17.index("const finalTabAttempt", response_start)
     response_block = schema17[response_start:response_end]
     assert '"SCHEMA17_POSTWRITE_RESPONSE_BODY"' in response_block
@@ -55,9 +60,14 @@ def test_schema_19_causal_stream_metadata_is_bound_to_exact_completed_request_id
 
     schema19 = SCHEMA19.read_text(encoding="utf-8")
     capture_start = schema19.index("extractSafeStreamMetadata = function")
-    capture_end = schema19.index("_pr92Schema17OptionalPostWrite = async function", capture_start)
+    capture_end = schema19.index(
+        "_pr92Schema17OptionalPostWrite = async function", capture_start
+    )
     capture_block = schema19[capture_start:capture_end]
-    assert "context.schema19CausalConversationId = metadata.conversationId.trim()" in capture_block
+    assert (
+        "context.schema19CausalConversationId = metadata.conversationId.trim()"
+        in capture_block
+    )
 
 
 def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
@@ -72,7 +82,9 @@ def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
     assert "remaining - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS" in block
     assert "context.deadlineAt - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS" in block
     assert "PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS" in block
-    assert "_pr92Schema19PriorOptionalPostWrite(context, stage, operation, capMs)" in block
+    assert (
+        "_pr92Schema19PriorOptionalPostWrite(context, stage, operation, capMs)" in block
+    )
 
 
 def test_schema_19_new_chat_bypasses_schema_18_route_identity_fallback():
@@ -82,7 +94,9 @@ def test_schema_19_new_chat_bypasses_schema_18_route_identity_fallback():
     block = text[start:end]
     assert "if (context.schema19RequestedConversationId !== null)" in block
     assert "return _pr92Schema19PriorExecuteOfficialPageTurn(args);" in block
-    assert "const result = await _pr92Schema18PriorExecuteOfficialPageTurn(args);" in block
+    assert (
+        "const result = await _pr92Schema18PriorExecuteOfficialPageTurn(args);" in block
+    )
     assert "_pr92Schema18ResolvePostWriteConversationIdentity" not in block
     assert "chrome.tabs.onUpdated" not in block
     assert "chrome.tabs.get" not in block
@@ -97,7 +111,10 @@ def test_schema_19_route_can_neither_satisfy_nor_override_new_chat_identity():
     assert "if (!causalConversationId)" in block
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in block
     assert "const routeConversationId = conversationIdFromUrl" in block
-    assert "const routeMatchesCausalIdentity = routeConversationId === causalConversationId" in block
+    assert (
+        "const routeMatchesCausalIdentity = routeConversationId === causalConversationId"
+        in block
+    )
     assert "finalUrl: routeMatchesCausalIdentity ? result.finalUrl : null" in block
     assert "conversationId: causalConversationId" in block
     assert "routeConversationIdentityAuthoritative: false" in block
@@ -116,7 +133,9 @@ def test_schema_19_completed_write_proof_remains_required_before_identity_succes
     assert "result?.diagnostics?.conversationRequestSeen !== true" in block
     assert "result?.diagnostics?.loadingFinished !== true" in block
     assert "PR9_2_CONVERSATION_ID_MISSING_WITHOUT_WRITE_COMPLETION_PROOF" in block
-    assert block.index("conversationRequestSeen") < block.index("const causalConversationId")
+    assert block.index("conversationRequestSeen") < block.index(
+        "const causalConversationId"
+    )
 
 
 def test_schema_19_support_contract_denies_route_identity_authority():
@@ -162,7 +181,9 @@ def test_schema_19_gate_preserves_schema_18_and_requires_causal_identity_fields(
 
 def test_schema_19_support_probe_is_thirteenth_no_write_characterization_rpc():
     text = GATE19.read_text(encoding="utf-8")
-    assert "Thirteenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Thirteenth characterization-only RPC: no text and no attachment paths." in text
+    )
     marker = '"characterizeRichInputSupport": True'
     assert marker in text
     start = text.index("request_id = str(uuid.uuid4())")

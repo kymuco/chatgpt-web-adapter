@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
@@ -29,7 +28,9 @@ def _mirror_schema25_removal_basename(label: str) -> str:
 def test_schema_25_overlay_loads_after_schema24_and_diagnostic():
     text = LOADER.read_text(encoding="utf-8")
     schema24 = 'importScripts("service_worker_rich_input_schema24_repair_pr9_2.js");'
-    diagnostic = 'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
+    diagnostic = (
+        'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
+    )
     schema25 = 'importScripts("service_worker_rich_input_schema25_repair_pr9_2.js");'
     assert schema24 in text
     assert diagnostic in text
@@ -44,17 +45,33 @@ def test_schema_25_normalizes_observed_localized_indexed_removal_label_exactly()
         )
         == "pr9_2_attachment_evidence.png"
     )
-    assert _mirror_schema25_removal_basename("Remove file 7: report.txt") == "report.txt"
+    assert (
+        _mirror_schema25_removal_basename("Remove file 7: report.txt") == "report.txt"
+    )
     assert _mirror_schema25_removal_basename("Delete image 2: frame.png") == "frame.png"
 
 
 def test_schema_25_does_not_reintroduce_suffix_or_substring_aliases():
-    assert _mirror_schema25_removal_basename("Remove old report.txt") == "old report.txt"
-    assert _mirror_schema25_removal_basename("Remove file x: report.txt") == "file x: report.txt"
-    assert _mirror_schema25_removal_basename("Remove file 1 report.txt") == "file 1 report.txt"
-    assert _mirror_schema25_removal_basename("Remove file 1: old-report.txt") == "old-report.txt"
+    assert (
+        _mirror_schema25_removal_basename("Remove old report.txt") == "old report.txt"
+    )
+    assert (
+        _mirror_schema25_removal_basename("Remove file x: report.txt")
+        == "file x: report.txt"
+    )
+    assert (
+        _mirror_schema25_removal_basename("Remove file 1 report.txt")
+        == "file 1 report.txt"
+    )
+    assert (
+        _mirror_schema25_removal_basename("Remove file 1: old-report.txt")
+        == "old-report.txt"
+    )
     assert _mirror_schema25_removal_basename("Open file 1: report.txt") == ""
-    assert _mirror_schema25_removal_basename("Удалить что-то 1: report.txt") == "что-то 1: report.txt"
+    assert (
+        _mirror_schema25_removal_basename("Удалить что-то 1: report.txt")
+        == "что-то 1: report.txt"
+    )
 
 
 def test_schema_25_production_expression_uses_one_shared_anchored_parser():
@@ -63,9 +80,14 @@ def test_schema_25_production_expression_uses_one_shared_anchored_parser():
     assert "_pr92Schema25RemovalControlBasename.toString()" in text
     assert "const removalControlBasename = ${removalParser};" in text
     assert "\\s+\\d+\\s*:\\s*(.+)$" in text
-    assert "exactRemovalBasename = (label, name) => removalControlBasename(label) === name" in text
+    assert (
+        "exactRemovalBasename = (label, name) => removalControlBasename(label) === name"
+        in text
+    )
     expression_start = text.index("function _pr92Schema25AttachmentEvidenceExpression")
-    expression_end = text.index("_pr92ClosureAttachmentEvidenceExpression =", expression_start)
+    expression_end = text.index(
+        "_pr92ClosureAttachmentEvidenceExpression =", expression_start
+    )
     expression = text[expression_start:expression_end]
     assert ".includes(name)" not in expression
     assert ".endsWith(name)" not in expression
@@ -80,7 +102,10 @@ def test_schema_25_keeps_cross_channel_and_unknown_group_fail_closed_authority()
     assert "exactAttachmentSet = crossEvidenceChannelExact" in text
     assert "unknownRoleGroupsFailClosed: true" in text
     assert "filenameGroupIndependentOfRemovalControl: true" in text
-    assert "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema25AttachmentEvidenceExpression" in text
+    assert (
+        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema25AttachmentEvidenceExpression"
+        in text
+    )
 
 
 def test_schema_25_diagnostic_reports_live_normalization_without_write_authority():
@@ -120,7 +145,9 @@ def test_schema_25_gate_preserves_schema24_and_requires_new_fields():
 
 def test_schema_25_support_probe_is_nineteenth_no_write_characterization_rpc():
     text = GATE25.read_text(encoding="utf-8")
-    assert "Nineteenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Nineteenth characterization-only RPC: no text and no attachment paths." in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]
