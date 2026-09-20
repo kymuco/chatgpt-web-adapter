@@ -468,29 +468,29 @@ if (_pr92PriorMaybeRecoverStaleRuntimeUi) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) {
-  if (message?.characterizeRichInputSupport === true) {
-    if (message?.text != null || message?.attachmentPaths != null) {
-      throw new Error("PR9_2_RICH_INPUT_SUPPORT_PROBE_MUST_BE_NO_WRITE");
-    }
-    return {
-      richInputSupported: true,
-      richInputSchemaVersion: PR92_RICH_INPUT_SCHEMA,
-      stagingPrimitive: "DOM.setFileInputFiles",
-      maxAttachmentCount: PR92_MAX_ATTACHMENT_COUNT,
-      nativeMessagingCarriesAttachmentBytes: false,
-      officialPageOwnsUpload: true,
-      officialPageOwnsProtectedWrite: true,
-      recoveryBeforeAttachmentStaging: true,
-      staleAttachmentFailureFence: true,
-      staleAttachmentFencePersistentAcrossWorkerRestart: true,
-      singleTotalTurnDeadline: PR92_TOTAL_DEADLINE_HOOKS_AVAILABLE,
-      automaticWriteRetry: false,
-      fallbackTransport: null,
-      writePerformed: false
-    };
+function _pr92RichInputBaseSupportResult(message) {
+  if (message?.text != null || message?.attachmentPaths != null) {
+    throw new Error("PR9_2_RICH_INPUT_SUPPORT_PROBE_MUST_BE_NO_WRITE");
   }
+  return {
+    richInputSupported: true,
+    richInputSchemaVersion: PR92_RICH_INPUT_SCHEMA,
+    stagingPrimitive: "DOM.setFileInputFiles",
+    maxAttachmentCount: PR92_MAX_ATTACHMENT_COUNT,
+    nativeMessagingCarriesAttachmentBytes: false,
+    officialPageOwnsUpload: true,
+    officialPageOwnsProtectedWrite: true,
+    recoveryBeforeAttachmentStaging: true,
+    staleAttachmentFailureFence: true,
+    staleAttachmentFencePersistentAcrossWorkerRestart: true,
+    singleTotalTurnDeadline: PR92_TOTAL_DEADLINE_HOOKS_AVAILABLE,
+    automaticWriteRetry: false,
+    fallbackTransport: null,
+    writePerformed: false
+  };
+}
 
+executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) {
   if (_pr92ActiveTurnContext !== null) {
     throw new Error("PR9_2_TURN_CONTEXT_BUSY");
   }
