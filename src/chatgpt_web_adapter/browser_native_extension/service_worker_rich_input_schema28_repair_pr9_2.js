@@ -243,11 +243,21 @@ async function _pr92Schema28CommittedIdentityDiagnostic(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(message) {
-  if (message?.diagnosePr92CommittedIdentityStateSchema28 === true) {
-    return _pr92Schema28CommittedIdentityDiagnostic(message);
-  }
+function _pr92Schema28AugmentSupportResult(result) {
+  return {
+    ...result,
+    richInputSchemaVersion: PR92_SCHEMA28_REPAIR_SCHEMA,
+    causalStreamHandoffJsonParsedBeforeTypeFilter: true,
+    causalStreamHandoffJsonWhitespaceInvariant: true,
+    causalStreamHandoffBase64BodyDecodingSupported: true,
+    conflictingStreamHandoffConversationIdsFailClosed: true,
+    priorStreamMetadataObserverSideEffectsPreserved: true,
+    routeConversationIdentityAuthoritative: false,
+    automaticWriteRetryAfterCausalIdentityFailure: false
+  };
+}
 
+function _pr92Schema28PrepareRichWriteDiagnostics(message) {
   const isPotentialNewChatRichWrite =
     Array.isArray(message?.attachmentPaths) &&
     message.attachmentPaths.length > 0 &&
@@ -255,6 +265,10 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(mess
   if (isPotentialNewChatRichWrite) {
     _pr92Schema28LastIdentityParseDiagnostics = null;
   }
+}
+
+executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(message) {
+  _pr92Schema28PrepareRichWriteDiagnostics(message);
 
   let result;
   try {
@@ -276,15 +290,5 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(mess
   }
 
   if (message?.characterizeRichInputSupport !== true) return result;
-  return {
-    ...result,
-    richInputSchemaVersion: PR92_SCHEMA28_REPAIR_SCHEMA,
-    causalStreamHandoffJsonParsedBeforeTypeFilter: true,
-    causalStreamHandoffJsonWhitespaceInvariant: true,
-    causalStreamHandoffBase64BodyDecodingSupported: true,
-    conflictingStreamHandoffConversationIdsFailClosed: true,
-    priorStreamMetadataObserverSideEffectsPreserved: true,
-    routeConversationIdentityAuthoritative: false,
-    automaticWriteRetryAfterCausalIdentityFailure: false
-  };
+  return _pr92Schema28AugmentSupportResult(result);
 };

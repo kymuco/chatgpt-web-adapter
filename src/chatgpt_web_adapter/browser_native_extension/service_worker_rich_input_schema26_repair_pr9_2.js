@@ -230,15 +230,19 @@ function _pr92Schema26DiagnosticRemovalNormalization(result) {
   };
 }
 
+function _pr92Schema26AugmentComposerDiagnostic(result) {
+  return {
+    ...result,
+    richInputSchemaVersion: PR92_SCHEMA26_REPAIR_SCHEMA,
+    schema26RemovalNormalizationProof: _pr92Schema26DiagnosticRemovalNormalization(result)
+  };
+}
+
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema26Repair(message) {
   const result = await _pr92Schema26PriorExecuteNativeTurn(message);
 
   if (message?.diagnosePr92ComposerEvidence === true && result && typeof result === "object") {
-    return {
-      ...result,
-      richInputSchemaVersion: PR92_SCHEMA26_REPAIR_SCHEMA,
-      schema26RemovalNormalizationProof: _pr92Schema26DiagnosticRemovalNormalization(result)
-    };
+    return _pr92Schema26AugmentComposerDiagnostic(result);
   }
 
   if (message?.characterizeRichInputSupport !== true) return result;

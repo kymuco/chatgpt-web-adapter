@@ -2,8 +2,6 @@
 // and logical Advanced-control dealiasing. Strictly zero-click / zero-write.
 
 const PR88_REASONING_EFFORT_GEOMETRY_SCHEMA_VERSION = 1;
-const _pr88EffortGeometryPriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr88EffortGeometryConflict(message) {
   return (
     message?.text != null ||
@@ -250,9 +248,11 @@ async function _pr88EffortGeometryProbe(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithReasoningEffortGeometry(message) {
+async function _pr88HandleReasoningEffortGeometryDiagnostic(message) {
   if (message?.characterizeReasoningEffortGeometrySupport === true) {
-    if (_pr88EffortGeometryConflict(message)) throw new Error("PR8_8_REASONING_EFFORT_GEOMETRY_SUPPORT_FLAG_CONFLICT");
+    if (_pr88EffortGeometryConflict(message)) {
+      throw new Error("PR8_8_REASONING_EFFORT_GEOMETRY_SUPPORT_FLAG_CONFLICT");
+    }
     return {
       reasoningEffortGeometrySupported:true,
       reasoningEffortGeometrySchemaVersion:PR88_REASONING_EFFORT_GEOMETRY_SCHEMA_VERSION,
@@ -269,6 +269,5 @@ executeNativeTurn = async function _executeNativeTurnWithReasoningEffortGeometry
       leaseIdExported:false
     };
   }
-  if (message?.characterizeReasoningEffortGeometry === true) return _pr88EffortGeometryProbe(message);
-  return _pr88EffortGeometryPriorExecuteNativeTurn(message);
-};
+  return _pr88EffortGeometryProbe(message);
+}

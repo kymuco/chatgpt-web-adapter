@@ -136,12 +136,22 @@ async function _pr88EffortProbe(message) {
 
 function _pr88ReasoningEffortDiagnosticMatches(message) {
   return (
+    message?.characterizeReasoningEffortGeometrySupport === true ||
+    message?.characterizeReasoningEffortGeometry === true ||
     message?.characterizeReasoningEffortSliderSupport === true ||
     message?.characterizeReasoningEffortSliderTopology === true
   );
 }
 
 async function _pr88HandleReasoningEffortDiagnostic(message) {
+  // Geometry historically wrapped governance, so preserve that precedence when
+  // multiple retained characterization flags are supplied together.
+  if (
+    message?.characterizeReasoningEffortGeometrySupport === true ||
+    message?.characterizeReasoningEffortGeometry === true
+  ) {
+    return _pr88HandleReasoningEffortGeometryDiagnostic(message);
+  }
   if (message?.characterizeReasoningEffortSliderSupport === true) {
     if (_pr88EffortConflict(message)) {
       throw new Error("PR8_8_REASONING_EFFORT_SUPPORT_FLAG_CONFLICT");

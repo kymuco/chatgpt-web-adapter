@@ -5,8 +5,6 @@
 // the current official composer DOM and executes the same schema-24 production
 // mount wait + empty-set clean proof used before attachment staging.
 
-const _pr92Schema23DiagnosticPriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr92Schema23DiagnosticBestEffortDetach(debuggee) {
   try {
     const pending = chrome.debugger.detach(debuggee);
@@ -93,10 +91,7 @@ function _pr92Schema23DiagnosticExpression() {
   })()`;
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(message) {
-  if (message?.diagnosePr92ComposerEvidence !== true) {
-    return _pr92Schema23DiagnosticPriorExecuteNativeTurn(message);
-  }
+async function _pr92RunSchema23ComposerDiagnostic(message) {
   if (message?.text != null || message?.attachmentPaths != null) {
     throw new Error("PR9_2_COMPOSER_DIAGNOSTIC_MUST_BE_NO_WRITE");
   }
@@ -188,4 +183,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Diagnostic(
     // already failed diagnostic outcome.
     if (attached) _pr92Schema23DiagnosticBestEffortDetach(debuggee);
   }
-};
+}
