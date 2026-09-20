@@ -8,7 +8,6 @@
 //   2. the complete Send-readiness wait is bounded by that same outer deadline,
 //      including any stalled Runtime.evaluate inside querySendButtonPoint.
 
-const _pr92Schema12PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema12PriorWaitForSendButtonPoint = waitForSendButtonPoint;
 const PR92_SCHEMA12_REPAIR_SCHEMA = 12;
 
@@ -141,9 +140,7 @@ waitForSendButtonPoint = async function _pr92Schema12DeadlineBoundedSendReadines
   );
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema12Repair(message) {
-  const result = await _pr92Schema12PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema12AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA12_REPAIR_SCHEMA,
@@ -151,4 +148,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema12Repair(mess
     latePostStageDebuggerAttachAutoDetached: true,
     sendReadinessWaitDeadlineBounded: true
   };
-};
+}
