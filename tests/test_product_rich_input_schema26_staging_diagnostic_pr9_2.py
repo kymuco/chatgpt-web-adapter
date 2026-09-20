@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -56,12 +55,17 @@ def test_staging_diagnostic_does_not_own_ordinary_turn_dispatch():
     assert "insertComposerText" not in diagnostic
     assert "_pr92StageOfficialPageAttachments" in diagnostic
 
+
 def test_staging_diagnostic_requires_proven_cleanup_before_success():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
     staged = text.index("const stagedCount = await _pr92StageOfficialPageAttachments")
-    evidence = text.index("const evidence = await _pr92Schema26ReadStagedDiagnosticEvidence", staged)
+    evidence = text.index(
+        "const evidence = await _pr92Schema26ReadStagedDiagnosticEvidence", staged
+    )
     cleanup = text.index("await _pr92RequireCleanAttachmentState(context)", evidence)
-    fence_read = text.index("const remainingFence = await _pr92ReadDirtyAttachmentFence()", cleanup)
+    fence_read = text.index(
+        "const remainingFence = await _pr92ReadDirtyAttachmentFence()", cleanup
+    )
     result = text.index("return {", fence_read)
     assert staged < evidence < cleanup < fence_read < result
     assert "cleanupProven: true" in text[result:]
