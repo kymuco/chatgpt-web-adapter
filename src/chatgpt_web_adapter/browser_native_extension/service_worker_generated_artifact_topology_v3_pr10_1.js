@@ -7,8 +7,6 @@ const PR101_ARTIFACT_TOPOLOGY_V3_SCHEMA = 3;
 const PR101_ARTIFACT_TOPOLOGY_V3_FILENAME = "cwa_pr10_1_probe.txt";
 const PR101_ARTIFACT_TOPOLOGY_V3_USER_MARKER = "CWA_PR10_1_ARTIFACT_PROBE";
 const PR101_ARTIFACT_TOPOLOGY_V3_ASSISTANT_MARKER = "ARTIFACT_PROBE_CREATED";
-const _pr101ArtifactTopologyV3PriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr101ArtifactTopologyV3RejectWriteBearingMessage(message, code) {
   if (
     message?.text != null ||
@@ -522,7 +520,7 @@ async function _pr101CharacterizeGeneratedArtifactTopologyV3() {
   };
 }
 
-executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactTopologyV3(message) {
+async function _pr101ExecuteNativeTurnWithArtifactTopologyV3(message) {
   if (message?.characterizeGeneratedArtifactTopologyV3Support === true) {
     _pr101ArtifactTopologyV3RejectWriteBearingMessage(
       message,
@@ -553,6 +551,5 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactTopologyV3
     );
     return _pr101CharacterizeGeneratedArtifactTopologyV3();
   }
-
-  return _pr101ArtifactTopologyV3PriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };
