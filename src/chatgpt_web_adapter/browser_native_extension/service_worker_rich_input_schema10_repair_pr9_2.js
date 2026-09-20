@@ -8,7 +8,6 @@
 //   3. pre-stage debugger attach/Runtime.enable are bounded by the one outer rich
 //      turn deadline, and a late attach completion is followed by best-effort detach.
 
-const _pr92Schema10PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA10_REPAIR_SCHEMA = 10;
 const PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS = 2;
 
@@ -219,9 +218,7 @@ _pr92StageOfficialPageAttachments = async function _pr92Schema10StageFromOfficia
   return _pr92Schema8PriorStageOfficialPageAttachments(tabId, attachmentPaths, context);
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema10Repair(message) {
-  const result = await _pr92Schema10PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema10AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA10_REPAIR_SCHEMA,
@@ -230,4 +227,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema10Repair(mess
     preStageDebuggerSetupDeadlineBounded: true,
     latePreStageDebuggerAttachAutoDetached: true
   };
-};
+}
