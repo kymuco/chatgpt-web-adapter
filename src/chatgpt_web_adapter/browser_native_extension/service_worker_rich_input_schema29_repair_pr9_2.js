@@ -676,6 +676,44 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
   }
 };
 
+function _pr92Schema29AugmentSupportResult(result) {
+  return {
+    ...result,
+    richInputSchemaVersion: PR92_SCHEMA29_REPAIR_SCHEMA,
+    newChatConversationIdentityAuthority: PR92_SCHEMA29_IDENTITY_AUTHORITY,
+    requestBoundProtocolConversationIdAuthority: true,
+    requestBoundProtocolConversationIdConsensusRequired: true,
+    topLevelConversationIdAuthority: true,
+    rootAddValueConversationIdAuthority: true,
+    unrecognizedNestedConversationIdCanSatisfyIdentity: false,
+    streamHandoffRequiredForCausalConversationIdentity: false,
+    conflictingRequestBoundConversationIdsFailClosed: true,
+    routeConversationIdentityAuthoritative: false,
+    protectedSubmitRequestCorrelation: PR92_SCHEMA29_REQUEST_CORRELATION,
+    validatedClickRequestBodyCorrelation: true,
+    requestPostDataRequiredForProtectedSubmitCorrelation: true,
+    requestPostDataFallbackSupported: true,
+    requestPostDataFallbackExactRequestBound: true,
+    unresolvedRequestBodyFailsClosed: true,
+    exactUserTextRequiredForProtectedSubmitCorrelation: true,
+    requestMessageIdRequiredForProtectedSubmitCorrelation: true,
+    requestAttachmentCountRequiredForProtectedSubmitCorrelation: true,
+    continuationConversationIdRequiredForProtectedSubmitCorrelation: true,
+    newChatConversationIdMustBeAbsentForProtectedSubmitCorrelation: true,
+    additionalServicePostArmRequestsAllowed: true,
+    additionalPostArmConversationRequestsAuthoritative: false,
+    duplicateSameLogicalMessageRequestAllowed: true,
+    distinctPostArmUserMessagesFailClosed: true,
+    hasUserGestureAuthoritative: false,
+    exactlyOnePostArmConversationRequestRequired: false,
+    ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: false,
+    submitCorrelationFailureDiagnosticsAvailable: true,
+    automaticWriteRetryAfterSubmitCorrelationFailure: false,
+    automaticWriteRetryAfterCausalIdentityFailure: false
+  };
+;
+}
+
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(message) {
   const isRichWrite =
     Array.isArray(message?.attachmentPaths) && message.attachmentPaths.length > 0;
@@ -736,38 +774,5 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
   }
 
   if (message?.characterizeRichInputSupport !== true) return result;
-  return {
-    ...result,
-    richInputSchemaVersion: PR92_SCHEMA29_REPAIR_SCHEMA,
-    newChatConversationIdentityAuthority: PR92_SCHEMA29_IDENTITY_AUTHORITY,
-    requestBoundProtocolConversationIdAuthority: true,
-    requestBoundProtocolConversationIdConsensusRequired: true,
-    topLevelConversationIdAuthority: true,
-    rootAddValueConversationIdAuthority: true,
-    unrecognizedNestedConversationIdCanSatisfyIdentity: false,
-    streamHandoffRequiredForCausalConversationIdentity: false,
-    conflictingRequestBoundConversationIdsFailClosed: true,
-    routeConversationIdentityAuthoritative: false,
-    protectedSubmitRequestCorrelation: PR92_SCHEMA29_REQUEST_CORRELATION,
-    validatedClickRequestBodyCorrelation: true,
-    requestPostDataRequiredForProtectedSubmitCorrelation: true,
-    requestPostDataFallbackSupported: true,
-    requestPostDataFallbackExactRequestBound: true,
-    unresolvedRequestBodyFailsClosed: true,
-    exactUserTextRequiredForProtectedSubmitCorrelation: true,
-    requestMessageIdRequiredForProtectedSubmitCorrelation: true,
-    requestAttachmentCountRequiredForProtectedSubmitCorrelation: true,
-    continuationConversationIdRequiredForProtectedSubmitCorrelation: true,
-    newChatConversationIdMustBeAbsentForProtectedSubmitCorrelation: true,
-    additionalServicePostArmRequestsAllowed: true,
-    additionalPostArmConversationRequestsAuthoritative: false,
-    duplicateSameLogicalMessageRequestAllowed: true,
-    distinctPostArmUserMessagesFailClosed: true,
-    hasUserGestureAuthoritative: false,
-    exactlyOnePostArmConversationRequestRequired: false,
-    ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: false,
-    submitCorrelationFailureDiagnosticsAvailable: true,
-    automaticWriteRetryAfterSubmitCorrelationFailure: false,
-    automaticWriteRetryAfterCausalIdentityFailure: false
-  };
+  return _pr92Schema29AugmentSupportResult(result);
 };
