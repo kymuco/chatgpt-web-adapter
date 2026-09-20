@@ -12,7 +12,6 @@ const _pr8111RepairPriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
 const _pr8111RepairPriorRecordAssistant = _pr89BrowserStreamRecordAssistant;
 const _pr8111RepairPriorFirstTerminal = _pr8111FirstTerminal;
 const _pr8111RepairPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr8111RepairPriorExecuteNativeTurn = executeNativeTurn;
 
 let _pr8111RepairContext = null;
 
@@ -147,14 +146,14 @@ function _pr8111RepairLeaseId(value) {
   return leaseId || null;
 }
 
-executeNativeTurn = async function _pr8111RepairExecuteNativeTurn(message) {
+async function _pr8111RepairExecuteNativeTurn(message, next) {
   const leaseId = _pr8111RepairLeaseId(message?.browserAuthorityLeaseId);
   const ordinaryWrite = (
     typeof message?.text === "string" &&
     Boolean(message.text.trim()) &&
     leaseId !== null
   );
-  if (!ordinaryWrite) return _pr8111RepairPriorExecuteNativeTurn(message);
+  if (!ordinaryWrite) return next(message);
   if (_pr8111RepairContext !== null) {
     throw new Error("PR8_11_1_EARLY_COMPLETION_REPAIR_CONTEXT_ALREADY_ACTIVE");
   }
@@ -179,7 +178,7 @@ executeNativeTurn = async function _pr8111RepairExecuteNativeTurn(message) {
   _pr8111RepairContext = context;
 
   try {
-    return await _pr8111RepairPriorExecuteNativeTurn(message);
+    return await next(message);
   } finally {
     _pr8111RepairContext = null;
   }

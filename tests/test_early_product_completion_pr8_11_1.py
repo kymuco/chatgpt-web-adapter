@@ -73,7 +73,7 @@ def test_pr8111_composer_poll_is_gated_after_assistant_text() -> None:
 def test_pr8111_does_not_export_raw_text_or_sse() -> None:
     source = _source()
     record_start = source.index("function _pr8111Record(context)")
-    record_end = source.index("\nexecuteNativeTurn =", record_start)
+    record_end = source.index("\nasync function _pr8111ExecuteNativeTurn", record_start)
     record = source[record_start:record_end]
     assert "sseBuffer" not in record
     assert "responseBody" not in record

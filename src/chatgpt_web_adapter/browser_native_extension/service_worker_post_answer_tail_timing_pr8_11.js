@@ -11,7 +11,6 @@ const PR811_TAIL_TIMING_STORAGE_KEY = "browserAuthorityLastPostAnswerTailTimingV
 
 const _pr811TailPriorRecordAssistant = _pr89BrowserStreamRecordAssistant;
 const _pr811TailPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr811TailPriorExecuteNativeTurn = executeNativeTurn;
 
 let _pr811TailContext = null;
 
@@ -129,7 +128,7 @@ async function _pr811StoredTailTimingRecord() {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPostAnswerTailTiming(message) {
+async function _executeNativeTurnWithPostAnswerTailTiming(message, next) {
   if (message?.characterizePostAnswerTailTimingSupport === true) {
     if (_pr811TailQueryConflict(message)) {
       throw new Error("PR8_11_TAIL_TIMING_SUPPORT_FLAG_CONFLICT");
@@ -172,7 +171,7 @@ executeNativeTurn = async function _executeNativeTurnWithPostAnswerTailTiming(me
     leaseId !== null
   );
   if (!ordinaryWrite) {
-    return _pr811TailPriorExecuteNativeTurn(message);
+    return next(message);
   }
   if (_pr811TailContext !== null) {
     throw new Error("PR8_11_TAIL_TIMING_CONTEXT_ALREADY_ACTIVE");
@@ -190,7 +189,7 @@ executeNativeTurn = async function _executeNativeTurnWithPostAnswerTailTiming(me
   _pr811TailContext = context;
 
   try {
-    const result = await _pr811TailPriorExecuteNativeTurn(message);
+    const result = await next(message);
     const record = {
       schemaVersion: PR811_TAIL_TIMING_SCHEMA_VERSION,
       browserAuthorityLeaseId: leaseId,
