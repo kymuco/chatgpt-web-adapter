@@ -257,7 +257,7 @@ function _pr92Schema28AugmentSupportResult(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(message) {
+function _pr92Schema28PrepareRichWriteDiagnostics(message) {
   const isPotentialNewChatRichWrite =
     Array.isArray(message?.attachmentPaths) &&
     message.attachmentPaths.length > 0 &&
@@ -265,6 +265,10 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(mess
   if (isPotentialNewChatRichWrite) {
     _pr92Schema28LastIdentityParseDiagnostics = null;
   }
+}
+
+executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(message) {
+  _pr92Schema28PrepareRichWriteDiagnostics(message);
 
   let result;
   try {
