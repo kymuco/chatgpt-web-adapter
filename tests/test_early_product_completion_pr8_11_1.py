@@ -6,7 +6,6 @@ from chatgpt_web_adapter.post_answer_tail_latency_pr8_11 import (
     PostAnswerTailTimingProvider,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SOURCE = EXTENSION / "service_worker_early_product_completion_pr8_11_1.js"
