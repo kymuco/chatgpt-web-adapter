@@ -12,7 +12,6 @@
 // Turn deadlines are monotonic (performance.now based), so every local diagnostic
 // sub-budget below deliberately stays in that same clock domain.
 
-const _pr92Schema28DiagnosticRepairPriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA28_DIAGNOSTIC_ROUTE_SAMPLE_MAX_MS = 250;
 const PR92_SCHEMA28_DIAGNOSTIC_CLEANUP_RESERVE_MS = 10000;
 const PR92_SCHEMA28_DIAGNOSTIC_RETURN_RESERVE_MS = 1000;
@@ -204,9 +203,71 @@ async function _pr92Schema28CommittedIdentityDiagnosticRepaired(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema28DiagnosticRepair(message) {
-  if (message?.diagnosePr92CommittedIdentityStateSchema28 === true) {
-    return _pr92Schema28CommittedIdentityDiagnosticRepaired(message);
+function _cwaRichInputDiagnosticMatches(message) {
+  return (
+    message?.diagnosePr92CommittedIdentityStateSchema28 === true ||
+    message?.diagnosePr92StagedAttachmentEvidenceSchema27 === true ||
+    message?.diagnosePr92StagedAttachmentEvidence === true ||
+    message?.diagnosePr92ComposerEvidence === true
+  );
+}
+
+function _cwaRichInputDiagnosticPrepareOuterState(message) {
+  _pr92Schema28PrepareRichWriteDiagnostics(message);
+  _pr92Schema29PrepareRichWriteDiagnostics(message);
+}
+
+function _cwaRichInputDiagnosticApplySupportTail(message, result, fromSchema) {
+  if (
+    message?.characterizeRichInputSupport !== true ||
+    !result ||
+    typeof result !== "object"
+  ) {
+    return result;
   }
-  return _pr92Schema28DiagnosticRepairPriorExecuteNativeTurn(message);
-};
+
+  let next = result;
+  if (fromSchema <= 26) next = _pr92Schema27AugmentSupportResult(next);
+  if (fromSchema <= 27) next = _pr92Schema28AugmentSupportResult(next);
+  next = _pr92Schema29AugmentSupportResult(next);
+  return next;
+}
+
+async function _cwaHandleRichInputDiagnostic(message) {
+  _cwaRichInputDiagnosticPrepareOuterState(message);
+
+  // Preserve the historical outer-to-inner precedence of the detached wrappers:
+  // schema28 reconciliation -> schema27 staging -> schema26 staging -> composer.
+  if (message?.diagnosePr92CommittedIdentityStateSchema28 === true) {
+    const result = await _pr92Schema28CommittedIdentityDiagnosticRepaired(message);
+    return _cwaRichInputDiagnosticApplySupportTail(message, result, 28);
+  }
+
+  if (message?.diagnosePr92StagedAttachmentEvidenceSchema27 === true) {
+    const result = await _pr92RunSchema27StagingDiagnostic(message);
+    return _cwaRichInputDiagnosticApplySupportTail(message, result, 27);
+  }
+
+  if (message?.diagnosePr92StagedAttachmentEvidence === true) {
+    const result = await _pr92RunSchema26StagingDiagnostic(message);
+    return _cwaRichInputDiagnosticApplySupportTail(message, result, 26);
+  }
+
+  if (message?.diagnosePr92ComposerEvidence === true) {
+    let result = await _pr92RunSchema23ComposerDiagnostic(message);
+    if (result && typeof result === "object") {
+      result = _pr92Schema25AugmentComposerDiagnostic(result);
+      result = _pr92Schema26AugmentComposerDiagnostic(result);
+      result = _pr92Schema27AugmentComposerDiagnostic(result);
+    }
+    return _cwaRichInputDiagnosticApplySupportTail(message, result, 27);
+  }
+
+  throw new Error("PR15_5_RICH_INPUT_DIAGNOSTIC_UNMATCHED");
+}
+
+registerNativeTurnDiagnosticHandler(
+  "rich-input-diagnostics",
+  _cwaRichInputDiagnosticMatches,
+  _cwaHandleRichInputDiagnostic
+);
