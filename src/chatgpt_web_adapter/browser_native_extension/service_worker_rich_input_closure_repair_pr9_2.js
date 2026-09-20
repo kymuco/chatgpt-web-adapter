@@ -334,22 +334,23 @@ submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit(
   return { strategy: "page_deadline_guarded_send_button_click", selector };
 };
 
+function _pr92ClosureAugmentSupportResult(result) {
+  return {
+    ...result,
+    richInputSchemaVersion: PR92_CLOSURE_REPAIR_SCHEMA,
+    attachmentCountEvidence: PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE,
+    attachmentEvidenceStablePollCount: PR92_PAGE_ATTACHMENT_STABLE_POLLS,
+    preSubmitAttachmentRevalidation: true,
+    postSendReadinessAttachmentRevalidation: true,
+    protectedSubmitPrimitive: PR92_PAGE_GUARDED_SUBMIT_PRIMITIVE,
+    richInputRawCdpInputSubmitDisabled: true,
+    richInputEnterFallbackEnabled: false,
+    lateProtectedSubmitExecutionPreventedByPageDeadline: true
+  };
+}
+
 executeNativeTurn = async function _executeNativeTurnWithPr92ClosureRepair(message) {
   const result = await _pr92ClosurePriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport === true) {
-    return {
-      ...result,
-      richInputSchemaVersion: PR92_CLOSURE_REPAIR_SCHEMA,
-      attachmentCountEvidence: PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE,
-      attachmentEvidenceStablePollCount: PR92_PAGE_ATTACHMENT_STABLE_POLLS,
-      preSubmitAttachmentRevalidation: true,
-      postSendReadinessAttachmentRevalidation: true,
-      protectedSubmitPrimitive: PR92_PAGE_GUARDED_SUBMIT_PRIMITIVE,
-      richInputRawCdpInputSubmitDisabled: true,
-      richInputEnterFallbackEnabled: false,
-      lateProtectedSubmitExecutionPreventedByPageDeadline: true
-    };
-  }
 
   if (
     Array.isArray(message?.attachmentPaths) &&
