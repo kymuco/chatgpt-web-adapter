@@ -45,19 +45,16 @@ def test_staging_diagnostic_uses_production_staging_and_schema26_evidence():
     assert "singleAttachmentCrossChannelExact !== true" in text
 
 
-def test_staging_diagnostic_does_not_delegate_to_conversation_submit_path():
+def test_staging_diagnostic_does_not_own_ordinary_turn_dispatch():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
-    diagnostic_start = text.index("executeNativeTurn = async function _executeNativeTurnWithPr92Schema26StagingDiagnostic")
-    diagnostic = text[diagnostic_start:]
+    start = text.index("async function _pr92RunSchema26StagingDiagnostic")
+    diagnostic = text[start:]
+    assert "executeNativeTurn = async function" not in text
+    assert "PriorExecuteNativeTurn" not in text
     assert "submitOfficialPageTurn" not in diagnostic
     assert "button.click" not in diagnostic
     assert "insertComposerText" not in diagnostic
-    assert "_pr92RichInputPriorExecuteNativeTurn" not in diagnostic
-    assert "_pr92Schema26StagingDiagnosticPriorExecuteNativeTurn(message)" in diagnostic
-    flag = diagnostic.index("if (message?.diagnosePr92StagedAttachmentEvidence !== true)")
-    staging = diagnostic.index("_pr92StageOfficialPageAttachments", flag)
-    assert flag < staging
-
+    assert "_pr92StageOfficialPageAttachments" in diagnostic
 
 def test_staging_diagnostic_requires_proven_cleanup_before_success():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
