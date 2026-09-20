@@ -387,7 +387,13 @@ async function _pr88HandleFailureForensicsDiagnostic(message) {
       modeLabelActionableAncestorMappingSupported: true,
       candidateCapDealiasingSupported: true,
       popupEvidencePersistenceSupported: true,
-      rawPopupTextRedactionSupported: true
+      rawPopupTextRedactionSupported: true,
+      pickerTriggerIdentitySupported: true,
+      clickActuationVerificationSupported: true,
+      perPollMenuMaterializationTimelineSupported: true,
+      falseOpenSurfaceDealiasingSupported: true,
+      triggerTimelinePersistenceSupported: true,
+      rawTriggerTextRedactionSupported: true
     };
   }
 
@@ -401,10 +407,24 @@ async function _pr88HandleFailureForensicsDiagnostic(message) {
     stored !== null &&
     _pr88PopupLeaseId(stored.leaseId) === expectedLeaseId
   );
+  const triggerStored = await _pr88TriggerStoredRecord();
+  const triggerAvailable = (
+    expectedLeaseId !== null &&
+    triggerStored !== null &&
+    _pr88TriggerLeaseId(triggerStored.leaseId) === expectedLeaseId
+  );
+  let triggerTimeline = null;
+  if (triggerAvailable) {
+    triggerTimeline = {...triggerStored};
+    delete triggerTimeline.leaseId;
+    triggerTimeline.leaseIdExported = false;
+  }
   return {
     ...prior,
     popupSubtreeRecordAvailable: popupAvailable,
-    popupSubtree: popupAvailable ? _pr88PopupPublicRecord(stored) : null
+    popupSubtree: popupAvailable ? _pr88PopupPublicRecord(stored) : null,
+    triggerTimelineRecordAvailable: triggerAvailable,
+    triggerTimeline
   };
 }
 
