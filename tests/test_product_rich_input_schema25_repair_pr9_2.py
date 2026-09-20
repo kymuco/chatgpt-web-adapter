@@ -89,7 +89,9 @@ def test_schema_25_diagnostic_reports_live_normalization_without_write_authority
     assert "schema25RemovalNormalizationProof" in text
     assert "singleAttachmentCrossChannelExact" in text
     assert "richInputSchemaVersion: PR92_SCHEMA25_REPAIR_SCHEMA" in text
-    diagnostic_block = text[text.index("if (message?.diagnosePr92ComposerEvidence") :]
+    start = text.index("function _pr92Schema25AugmentComposerDiagnostic")
+    end = text.index("function _pr92Schema25AugmentSupportResult", start)
+    diagnostic_block = text[start:end]
     assert "button.click" not in diagnostic_block
     assert "DOM.setFileInputFiles" not in diagnostic_block
 
