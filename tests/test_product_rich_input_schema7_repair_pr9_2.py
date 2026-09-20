@@ -48,7 +48,7 @@ def test_schema_7_does_not_await_debugger_ack_after_potential_click():
     text = SCHEMA7.read_text(encoding="utf-8")
     submit = text[
         text.index("submitOfficialPageTurn = async function _pr92Schema7AtomicAttachmentSubmit") :
-        text.index("executeNativeTurn = async function _executeNativeTurnWithPr92Schema7Repair")
+        text.index("function _pr92Schema7AugmentSupportResult")
     ]
 
     dispatch = 'const pending = chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {'
