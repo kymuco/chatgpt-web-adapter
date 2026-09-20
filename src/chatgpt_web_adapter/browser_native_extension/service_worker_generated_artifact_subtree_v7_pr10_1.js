@@ -5,8 +5,6 @@
 // locators, DOM text, clicks, downloads, or writes are exported.
 
 const PR101_ARTIFACT_SUBTREE_V7_SCHEMA = 7;
-const _pr101ArtifactSubtreeV7PriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr101ArtifactSubtreeV7RejectWriteBearingMessage(message, code) {
   if (
     message?.text != null ||
@@ -617,7 +615,7 @@ async function _pr101CharacterizeGeneratedArtifactSubtreeV7() {
   };
 }
 
-executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactSubtreeV7(message) {
+async function _pr101ExecuteNativeTurnWithArtifactSubtreeV7(message) {
   if (message?.characterizeGeneratedArtifactSubtreeV7Support === true) {
     _pr101ArtifactSubtreeV7RejectWriteBearingMessage(
       message,
@@ -654,6 +652,5 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactSubtreeV7(
     );
     return _pr101CharacterizeGeneratedArtifactSubtreeV7();
   }
-
-  return _pr101ArtifactSubtreeV7PriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };
