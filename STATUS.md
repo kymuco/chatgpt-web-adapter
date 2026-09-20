@@ -147,8 +147,9 @@ Preferred direction:
 ```text
 PR15 Architecture Reset
 → PR15.1 explicit diagnostic / observer composition [merged]
-→ PR15.2 detach Temporary characterization from ordinary runtime [active]
-→ finish evidence-driven ChatGPT consolidation
+→ PR15.2 detach Temporary characterization from ordinary runtime [merged]
+→ PR15.3 detach zero-write control characterization [active]
+→ finish mixed-use ChatGPT consolidation
 → then prove a provider-neutral boundary with DeepSeek
 ```
 

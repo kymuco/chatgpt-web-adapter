@@ -149,7 +149,8 @@ The PR15 sequence is evidence-driven:
 PR15.0 inventory + consolidation boundary
 PR15.1 explicit diagnostic / observer composition
 PR15.2 detach Temporary characterization from ordinary runtime
-remaining ChatGPT consolidation slices
+PR15.3 detach zero-write control characterization from ordinary runtime
+remaining mixed-use ChatGPT consolidation slices
 provider architecture proof with minimal DeepSeek support
 ```
 
