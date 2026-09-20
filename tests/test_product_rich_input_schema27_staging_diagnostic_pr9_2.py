@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -58,13 +57,20 @@ def test_schema_27_staging_diagnostic_does_not_own_ordinary_turn_dispatch():
     assert "insertComposerText" not in diagnostic
     assert "_pr92StageOfficialPageAttachments" in diagnostic
 
+
 def test_schema_27_staging_diagnostic_requires_cleanup_before_success():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
     staged = text.index("const stagedCount = await _pr92StageOfficialPageAttachments")
-    evidence = text.index("const evidence = await _pr92Schema26ReadStagedDiagnosticEvidence", staged)
+    evidence = text.index(
+        "const evidence = await _pr92Schema26ReadStagedDiagnosticEvidence", staged
+    )
     normalization = text.index("const schema27Normalization", evidence)
-    cleanup = text.index("await _pr92RequireCleanAttachmentState(context)", normalization)
-    fence_read = text.index("const remainingFence = await _pr92ReadDirtyAttachmentFence()", cleanup)
+    cleanup = text.index(
+        "await _pr92RequireCleanAttachmentState(context)", normalization
+    )
+    fence_read = text.index(
+        "const remainingFence = await _pr92ReadDirtyAttachmentFence()", cleanup
+    )
     result = text.index("return {", fence_read)
     assert staged < evidence < normalization < cleanup < fence_read < result
     assert "cleanupProven: true" in text[result:]
@@ -77,9 +83,13 @@ def test_schema_27_staging_diagnostic_partial_stage_failure_cleanup_keys_off_dur
     final = text.index("} finally {", catch)
     block = text[catch:final]
     remaining = block.index("_pr92RemainingTurnMsOrZero(context) > 0")
-    fence_read = block.index("const residualFence = await _pr92ReadDirtyAttachmentFence()", remaining)
+    fence_read = block.index(
+        "const residualFence = await _pr92ReadDirtyAttachmentFence()", remaining
+    )
     fence_guard = block.index("if (Number.isInteger(residualFence))", fence_read)
-    cleanup = block.index("await _pr92RequireCleanAttachmentState(context)", fence_guard)
+    cleanup = block.index(
+        "await _pr92RequireCleanAttachmentState(context)", fence_guard
+    )
     assert remaining < fence_read < fence_guard < cleanup
     assert "if (staged)" not in block
     assert "let staged =" not in text
@@ -116,7 +126,10 @@ def test_schema_27_staging_diagnostic_cli_requires_latest_ambiguity_proof_and_cl
     assert 'response.get("protectedSubmitAttempted") is not False' in text
     assert 'evidence.get("exactAttachmentSet") is not True' in text
     assert 'evidence.get("crossEvidenceChannelExact") is not True' in text
-    assert 'evidence.get("indexedRemovalAmbiguityBidirectionalFailClosed") is not True' in text
+    assert (
+        'evidence.get("indexedRemovalAmbiguityBidirectionalFailClosed") is not True'
+        in text
+    )
     assert 'normalization.get("singleAttachmentCrossChannelExact") is not True' in text
     assert 'response.get("cleanupProven") is not True' in text
     assert 'response.get("durableFenceCleared") is not True' in text
