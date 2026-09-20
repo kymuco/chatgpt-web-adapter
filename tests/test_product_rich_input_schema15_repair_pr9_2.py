@@ -46,7 +46,7 @@ def test_schema_15_post_stage_success_detach_is_deadline_bounded_before_evidence
         "_pr92Schema12ObservePostStageAttachmentEvidence = async function"
     )
     end = text.index(
-        "executeNativeTurn = async function _executeNativeTurnWithPr92Schema15Repair",
+        "function _pr92Schema15AugmentSupportResult",
         start,
     )
     block = text[start:end]
