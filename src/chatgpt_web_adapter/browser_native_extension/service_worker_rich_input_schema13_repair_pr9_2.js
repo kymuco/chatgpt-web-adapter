@@ -8,7 +8,6 @@
 // if its acknowledgement loses the deadline race, the turn fails closed and
 // the fence remains authoritative for the next prewrite cleanup.
 
-const _pr92Schema13PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA13_REPAIR_SCHEMA = 13;
 
 function _pr92Schema13BestEffortDetach(debuggee) {
@@ -283,9 +282,7 @@ _pr92StageOfficialPageAttachments = async function _pr92Schema13FullyBoundedStag
   );
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema13Repair(message) {
-  const result = await _pr92Schema13PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema13AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA13_REPAIR_SCHEMA,
@@ -300,4 +297,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema13Repair(mess
     lateFileSelectionFailsClosedBehindDurableFence: true,
     postSelectionCleanupBestEffortAfterTimeout: true
   };
-};
+}
