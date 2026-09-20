@@ -5,8 +5,6 @@
 // child values, locators, DOM text, clicks, downloads, and writes are never exported.
 
 const PR101_ARTIFACT_ROOT_SHAPE_V8_SCHEMA = 8;
-const _pr101ArtifactRootShapeV8PriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr101ArtifactRootShapeV8RejectWriteBearingMessage(message, code) {
   if (
     message?.text != null ||
@@ -540,7 +538,7 @@ async function _pr101CharacterizeGeneratedArtifactRootShapeV8() {
   };
 }
 
-executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactRootShapeV8(message) {
+async function _pr101ExecuteNativeTurnWithArtifactRootShapeV8(message) {
   if (message?.characterizeGeneratedArtifactRootShapeV8Support === true) {
     _pr101ArtifactRootShapeV8RejectWriteBearingMessage(message, "PR10_1_ARTIFACT_ROOT_SHAPE_V8_SUPPORT_PROBE_MUST_BE_NO_WRITE");
     return {
@@ -573,5 +571,5 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactRootShapeV
     _pr101ArtifactRootShapeV8RejectWriteBearingMessage(message, "PR10_1_ARTIFACT_ROOT_SHAPE_V8_PROBE_MUST_BE_NO_WRITE");
     return _pr101CharacterizeGeneratedArtifactRootShapeV8();
   }
-  return _pr101ArtifactRootShapeV8PriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };

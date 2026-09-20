@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
 import sys
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
@@ -12,15 +11,16 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from pr10_1_artifact_surface_live_gate import (  # noqa: E402
+    _EXPECTED_SURFACE_SUPPORT,
     PROBE_FILENAME,
     ProductArtifactSurfaceProvider,
-    _EXPECTED_SURFACE_SUPPORT,
     _safe_name_list,
 )
 
-
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-SURFACE_WORKER = EXTENSION / "service_worker_generated_artifact_surface_overlay_pr10_1.js"
+SURFACE_WORKER = (
+    EXTENSION / "service_worker_generated_artifact_surface_overlay_pr10_1.js"
+)
 OBSERVABILITY_WORKER = EXTENSION / "service_worker_observability.js"
 MANIFEST = EXTENSION / "manifest.json"
 
@@ -41,8 +41,12 @@ def test_surface_worker_is_additive_observability_overlay() -> None:
         in observability
     )
     assert "importScripts(" not in source
-    assert "_pr101ArtifactSurfacePriorExecuteNativeTurn = executeNativeTurn" in source
-    assert "return _pr101ArtifactSurfacePriorExecuteNativeTurn(message);" in source
+    assert "executeNativeTurn = async function" not in source
+    assert "_pr101ArtifactSurfacePriorExecuteNativeTurn" not in source
+    assert (
+        "async function _pr101ExecuteNativeTurnWithArtifactSurfaceProbe(message)"
+        in source
+    )
 
 
 def test_surface_worker_requires_assistant_owned_filename_match() -> None:
@@ -115,7 +119,9 @@ def test_surface_support_normalizes_exact_no_write_contract(monkeypatch) -> None
     assert diagnostic["surface_support_fields_present"] is True
 
 
-def test_surface_snapshot_exposes_role_counts_names_and_presence_only(monkeypatch) -> None:
+def test_surface_snapshot_exposes_role_counts_names_and_presence_only(
+    monkeypatch,
+) -> None:
     provider = ProductArtifactSurfaceProvider()
 
     def fake_rpc(_message, *, timeout):

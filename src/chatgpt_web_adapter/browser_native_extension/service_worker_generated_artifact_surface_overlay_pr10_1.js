@@ -7,8 +7,6 @@
 
 const PR101_ARTIFACT_SURFACE_SCHEMA = 1;
 const PR101_ARTIFACT_SURFACE_PROBE_FILENAME = "cwa_pr10_1_probe.txt";
-const _pr101ArtifactSurfacePriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr101ArtifactSurfaceRejectWriteBearingMessage(message, code) {
   if (
     message?.text != null ||
@@ -311,7 +309,7 @@ async function _pr101CharacterizeGeneratedArtifactSurface() {
   };
 }
 
-executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactSurfaceProbe(message) {
+async function _pr101ExecuteNativeTurnWithArtifactSurfaceProbe(message) {
   if (message?.characterizeGeneratedArtifactSurfaceSupport === true) {
     _pr101ArtifactSurfaceRejectWriteBearingMessage(
       message,
@@ -340,6 +338,5 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactSurfacePro
     );
     return _pr101CharacterizeGeneratedArtifactSurface();
   }
-
-  return _pr101ArtifactSurfacePriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };
