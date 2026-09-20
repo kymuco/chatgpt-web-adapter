@@ -15,7 +15,7 @@ def test_worker_order_and_mutation_boundary():
         "service_worker_picker_trigger_persistence_pr8_8.js",
     ]
     assert [obs.index(f'importScripts("{n}")') for n in names] == sorted(obs.index(f'importScripts("{n}")') for n in names)
-    code = "\n".join((root / n).read_text(encoding="utf-8") for n in names[1:])
+    code = "\n".join((root / n).read_text(encoding="utf-8") for n in names)
     for token in ("pickerTriggerIdentitySupported", "perPollMenuMaterializationTimelineSupported", "PRE_CLICK", "POST_CLICK_IMMEDIATE", "OPTION_POLL", "throw error"):
         assert token in code
     for token in ("Input.insertText", "submitOfficialPageTurn(", "chrome.tabs.create(", "chrome.tabs.remove(", "chrome.debugger.attach(", "Network.getResponseBody", "document.cookie"):
