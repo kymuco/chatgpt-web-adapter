@@ -72,9 +72,7 @@ def test_selection_lifecycle_has_one_owner_at_historical_outer_boundary() -> Non
 
     assert model in assembly and owner_import in assembly and response in assembly
     assert (
-        assembly.index(model)
-        < assembly.index(owner_import)
-        < assembly.index(response)
+        assembly.index(model) < assembly.index(owner_import) < assembly.index(response)
     )
     assert owner.count("executeNativeTurn =") == 1
     assert (
