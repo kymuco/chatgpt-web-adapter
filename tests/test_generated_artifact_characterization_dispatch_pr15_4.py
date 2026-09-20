@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
@@ -50,7 +49,7 @@ def test_generated_artifact_modules_do_not_own_ordinary_turn_dispatch() -> None:
 
 def test_generated_artifact_characterization_has_one_explicit_owner() -> None:
     owner = _source(OWNER)
-    assert 'registerNativeTurnDiagnosticHandler(' in owner
+    assert "registerNativeTurnDiagnosticHandler(" in owner
     assert '"generated-artifact-characterization"' in owner
     assert "_cwaGeneratedArtifactCharacterizationMatches" in owner
     assert "_cwaHandleGeneratedArtifactCharacterization" in owner
@@ -60,7 +59,9 @@ def test_generated_artifact_characterization_has_one_explicit_owner() -> None:
         assert '"generated-artifact-characterization"' not in source
 
 
-def test_generated_artifact_owner_preserves_historical_outer_to_inner_precedence() -> None:
+def test_generated_artifact_owner_preserves_historical_outer_to_inner_precedence() -> (
+    None
+):
     owner = _source(OWNER)
     positions = [owner.index(marker) for marker in EXPECTED_HANDLER_ORDER]
     assert positions == sorted(positions)
@@ -69,7 +70,9 @@ def test_generated_artifact_owner_preserves_historical_outer_to_inner_precedence
 def test_generated_artifact_owner_claims_characterization_only() -> None:
     owner = _source(OWNER)
     matches_start = owner.index("function _cwaGeneratedArtifactCharacterizationMatches")
-    handle_start = owner.index("async function _cwaHandleGeneratedArtifactCharacterization")
+    handle_start = owner.index(
+        "async function _cwaHandleGeneratedArtifactCharacterization"
+    )
     matches = owner[matches_start:handle_start]
 
     assert "message?.text" not in matches
@@ -81,8 +84,5 @@ def test_generated_artifact_owner_claims_characterization_only() -> None:
 
 def test_observability_keeps_generated_artifact_module_order() -> None:
     observability = _source("service_worker_observability.js")
-    positions = [
-        observability.index(f'importScripts("{name}");')
-        for name in FILES
-    ]
+    positions = [observability.index(f'importScripts("{name}");') for name in FILES]
     assert positions == sorted(positions)
