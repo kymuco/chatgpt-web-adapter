@@ -9,7 +9,6 @@
 // phase may attach. Error/timeout paths retain the reviewed best-effort detach
 // semantics and cannot extend or rewrite the already reported failure outcome.
 
-const _pr92Schema15PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA15_REPAIR_SCHEMA = 15;
 
 async function _pr92Schema15DetachWithinDeadline(debuggee, context, stage) {
@@ -179,9 +178,7 @@ _pr92Schema12ObservePostStageAttachmentEvidence = async function _pr92Schema15Ob
   }
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema15Repair(message) {
-  const result = await _pr92Schema15PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema15AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA15_REPAIR_SCHEMA,
@@ -190,4 +187,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema15Repair(mess
     debuggerOwnershipHandoffCompletedBeforeNextAttach: true,
     failurePathDebuggerDetachBestEffort: true
   };
-};
+}
