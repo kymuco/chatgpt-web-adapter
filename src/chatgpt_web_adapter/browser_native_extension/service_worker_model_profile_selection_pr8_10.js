@@ -7,7 +7,6 @@ const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelecti
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = 8000;
 
-const _pr810ModelProfilePriorExecuteNativeTurn = executeNativeTurn;
 const _pr810ModelProfilePriorLocateAndFocusComposer = locateAndFocusComposer;
 let _pr810ModelProfileContext = null;
 
@@ -247,7 +246,7 @@ async function _pr810StoredRecord() {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithModelProfile(message) {
+async function _executeNativeTurnWithModelProfile(message, next) {
   if (message?.characterizeProductModelProfileSupport === true) {
     if (_pr810QueryConflict(message)) throw new Error("PR8_10_MODEL_PROFILE_SUPPORT_FLAG_CONFLICT");
     return {
@@ -280,7 +279,7 @@ executeNativeTurn = async function _executeNativeTurnWithModelProfile(message) {
   const requestedMode = _pr810Mode(requestedRaw);
   const leaseId = _pr810Lease(message?.browserAuthorityLeaseId);
   const ordinaryWrite = typeof message?.text === "string" && Boolean(message.text.trim()) && leaseId !== null;
-  if (!ordinaryWrite || requestedRaw == null) return _pr810ModelProfilePriorExecuteNativeTurn(message);
+  if (!ordinaryWrite || requestedRaw == null) return next(message);
   if (requestedMode === null) throw new Error(`PR8_10_MODEL_MODE_UNSUPPORTED:${String(requestedRaw)}`);
   if (_pr810ModelProfileContext !== null) throw new Error("PR8_10_MODEL_PROFILE_CONTEXT_ALREADY_ACTIVE");
 
@@ -294,7 +293,7 @@ executeNativeTurn = async function _executeNativeTurnWithModelProfile(message) {
   };
   _pr810ModelProfileContext = context;
   try {
-    const result = await _pr810ModelProfilePriorExecuteNativeTurn(message);
+    const result = await next(message);
     if (context.selectionComplete !== true || context.selectedModeAfterProven !== true || context.selectedModeAfter !== requestedMode) {
       throw new Error("PR8_10_MODEL_PROFILE_PREWRITE_PROOF_MISSING");
     }
