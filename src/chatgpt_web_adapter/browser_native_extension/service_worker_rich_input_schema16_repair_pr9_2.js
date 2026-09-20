@@ -12,7 +12,6 @@
 
 const _pr92Schema16PriorEnsureRuntimeTab = ensureRuntimeTab;
 const _pr92Schema16PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr92Schema16PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA16_REPAIR_SCHEMA = 16;
 
 _pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline() {
@@ -256,9 +255,7 @@ executeOfficialPageTurn = async function _pr92Schema16ExecuteOfficialPageTurnWit
   });
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema16Repair(message) {
-  const result = await _pr92Schema16PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema16AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA16_REPAIR_SCHEMA,
@@ -269,4 +266,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema16Repair(mess
     postWriteDebuggerTargetsProbeBestEffort: true,
     postWriteTeardownCanRewriteSubmittedOutcome: false
   };
-};
+}
