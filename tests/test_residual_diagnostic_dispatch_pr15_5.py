@@ -66,8 +66,12 @@ def test_rich_input_diagnostics_have_one_explicit_owner_and_frozen_precedence():
     assert 'registerNativeTurnDiagnosticHandler(\n  "rich-input-diagnostics"' in owner
     handler = owner[owner.index("async function _cwaHandleRichInputDiagnostic") :]
 
-    schema28 = handler.index("message?.diagnosePr92CommittedIdentityStateSchema28 === true")
-    schema27 = handler.index("message?.diagnosePr92StagedAttachmentEvidenceSchema27 === true")
+    schema28 = handler.index(
+        "message?.diagnosePr92CommittedIdentityStateSchema28 === true"
+    )
+    schema27 = handler.index(
+        "message?.diagnosePr92StagedAttachmentEvidenceSchema27 === true"
+    )
     schema26 = handler.index("message?.diagnosePr92StagedAttachmentEvidence === true")
     composer = handler.index("message?.diagnosePr92ComposerEvidence === true")
     assert schema28 < schema27 < schema26 < composer
