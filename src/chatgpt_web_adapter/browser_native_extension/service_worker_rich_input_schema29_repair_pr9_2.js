@@ -711,7 +711,6 @@ function _pr92Schema29AugmentSupportResult(result) {
     automaticWriteRetryAfterSubmitCorrelationFailure: false,
     automaticWriteRetryAfterCausalIdentityFailure: false
   };
-;
 }
 
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(message) {
