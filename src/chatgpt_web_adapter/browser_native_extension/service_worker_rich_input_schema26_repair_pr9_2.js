@@ -16,7 +16,6 @@
 //   * exact-set, cross-channel, staging, deadline, fence, request-correlation and
 //     protected-submit authority are otherwise unchanged.
 
-const _pr92Schema26PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA26_REPAIR_SCHEMA = 26;
 
 function _pr92Schema26RemovalPostActionPayload(label) {
@@ -238,14 +237,7 @@ function _pr92Schema26AugmentComposerDiagnostic(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema26Repair(message) {
-  const result = await _pr92Schema26PriorExecuteNativeTurn(message);
-
-  if (message?.diagnosePr92ComposerEvidence === true && result && typeof result === "object") {
-    return _pr92Schema26AugmentComposerDiagnostic(result);
-  }
-
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema26AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA26_REPAIR_SCHEMA,
@@ -255,4 +247,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema26Repair(mess
     ambiguousIndexedRemovalLabelFailsClosedWithoutFilenameGroup: true,
     indexedRemovalCandidateStillComparedExactly: true
   };
-};
+}

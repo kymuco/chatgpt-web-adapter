@@ -16,7 +16,6 @@ const _pr92Schema7PriorPersistDirtyAttachmentFence = _pr92PersistDirtyAttachment
 const _pr92Schema7PriorTryClearDirtyAttachmentFence = _pr92TryClearDirtyAttachmentFence;
 const _pr92Schema7PriorClearOfficialPageAttachments = _pr92ClearOfficialPageAttachments;
 const _pr92Schema7PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
-const _pr92Schema7PriorExecuteNativeTurn = executeNativeTurn;
 
 const PR92_SCHEMA7_REPAIR_SCHEMA = 7;
 const PR92_SCHEMA7_SESSION_IDENTITY_KEY = "pr92DirtyAttachmentSessionIdentityV1";
@@ -348,9 +347,7 @@ submitOfficialPageTurn = async function _pr92Schema7AtomicAttachmentSubmit(
   };
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema7Repair(message) {
-  const result = await _pr92Schema7PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema7AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA7_REPAIR_SCHEMA,
@@ -365,4 +362,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema7Repair(messa
     staleAttachmentIdentityMismatchFailsClosed: true,
     staleAttachmentUnprovenIdentityFailsClosed: true
   };
-};
+}

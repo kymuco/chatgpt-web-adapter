@@ -12,7 +12,6 @@
 // schema-7 validation and the final page-side deadline check have succeeded. The
 // marker and click remain synchronous in the same Runtime.evaluate page task.
 
-const _pr92Schema21PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA21_REPAIR_SCHEMA = 21;
 const PR92_SCHEMA21_ARM_BOUNDARY =
   "AFTER_ALL_VALIDATION_IMMEDIATELY_BEFORE_BUTTON_CLICK";
@@ -52,9 +51,7 @@ _pr92Schema7AtomicAttachmentSubmitExpression = function _pr92Schema21ValidatedCl
   );
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema21Repair(message) {
-  const result = await _pr92Schema21PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema21AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA21_REPAIR_SCHEMA,
@@ -62,4 +59,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema21Repair(mess
     protectedSubmitArmAfterAllValidation: true,
     preValidationSubmitArmPossible: false
   };
-};
+}

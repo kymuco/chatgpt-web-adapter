@@ -176,6 +176,19 @@ executeOfficialPageTurn = async function _pr92Schema18ExecuteOfficialPageTurnWit
   };
 };
 
+function _pr92Schema18AugmentSupportResult(result) {
+  return {
+    ...result,
+    richInputSchemaVersion: PR92_SCHEMA18_REPAIR_SCHEMA,
+    newChatConversationIdentityRequiredBeforeSuccess: true,
+    postWriteConversationIdentityResolutionDeadlineBounded: true,
+    postWriteConversationIdentityDedicatedReserveMs: PR92_SCHEMA18_IDENTITY_RESERVE_MS,
+    missingConversationIdentityCanReturnTransportSuccess: false,
+    unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true,
+    automaticWriteRetryAfterIdentityFailure: false
+  };
+}
+
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema18Repair(message) {
   let result;
   try {
@@ -191,15 +204,5 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema18Repair(mess
     }
     throw error;
   }
-  if (message?.characterizeRichInputSupport !== true) return result;
-  return {
-    ...result,
-    richInputSchemaVersion: PR92_SCHEMA18_REPAIR_SCHEMA,
-    newChatConversationIdentityRequiredBeforeSuccess: true,
-    postWriteConversationIdentityResolutionDeadlineBounded: true,
-    postWriteConversationIdentityDedicatedReserveMs: PR92_SCHEMA18_IDENTITY_RESERVE_MS,
-    missingConversationIdentityCanReturnTransportSuccess: false,
-    unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true,
-    automaticWriteRetryAfterIdentityFailure: false
-  };
+  return result;
 };

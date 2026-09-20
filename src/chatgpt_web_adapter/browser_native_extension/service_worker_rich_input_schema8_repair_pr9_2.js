@@ -10,7 +10,6 @@
 //      proof is being assembled.
 
 const _pr92Schema8PriorStageOfficialPageAttachments = _pr92StageOfficialPageAttachments;
-const _pr92Schema8PriorExecuteNativeTurn = executeNativeTurn;
 
 const PR92_SCHEMA8_REPAIR_SCHEMA = 8;
 const PR92_SCHEMA8_PRESTAGE_CLEAN_STABLE_POLLS = 2;
@@ -320,9 +319,7 @@ _pr92ClearOfficialPageAttachments = async function _pr92Schema8ClearFencedRuntim
   }
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema8Repair(message) {
-  const result = await _pr92Schema8PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema8AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA8_REPAIR_SCHEMA,
@@ -331,4 +328,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema8Repair(messa
     destructiveCleanupAuthorityRevalidatedAtClose: true,
     destructiveCleanupOwnershipChangeFailsClosed: true
   };
-};
+}

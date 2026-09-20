@@ -13,7 +13,6 @@
 // or stale attachment still blocks pre-stage cleanliness even if its filename
 // group is absent or arranged differently by the page.
 
-const _pr92Schema22PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA22_REPAIR_SCHEMA = 22;
 
 function _pr92Schema22AttachmentEvidenceExpression(expectedNames) {
@@ -150,9 +149,7 @@ function _pr92Schema22AttachmentEvidenceExpression(expectedNames) {
 // boundary rather than being a special-case live-gate bypass.
 _pr92ClosureAttachmentEvidenceExpression = _pr92Schema22AttachmentEvidenceExpression;
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema22Repair(message) {
-  const result = await _pr92Schema22PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema22AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA22_REPAIR_SCHEMA,
@@ -160,4 +157,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema22Repair(mess
     composerControlRoleGroupsExcludedFromAttachmentEvidence: true,
     preStageCleanUsesAttachmentOwnedEvidenceOnly: true
   };
-};
+}

@@ -18,7 +18,6 @@
 // therefore fails exact basename comparison closed. No substring/suffix matching,
 // write retry, fallback transport, or new submit authority is introduced.
 
-const _pr92Schema25PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA25_REPAIR_SCHEMA = 25;
 
 function _pr92Schema25RemovalControlBasename(label) {
@@ -217,14 +216,7 @@ function _pr92Schema25AugmentComposerDiagnostic(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema25Repair(message) {
-  const result = await _pr92Schema25PriorExecuteNativeTurn(message);
-
-  if (message?.diagnosePr92ComposerEvidence === true && result && typeof result === "object") {
-    return _pr92Schema25AugmentComposerDiagnostic(result);
-  }
-
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema25AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA25_REPAIR_SCHEMA,
@@ -234,4 +226,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema25Repair(mess
     unknownRemovalUiMetadataStillFailsClosed: true,
     removalNormalizationSharedByProductionAndDiagnostic: true
   };
-};
+}

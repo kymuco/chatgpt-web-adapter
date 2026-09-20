@@ -17,7 +17,6 @@
 const _pr92Schema19PriorCreateTurnContext = _pr92CreateTurnContext;
 const _pr92Schema19PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const _pr92Schema19PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr92Schema19PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema19PriorOptionalPostWrite = _pr92Schema17OptionalPostWrite;
 const PR92_SCHEMA19_REPAIR_SCHEMA = 19;
 const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;
@@ -152,9 +151,7 @@ executeOfficialPageTurn = async function _pr92Schema19ExecuteOfficialPageTurnWit
   };
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema19Repair(message) {
-  const result = await _pr92Schema19PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema19AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA19_REPAIR_SCHEMA,
@@ -167,4 +164,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema19Repair(mess
     missingRequestBoundConversationIdentitySignalsCommittedReadbackIncomplete: true,
     automaticWriteRetryAfterCausalIdentityFailure: false
   };
-};
+}

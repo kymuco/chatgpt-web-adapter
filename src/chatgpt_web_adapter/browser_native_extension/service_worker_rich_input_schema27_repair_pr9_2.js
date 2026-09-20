@@ -14,7 +14,6 @@
 // role-group equals that exact interpretation. Non-indexed removal payloads retain
 // the schema-11 literal exact semantics.
 
-const _pr92Schema27PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA27_REPAIR_SCHEMA = 27;
 
 function _pr92Schema27RemovalPostActionPayload(label) {
@@ -272,13 +271,3 @@ function _pr92Schema27AugmentSupportResult(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema27Repair(message) {
-  const result = await _pr92Schema27PriorExecuteNativeTurn(message);
-
-  if (message?.diagnosePr92ComposerEvidence === true && result && typeof result === "object") {
-    return _pr92Schema27AugmentComposerDiagnostic(result);
-  }
-
-  if (message?.characterizeRichInputSupport !== true) return result;
-  return _pr92Schema27AugmentSupportResult(result);
-};

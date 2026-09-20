@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -42,7 +41,9 @@ def test_schema_20_arm_marker_and_atomic_click_share_one_page_expression():
     assert "await " not in block
 
     schema7 = SCHEMA7.read_text(encoding="utf-8")
-    submit_start = schema7.index("const expression = _pr92Schema7AtomicAttachmentSubmitExpression")
+    submit_start = schema7.index(
+        "const expression = _pr92Schema7AtomicAttachmentSubmitExpression"
+    )
     dispatch = schema7.index(
         'chrome.debugger.sendCommand(debuggee, "Runtime.evaluate"', submit_start
     )
@@ -63,7 +64,7 @@ def test_schema_20_schema17_request_authority_is_closed_before_page_marker():
     listener_start = schema17.index('if (method === "Network.requestWillBeSent")')
     listener_end = schema17.index("return;", listener_start) + len("return;")
     listener = schema17[listener_start:listener_end]
-    assert "isConversationWrite(request?.url || \"\", request?.method || \"\")" in listener
+    assert 'isConversationWrite(request?.url || "", request?.method || "")' in listener
 
 
 def test_schema_20_only_exact_runtime_console_marker_arms_authority():
@@ -92,27 +93,44 @@ def test_schema_20_raw_observer_records_post_arm_requests_independently_of_gated
 def test_schema_20_success_requires_one_non_user_gesture_request_after_marker():
     text = SCHEMA20.read_text(encoding="utf-8")
     start = text.index("executeOfficialPageTurn = async function")
-    end = text.index("executeNativeTurn = async function", start)
+    end = text.index("function _pr92Schema20AugmentSupportResult", start)
     block = text[start:end]
     assert 'method === "Runtime.consoleAPICalled"' in block
     assert 'method === "Network.requestWillBeSent"' in block
-    assert "const markerObserved = context.schema20ProtectedSubmitMarkerObserved === true" in block
+    assert (
+        "const markerObserved = context.schema20ProtectedSubmitMarkerObserved === true"
+        in block
+    )
     assert "const exactlyOnePostArmRequest = observed.length === 1" in block
-    assert "const soleRequestHasUserGesture = soleRequest?.hasUserGesture === true" in block
-    assert "!markerObserved || !exactlyOnePostArmRequest || soleRequestHasUserGesture" in block
+    assert (
+        "const soleRequestHasUserGesture = soleRequest?.hasUserGesture === true"
+        in block
+    )
+    assert (
+        "!markerObserved || !exactlyOnePostArmRequest || soleRequestHasUserGesture"
+        in block
+    )
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)" in block
 
 
 def test_schema_20_ambiguous_request_correlation_cannot_trigger_retry():
     text = SCHEMA20.read_text(encoding="utf-8")
-    assert "ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: true" in text
+    assert (
+        "ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: true"
+        in text
+    )
     assert "automaticWriteRetryAfterSubmitCorrelationFailure: false" in text
-    assert "retry" not in text[text.index("executeOfficialPageTurn = async function"):text.index("executeNativeTurn = async function")].lower().replace("never retry", "")
+    start = text.index("executeOfficialPageTurn = async function")
+    end = text.index("function _pr92Schema20AugmentSupportResult", start)
+    assert "retry" not in text[start:end].lower().replace("never retry", "")
 
 
 def test_schema_20_request_id_is_returned_only_as_diagnostic_after_correlation():
     text = SCHEMA20.read_text(encoding="utf-8")
-    start = text.index("return {\n      ...result,", text.index("executeOfficialPageTurn = async function"))
+    start = text.index(
+        "return {\n      ...result,",
+        text.index("executeOfficialPageTurn = async function"),
+    )
     end = text.index("};\n  } finally", start)
     block = text[start:end]
     assert "protectedSubmitRequestId: soleRequest.requestId" in block
@@ -144,7 +162,10 @@ def test_schema_20_gate_preserves_schema_19_and_requires_new_fields():
     assert "SCHEMA = 20" in text
     assert "class ProductRichInputSchema20LiveProvider" in text
     assert 'legacy["schema"] = _v19.SCHEMA' in text
-    assert 'legacy["new_chat_conversation_identity_authority"] = _SCHEMA19_IDENTITY_AUTHORITY' in text
+    assert (
+        'legacy["new_chat_conversation_identity_authority"] = _SCHEMA19_IDENTITY_AUTHORITY'
+        in text
+    )
     assert "_v19._validate_support(legacy)" in text
     required = [
         "protected_submit_request_correlation",
@@ -163,7 +184,9 @@ def test_schema_20_gate_preserves_schema_19_and_requires_new_fields():
 
 def test_schema_20_support_probe_is_fourteenth_no_write_characterization_rpc():
     text = GATE20.read_text(encoding="utf-8")
-    assert "Fourteenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Fourteenth characterization-only RPC: no text and no attachment paths." in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]

@@ -776,6 +776,5 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(mess
     throw error;
   }
 
-  if (message?.characterizeRichInputSupport !== true) return result;
-  return _pr92Schema29AugmentSupportResult(result);
+  return result;
 };

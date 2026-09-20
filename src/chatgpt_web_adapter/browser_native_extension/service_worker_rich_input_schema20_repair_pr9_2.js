@@ -20,7 +20,6 @@ const _pr92Schema20PriorAtomicAttachmentSubmitExpression =
   _pr92Schema7AtomicAttachmentSubmitExpression;
 const _pr92Schema20PriorIsConversationWrite = isConversationWrite;
 const _pr92Schema20PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr92Schema20PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA20_REPAIR_SCHEMA = 20;
 const PR92_SCHEMA20_REQUEST_CORRELATION =
   "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST";
@@ -181,9 +180,7 @@ executeOfficialPageTurn = async function _pr92Schema20ExecuteOfficialPageTurnWit
   }
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema20Repair(message) {
-  const result = await _pr92Schema20PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema20AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA20_REPAIR_SCHEMA,
@@ -197,4 +194,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema20Repair(mess
     ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete: true,
     automaticWriteRetryAfterSubmitCorrelationFailure: false
   };
-};
+}

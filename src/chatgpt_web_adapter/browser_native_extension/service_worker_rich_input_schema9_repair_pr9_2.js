@@ -7,7 +7,6 @@
 // Schema 9 requires every non-empty evidence channel to be exact, so no observed
 // extra/partial attachment evidence can be hidden by another channel.
 
-const _pr92Schema9PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA9_REPAIR_SCHEMA = 9;
 
 function _pr92Schema9AttachmentEvidenceExpression(expectedNames) {
@@ -114,12 +113,10 @@ function _pr92Schema9AttachmentEvidenceExpression(expectedNames) {
 // post-stage stable evidence, and schema 7's synchronous atomic final validator.
 _pr92ClosureAttachmentEvidenceExpression = _pr92Schema9AttachmentEvidenceExpression;
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema9Repair(message) {
-  const result = await _pr92Schema9PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema9AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA9_REPAIR_SCHEMA,
     crossEvidenceChannelExactness: true
   };
-};
+}

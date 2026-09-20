@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -28,7 +27,7 @@ def test_schema_8_requires_clean_composer_and_exact_attachment_set():
 
     assert "const PR92_SCHEMA8_REPAIR_SCHEMA = 8;" in text
     assert "_pr92Schema8RequireAttachmentCleanComposerBeforeStaging" in text
-    assert 'PR9_2_PREEXISTING_COMPOSER_ATTACHMENT_PRESENT' in text
+    assert "PR9_2_PREEXISTING_COMPOSER_ATTACHMENT_PRESENT" in text
     assert "matchesExpectedExactly" in text
     assert "pool.length === 0" in text
     assert "exactAttachmentSet" in text
@@ -36,19 +35,21 @@ def test_schema_8_requires_clean_composer_and_exact_attachment_set():
     assert "exactComposerAttachmentSetRequired: true" in text
 
     stage = text[
-        text.index("_pr92StageOfficialPageAttachments = async function _pr92Schema8StageFromCleanComposer") :
-        text.index("function _pr92Schema8FenceIdentityMatches")
+        text.index(
+            "_pr92StageOfficialPageAttachments = async function _pr92Schema8StageFromCleanComposer"
+        ) : text.index("function _pr92Schema8FenceIdentityMatches")
     ]
-    assert stage.index("_pr92Schema8RequireAttachmentCleanComposerBeforeStaging") < stage.index(
-        "_pr92Schema8PriorStageOfficialPageAttachments"
-    )
+    assert stage.index(
+        "_pr92Schema8RequireAttachmentCleanComposerBeforeStaging"
+    ) < stage.index("_pr92Schema8PriorStageOfficialPageAttachments")
 
 
 def test_schema_8_revalidates_destructive_authority_at_close_boundary():
     text = SCHEMA8.read_text(encoding="utf-8")
     cleanup = text[
-        text.index("_pr92ClearOfficialPageAttachments = async function _pr92Schema8ClearFencedRuntimeTab") :
-        text.index("executeNativeTurn = async function _executeNativeTurnWithPr92Schema8Repair")
+        text.index(
+            "_pr92ClearOfficialPageAttachments = async function _pr92Schema8ClearFencedRuntimeTab"
+        ) : text.index("function _pr92Schema8AugmentSupportResult")
     ]
 
     assert "chrome.tabs.onUpdated.addListener(onUpdated)" in cleanup

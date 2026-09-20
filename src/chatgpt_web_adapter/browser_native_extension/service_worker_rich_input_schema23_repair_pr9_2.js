@@ -15,7 +15,6 @@
 // clean-composer false positive. Structured removal controls remain a second,
 // independent evidence channel exactly as before.
 
-const _pr92Schema23PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA23_REPAIR_SCHEMA = 23;
 
 function _pr92Schema23AttachmentEvidenceExpression(expectedNames) {
@@ -178,9 +177,7 @@ function _pr92Schema23AttachmentEvidenceExpression(expectedNames) {
 // classification therefore governs every attachment-authority boundary.
 _pr92ClosureAttachmentEvidenceExpression = _pr92Schema23AttachmentEvidenceExpression;
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Repair(message) {
-  const result = await _pr92Schema23PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema23AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA23_REPAIR_SCHEMA,
@@ -192,4 +189,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema23Repair(mess
     composerControlRoleGroupsExcludedFromAttachmentEvidence: true,
     preStageCleanUsesAttachmentOwnedEvidenceOnly: true
   };
-};
+}

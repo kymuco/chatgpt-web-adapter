@@ -13,7 +13,6 @@
 // closed immediately. The mount wait consumes the same single outer rich-turn
 // deadline; there is no retry, staging, or protected-write authority in this phase.
 
-const _pr92Schema24PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA24_REPAIR_SCHEMA = 24;
 
 async function _pr92Schema24WaitForOfficialComposerMounted(debuggee, context) {
@@ -122,9 +121,7 @@ _pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function _pr92Sch
   }
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema24Repair(message) {
-  const result = await _pr92Schema24PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema24AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA24_REPAIR_SCHEMA,
@@ -135,4 +132,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema24Repair(mess
     missingComposerBeforeMountClassifiedDirty: false,
     mountedAttachmentEvidenceStillFailsClosed: true
   };
-};
+}
