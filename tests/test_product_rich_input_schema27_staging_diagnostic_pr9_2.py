@@ -22,7 +22,7 @@ def test_schema_27_staging_diagnostic_loads_after_schema27_repair():
 
 def test_schema_27_staging_diagnostic_is_explicitly_no_conversation_write():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
-    assert "diagnosePr92StagedAttachmentEvidenceSchema27" in text
+    assert "async function _pr92RunSchema27StagingDiagnostic" in text
     assert "PR9_2_SCHEMA27_STAGING_DIAGNOSTIC_TEXT_FORBIDDEN" in text
     assert "conversationWritePerformed: false" in text
     assert "textInsertionPerformed: false" in text
