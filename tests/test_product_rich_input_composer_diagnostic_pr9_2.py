@@ -22,7 +22,7 @@ def test_schema23_diagnostic_overlay_loads_after_schema24_repair():
 
 def test_composer_diagnostic_is_explicitly_zero_write_and_zero_staging():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
-    assert "diagnosePr92ComposerEvidence" in text
+    assert "async function _pr92RunSchema23ComposerDiagnostic" in text
     assert 'message?.text != null || message?.attachmentPaths != null' in text
     assert 'writePerformed: false' in text
     assert 'attachmentStagingPerformed: false' in text
