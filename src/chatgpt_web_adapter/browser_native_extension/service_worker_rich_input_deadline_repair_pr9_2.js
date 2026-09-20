@@ -11,7 +11,6 @@ const _pr92DeadlineRepairPriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 const _pr92DeadlineRepairPriorTryClearDirtyAttachmentFence = (
   _pr92TryClearDirtyAttachmentFence
 );
-const _pr92DeadlineRepairPriorExecuteNativeTurn = executeNativeTurn;
 const PR92_DEADLINE_REPAIR_SCHEMA = 4;
 
 function _pr92DeadlineRepairTimeoutError(stage) {
@@ -343,9 +342,7 @@ _pr92TryClearDirtyAttachmentFence = async function _pr92ClearFenceWithinDeadline
 // Advance the no-write support contract so an installed pre-repair overlay cannot
 // satisfy the authenticated live gate merely because ordinary writes do not hit
 // the deadline edge cases during that run.
-executeNativeTurn = async function _executeNativeTurnWithPr92DeadlineRepair(message) {
-  const result = await _pr92DeadlineRepairPriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92DeadlineRepairAugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_DEADLINE_REPAIR_SCHEMA,
@@ -357,4 +354,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92DeadlineRepair(mess
     mouseReleaseOutcomeAmbiguityFailsClosed: true,
     staleAttachmentCleanupProof: "RUNTIME_TAB_REMOVED_AND_ABSENCE_CONFIRMED"
   };
-};
+}
