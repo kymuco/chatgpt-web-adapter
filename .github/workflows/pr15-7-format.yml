@@ -1,0 +1,66 @@
+name: PR15.7 formatter
+
+on:
+  push:
+    branches:
+      - pr15-7-consolidate-rich-input-support
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR15.7 branch
+        uses: actions/checkout@v4
+        with:
+          ref: pr15-7-consolidate-rich-input-support
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Ruff
+        run: python -m pip install ruff==0.16.8
+
+      - name: Format changed PR15.7 tests
+        run: |
+          ruff check --fix \
+            tests/test_product_rich_input_schema14_repair_pr9_2.py \
+            tests/test_product_rich_input_schema15_repair_pr9_2.py \
+            tests/test_product_rich_input_schema18_repair_pr9_2.py \
+            tests/test_product_rich_input_schema19_repair_pr9_2.py \
+            tests/test_product_rich_input_schema20_repair_pr9_2.py \
+            tests/test_product_rich_input_schema21_repair_pr9_2.py \
+            tests/test_product_rich_input_schema25_repair_pr9_2.py \
+            tests/test_product_rich_input_schema26_repair_pr9_2.py \
+            tests/test_product_rich_input_schema7_repair_pr9_2.py \
+            tests/test_product_rich_input_schema8_repair_pr9_2.py \
+            tests/test_rich_input_support_dispatch_pr15_7.py
+          ruff format \
+            tests/test_product_rich_input_schema14_repair_pr9_2.py \
+            tests/test_product_rich_input_schema15_repair_pr9_2.py \
+            tests/test_product_rich_input_schema18_repair_pr9_2.py \
+            tests/test_product_rich_input_schema19_repair_pr9_2.py \
+            tests/test_product_rich_input_schema20_repair_pr9_2.py \
+            tests/test_product_rich_input_schema21_repair_pr9_2.py \
+            tests/test_product_rich_input_schema25_repair_pr9_2.py \
+            tests/test_product_rich_input_schema26_repair_pr9_2.py \
+            tests/test_product_rich_input_schema7_repair_pr9_2.py \
+            tests/test_product_rich_input_schema8_repair_pr9_2.py \
+            tests/test_rich_input_support_dispatch_pr15_7.py
+
+      - name: Commit canonical formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests
+          if git diff --cached --quiet; then
+            echo "No formatting changes required."
+          else
+            git commit -m "PR15.7 format rich input ownership tests"
+            git push origin HEAD:pr15-7-consolidate-rich-input-support
+          fi
