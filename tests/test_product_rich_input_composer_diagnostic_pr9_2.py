@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -14,7 +13,9 @@ CLI = PKG / "product_rich_input_composer_diagnostic_pr9_2.py"
 def test_schema23_diagnostic_overlay_loads_after_schema24_repair():
     text = LOADER.read_text(encoding="utf-8")
     schema24 = 'importScripts("service_worker_rich_input_schema24_repair_pr9_2.js");'
-    diagnostic = 'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
+    diagnostic = (
+        'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
+    )
     assert schema24 in text
     assert diagnostic in text
     assert text.index(schema24) < text.index(diagnostic)
@@ -23,10 +24,10 @@ def test_schema23_diagnostic_overlay_loads_after_schema24_repair():
 def test_composer_diagnostic_is_explicitly_zero_write_and_zero_staging():
     text = DIAGNOSTIC.read_text(encoding="utf-8")
     assert "async function _pr92RunSchema23ComposerDiagnostic" in text
-    assert 'message?.text != null || message?.attachmentPaths != null' in text
-    assert 'writePerformed: false' in text
-    assert 'attachmentStagingPerformed: false' in text
-    assert 'protectedSubmitAttempted: false' in text
+    assert "message?.text != null || message?.attachmentPaths != null" in text
+    assert "writePerformed: false" in text
+    assert "attachmentStagingPerformed: false" in text
+    assert "protectedSubmitAttempted: false" in text
     assert "DOM.setFileInputFiles" not in text
     assert "button.click()" not in text
     assert "Input.dispatch" not in text
