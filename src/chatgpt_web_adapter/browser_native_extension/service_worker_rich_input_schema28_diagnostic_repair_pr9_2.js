@@ -208,13 +208,43 @@ function _cwaRichInputDiagnosticMatches(message) {
     message?.diagnosePr92CommittedIdentityStateSchema28 === true ||
     message?.diagnosePr92StagedAttachmentEvidenceSchema27 === true ||
     message?.diagnosePr92StagedAttachmentEvidence === true ||
-    message?.diagnosePr92ComposerEvidence === true
+    message?.diagnosePr92ComposerEvidence === true ||
+    message?.characterizeRichInputSupport === true
   );
 }
 
 function _cwaRichInputDiagnosticPrepareOuterState(message) {
   _pr92Schema28PrepareRichWriteDiagnostics(message);
   _pr92Schema29PrepareRichWriteDiagnostics(message);
+}
+
+function _cwaRichInputSupportResult(message) {
+  let result = _pr92RichInputBaseSupportResult(message);
+  result = _pr92DeadlineRepairAugmentSupportResult(result);
+  result = _pr92ClosureAugmentSupportResult(result);
+  result = _pr92Schema7AugmentSupportResult(result);
+  result = _pr92Schema8AugmentSupportResult(result);
+  result = _pr92Schema9AugmentSupportResult(result);
+  result = _pr92Schema10AugmentSupportResult(result);
+  result = _pr92Schema11AugmentSupportResult(result);
+  result = _pr92Schema12AugmentSupportResult(result);
+  result = _pr92Schema13AugmentSupportResult(result);
+  result = _pr92Schema14AugmentSupportResult(result);
+  result = _pr92Schema15AugmentSupportResult(result);
+  result = _pr92Schema16AugmentSupportResult(result);
+  result = _pr92Schema17AugmentSupportResult(result);
+  result = _pr92Schema18AugmentSupportResult(result);
+  result = _pr92Schema19AugmentSupportResult(result);
+  result = _pr92Schema20AugmentSupportResult(result);
+  result = _pr92Schema21AugmentSupportResult(result);
+  result = _pr92Schema22AugmentSupportResult(result);
+  result = _pr92Schema23AugmentSupportResult(result);
+  result = _pr92Schema24AugmentSupportResult(result);
+  result = _pr92Schema25AugmentSupportResult(result);
+  result = _pr92Schema26AugmentSupportResult(result);
+  result = _pr92Schema27AugmentSupportResult(result);
+  result = _pr92Schema28AugmentSupportResult(result);
+  return _pr92Schema29AugmentSupportResult(result);
 }
 
 function _cwaRichInputDiagnosticApplySupportTail(message, result, fromSchema) {
@@ -263,7 +293,11 @@ async function _cwaHandleRichInputDiagnostic(message) {
     return _cwaRichInputDiagnosticApplySupportTail(message, result, 27);
   }
 
-  throw new Error("PR15_5_RICH_INPUT_DIAGNOSTIC_UNMATCHED");
+  if (message?.characterizeRichInputSupport === true) {
+    return _cwaRichInputSupportResult(message);
+  }
+
+  throw new Error("PR15_7_RICH_INPUT_CONTROL_PLANE_UNMATCHED");
 }
 
 registerNativeTurnDiagnosticHandler(
