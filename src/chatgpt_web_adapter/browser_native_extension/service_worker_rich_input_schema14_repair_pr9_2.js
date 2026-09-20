@@ -19,9 +19,19 @@ function _pr92Schema14HasModelProfileRequirement(message) {
   return typeof message?.requiredModelMode === "string" && Boolean(message.requiredModelMode.trim());
 }
 
+function _pr92Schema14AugmentSupportResult(result) {
+  return {
+    ...result,
+    richInputSchemaVersion: PR92_SCHEMA14_REPAIR_SCHEMA,
+    richInputModelProfileCombinationSupported: false,
+    richInputModelProfileCombinationFailsBeforeStaging: true,
+    richInputModelProfileCombinationFailsBeforeWrite: true,
+    pr810RawPrewriteSelectorExcludedFromRichInput: true
+  };
+}
+
 executeNativeTurn = async function _executeNativeTurnWithPr92Schema14CompositionGuard(message) {
   if (
-    message?.characterizeRichInputSupport !== true &&
     _pr92Schema14HasAttachmentPaths(message) &&
     _pr92Schema14HasModelProfileRequirement(message)
   ) {
@@ -31,14 +41,5 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema14Composition
     throw new Error("PR9_2_RICH_INPUT_MODEL_PROFILE_COMBINATION_UNAVAILABLE");
   }
 
-  const result = await _pr92Schema14PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
-  return {
-    ...result,
-    richInputSchemaVersion: PR92_SCHEMA14_REPAIR_SCHEMA,
-    richInputModelProfileCombinationSupported: false,
-    richInputModelProfileCombinationFailsBeforeStaging: true,
-    richInputModelProfileCombinationFailsBeforeWrite: true,
-    pr810RawPrewriteSelectorExcludedFromRichInput: true
-  };
+  return _pr92Schema14PriorExecuteNativeTurn(message);
 };
