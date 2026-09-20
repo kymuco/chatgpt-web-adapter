@@ -5,8 +5,6 @@
 // clicks, downloads, writes, DOM stateNode values, or accessor values are read/exported.
 
 const PR101_ARTIFACT_FIBER_STATE_V6_SCHEMA = 6;
-const _pr101ArtifactFiberStateV6PriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr101ArtifactFiberStateV6RejectWriteBearingMessage(message, code) {
   if (
     message?.text != null ||
@@ -534,7 +532,7 @@ async function _pr101CharacterizeGeneratedArtifactFiberStateV6() {
   };
 }
 
-executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactFiberStateV6(message) {
+async function _pr101ExecuteNativeTurnWithArtifactFiberStateV6(message) {
   if (message?.characterizeGeneratedArtifactFiberStateV6Support === true) {
     _pr101ArtifactFiberStateV6RejectWriteBearingMessage(
       message,
@@ -568,6 +566,5 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactFiberState
     );
     return _pr101CharacterizeGeneratedArtifactFiberStateV6();
   }
-
-  return _pr101ArtifactFiberStateV6PriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };
