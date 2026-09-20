@@ -8,7 +8,6 @@
 //   2. every page-owned attachment evidence read is raced against the one outer
 //      rich-turn deadline instead of awaiting a raw Runtime.evaluate indefinitely.
 
-const _pr92Schema11PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema11PriorReadPageOwnedAttachmentEvidence =
   _pr92ClosureReadPageOwnedAttachmentEvidence;
 const PR92_SCHEMA11_REPAIR_SCHEMA = 11;
@@ -153,13 +152,11 @@ _pr92ClosureReadPageOwnedAttachmentEvidence = async function _pr92Schema11ReadPa
   );
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema11Repair(message) {
-  const result = await _pr92Schema11PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema11AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA11_REPAIR_SCHEMA,
     structuredRemovalControlBasenameParsing: true,
     attachmentEvidenceReadsDeadlineBounded: true
   };
-};
+}
