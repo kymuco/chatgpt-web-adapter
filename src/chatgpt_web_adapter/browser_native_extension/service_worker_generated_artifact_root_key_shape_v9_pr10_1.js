@@ -2,8 +2,6 @@
 // Unknown child keys are classified into bounded shape enums only. Only explicitly whitelisted structural key names may leave the page.
 
 const PR101_ARTIFACT_ROOT_KEY_SHAPE_V9_SCHEMA = 9;
-const _pr101ArtifactRootKeyShapeV9PriorExecuteNativeTurn = executeNativeTurn;
-
 function _pr101ArtifactRootKeyShapeV9RejectWriteBearingMessage(message, code) {
   if (message?.text != null || message?.conversationId != null || message?.attachmentPaths != null || message?.browserAuthorityLeaseId != null) {
     throw new Error(code);
@@ -388,7 +386,7 @@ async function _pr101CharacterizeGeneratedArtifactRootKeyShapeV9() {
   };
 }
 
-executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactRootKeyShapeV9(message) {
+async function _pr101ExecuteNativeTurnWithArtifactRootKeyShapeV9(message) {
   if (message?.characterizeGeneratedArtifactRootKeyShapeV9Support === true) {
     _pr101ArtifactRootKeyShapeV9RejectWriteBearingMessage(message,"PR10_1_ARTIFACT_ROOT_KEY_SHAPE_V9_SUPPORT_PROBE_MUST_BE_NO_WRITE");
     return { generatedArtifactRootKeyShapeV9CharacterizationSupported:true, generatedArtifactRootKeyShapeV9CharacterizationSchemaVersion:PR101_ARTIFACT_ROOT_KEY_SHAPE_V9_SCHEMA, orderedProbePairRequired:true, assistantTurnAnchorRequired:true, fiberGraphBounded:true, structuralArtifactRootsOnly:true, nonemptyRootsOnly:true, dottedLocalizationKeysExcluded:true, svgUseFibersExcluded:true, accessorPropertiesSkipped:true, domStateNodeValuesExcluded:true, keyShapeClassificationOnly:true, knownStructuralKeyWhitelistOnly:true, rawRootKeysExported:false, rawRootValuesExported:false, childValuesExported:false, rawDomExported:false, rawTextExported:false, attributeValuesExported:false, reactPropValuesExported:false, reactStateValuesExported:false, locatorValuesExported:false, clickPerformed:false, downloadAttempted:false, writePerformed:false };
@@ -397,5 +395,5 @@ executeNativeTurn = async function _pr101ExecuteNativeTurnWithArtifactRootKeySha
     _pr101ArtifactRootKeyShapeV9RejectWriteBearingMessage(message,"PR10_1_ARTIFACT_ROOT_KEY_SHAPE_V9_PROBE_MUST_BE_NO_WRITE");
     return _pr101CharacterizeGeneratedArtifactRootKeyShapeV9();
   }
-  return _pr101ArtifactRootKeyShapeV9PriorExecuteNativeTurn(message);
+  throw new Error("PR10_1_GENERATED_ARTIFACT_CHARACTERIZATION_UNMATCHED");
 };
