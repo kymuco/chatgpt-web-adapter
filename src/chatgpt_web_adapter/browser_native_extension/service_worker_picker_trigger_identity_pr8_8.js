@@ -15,7 +15,6 @@ const PR88_PICKER_TRIGGER_TIMELINE_STORAGE_KEY =
   "browserAuthorityLastPickerTriggerTimelineV1";
 const PR88_PICKER_TRIGGER_MAX_SAMPLES = 96;
 
-const _pr88TriggerPriorExecuteNativeTurn = executeNativeTurn;
 const _pr88TriggerPriorSelectionPoint = _pr88SelectionPoint;
 const _pr88TriggerPriorRawClick = _pr88SelectionRawClick;
 const _pr88TriggerPriorLocateAndFocusComposer = locateAndFocusComposer;
