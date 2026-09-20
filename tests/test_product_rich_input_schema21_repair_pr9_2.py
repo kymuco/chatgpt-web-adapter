@@ -25,7 +25,7 @@ def test_schema_21_overlay_is_loaded_after_schema_20():
 def test_schema_21_bypasses_schema_20_early_marker_wrapper():
     text = SCHEMA21.read_text(encoding="utf-8")
     start = text.index("_pr92Schema7AtomicAttachmentSubmitExpression = function")
-    end = text.index("executeNativeTurn = async function", start)
+    end = text.index("function _pr92Schema21AugmentSupportResult", start)
     block = text[start:end]
     assert "_pr92Schema20PriorAtomicAttachmentSubmitExpression(" in block
     assert "_pr92Schema20PageSideArmProtectedSubmit" not in block
@@ -36,7 +36,7 @@ def test_schema_21_bypasses_schema_20_early_marker_wrapper():
 def test_schema_21_marker_is_inserted_immediately_before_atomic_click():
     text = SCHEMA21.read_text(encoding="utf-8")
     start = text.index("_pr92Schema7AtomicAttachmentSubmitExpression = function")
-    end = text.index("executeNativeTurn = async function", start)
+    end = text.index("function _pr92Schema21AugmentSupportResult", start)
     block = text[start:end]
     marker = "try { console.debug(${encodedMarker}); } catch {}"
     assert marker in block
