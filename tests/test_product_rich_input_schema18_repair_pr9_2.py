@@ -73,13 +73,15 @@ def test_schema_18_unresolved_identity_is_explicit_committed_failure_not_success
     resolver = text[resolver_start:resolver_end]
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in resolver
 
-    native_start = text.index("executeNativeTurn = async function")
+    support_start = text.index("function _pr92Schema18AugmentSupportResult")
+    native_start = text.index("executeNativeTurn = async function", support_start)
+    support = text[support_start:native_start]
     native = text[native_start:]
     assert "detail.includes(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)" in native
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in native
-    assert "missingConversationIdentityCanReturnTransportSuccess: false" in native
-    assert "unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true" in native
-    assert "automaticWriteRetryAfterIdentityFailure: false" in native
+    assert "missingConversationIdentityCanReturnTransportSuccess: false" in support
+    assert "unresolvedConversationIdentitySignalsCommittedReadbackIncomplete: true" in support
+    assert "automaticWriteRetryAfterIdentityFailure: false" in support
 
 
 def test_provider_maps_committed_identity_failure_to_readback_incomplete_timeout_semantics():
