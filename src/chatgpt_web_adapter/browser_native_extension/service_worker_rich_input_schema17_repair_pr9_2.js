@@ -10,7 +10,6 @@
 //      the already-submitted outcome.
 
 const _pr92Schema17PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr92Schema17PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA17_REPAIR_SCHEMA = 17;
 const PR92_SCHEMA17_OPTIONAL_POSTWRITE_CAP_MS = 1_000;
 const PR92_SCHEMA17_RPC_RETURN_RESERVE_MS = 500;
@@ -360,9 +359,7 @@ executeOfficialPageTurn = async function _pr92Schema17ExecuteOfficialPageTurnWit
   });
 };
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema17Repair(message) {
-  const result = await _pr92Schema17PriorExecuteNativeTurn(message);
-  if (message?.characterizeRichInputSupport !== true) return result;
+function _pr92Schema17AugmentSupportResult(result) {
   return {
     ...result,
     richInputSchemaVersion: PR92_SCHEMA17_REPAIR_SCHEMA,
@@ -375,4 +372,4 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema17Repair(mess
     postWriteOptionalReadsCanRewriteSubmittedOutcome: false,
     postWriteRpcReturnReserveMs: PR92_SCHEMA17_RPC_RETURN_RESERVE_MS
   };
-};
+}
