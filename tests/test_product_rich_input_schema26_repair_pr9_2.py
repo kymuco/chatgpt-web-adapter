@@ -99,7 +99,9 @@ def test_schema_26_diagnostic_exposes_literal_and_corroborated_interpretations()
     assert "indexedCandidate" in text
     assert "corroboratedIndexedBasename" in text
     assert "singleAttachmentCrossChannelExact" in text
-    diagnostic_block = text[text.index("if (message?.diagnosePr92ComposerEvidence") :]
+    start = text.index("function _pr92Schema26AugmentComposerDiagnostic")
+    end = text.index("function _pr92Schema26AugmentSupportResult", start)
+    diagnostic_block = text[start:end]
     assert "button.click" not in diagnostic_block
     assert "DOM.setFileInputFiles" not in diagnostic_block
 
