@@ -66,6 +66,10 @@ function _pr92Schema29ExtractRequestBoundConversationMetadata() {{ return null; 
 
 {authority}
 
+const _testPriorExecuteNativeTurn = executeNativeTurn;
+executeNativeTurn = (message) =>
+  _cwaOrdinaryIdentityExecuteNativeTurn(message, _testPriorExecuteNativeTurn);
+
 (async () => {{
   let ordinaryError = null;
   let nonOrdinaryError = null;
