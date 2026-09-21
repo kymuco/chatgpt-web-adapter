@@ -78,7 +78,10 @@ def test_rich_input_lifecycle_is_pure_layer_at_schema_loader_boundary() -> None:
     )
     assert "executeNativeTurn =" not in owner
     assert "_cwaRichInputLifecyclePriorExecuteNativeTurn" not in owner
-    assert "async function _executeNativeTurnWithRichInputLifecycle(message, next)" in owner
+    assert (
+        "async function _executeNativeTurnWithRichInputLifecycle(message, next)"
+        in owner
+    )
 
 
 def test_rich_input_lifecycle_preserves_historical_outer_to_inner_order() -> None:
