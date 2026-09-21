@@ -42,9 +42,7 @@ def test_mixed_rich_input_layers_no_longer_own_native_turn() -> None:
 
 def test_lower_level_rich_input_hooks_remain_in_original_modules() -> None:
     required = {
-        "service_worker_rich_input_pr9_2.js": (
-            "executeOfficialPageTurn =",
-        ),
+        "service_worker_rich_input_pr9_2.js": ("executeOfficialPageTurn =",),
         "service_worker_rich_input_closure_repair_pr9_2.js": (
             "submitOfficialPageTurn =",
         ),
@@ -74,7 +72,9 @@ def test_rich_input_lifecycle_has_one_owner_at_schema_loader_boundary() -> None:
 
     assert loader in assembly and owner_import in assembly and text_shape in assembly
     assert (
-        assembly.index(loader) < assembly.index(owner_import) < assembly.index(text_shape)
+        assembly.index(loader)
+        < assembly.index(owner_import)
+        < assembly.index(text_shape)
     )
     assert owner.count("executeNativeTurn =") == 1
     assert (
