@@ -449,7 +449,9 @@ def test_packaged_extension_layers_pr9_2_above_preserved_entrypoint():
     assert "attachmentPaths" in overlay
     assert "attachmentCount" in overlay
     assert "base64" not in overlay.lower()
-    assert "_pr92RichInputPriorExecuteNativeTurn(message)" in overlay
+    layer = "async function _executeNativeTurnWithPr92RichInput(message, next)"
+    assert layer in overlay
+    assert "return await next(message);" in overlay
 
 
 def test_pr9_2_stages_only_after_stale_ui_recovery_and_persists_failure_fence():
