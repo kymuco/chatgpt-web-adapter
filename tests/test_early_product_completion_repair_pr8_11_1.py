@@ -82,7 +82,7 @@ def test_terminal_decision_runs_after_established_sse_processing() -> None:
 def test_pre_text_completed_status_cannot_be_earliest_terminal() -> None:
     source = _read(REPAIR)
     start = source.index("_pr8111FirstTerminal = function")
-    end = source.index("\nexecuteOfficialPageTurn =", start)
+    end = source.index("\nasync function _pr8111RepairExecuteOfficialPageTurn", start)
     block = source[start:end]
     assert "const firstText = context?.firstAssistantTextObservedAt" in block
     assert "at >= firstText" in block
@@ -91,7 +91,7 @@ def test_pre_text_completed_status_cannot_be_earliest_terminal() -> None:
 
 def test_repair_installs_signal_only_around_current_page_turn() -> None:
     source = _read(REPAIR)
-    start = source.index("executeOfficialPageTurn = async function")
+    start = source.index("async function _pr8111RepairExecuteOfficialPageTurn")
     end = source.index("\nfunction _pr8111RepairLeaseId", start)
     block = source[start:end]
     assert "_cwaInstallOfficialPageEarlyCompletionSignal(active.terminalPromise)" in block
