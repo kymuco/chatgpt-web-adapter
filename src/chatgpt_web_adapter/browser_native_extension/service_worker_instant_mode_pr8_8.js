@@ -14,7 +14,6 @@ const PR88_INSTANT_MODE_STORAGE_KEY = "browserAuthorityLastInstantModeV1";
 const PR88_INSTANT_PROBE_TIMEOUT_MS = 15_000;
 const PR88_INSTANT_MODE_SNAPSHOT_POLL_MS = 200;
 
-const _pr88InstantPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _pr88InstantPriorLocateAndFocusComposer = locateAndFocusComposer;
 const _pr88InstantPriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 
@@ -379,10 +378,10 @@ extractSafeStreamMetadata = function _extractSafeStreamMetadataWithInstantHints(
   return _pr88InstantPriorExtractSafeStreamMetadata(body, base64Encoded);
 };
 
-executeOfficialPageTurn = async function _executeOfficialPageTurnWithInstantObservation(args) {
+async function _executeOfficialPageTurnWithInstantObservation(args, next) {
   const context = _pr88InstantContext;
   if (context === null) {
-    return _pr88InstantPriorExecuteOfficialPageTurn(args);
+    return next(args);
   }
 
   let listenerInstalled = false;
@@ -409,7 +408,7 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithInstantObse
   }
 
   try {
-    return await _pr88InstantPriorExecuteOfficialPageTurn(args);
+    return await next(args);
   } finally {
     if (listenerInstalled) {
       try { chrome.debugger.onEvent.removeListener(observer); } catch {}
