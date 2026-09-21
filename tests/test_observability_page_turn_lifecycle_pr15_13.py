@@ -62,8 +62,7 @@ def test_observability_page_turn_owner_is_loaded_at_historical_outer_boundary() 
         < assembly.index(normalized)
     )
     assert "executeOfficialPageTurn =" not in owner
-    assert "async function _executeOfficialPageTurnWithObservabilityLifecycle(args)" in owner
-
+    assert (\n        "async function _executeOfficialPageTurnWithObservabilityLifecycle(args)"\n        in owner\n    )\n
 
 def test_observability_page_turn_order_matches_historical_nesting() -> None:
     owner = _source(OWNER)
