@@ -19,7 +19,6 @@
 // than WRITE_OUTCOME_UNKNOWN. No write retry or second submit path is added.
 
 const _pr92Schema18PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr92Schema18PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA18_REPAIR_SCHEMA = 18;
 const PR92_SCHEMA18_IDENTITY_RESERVE_MS = 2_500;
 const PR92_SCHEMA18_RPC_RETURN_RESERVE_MS = 500;
@@ -189,10 +188,10 @@ function _pr92Schema18AugmentSupportResult(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema18Repair(message) {
+async function _executeNativeTurnWithPr92Schema18Repair(message, next) {
   let result;
   try {
-    result = await _pr92Schema18PriorExecuteNativeTurn(message);
+    result = await next(message);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (detail.includes(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)) {

@@ -37,7 +37,6 @@
 // forbidden. Raw request text, postData, request ids, message ids, and conversation
 // ids are never emitted in diagnostics.
 
-const _pr92Schema29PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema29PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _pr92Schema29PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA29_REPAIR_SCHEMA = 29;
@@ -722,12 +721,12 @@ function _pr92Schema29PrepareRichWriteDiagnostics(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema29Repair(message) {
+async function _executeNativeTurnWithPr92Schema29Repair(message, next) {
   _pr92Schema29PrepareRichWriteDiagnostics(message);
 
   let result;
   try {
-    result = await _pr92Schema29PriorExecuteNativeTurn(message);
+    result = await next(message);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR)) {

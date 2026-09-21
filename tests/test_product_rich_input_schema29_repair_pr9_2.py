@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 from chatgpt_web_adapter import product_rich_input_live_gate_schema29_pr9_2 as gate29
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
@@ -487,11 +486,16 @@ def test_schema_29_failed_postdata_fallback_remains_fail_closed():
 
 def test_schema_29_replaces_only_schema20_final_gate_and_keeps_validated_arm_boundary():
     text = SCHEMA29.read_text(encoding="utf-8")
-    start = text.index("executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn")
-    end = text.index("executeNativeTurn = async function", start)
+    start = text.index(
+        "executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn"
+    )
+    end = text.index("async function _executeNativeTurnWithPr92Schema29Repair", start)
     block = text[start:end]
     assert "_pr92Schema20ObserveArmMarker(context, params)" in block
-    assert "_pr92Schema29RecordPostArmConversationRequest(debuggee, context, params)" in block
+    assert (
+        "_pr92Schema29RecordPostArmConversationRequest(debuggee, context, params)"
+        in block
+    )
     assert "chrome.debugger.onEvent.addListener(observer)" in block
     assert "await _pr92Schema20PriorExecuteOfficialPageTurn(args)" in block
     assert "await _pr92Schema29AwaitPostDataLookups(context)" in block
@@ -536,7 +540,9 @@ def test_schema_29_committed_error_diagnostics_do_not_expose_request_content_or_
     assert "fallbackRequestBodyCount" in block
 
 
-def test_schema_29_support_gate_adapts_legacy_schema20_then_requires_new_authority(monkeypatch):
+def test_schema_29_support_gate_adapts_legacy_schema20_then_requires_new_authority(
+    monkeypatch,
+):
     captured: dict[str, object] = {}
 
     def fake_validate(legacy: dict[str, object]) -> None:
@@ -617,7 +623,6 @@ def test_schema_29_support_source_requires_request_body_causal_contract():
         "has_user_gesture_authoritative",
     ):
         assert needle in text
-
 
 
 def test_schema29_unclassified_request_bodies_remain_unresolved() -> None:
@@ -711,22 +716,12 @@ def test_schema29_committed_error_does_not_settle_postdata_twice() -> None:
     source = SCHEMA29.read_text(encoding="utf-8")
 
     execute_start = source.index(
-        "executeOfficialPageTurn = async function "
-        "_pr92Schema29ExecuteOfficialPageTurn"
+        "executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn"
     )
     catch_start = source.index("  } catch (error) {", execute_start)
     finally_start = source.index("  } finally {", catch_start)
     catch_source = source[catch_start:finally_start]
 
-    assert (
-        "await _pr92Schema29AwaitPostDataLookups(context);"
-        not in catch_source
-    )
-    assert (
-        "_pr92Schema29LastSubmitCorrelationDiagnostics === null"
-        in catch_source
-    )
-    assert (
-        "_pr92Schema29EvaluateSubmitCorrelation(context)"
-        in catch_source
-    )
+    assert "await _pr92Schema29AwaitPostDataLookups(context);" not in catch_source
+    assert "_pr92Schema29LastSubmitCorrelationDiagnostics === null" in catch_source
+    assert "_pr92Schema29EvaluateSubmitCorrelation(context)" in catch_source

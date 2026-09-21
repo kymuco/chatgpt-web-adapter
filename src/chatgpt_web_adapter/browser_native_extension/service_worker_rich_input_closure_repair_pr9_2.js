@@ -12,7 +12,6 @@ const _pr92ClosurePriorStageOfficialPageAttachments = _pr92StageOfficialPageAtta
 const _pr92ClosurePriorClickSendButton = clickSendButton;
 const _pr92ClosurePriorSubmitWithEnter = submitWithEnter;
 const _pr92ClosurePriorSubmitOfficialPageTurn = submitOfficialPageTurn;
-const _pr92ClosurePriorExecuteNativeTurn = executeNativeTurn;
 const PR92_CLOSURE_REPAIR_SCHEMA = 6;
 const PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE = "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE";
 const PR92_PAGE_ATTACHMENT_STABLE_POLLS = 2;
@@ -349,8 +348,8 @@ function _pr92ClosureAugmentSupportResult(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92ClosureRepair(message) {
-  const result = await _pr92ClosurePriorExecuteNativeTurn(message);
+async function _executeNativeTurnWithPr92ClosureRepair(message, next) {
+  const result = await next(message);
 
   if (
     Array.isArray(message?.attachmentPaths) &&

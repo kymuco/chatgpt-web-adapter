@@ -8,7 +8,6 @@
 // chain. The official page therefore remains responsible for upload semantics,
 // Sentinel/proof handling, request construction, and the protected write.
 
-const _pr92RichInputPriorExecuteNativeTurn = executeNativeTurn;
 const _pr92PriorMaybeRecoverStaleRuntimeUi = (
   typeof _pr811MaybeRecoverStaleRuntimeUi === "function"
     ? _pr811MaybeRecoverStaleRuntimeUi
@@ -490,7 +489,7 @@ function _pr92RichInputBaseSupportResult(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) {
+async function _executeNativeTurnWithPr92RichInput(message, next) {
   if (_pr92ActiveTurnContext !== null) {
     throw new Error("PR9_2_TURN_CONTEXT_BUSY");
   }
@@ -503,7 +502,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) 
     const attachmentPaths = _pr92NormalizeAttachmentPaths(message?.attachmentPaths);
     message.timeoutMs = _pr92RemainingTurnMs(context, "POST_PREFLIGHT");
     if (attachmentPaths.length === 0) {
-      return await _pr92RichInputPriorExecuteNativeTurn(message);
+      return await next(message);
     }
 
     if (
@@ -527,7 +526,7 @@ executeNativeTurn = async function _executeNativeTurnWithPr92RichInput(message) 
     context.attachmentPaths = attachmentPaths;
     _pr92ActiveRichInputContext = context;
     try {
-      const result = await _pr92RichInputPriorExecuteNativeTurn(message);
+      const result = await next(message);
       if (context.staged !== true || context.attachmentCount !== attachmentPaths.length) {
         throw new Error("PR9_2_ATTACHMENT_STAGE_NOT_PROVEN");
       }

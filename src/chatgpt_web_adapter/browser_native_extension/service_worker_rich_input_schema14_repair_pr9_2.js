@@ -8,7 +8,6 @@
 // combination closed before staging or write rather than widening PR8.10 inside
 // PR9.2. Text-only model-profile turns and ordinary rich-input turns are unchanged.
 
-const _pr92Schema14PriorExecuteNativeTurn = executeNativeTurn;
 const PR92_SCHEMA14_REPAIR_SCHEMA = 14;
 
 function _pr92Schema14HasAttachmentPaths(message) {
@@ -30,7 +29,7 @@ function _pr92Schema14AugmentSupportResult(result) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema14CompositionGuard(message) {
+async function _executeNativeTurnWithPr92Schema14CompositionGuard(message, next) {
   if (
     _pr92Schema14HasAttachmentPaths(message) &&
     _pr92Schema14HasModelProfileRequirement(message)
@@ -41,5 +40,5 @@ executeNativeTurn = async function _executeNativeTurnWithPr92Schema14Composition
     throw new Error("PR9_2_RICH_INPUT_MODEL_PROFILE_COMBINATION_UNAVAILABLE");
   }
 
-  return _pr92Schema14PriorExecuteNativeTurn(message);
+  return next(message);
 };

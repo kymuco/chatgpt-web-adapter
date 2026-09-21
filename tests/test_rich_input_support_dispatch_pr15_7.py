@@ -38,7 +38,7 @@ def test_support_only_rich_input_layers_no_longer_own_native_turn() -> None:
         assert "AugmentSupportResult" in source, name
 
 
-def test_mixed_rich_input_layers_keep_only_runtime_native_turn_ownership() -> None:
+def test_mixed_rich_input_layers_no_longer_own_native_turn_dispatch() -> None:
     mixed = [
         "service_worker_rich_input_pr9_2.js",
         "service_worker_rich_input_closure_repair_pr9_2.js",
@@ -49,7 +49,8 @@ def test_mixed_rich_input_layers_keep_only_runtime_native_turn_ownership() -> No
     ]
     for name in mixed:
         source = _source(name)
-        assert "executeNativeTurn =" in source, name
+        assert "executeNativeTurn =" not in source, name
+        assert "PriorExecuteNativeTurn" not in source, name
         assert "characterizeRichInputSupport" not in source, name
 
 

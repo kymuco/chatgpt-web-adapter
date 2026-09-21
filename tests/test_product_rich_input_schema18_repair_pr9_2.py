@@ -57,7 +57,7 @@ def test_schema_18_identity_resolution_is_deadline_bounded_and_has_no_write_prim
 def test_schema_18_success_requires_real_identity_after_write_completion_proof():
     text = SCHEMA18.read_text(encoding="utf-8")
     start = text.index("executeOfficialPageTurn = async function")
-    end = text.index("executeNativeTurn = async function", start)
+    end = text.index("async function _executeNativeTurnWithPr92Schema18Repair", start)
     block = text[start:end]
     assert "result?.diagnostics?.conversationRequestSeen !== true" in block
     assert "result?.diagnostics?.loadingFinished !== true" in block
@@ -79,7 +79,9 @@ def test_schema_18_unresolved_identity_is_explicit_committed_failure_not_success
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in resolver
 
     support_start = text.index("function _pr92Schema18AugmentSupportResult")
-    native_start = text.index("executeNativeTurn = async function", support_start)
+    native_start = text.index(
+        "async function _executeNativeTurnWithPr92Schema18Repair", support_start
+    )
     support = text[support_start:native_start]
     native = text[native_start:]
     assert "detail.includes(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)" in native
