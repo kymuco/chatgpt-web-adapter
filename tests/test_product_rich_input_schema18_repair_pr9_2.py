@@ -79,7 +79,9 @@ def test_schema_18_unresolved_identity_is_explicit_committed_failure_not_success
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in resolver
 
     support_start = text.index("function _pr92Schema18AugmentSupportResult")
-    native_start = text.index("async function _executeNativeTurnWithPr92Schema18Repair", support_start)
+    native_start = text.index(
+        "async function _executeNativeTurnWithPr92Schema18Repair", support_start
+    )
     support = text[support_start:native_start]
     native = text[native_start:]
     assert "detail.includes(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR)" in native
