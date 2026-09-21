@@ -75,7 +75,7 @@ def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
     assert "const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;" in text
     assert "const PR92_SCHEMA19_RPC_RETURN_RESERVE_MS = 500;" in text
     start = text.index("_pr92Schema17OptionalPostWrite = async function")
-    end = text.index("executeOfficialPageTurn = async function", start)
+    end = text.index("async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity", start)
     block = text[start:end]
     assert 'stage === "SCHEMA17_POSTWRITE_RESPONSE_BODY"' in block
     assert "context?.schema19RequestedConversationId == null" in block
@@ -89,13 +89,13 @@ def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
 
 def test_schema_19_new_chat_bypasses_schema_18_route_identity_fallback():
     text = SCHEMA19.read_text(encoding="utf-8")
-    start = text.index("executeOfficialPageTurn = async function")
+    start = text.index("async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity")
     end = text.index("function _pr92Schema19AugmentSupportResult", start)
     block = text[start:end]
     assert "if (context.schema19RequestedConversationId !== null)" in block
-    assert "return _pr92Schema19PriorExecuteOfficialPageTurn(args);" in block
+    assert "return next(args);" in block
     assert (
-        "const result = await _pr92Schema18PriorExecuteOfficialPageTurn(args);" in block
+        "const result = await bypassSchema18(args);" in block
     )
     assert "_pr92Schema18ResolvePostWriteConversationIdentity" not in block
     assert "chrome.tabs.onUpdated" not in block
@@ -104,7 +104,7 @@ def test_schema_19_new_chat_bypasses_schema_18_route_identity_fallback():
 
 def test_schema_19_route_can_neither_satisfy_nor_override_new_chat_identity():
     text = SCHEMA19.read_text(encoding="utf-8")
-    start = text.index("executeOfficialPageTurn = async function")
+    start = text.index("async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity")
     end = text.index("function _pr92Schema19AugmentSupportResult", start)
     block = text[start:end]
     assert "const causalConversationId" in block
@@ -127,7 +127,7 @@ def test_schema_19_route_can_neither_satisfy_nor_override_new_chat_identity():
 
 def test_schema_19_completed_write_proof_remains_required_before_identity_success():
     text = SCHEMA19.read_text(encoding="utf-8")
-    start = text.index("executeOfficialPageTurn = async function")
+    start = text.index("async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity")
     end = text.index("function _pr92Schema19AugmentSupportResult", start)
     block = text[start:end]
     assert "result?.diagnostics?.conversationRequestSeen !== true" in block
