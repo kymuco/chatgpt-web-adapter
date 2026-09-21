@@ -37,7 +37,6 @@ const CWA_ORDINARY_IDENTITY_RPC_RETURN_RESERVE_MS = 750;
 const CWA_ORDINARY_IDENTITY_MAX_REQUESTS = 8;
 const CWA_ORDINARY_IDENTITY_MAX_SSE_BUFFER_CHARS = 262_144;
 
-const _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _cwaOrdinaryIdentityPriorSendCommand = sendCommand;
 
 let _cwaOrdinaryIdentityActive = null;
@@ -639,9 +638,9 @@ sendCommand = function _cwaOrdinaryIdentitySendCommand(debuggee, method, params)
   return _cwaOrdinaryIdentityPriorSendCommand(debuggee, method, params);
 };
 
-executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPageTurn(args) {
+async function _cwaOrdinaryIdentityExecuteOfficialPageTurn(args, next) {
   const context = _cwaOrdinaryIdentityActive;
-  if (context === null) return _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
 
   const tabId = args?.tabId;
   context.debuggee = { tabId };
@@ -664,7 +663,7 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
   try {
     let result;
     try {
-      result = await _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn({
+      result = await next({
         ...args,
         postDelegationObserverFailureProbe:
           context.postDelegationObserverFailureProbe === true
