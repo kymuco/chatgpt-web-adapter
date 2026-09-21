@@ -8,7 +8,6 @@
 
 const PR813_TEMPORARY_RUNTIME_TAB_KEY = "browserNativeTemporaryRuntimeTabIdV1";
 const PR813_TEMPORARY_PROOF_TIMEOUT_MS = 10_000;
-const _pr813PriorExecuteNativeTurn = executeNativeTurn;
 const _pr813PriorEnsureRuntimeTab = ensureRuntimeTab;
 const _pr813PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 
@@ -334,7 +333,7 @@ async function _pr813EndTemporaryLifecycle(message) {
   };
 }
 
-async function _pr813ExecuteTemporaryTurn(message) {
+async function _pr813ExecuteTemporaryTurn(message, next) {
   const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);
   if (!token) throw new Error("PR8_13_TEMPORARY_LIFECYCLE_TOKEN_REQUIRED");
 
@@ -382,7 +381,7 @@ async function _pr813ExecuteTemporaryTurn(message) {
 
   let delegated = false;
   try {
-    const result = await _pr813PriorExecuteNativeTurn({
+    const result = await next({
       ...message,
       conversationMode: "temporary",
     });
@@ -438,15 +437,15 @@ async function _pr813ExecuteTemporaryTurn(message) {
   }
 }
 
-executeNativeTurn = async function _pr813ExecuteNativeTurn(message) {
+async function _pr813ExecuteNativeTurn(message, next) {
   if (message?.endTemporaryLifecycle === true) {
     return _pr813EndTemporaryLifecycle(message);
   }
   const mode = typeof message?.conversationMode === "string"
     ? message.conversationMode.trim().toLowerCase()
     : "normal";
-  if (mode !== "temporary") return _pr813PriorExecuteNativeTurn(message);
-  return _pr813ExecuteTemporaryTurn(message);
+  if (mode !== "temporary") return next(message);
+  return _pr813ExecuteTemporaryTurn(message, next);
 };
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {

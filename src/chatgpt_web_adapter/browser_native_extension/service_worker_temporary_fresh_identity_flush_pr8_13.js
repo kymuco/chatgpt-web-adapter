@@ -11,7 +11,6 @@
 
 const PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL = "__cwa_pr813_live_temporary_identity_pending__";
 const _pr813FreshIdentityPriorConversationId = _pr813ConversationId;
-const _pr813FreshIdentityPriorExecuteNativeTurn = executeNativeTurn;
 
 function _pr813FreshIdentityFromLiveContext() {
   const active = _pr813TemporaryTurnContext;
@@ -33,7 +32,7 @@ _pr813ConversationId = function _pr813ConversationIdWithFreshIdentitySentinel(va
   return _pr813FreshIdentityPriorConversationId(value);
 };
 
-executeNativeTurn = async function _pr813ExecuteNativeTurnWithFreshIdentityFlush(message) {
+async function _pr813ExecuteNativeTurnWithFreshIdentityFlush(message, next) {
   const mode = typeof message?.conversationMode === "string"
     ? message.conversationMode.trim().toLowerCase()
     : "normal";
@@ -43,10 +42,10 @@ executeNativeTurn = async function _pr813ExecuteNativeTurnWithFreshIdentityFlush
   );
 
   if (!freshTemporary) {
-    return _pr813FreshIdentityPriorExecuteNativeTurn(message);
+    return next(message);
   }
 
-  const result = await _pr813FreshIdentityPriorExecuteNativeTurn({
+  const result = await next({
     ...message,
     // This satisfies only the legacy base native-turn identity assertion. The
     // PR8.13 ensureRuntimeTab/prewrite layers normalize this sentinel back to

@@ -327,11 +327,9 @@ def test_matching_live_close_does_not_claim_ended_when_owned_tab_remains(
 
 def test_normal_mode_delegates_to_existing_production_chain() -> None:
     source = _source()
-    assert "const _pr813PriorExecuteNativeTurn = executeNativeTurn;" in source
-    assert (
-        'if (mode !== "temporary") return _pr813PriorExecuteNativeTurn(message);'
-        in source
-    )
+    assert "async function _pr813ExecuteNativeTurn(message, next)" in source
+    assert 'if (mode !== "temporary") return next(message);' in source
+    assert "return _pr813ExecuteTemporaryTurn(message, next);" in source
     assert "const _pr813PriorEnsureRuntimeTab = ensureRuntimeTab;" in source
     assert (
         "if (context === null) return _pr813PriorEnsureRuntimeTab(conversationId);"
@@ -343,6 +341,6 @@ def test_pr813_adds_no_retry_or_second_product_write_path() -> None:
     source = _source()
     assert "automatic_retry" not in source.lower()
     assert "retry" not in source.lower()
-    assert source.count("_pr813PriorExecuteNativeTurn({") == 1
+    assert source.count("await next({") == 1
     assert "fetch(" not in source.lower()
     assert "XMLHttpRequest" not in source

@@ -73,7 +73,8 @@ def test_pr8132_does_not_add_automatic_write_retry_or_durable_fallback() -> None
 
     assert "retry" not in text.lower()
     assert "durable" not in text.lower()
-    assert "_pr8132PriorExecuteNativeTurn(message)" in text
+    assert "async function _pr8132ExecuteNativeTurnWithStartupDiagnostics(message, next)" in text
+    assert "return next(message);" in text
 
 
 def test_pr8132_readiness_applies_only_to_fresh_temporary_turns() -> None:
