@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -36,7 +35,9 @@ def test_schema_16_durable_fence_read_is_raced_against_outer_deadline():
 
 def test_schema_16_rich_runtime_tab_acquisition_is_complete_helper_deadline_race():
     text = SCHEMA16.read_text(encoding="utf-8")
-    start = text.index("ensureRuntimeTab = async function _pr92Schema16EnsureRuntimeTabWithinRichDeadline")
+    start = text.index(
+        "ensureRuntimeTab = async function _pr92Schema16EnsureRuntimeTabWithinRichDeadline"
+    )
     end = text.index("function _pr92Schema16DispatchPostWriteDebuggerTeardown", start)
     block = text[start:end]
     assert "const context = _pr92ActiveRichInputContext;" in block
@@ -60,7 +61,9 @@ def test_schema_16_post_write_debugger_teardown_is_best_effort_and_non_awaited()
 def test_schema_16_page_turn_switches_teardown_authority_after_network_post_proof():
     text = SCHEMA16.read_text(encoding="utf-8")
     start = text.index("async function _pr92Schema16ExecuteOfficialPageTurn")
-    end = text.index("executeOfficialPageTurn = async function", start)
+    end = text.index(
+        "async function _pr92Schema16ExecuteOfficialPageTurnWithinTurn", start
+    )
     block = text[start:end]
     assert 'method === "Network.requestWillBeSent"' in block
     assert "diagnostics.conversationRequestSeen = true;" in block
@@ -110,7 +113,9 @@ def test_schema_16_gate_preserves_schema_15_and_requires_new_closure_fields():
 
 def test_schema_16_support_probe_is_tenth_no_write_characterization_rpc():
     text = GATE16.read_text(encoding="utf-8")
-    assert "This tenth characterization-only RPC carries neither text nor paths." in text
+    assert (
+        "This tenth characterization-only RPC carries neither text nor paths." in text
+    )
     marker = '"characterizeRichInputSupport": True'
     assert marker in text
     start = text.index("request_id = str(uuid.uuid4())")

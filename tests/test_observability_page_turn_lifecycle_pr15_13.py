@@ -61,7 +61,11 @@ def test_observability_page_turn_owner_is_loaded_at_historical_outer_boundary() 
         < assembly.index(owner_import)
         < assembly.index(normalized)
     )
-    assert owner.count("executeOfficialPageTurn =") == 1
+    assert "executeOfficialPageTurn =" not in owner
+    assert (
+        "async function _executeOfficialPageTurnWithObservabilityLifecycle(args)"
+        in owner
+    )
 
 
 def test_observability_page_turn_order_matches_historical_nesting() -> None:
@@ -83,8 +87,6 @@ def test_explicit_page_turn_composition_preserves_nested_order_and_handoff() -> 
     owner = _source(OWNER)
     script = f"""
 const events = [];
-let executeOfficialPageTurn = null;
-
 function layer(name) {{
   return async (args, next) => {{
     events.push("enter:" + name);
@@ -112,7 +114,7 @@ async function _executeOfficialPageTurnWithEarlyTerminalBoundary(args) {{
 {owner}
 
 (async () => {{
-  const result = await executeOfficialPageTurn({{ chain: [] }});
+  const result = await _executeOfficialPageTurnWithObservabilityLifecycle({{ chain: [] }});
   console.log(JSON.stringify({{ events, chain: result.chain }}));
 }})().catch((error) => {{
   console.error(error);

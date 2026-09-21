@@ -486,9 +486,7 @@ def test_schema_29_failed_postdata_fallback_remains_fail_closed():
 
 def test_schema_29_replaces_only_schema20_final_gate_and_keeps_validated_arm_boundary():
     text = SCHEMA29.read_text(encoding="utf-8")
-    start = text.index(
-        "executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn"
-    )
+    start = text.index("async function _pr92Schema29ExecuteOfficialPageTurn")
     end = text.index("async function _executeNativeTurnWithPr92Schema29Repair", start)
     block = text[start:end]
     assert "_pr92Schema20ObserveArmMarker(context, params)" in block
@@ -497,10 +495,10 @@ def test_schema_29_replaces_only_schema20_final_gate_and_keeps_validated_arm_bou
         in block
     )
     assert "chrome.debugger.onEvent.addListener(observer)" in block
-    assert "await _pr92Schema20PriorExecuteOfficialPageTurn(args)" in block
+    assert "await bypassSchema20(args)" in block
     assert "await _pr92Schema29AwaitPostDataLookups(context)" in block
     assert "context.schema20ProtectedSubmitArmed = false" in block
-    assert "_pr92Schema29PriorExecuteOfficialPageTurn(args)" in block
+    assert "next(args)" in block
 
 
 def test_schema_29_request_body_fallback_is_exact_request_bound_and_bounded():
@@ -715,9 +713,7 @@ console.log(JSON.stringify({{
 def test_schema29_committed_error_does_not_settle_postdata_twice() -> None:
     source = SCHEMA29.read_text(encoding="utf-8")
 
-    execute_start = source.index(
-        "executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn"
-    )
+    execute_start = source.index("async function _pr92Schema29ExecuteOfficialPageTurn")
     catch_start = source.index("  } catch (error) {", execute_start)
     finally_start = source.index("  } finally {", catch_start)
     catch_source = source[catch_start:finally_start]

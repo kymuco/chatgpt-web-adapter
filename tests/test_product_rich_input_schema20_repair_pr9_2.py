@@ -81,7 +81,10 @@ def test_schema_20_only_exact_runtime_console_marker_arms_authority():
 def test_schema_20_raw_observer_records_post_arm_requests_independently_of_gated_predicate():
     text = SCHEMA20.read_text(encoding="utf-8")
     start = text.index("function _pr92Schema20RecordPostArmConversationRequest")
-    end = text.index("executeOfficialPageTurn = async function", start)
+    end = text.index(
+        "async function _pr92Schema20ExecuteOfficialPageTurnWithSubmitBoundRequest",
+        start,
+    )
     block = text[start:end]
     assert "context.schema20ProtectedSubmitArmed !== true" in block
     assert "_pr92Schema20PriorIsConversationWrite(" in block
@@ -92,7 +95,9 @@ def test_schema_20_raw_observer_records_post_arm_requests_independently_of_gated
 
 def test_schema_20_success_requires_one_non_user_gesture_request_after_marker():
     text = SCHEMA20.read_text(encoding="utf-8")
-    start = text.index("executeOfficialPageTurn = async function")
+    start = text.index(
+        "async function _pr92Schema20ExecuteOfficialPageTurnWithSubmitBoundRequest"
+    )
     end = text.index("function _pr92Schema20AugmentSupportResult", start)
     block = text[start:end]
     assert 'method === "Runtime.consoleAPICalled"' in block
@@ -120,7 +125,9 @@ def test_schema_20_ambiguous_request_correlation_cannot_trigger_retry():
         in text
     )
     assert "automaticWriteRetryAfterSubmitCorrelationFailure: false" in text
-    start = text.index("executeOfficialPageTurn = async function")
+    start = text.index(
+        "async function _pr92Schema20ExecuteOfficialPageTurnWithSubmitBoundRequest"
+    )
     end = text.index("function _pr92Schema20AugmentSupportResult", start)
     assert "retry" not in text[start:end].lower().replace("never retry", "")
 
@@ -129,7 +136,9 @@ def test_schema_20_request_id_is_returned_only_as_diagnostic_after_correlation()
     text = SCHEMA20.read_text(encoding="utf-8")
     start = text.index(
         "return {\n      ...result,",
-        text.index("executeOfficialPageTurn = async function"),
+        text.index(
+            "async function _pr92Schema20ExecuteOfficialPageTurnWithSubmitBoundRequest"
+        ),
     )
     end = text.index("};\n  } finally", start)
     block = text[start:end]

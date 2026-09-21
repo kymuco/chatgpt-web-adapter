@@ -19,7 +19,6 @@ const _pr92Schema20PriorCreateTurnContext = _pr92CreateTurnContext;
 const _pr92Schema20PriorAtomicAttachmentSubmitExpression =
   _pr92Schema7AtomicAttachmentSubmitExpression;
 const _pr92Schema20PriorIsConversationWrite = isConversationWrite;
-const _pr92Schema20PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const PR92_SCHEMA20_REPAIR_SCHEMA = 20;
 const PR92_SCHEMA20_REQUEST_CORRELATION =
   "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST";
@@ -119,11 +118,12 @@ function _pr92Schema20RecordPostArmConversationRequest(context, params) {
   });
 }
 
-executeOfficialPageTurn = async function _pr92Schema20ExecuteOfficialPageTurnWithSubmitBoundRequest(
-  args
+async function _pr92Schema20ExecuteOfficialPageTurnWithSubmitBoundRequest(
+  args,
+  next
 ) {
   const context = _pr92ActiveRichInputContext;
-  if (context === null) return _pr92Schema20PriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
 
   const tabId = args?.tabId;
   const observer = (source, method, params) => {
@@ -139,7 +139,7 @@ executeOfficialPageTurn = async function _pr92Schema20ExecuteOfficialPageTurnWit
   chrome.debugger.onEvent.addListener(observer);
 
   try {
-    const result = await _pr92Schema20PriorExecuteOfficialPageTurn(args);
+    const result = await next(args);
     if (
       result?.diagnostics?.conversationRequestSeen !== true ||
       result?.diagnostics?.loadingFinished !== true

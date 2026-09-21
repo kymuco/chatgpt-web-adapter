@@ -36,7 +36,10 @@ def test_schema_18_identity_resolution_is_deadline_bounded_and_has_no_write_prim
     start = text.index(
         "async function _pr92Schema18ResolvePostWriteConversationIdentity"
     )
-    end = text.index("executeOfficialPageTurn = async function", start)
+    end = text.index(
+        "async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority",
+        start,
+    )
     block = text[start:end]
     assert "chrome.tabs.onUpdated.addListener(routeListener);" in block
     assert "chrome.tabs.onUpdated.removeListener(routeListener);" in block
@@ -56,7 +59,9 @@ def test_schema_18_identity_resolution_is_deadline_bounded_and_has_no_write_prim
 
 def test_schema_18_success_requires_real_identity_after_write_completion_proof():
     text = SCHEMA18.read_text(encoding="utf-8")
-    start = text.index("executeOfficialPageTurn = async function")
+    start = text.index(
+        "async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority"
+    )
     end = text.index("async function _executeNativeTurnWithPr92Schema18Repair", start)
     block = text[start:end]
     assert "result?.diagnostics?.conversationRequestSeen !== true" in block
@@ -73,7 +78,8 @@ def test_schema_18_unresolved_identity_is_explicit_committed_failure_not_success
         "async function _pr92Schema18ResolvePostWriteConversationIdentity"
     )
     resolver_end = text.index(
-        "executeOfficialPageTurn = async function", resolver_start
+        "async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority",
+        resolver_start,
     )
     resolver = text[resolver_start:resolver_end]
     assert "throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);" in resolver

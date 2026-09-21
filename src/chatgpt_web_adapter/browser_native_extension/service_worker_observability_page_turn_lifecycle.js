@@ -28,6 +28,6 @@ async function _cwaRunObservabilityPageTurnLayer(index, args) {
   );
 }
 
-executeOfficialPageTurn = async function _executeOfficialPageTurnWithObservabilityLifecycle(args) {
+async function _executeOfficialPageTurnWithObservabilityLifecycle(args) {
   return _cwaRunObservabilityPageTurnLayer(0, args);
-};
+}

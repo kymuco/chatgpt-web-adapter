@@ -42,18 +42,20 @@ def test_mixed_rich_input_layers_no_longer_own_native_turn() -> None:
 
 def test_lower_level_rich_input_hooks_remain_in_original_modules() -> None:
     required = {
-        "service_worker_rich_input_pr9_2.js": ("executeOfficialPageTurn =",),
+        "service_worker_rich_input_pr9_2.js": (
+            "async function _pr92ExecuteOfficialPageTurnWithinTurn",
+        ),
         "service_worker_rich_input_closure_repair_pr9_2.js": (
             "submitOfficialPageTurn =",
         ),
         "service_worker_rich_input_schema18_repair_pr9_2.js": (
-            "executeOfficialPageTurn =",
+            "async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority",
         ),
         "service_worker_rich_input_schema28_repair_pr9_2.js": (
             "extractSafeStreamMetadata =",
         ),
         "service_worker_rich_input_schema29_repair_pr9_2.js": (
-            "executeOfficialPageTurn =",
+            "async function _pr92Schema29ExecuteOfficialPageTurn",
         ),
     }
     for name, tokens in required.items():
