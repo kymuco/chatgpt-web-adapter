@@ -10,7 +10,6 @@ const PR811_TAIL_TIMING_SCHEMA_VERSION = 1;
 const PR811_TAIL_TIMING_STORAGE_KEY = "browserAuthorityLastPostAnswerTailTimingV1";
 
 const _pr811TailPriorRecordAssistant = _pr89BrowserStreamRecordAssistant;
-const _pr811TailPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
 let _pr811TailContext = null;
 
@@ -61,10 +60,10 @@ _pr89BrowserStreamRecordAssistant = async function _pr811RecordAssistantTailTimi
   active.assistantTextObservationCount += 1;
 };
 
-executeOfficialPageTurn = async function _executeOfficialPageTurnWithPostAnswerTailTiming(args) {
+async function _executeOfficialPageTurnWithPostAnswerTailTiming(args, next) {
   const context = _pr811TailContext;
   if (context === null) {
-    return _pr811TailPriorExecuteOfficialPageTurn(args);
+    return next(args);
   }
 
   const tabId = args?.tabId;
@@ -105,7 +104,7 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithPostAnswerT
   }
 
   try {
-    return await _pr811TailPriorExecuteOfficialPageTurn(args);
+    return await next(args);
   } finally {
     context.nativeCompleteAt = performance.now();
     if (listenerInstalled) {
