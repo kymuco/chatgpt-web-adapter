@@ -9,7 +9,6 @@
 //      short-budget diagnostics which cannot consume the RPC deadline or rewrite
 //      the already-submitted outcome.
 
-const _pr92Schema17PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const PR92_SCHEMA17_REPAIR_SCHEMA = 17;
 const PR92_SCHEMA17_OPTIONAL_POSTWRITE_CAP_MS = 1_000;
 const PR92_SCHEMA17_RPC_RETURN_RESERVE_MS = 500;
@@ -85,14 +84,14 @@ async function _pr92Schema17OptionalPostWrite(
   }
 }
 
-async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }) {
+async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, next) {
   if (!Number.isInteger(tabId)) throw new Error("TAB_ID_REQUIRED");
   if (typeof text !== "string" || !text.trim()) throw new Error("TEXT_REQUIRED");
   if (text.length > 200_000) throw new Error("TEXT_TOO_LARGE_FOR_BROWSER_NATIVE_TURN");
 
   const context = _pr92ActiveRichInputContext;
   if (context === null) {
-    return _pr92Schema17PriorExecuteOfficialPageTurn({ tabId, text, timeoutMs });
+    return next({ tabId, text, timeoutMs });
   }
 
   const startedAt = performance.now();
@@ -342,9 +341,9 @@ async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }) 
   }
 }
 
-executeOfficialPageTurn = async function _pr92Schema17ExecuteOfficialPageTurnWithinTurn(args) {
+async function _pr92Schema17ExecuteOfficialPageTurnWithinTurn(args, next) {
   const context = _pr92ActiveRichInputContext;
-  if (context === null) return _pr92Schema17PriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
   const outerContext = _pr92ActiveTurnContext;
   if (outerContext === null) {
     throw new Error("PR9_2_RICH_INPUT_TURN_CONTEXT_REQUIRED");
@@ -356,8 +355,8 @@ executeOfficialPageTurn = async function _pr92Schema17ExecuteOfficialPageTurnWit
       args?.timeoutMs,
       "SCHEMA17_PROTECTED_PAGE_DISPATCH"
     )
-  });
-};
+  }, next);
+}
 
 function _pr92Schema17AugmentSupportResult(result) {
   return {
