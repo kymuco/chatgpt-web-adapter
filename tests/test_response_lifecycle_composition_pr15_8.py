@@ -43,24 +43,24 @@ def test_response_layers_no_longer_own_native_turn() -> None:
 def test_lower_level_stream_and_page_hooks_remain_in_original_modules() -> None:
     required = {
         "service_worker_safe_browser_response_stream_pr8_9.js": (
-            "executeOfficialPageTurn =",
+            "async function _executeOfficialPageTurnWithSafeBrowserStream",
         ),
         "service_worker_revision_safe_text_delivery_pr8_9.js": (
             "_pr89BrowserStreamRecordAssistant =",
         ),
         "service_worker_post_answer_tail_timing_pr8_11.js": (
             "_pr89BrowserStreamRecordAssistant =",
-            "executeOfficialPageTurn =",
+            "async function _executeOfficialPageTurnWithPostAnswerTailTiming",
         ),
         "service_worker_early_product_completion_pr8_11_1.js": (
             "_pr89BrowserStreamProcessSseEvent =",
             "_pr89BrowserStreamRecordAssistant =",
-            "executeOfficialPageTurn =",
+            "async function _pr8111ExecuteOfficialPageTurn",
         ),
         "service_worker_early_product_completion_repair_pr8_11_1.js": (
             "_pr89BrowserStreamProcessSseEvent =",
             "_pr89BrowserStreamRecordAssistant =",
-            "executeOfficialPageTurn =",
+            "async function _pr8111RepairExecuteOfficialPageTurn",
         ),
         "service_worker_normalized_activity_stream_pr8_12.js": (
             "_pr89BrowserStreamProcessSseEvent =",

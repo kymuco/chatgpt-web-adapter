@@ -13,7 +13,6 @@ const PR88_PHASE_TIMING_SCHEMA_VERSION = 1;
 const PR88_PHASE_TIMING_STORAGE_KEY = "browserAuthorityLastPhaseTimingV1";
 
 const _pr88PhasePriorEnsureRuntimeTab = ensureRuntimeTab;
-const _pr88PhasePriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
 let _pr88PhaseTimingContext = null;
 
@@ -67,10 +66,10 @@ ensureRuntimeTab = async function _ensureRuntimeTabWithPhaseTiming(conversationI
   }
 };
 
-executeOfficialPageTurn = async function _executeOfficialPageTurnWithPhaseTiming(args) {
+async function _executeOfficialPageTurnWithPhaseTiming(args, next) {
   const context = _pr88PhaseTimingContext;
   if (context === null) {
-    return _pr88PhasePriorExecuteOfficialPageTurn(args);
+    return next(args);
   }
 
   const pageStartedAt = performance.now();
@@ -113,7 +112,7 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithPhaseTiming
   }
 
   try {
-    return await _pr88PhasePriorExecuteOfficialPageTurn(args);
+    return await next(args);
   } finally {
     const nativeCompleteAt = performance.now();
     if (listenerInstalled) {

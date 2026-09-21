@@ -11,7 +11,6 @@ const PR89_BROWSER_STREAM_MAX_OBSERVATIONS = 64;
 const PR89_BROWSER_STREAM_MAX_PREVIEW_CHARS = 160;
 const PR89_BROWSER_STREAM_MAX_SSE_BUFFER_CHARS = 262144;
 
-const _pr89BrowserStreamPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
 let _pr89BrowserStreamContext = null;
 
@@ -344,9 +343,9 @@ function _pr89BrowserStreamSafeResult(context) {
   };
 }
 
-executeOfficialPageTurn = async function _executeOfficialPageTurnWithSafeBrowserStream(args) {
+async function _executeOfficialPageTurnWithSafeBrowserStream(args, next) {
   const context = _pr89BrowserStreamContext;
-  if (context === null) return _pr89BrowserStreamPriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
 
   const tabId = args?.tabId;
   const debuggee = { tabId };
@@ -406,7 +405,7 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithSafeBrowser
   }
 
   try {
-    return await _pr89BrowserStreamPriorExecuteOfficialPageTurn(args);
+    return await next(args);
   } finally {
     if (listenerInstalled) {
       try {

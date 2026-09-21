@@ -8,8 +8,7 @@ def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() ->
     text = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
 
     start = text.index(
-        "executeOfficialPageTurn = async function "
-        "_executeOfficialPageTurnWithEarlyTerminalBoundary"
+        "async function _executeOfficialPageTurnWithEarlyTerminalBoundary"
     )
     end = text.index(
         "async function _executeNativeTurnWithStaleUiRecovery",

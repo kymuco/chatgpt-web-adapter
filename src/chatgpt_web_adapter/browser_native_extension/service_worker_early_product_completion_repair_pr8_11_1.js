@@ -11,7 +11,6 @@
 const _pr8111RepairPriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
 const _pr8111RepairPriorRecordAssistant = _pr89BrowserStreamRecordAssistant;
 const _pr8111RepairPriorFirstTerminal = _pr8111FirstTerminal;
-const _pr8111RepairPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
 let _pr8111RepairContext = null;
 
@@ -129,13 +128,13 @@ _pr8111FirstTerminal = function _pr8111RepairFirstTerminal(context) {
   return { kind: signals[0][0], at: signals[0][1] };
 };
 
-executeOfficialPageTurn = async function _pr8111RepairExecuteOfficialPageTurn(args) {
+async function _pr8111RepairExecuteOfficialPageTurn(args, next) {
   const active = _pr8111RepairContext;
-  if (active === null) return _pr8111RepairPriorExecuteOfficialPageTurn(args);
+  if (active === null) return next(args);
 
   const restore = _cwaInstallOfficialPageEarlyCompletionSignal(active.terminalPromise);
   try {
-    return await _pr8111RepairPriorExecuteOfficialPageTurn(args);
+    return await next(args);
   } finally {
     restore();
   }
