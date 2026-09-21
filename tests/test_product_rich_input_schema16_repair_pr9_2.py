@@ -60,7 +60,7 @@ def test_schema_16_post_write_debugger_teardown_is_best_effort_and_non_awaited()
 def test_schema_16_page_turn_switches_teardown_authority_after_network_post_proof():
     text = SCHEMA16.read_text(encoding="utf-8")
     start = text.index("async function _pr92Schema16ExecuteOfficialPageTurn")
-    end = text.index("executeOfficialPageTurn = async function", start)
+    end = text.index("async function _pr92Schema16ExecuteOfficialPageTurnWithinTurn", start)
     block = text[start:end]
     assert 'method === "Network.requestWillBeSent"' in block
     assert "diagnostics.conversationRequestSeen = true;" in block
