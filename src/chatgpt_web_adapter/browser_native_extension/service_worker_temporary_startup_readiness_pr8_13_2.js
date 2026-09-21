@@ -14,7 +14,6 @@ const PR8132_FRESH_READINESS_REQUIRED_SAMPLES = 3;
 const _pr8132PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 const _pr8132PriorResolveProof = _pr813ResolveProof;
 const _pr8132PriorRejectProof = _pr813RejectProof;
-const _pr8132PriorExecuteNativeTurn = executeNativeTurn;
 
 const _pr8132TurnDiagnostics = new Map();
 
@@ -265,19 +264,19 @@ function _pr8132AbortError(error, diagnostic) {
   );
 }
 
-executeNativeTurn = async function _pr8132ExecuteNativeTurnWithStartupDiagnostics(message) {
+async function _pr8132ExecuteNativeTurnWithStartupDiagnostics(message, next) {
   const mode = typeof message?.conversationMode === "string"
     ? message.conversationMode.trim().toLowerCase()
     : "normal";
   if (mode !== "temporary") {
-    return _pr8132PriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);
   if (token) _pr8132TurnDiagnostics.set(token, {});
 
   try {
-    const result = await _pr8132PriorExecuteNativeTurn(message);
+    const result = await next(message);
     if (!result || typeof result !== "object") return result;
     const diagnostic = token ? (_pr8132TurnDiagnostics.get(token) || {}) : {};
     return {

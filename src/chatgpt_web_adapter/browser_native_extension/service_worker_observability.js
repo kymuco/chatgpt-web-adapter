@@ -59,6 +59,7 @@ importScripts("service_worker_temporary_chat_production_pr8_13.js");
 importScripts("service_worker_temporary_session_identity_pr8_13.js");
 importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");
 importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");
+importScripts("service_worker_temporary_lifecycle.js");
 
 async function _pr824aExistingRuntimeTabSnapshot() {
   const storedId = await storedRuntimeTabId();

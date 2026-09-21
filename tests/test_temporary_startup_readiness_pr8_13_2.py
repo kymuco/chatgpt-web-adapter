@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OBSERVABILITY = EXTENSION / "service_worker_observability.js"
@@ -16,8 +15,12 @@ def _text(path: Path) -> str:
 
 def test_pr8132_overlay_loads_after_temporary_identity_repairs() -> None:
     text = _text(OBSERVABILITY)
-    fresh_identity = 'importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");'
-    readiness = 'importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");'
+    fresh_identity = (
+        'importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");'
+    )
+    readiness = (
+        'importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");'
+    )
 
     assert fresh_identity in text
     assert readiness in text
@@ -73,7 +76,11 @@ def test_pr8132_does_not_add_automatic_write_retry_or_durable_fallback() -> None
 
     assert "retry" not in text.lower()
     assert "durable" not in text.lower()
-    assert "_pr8132PriorExecuteNativeTurn(message)" in text
+    assert (
+        "async function _pr8132ExecuteNativeTurnWithStartupDiagnostics(message, next)"
+        in text
+    )
+    assert "return next(message);" in text
 
 
 def test_pr8132_readiness_applies_only_to_fresh_temporary_turns() -> None:
