@@ -16,7 +16,6 @@
 
 const _pr92Schema19PriorCreateTurnContext = _pr92CreateTurnContext;
 const _pr92Schema19PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
-const _pr92Schema19PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _pr92Schema19PriorOptionalPostWrite = _pr92Schema17OptionalPostWrite;
 const PR92_SCHEMA19_REPAIR_SCHEMA = 19;
 const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;
@@ -92,23 +91,25 @@ _pr92Schema17OptionalPostWrite = async function _pr92Schema19OptionalPostWrite(
   }
 };
 
-executeOfficialPageTurn = async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity(
-  args
+async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity(
+  args,
+  next,
+  schema17Delegate
 ) {
   const context = _pr92ActiveRichInputContext;
-  if (context === null) return _pr92Schema19PriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
 
   // Continuations already carry an explicit conversation identity before the
   // write and retain the complete schema-18 path. Schema 19 changes only the
   // missing-identity/new-chat case addressed by the exact-head review finding.
   if (context.schema19RequestedConversationId !== null) {
-    return _pr92Schema19PriorExecuteOfficialPageTurn(args);
+    return next(args);
   }
 
   // Bypass schema 18's route-based fallback while retaining schema 17's exact
   // request tracking, completion proof, bounded response-body read, attachment
   // authority, and protected-submit invariants.
-  const result = await _pr92Schema18PriorExecuteOfficialPageTurn(args);
+  const result = await schema17Delegate(args);
   if (
     result?.diagnostics?.conversationRequestSeen !== true ||
     result?.diagnostics?.loadingFinished !== true
