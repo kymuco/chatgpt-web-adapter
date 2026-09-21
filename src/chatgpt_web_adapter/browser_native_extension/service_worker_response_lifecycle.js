@@ -5,8 +5,6 @@
 // modules, but native-turn lifecycle ownership is composed here explicitly.
 //
 // Order is outer -> inner and intentionally matches the pre-PR15.8 wrapper chain.
-const _cwaResponseLifecyclePriorExecuteNativeTurn = executeNativeTurn;
-
 const CWA_RESPONSE_LIFECYCLE_LAYERS = Object.freeze([
   ["normalized-activity-stream", _pr812ExecuteNativeTurn],
   ["early-product-completion-repair", _pr8111RepairExecuteNativeTurn],
@@ -16,9 +14,9 @@ const CWA_RESPONSE_LIFECYCLE_LAYERS = Object.freeze([
   ["safe-browser-response-stream", _executeNativeTurnWithSafeBrowserStream]
 ]);
 
-async function _cwaRunResponseLifecycleLayer(index, message) {
+async function _cwaRunResponseLifecycleLayer(index, message, next) {
   if (index >= CWA_RESPONSE_LIFECYCLE_LAYERS.length) {
-    return _cwaResponseLifecyclePriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const [name, layer] = CWA_RESPONSE_LIFECYCLE_LAYERS[index];
@@ -28,10 +26,10 @@ async function _cwaRunResponseLifecycleLayer(index, message) {
 
   return layer(
     message,
-    (nextMessage) => _cwaRunResponseLifecycleLayer(index + 1, nextMessage)
+    (nextMessage) => _cwaRunResponseLifecycleLayer(index + 1, nextMessage, next)
   );
 }
 
-executeNativeTurn = async function _executeNativeTurnWithResponseLifecycle(message) {
-  return _cwaRunResponseLifecycleLayer(0, message);
-};
+async function _executeNativeTurnWithResponseLifecycle(message, next) {
+  return _cwaRunResponseLifecycleLayer(0, message, next);
+}

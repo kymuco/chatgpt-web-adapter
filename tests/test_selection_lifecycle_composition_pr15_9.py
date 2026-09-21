@@ -62,7 +62,7 @@ def test_lower_level_selection_and_timing_hooks_remain_local() -> None:
             assert token in source, (name, token)
 
 
-def test_selection_lifecycle_has_one_owner_at_historical_outer_boundary() -> None:
+def test_selection_lifecycle_is_pure_layer_at_historical_boundary() -> None:
     assembly = _source("service_worker_observability.js")
     owner = _source(OWNER)
 
@@ -74,9 +74,10 @@ def test_selection_lifecycle_has_one_owner_at_historical_outer_boundary() -> Non
     assert (
         assembly.index(model) < assembly.index(owner_import) < assembly.index(response)
     )
-    assert owner.count("executeNativeTurn =") == 1
+    assert "executeNativeTurn =" not in owner
+    assert "_cwaSelectionLifecyclePriorExecuteNativeTurn" not in owner
     assert (
-        "const _cwaSelectionLifecyclePriorExecuteNativeTurn = executeNativeTurn;"
+        "async function _executeNativeTurnWithSelectionLifecycle(message, next)"
         in owner
     )
 
@@ -98,7 +99,7 @@ def test_explicit_selection_composition_preserves_nested_order_and_handoff() -> 
     script = f"""
 const events = [];
 
-let executeNativeTurn = async (message) => {{
+const priorExecuteNativeTurn = async (message) => {{
   events.push("prior");
   return {{ chain: message.chain }};
 }};
@@ -123,7 +124,10 @@ const _executeNativeTurnWithPhaseTiming = layer("phase");
 {owner}
 
 (async () => {{
-  const result = await executeNativeTurn({{ chain: [] }});
+  const result = await _executeNativeTurnWithSelectionLifecycle(
+    {{ chain: [] }},
+    priorExecuteNativeTurn
+  );
   console.log(JSON.stringify({{ events, chain: result.chain }}));
 }})().catch((error) => {{
   console.error(error);

@@ -72,7 +72,7 @@ def test_lower_level_stream_and_page_hooks_remain_in_original_modules() -> None:
             assert token in source, (name, token)
 
 
-def test_response_lifecycle_has_one_explicit_owner_at_same_assembly_boundary() -> None:
+def test_response_lifecycle_is_pure_layer_at_same_assembly_boundary() -> None:
     assembly = _source("service_worker_observability.js")
     owner = _source(OWNER)
 
@@ -86,10 +86,10 @@ def test_response_lifecycle_has_one_explicit_owner_at_same_assembly_boundary() -
         < assembly.index(owner_import)
         < assembly.index(connector)
     )
-    assert owner.count("executeNativeTurn =") == 1
+    assert "executeNativeTurn =" not in owner
+    assert "_cwaResponseLifecyclePriorExecuteNativeTurn" not in owner
     assert (
-        "const _cwaResponseLifecyclePriorExecuteNativeTurn = executeNativeTurn;"
-        in owner
+        "async function _executeNativeTurnWithResponseLifecycle(message, next)" in owner
     )
 
 
@@ -112,7 +112,7 @@ def test_explicit_composition_preserves_nested_enter_exit_and_message_handoff() 
     script = f"""
 const events = [];
 
-let executeNativeTurn = async (message) => {{
+const priorExecuteNativeTurn = async (message) => {{
   events.push("prior");
   return {{ chain: message.chain }};
 }};
@@ -139,7 +139,10 @@ const _executeNativeTurnWithSafeBrowserStream = layer("stream");
 {owner}
 
 (async () => {{
-  const result = await executeNativeTurn({{ chain: [] }});
+  const result = await _executeNativeTurnWithResponseLifecycle(
+    {{ chain: [] }},
+    priorExecuteNativeTurn
+  );
   console.log(JSON.stringify({{ events, chain: result.chain }}));
 }})().catch((error) => {{
   console.error(error);

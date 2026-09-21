@@ -71,7 +71,7 @@ def test_recovery_awaits_probe_decision_before_early_terminal_success() -> None:
         "_executeOfficialPageTurnWithEarlyTerminalBoundary"
     )
     end = source.index(
-        "executeNativeTurn = async function _executeNativeTurnWithStaleUiRecovery",
+        "async function _executeNativeTurnWithStaleUiRecovery",
         start,
     )
     block = source[start:end]

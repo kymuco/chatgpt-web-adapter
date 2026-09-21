@@ -12,7 +12,7 @@ def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() ->
         "_executeOfficialPageTurnWithEarlyTerminalBoundary"
     )
     end = text.index(
-        "executeNativeTurn = async function _executeNativeTurnWithStaleUiRecovery",
+        "async function _executeNativeTurnWithStaleUiRecovery",
         start,
     )
     block = text[start:end]

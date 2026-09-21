@@ -9,3 +9,4 @@ importScripts("service_worker_runtime_legacy.js");
 importScripts("service_worker_runtime_write.js");
 importScripts("service_worker_runtime_read.js");
 importScripts("service_worker_runtime_observation.js");
+importScripts("service_worker_native_turn_lifecycle.js");

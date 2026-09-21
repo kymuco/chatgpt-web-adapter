@@ -62,7 +62,7 @@ def test_lower_level_rich_input_hooks_remain_in_original_modules() -> None:
             assert token in source, (name, token)
 
 
-def test_rich_input_lifecycle_has_one_owner_at_schema_loader_boundary() -> None:
+def test_rich_input_lifecycle_is_pure_layer_at_schema_loader_boundary() -> None:
     assembly = _source("service_worker_runtime_write.js")
     owner = _source(OWNER)
 
@@ -76,9 +76,10 @@ def test_rich_input_lifecycle_has_one_owner_at_schema_loader_boundary() -> None:
         < assembly.index(owner_import)
         < assembly.index(text_shape)
     )
-    assert owner.count("executeNativeTurn =") == 1
+    assert "executeNativeTurn =" not in owner
+    assert "_cwaRichInputLifecyclePriorExecuteNativeTurn" not in owner
     assert (
-        "const _cwaRichInputLifecyclePriorExecuteNativeTurn = executeNativeTurn;"
+        "async function _executeNativeTurnWithRichInputLifecycle(message, next)"
         in owner
     )
 
@@ -102,7 +103,7 @@ def test_explicit_rich_input_composition_preserves_nested_order_and_handoff() ->
     script = f"""
 const events = [];
 
-let executeNativeTurn = async (message) => {{
+const priorExecuteNativeTurn = async (message) => {{
   events.push("prior");
   return {{ chain: message.chain }};
 }};
@@ -129,7 +130,10 @@ const _executeNativeTurnWithPr92RichInput = layer("base");
 {owner}
 
 (async () => {{
-  const result = await executeNativeTurn({{ chain: [] }});
+  const result = await _executeNativeTurnWithRichInputLifecycle(
+    {{ chain: [] }},
+    priorExecuteNativeTurn
+  );
   console.log(JSON.stringify({{ events, chain: result.chain }}));
 }})().catch((error) => {{
   console.error(error);

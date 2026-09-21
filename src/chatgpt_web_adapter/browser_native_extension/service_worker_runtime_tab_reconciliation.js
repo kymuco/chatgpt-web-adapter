@@ -106,7 +106,6 @@ _pr824a3PublishValidatedRuntimeState().catch(() => {});
 const PR88_BROWSER_AUTHORITY_LEASE_KEY = "browserNativeRuntimeTabAuthorityLeaseId";
 const PR88_RESOURCE_SAMPLE_MIN_MS = 1000;
 const PR88_RESOURCE_SAMPLE_MAX_MS = 15000;
-const _pr88PriorExecuteNativeTurn = executeNativeTurn;
 const _pr88PriorOnNativeMessage = onNativeMessage;
 
 function _pr88LeaseId(value) {
@@ -302,7 +301,7 @@ async function _pr88SampleRuntimeTabResources(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithBrowserAuthorityLease(message) {
+async function _executeNativeTurnWithBrowserAuthorityLease(message, next) {
   if (message?.characterizeBrowserAuthorityStatus === true) {
     return _pr88CharacterizationStatus(message);
   }
@@ -328,12 +327,12 @@ executeNativeTurn = async function _executeNativeTurnWithBrowserAuthorityLease(m
     await _pr88StoreLeaseId(leaseId);
   }
 
-  const result = await _pr88PriorExecuteNativeTurn(message);
+  const result = await next(message);
   return {
     ...result,
     browserAuthorityLeaseId: leaseId
   };
-};
+}
 
 async function _pr88ReleaseRuntimeTab(message) {
   const requestLeaseId = _pr88LeaseId(message?.browserAuthorityLeaseId);
