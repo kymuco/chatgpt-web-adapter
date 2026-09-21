@@ -49,7 +49,8 @@ def test_continuation_stream_identity_must_match_live_session_identity() -> None
 
 def test_missing_base_turn_identity_can_be_filled_before_native_turn_returns() -> None:
     source = _source("service_worker_temporary_session_identity_pr8_13.js")
-    assert "_pr813SessionIdentityPriorExecuteOfficialPageTurn" in source
+    assert "async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next)" in source
+    assert "const result = await next(args);" in source
     assert "temporaryContext.ephemeralConversationId" in source
     assert "conversationId," in source
     assert "turnExchangeId," in source
