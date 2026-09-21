@@ -11,7 +11,6 @@
 //      no longer convert an already-submitted write into a response-lost timeout.
 
 const _pr92Schema16PriorEnsureRuntimeTab = ensureRuntimeTab;
-const _pr92Schema16PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const PR92_SCHEMA16_REPAIR_SCHEMA = 16;
 
 _pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline() {
@@ -67,14 +66,14 @@ function _pr92Schema16DispatchPostWriteDebuggerTeardown(debuggee) {
   } catch {}
 }
 
-async function _pr92Schema16ExecuteOfficialPageTurn({ tabId, text, timeoutMs }) {
+async function _pr92Schema16ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, next) {
   if (!Number.isInteger(tabId)) throw new Error("TAB_ID_REQUIRED");
   if (typeof text !== "string" || !text.trim()) throw new Error("TEXT_REQUIRED");
   if (text.length > 200_000) throw new Error("TEXT_TOO_LARGE_FOR_BROWSER_NATIVE_TURN");
 
   const context = _pr92ActiveRichInputContext;
   if (context === null) {
-    return _pr92Schema16PriorExecuteOfficialPageTurn({ tabId, text, timeoutMs });
+    return next({ tabId, text, timeoutMs });
   }
 
   const startedAt = performance.now();
@@ -238,9 +237,9 @@ async function _pr92Schema16ExecuteOfficialPageTurn({ tabId, text, timeoutMs }) 
   }
 }
 
-executeOfficialPageTurn = async function _pr92Schema16ExecuteOfficialPageTurnWithinTurn(args) {
+async function _pr92Schema16ExecuteOfficialPageTurnWithinTurn(args, next) {
   const context = _pr92ActiveRichInputContext;
-  if (context === null) return _pr92Schema16PriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
   const outerContext = _pr92ActiveTurnContext;
   if (outerContext === null) {
     throw new Error("PR9_2_RICH_INPUT_TURN_CONTEXT_REQUIRED");
@@ -252,8 +251,8 @@ executeOfficialPageTurn = async function _pr92Schema16ExecuteOfficialPageTurnWit
       args?.timeoutMs,
       "SCHEMA16_PROTECTED_PAGE_DISPATCH"
     )
-  });
-};
+  }, next);
+}
 
 function _pr92Schema16AugmentSupportResult(result) {
   return {
