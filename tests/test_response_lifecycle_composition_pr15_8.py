@@ -88,7 +88,9 @@ def test_response_lifecycle_is_pure_layer_at_same_assembly_boundary() -> None:
     )
     assert "executeNativeTurn =" not in owner
     assert "_cwaResponseLifecyclePriorExecuteNativeTurn" not in owner
-    assert "async function _executeNativeTurnWithResponseLifecycle(message, next)" in owner
+    assert (
+        "async function _executeNativeTurnWithResponseLifecycle(message, next)" in owner
+    )
 
 
 def test_response_lifecycle_preserves_historical_outer_to_inner_order() -> None:
