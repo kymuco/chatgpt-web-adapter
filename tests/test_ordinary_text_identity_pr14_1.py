@@ -290,6 +290,13 @@ globalThis.executeNativeTurn = async (message) => executeOfficialPageTurn({
 """.replace("__SCENARIO__", scenario_json)
 
     epilogue = r"""
+const _testPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
+executeOfficialPageTurn = (args) =>
+  _cwaOrdinaryIdentityExecuteOfficialPageTurn(
+    args,
+    _testPriorExecuteOfficialPageTurn
+  );
+
 const _testPriorExecuteNativeTurn = executeNativeTurn;
 executeNativeTurn = (message) =>
   _cwaOrdinaryIdentityExecuteNativeTurn(message, _testPriorExecuteNativeTurn);
