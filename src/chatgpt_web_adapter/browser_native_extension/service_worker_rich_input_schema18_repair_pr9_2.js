@@ -18,7 +18,6 @@
 // state; the Python provider maps that to readback-incomplete semantics rather
 // than WRITE_OUTCOME_UNKNOWN. No write retry or second submit path is added.
 
-const _pr92Schema18PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const PR92_SCHEMA18_REPAIR_SCHEMA = 18;
 const PR92_SCHEMA18_IDENTITY_RESERVE_MS = 2_500;
 const PR92_SCHEMA18_RPC_RETURN_RESERVE_MS = 500;
@@ -143,13 +142,14 @@ async function _pr92Schema18ResolvePostWriteConversationIdentity(
   throw new Error(PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR);
 }
 
-executeOfficialPageTurn = async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority(
-  args
+async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority(
+  args,
+  next
 ) {
   const context = _pr92ActiveRichInputContext;
-  if (context === null) return _pr92Schema18PriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
 
-  const result = await _pr92Schema18PriorExecuteOfficialPageTurn(args);
+  const result = await next(args);
   if (typeof result?.conversationId === "string" && result.conversationId.trim()) {
     return result;
   }
