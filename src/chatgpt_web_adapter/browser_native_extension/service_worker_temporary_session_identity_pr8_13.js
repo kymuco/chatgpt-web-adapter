@@ -7,7 +7,6 @@
 // without the live PR8.13 lifecycle token/tab binding.
 
 const _pr813SessionIdentityPriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
-const _pr813SessionIdentityPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
 function _pr813SessionIdentityDirect(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -81,8 +80,8 @@ _pr89BrowserStreamProcessSseEvent = async function _pr813ProcessSseWithTemporary
   return _pr813SessionIdentityPriorProcessSseEvent(context, block);
 };
 
-executeOfficialPageTurn = async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args) {
-  const result = await _pr813SessionIdentityPriorExecuteOfficialPageTurn(args);
+async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next) {
+  const result = await next(args);
   const temporaryContext = _pr813TemporaryTurnContext;
   if (temporaryContext === null || !result || typeof result !== "object") return result;
 
