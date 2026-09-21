@@ -73,7 +73,10 @@ def test_temporary_lifecycle_is_pure_layer_at_historical_outer_boundary() -> Non
     )
     assert "executeNativeTurn =" not in owner
     assert "_cwaTemporaryLifecyclePriorExecuteNativeTurn" not in owner
-    assert "async function _executeNativeTurnWithTemporaryLifecycle(message, next)" in owner
+    assert (
+        "async function _executeNativeTurnWithTemporaryLifecycle(message, next)"
+        in owner
+    )
 
 
 def test_temporary_lifecycle_preserves_historical_outer_to_inner_order() -> None:
