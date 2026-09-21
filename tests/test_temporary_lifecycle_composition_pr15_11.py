@@ -55,11 +55,17 @@ def test_temporary_lifecycle_has_one_owner_at_historical_outer_boundary() -> Non
     assembly = _source("service_worker_observability.js")
     owner = _source(OWNER)
 
-    readiness = 'importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");'
+    readiness = (
+        'importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");'
+    )
     owner_import = f'importScripts("{OWNER}");'
     product_surface = 'importScripts("service_worker_product_surface_pr11_0.js");'
 
-    assert readiness in assembly and owner_import in assembly and product_surface in assembly
+    assert (
+        readiness in assembly
+        and owner_import in assembly
+        and product_surface in assembly
+    )
     assert (
         assembly.index(readiness)
         < assembly.index(owner_import)
