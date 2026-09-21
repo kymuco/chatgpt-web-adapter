@@ -65,7 +65,7 @@ def test_pr8111_understands_pr89_patch_terminal_updates() -> None:
 def test_pr8111_composer_poll_is_gated_after_assistant_text() -> None:
     source = _source()
     poll_start = source.index("async function _pr8111PollComposerReadiness")
-    poll_end = source.index("\nexecuteOfficialPageTurn =", poll_start)
+    poll_end = source.index("\nasync function _pr8111ExecuteOfficialPageTurn", poll_start)
     block = source[poll_start:poll_end]
     assert "Number.isFinite(context.lastAssistantTextObservedAt)" in block
     assert "consecutiveReady >= 2" in block
