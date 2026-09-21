@@ -14,7 +14,6 @@ const PR88_INSTANT_MODE_STORAGE_KEY = "browserAuthorityLastInstantModeV1";
 const PR88_INSTANT_PROBE_TIMEOUT_MS = 15_000;
 const PR88_INSTANT_MODE_SNAPSHOT_POLL_MS = 200;
 
-const _pr88InstantPriorExecuteNativeTurn = executeNativeTurn;
 const _pr88InstantPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _pr88InstantPriorLocateAndFocusComposer = locateAndFocusComposer;
 const _pr88InstantPriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
@@ -586,7 +585,7 @@ async function _pr88InstantCharacterizeSelectedMode(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithInstantModeObservation(message) {
+async function _executeNativeTurnWithInstantModeObservation(message, next) {
   if (message?.characterizeInstantModeSupport === true) {
     if (_pr88InstantQueryConflict(message) || message?.conversationId != null) {
       throw new Error("PR8_8_INSTANT_MODE_SUPPORT_FLAG_CONFLICT");
@@ -618,7 +617,7 @@ executeNativeTurn = async function _executeNativeTurnWithInstantModeObservation(
     leaseId !== null
   );
   if (!ordinaryProductWrite || !requireInstant) {
-    return _pr88InstantPriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const context = {
@@ -631,7 +630,7 @@ executeNativeTurn = async function _executeNativeTurnWithInstantModeObservation(
   _pr88InstantContext = context;
 
   try {
-    const result = await _pr88InstantPriorExecuteNativeTurn(message);
+    const result = await next(message);
     const networkRoute = _pr88InstantDeriveNetworkRoute(
       context.requestHints,
       context.responseHints

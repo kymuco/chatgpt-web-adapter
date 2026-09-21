@@ -14,7 +14,6 @@ const PR88_PHASE_TIMING_STORAGE_KEY = "browserAuthorityLastPhaseTimingV1";
 
 const _pr88PhasePriorEnsureRuntimeTab = ensureRuntimeTab;
 const _pr88PhasePriorExecuteOfficialPageTurn = executeOfficialPageTurn;
-const _pr88PhasePriorExecuteNativeTurn = executeNativeTurn;
 
 let _pr88PhaseTimingContext = null;
 
@@ -183,7 +182,7 @@ async function _pr88CharacterizePhaseTiming(message) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPhaseTiming(message) {
+async function _executeNativeTurnWithPhaseTiming(message, next) {
   if (message?.characterizeBrowserAuthorityPhaseTimingSupport === true) {
     if (_pr88PhaseTimingQueryConflict(message)) {
       throw new Error("PR8_8_PHASE_TIMING_SUPPORT_FLAG_CONFLICT");
@@ -207,7 +206,7 @@ executeNativeTurn = async function _executeNativeTurnWithPhaseTiming(message) {
     leaseId !== null
   );
   if (!ordinaryProductWrite) {
-    return _pr88PhasePriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const nativeStartedAt = performance.now();
@@ -225,7 +224,7 @@ executeNativeTurn = async function _executeNativeTurnWithPhaseTiming(message) {
   _pr88PhaseTimingContext = context;
 
   try {
-    const result = await _pr88PhasePriorExecuteNativeTurn(message);
+    const result = await next(message);
     const nativeTurnElapsedMs = _pr88PhaseDurationMs(nativeStartedAt);
     const runtimeReloaded = result?.runtimeReloaded === true;
     const runtimeReloadMs = runtimeReloaded

@@ -18,7 +18,6 @@ const PR88_INSTANT_SELECTION_OPTION_TIMEOUT_MS = 8000;
 const PR88_INSTANT_SELECTION_SETTLE_TIMEOUT_MS = 8000;
 const PR88_INSTANT_SELECTION_POLL_MS = 100;
 
-const _pr88SelectionPriorExecuteNativeTurn = executeNativeTurn;
 const _pr88SelectionPriorLocateAndFocusComposer = locateAndFocusComposer;
 
 let _pr88SelectionContext = null;
@@ -458,7 +457,7 @@ function _pr88SelectionRecord(context) {
   };
 }
 
-executeNativeTurn = async function _executeNativeTurnWithInstantSelectionRepair(message) {
+async function _executeNativeTurnWithInstantSelectionRepair(message, next) {
   if (message?.characterizeInstantSelectionRepairSupport === true) {
     if (_pr88SelectionQueryConflict(message)) {
       throw new Error("PR8_8_INSTANT_SELECTION_SUPPORT_FLAG_CONFLICT");
@@ -487,7 +486,7 @@ executeNativeTurn = async function _executeNativeTurnWithInstantSelectionRepair(
   const requireInstant = message?.requiredModelMode === "INSTANT";
 
   if (!ordinaryProductWrite || !requireInstant) {
-    return _pr88SelectionPriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const context = {
@@ -521,7 +520,7 @@ executeNativeTurn = async function _executeNativeTurnWithInstantSelectionRepair(
   _pr88SelectionContext = context;
 
   try {
-    const result = await _pr88SelectionPriorExecuteNativeTurn(message);
+    const result = await next(message);
     const record = _pr88SelectionRecord(context);
     try {
       await chrome.storage.local.set({
