@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
@@ -43,13 +42,18 @@ def test_temporary_id_is_explicitly_session_routing_not_public_authority() -> No
 def test_continuation_stream_identity_must_match_live_session_identity() -> None:
     source = _source("service_worker_temporary_session_identity_pr8_13.js")
     assert "temporaryContext.expectedConversationId !== null" in source
-    assert "identity.conversationId !== temporaryContext.expectedConversationId" in source
+    assert (
+        "identity.conversationId !== temporaryContext.expectedConversationId" in source
+    )
     assert "TEMPORARY_STREAM_IDENTITY_CONVERSATION_MISMATCH" in source
 
 
 def test_missing_base_turn_identity_can_be_filled_before_native_turn_returns() -> None:
     source = _source("service_worker_temporary_session_identity_pr8_13.js")
-    assert "async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next)" in source
+    assert (
+        "async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next)"
+        in source
+    )
     assert "const result = await next(args);" in source
     assert "temporaryContext.ephemeralConversationId" in source
     assert "conversationId," in source
