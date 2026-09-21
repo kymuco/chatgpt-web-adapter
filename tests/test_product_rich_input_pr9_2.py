@@ -10,7 +10,9 @@ import pytest
 import chatgpt_web_adapter.product_media as product_media
 from chatgpt_web_adapter.browser_native_client import send_browser_native
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeTurnProvider
-from chatgpt_web_adapter.browser_owned_product_transport import BrowserOwnedProductTransport
+from chatgpt_web_adapter.browser_owned_product_transport import (
+    BrowserOwnedProductTransport,
+)
 from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.product_media import (
     browser_owned_media_scope,
@@ -22,8 +24,8 @@ from chatgpt_web_adapter.product_runtime import (
     _rich_input_scope,
 )
 from chatgpt_web_adapter.product_transport import (
-    BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
     BROWSER_OWNED_PRODUCT_TRANSPORT,
+    BROWSERLESS_REQUEST_PRODUCT_TRANSPORT,
 )
 from chatgpt_web_adapter.types import ChatConversation
 
@@ -108,7 +110,9 @@ class _IgnoringRichTurnProvider:
     def __init__(self) -> None:
         self.attachment_paths = None
 
-    def send_text(self, text, *, conversation=None, timeout=None, attachment_paths=None):
+    def send_text(
+        self, text, *, conversation=None, timeout=None, attachment_paths=None
+    ):
         self.attachment_paths = tuple(attachment_paths or ())
         return SimpleNamespace(
             conversation_id="conversation-ignored-rich",
@@ -437,14 +441,19 @@ def test_packaged_extension_layers_pr9_2_above_preserved_entrypoint():
     )
     manifest = json.loads((extension / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == "0.1.13"
-    assert manifest["background"]["service_worker"] == "service_worker_temporary_chat_route_reopen_probe.js"
+    assert (
+        manifest["background"]["service_worker"]
+        == "service_worker_temporary_chat_route_reopen_probe.js"
+    )
 
     entrypoint = (extension / manifest["background"]["service_worker"]).read_text(
         encoding="utf-8"
     )
     assert 'importScripts("service_worker_rich_input_pr9_2.js")' in entrypoint
 
-    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(encoding="utf-8")
+    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(
+        encoding="utf-8"
+    )
     assert "DOM.setFileInputFiles" in overlay
     assert "attachmentPaths" in overlay
     assert "attachmentCount" in overlay
@@ -461,12 +470,16 @@ def test_pr9_2_stages_only_after_stale_ui_recovery_and_persists_failure_fence():
         / "chatgpt_web_adapter"
         / "browser_native_extension"
     )
-    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(encoding="utf-8")
+    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(
+        encoding="utf-8"
+    )
 
     recovery = "const recovery = await _pr92PriorMaybeRecoverStaleRuntimeUi(message);"
     staging = "const count = await _pr92StageOfficialPageAttachments("
     persist = "await _pr92PersistDirtyAttachmentFence(tabId);"
-    file_selection = 'await chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles"'
+    file_selection = (
+        'await chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles"'
+    )
     assert recovery in overlay
     assert staging in overlay
     assert overlay.index(recovery) < overlay.index(staging)
@@ -494,7 +507,9 @@ def test_pr9_2_rich_turn_uses_one_total_deadline_across_all_browser_phases():
         / "chatgpt_web_adapter"
         / "browser_native_extension"
     )
-    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(encoding="utf-8")
+    overlay = (extension / "service_worker_rich_input_pr9_2.js").read_text(
+        encoding="utf-8"
+    )
 
     assert "_pr92CreateTurnContext" in overlay
     assert "deadlineAt: startedAt + timeoutMs" in overlay
@@ -502,7 +517,9 @@ def test_pr9_2_rich_turn_uses_one_total_deadline_across_all_browser_phases():
     assert "_pr92WaitForTabCompleteWithinTurn" in overlay
     assert "_pr92ReloadRuntimeTabWithinTurn" in overlay
     assert "_pr92ExecuteOfficialPageTurnWithinTurn" in overlay
-    assert 'message.timeoutMs = _pr92RemainingTurnMs(context, "PRE_DISPATCH")' in overlay
+    assert (
+        'message.timeoutMs = _pr92RemainingTurnMs(context, "PRE_DISPATCH")' in overlay
+    )
     assert "_pr92RemainingTurnMsOrZero(context)" in overlay
     assert "singleTotalTurnDeadline: PR92_TOTAL_DEADLINE_HOOKS_AVAILABLE" in overlay
     assert "Math.max(1000, Math.min(timeoutMs, 10_000))" not in overlay
