@@ -21,9 +21,6 @@ const _pr92PriorReloadRuntimeTabAndWait = (
 const _pr92PriorWaitForTabComplete = (
   typeof waitForTabComplete === "function" ? waitForTabComplete : null
 );
-const _pr92PriorExecuteOfficialPageTurn = (
-  typeof executeOfficialPageTurn === "function" ? executeOfficialPageTurn : null
-);
 const PR92_RICH_INPUT_SCHEMA = 1;
 const PR92_MAX_ATTACHMENT_COUNT = 32;
 const PR92_DIRTY_ATTACHMENT_STORAGE_KEY = "pr92DirtyAttachmentFenceV1";
@@ -32,7 +29,7 @@ const PR92_TOTAL_DEADLINE_HOOKS_AVAILABLE = Boolean(
   _pr92PriorMaybeRecoverStaleRuntimeUi &&
   _pr92PriorReloadRuntimeTabAndWait &&
   _pr92PriorWaitForTabComplete &&
-  _pr92PriorExecuteOfficialPageTurn
+  typeof executeOfficialPageTurn === "function"
 );
 
 let _pr92ActiveTurnContext = null;
@@ -119,11 +116,10 @@ if (_pr92PriorWaitForTabComplete) {
   };
 }
 
-if (_pr92PriorExecuteOfficialPageTurn) {
-  executeOfficialPageTurn = async function _pr92ExecuteOfficialPageTurnWithinTurn(args) {
+async function _pr92ExecuteOfficialPageTurnWithinTurn(args, next) {
     const context = _pr92ActiveTurnContext;
-    if (context === null) return _pr92PriorExecuteOfficialPageTurn(args);
-    return _pr92PriorExecuteOfficialPageTurn({
+  if (context === null) return next(args);
+  return next({
       ...args,
       timeoutMs: _pr92CapTimeoutToTurn(
         context,
@@ -131,7 +127,6 @@ if (_pr92PriorExecuteOfficialPageTurn) {
         "PROTECTED_PAGE_DISPATCH"
       )
     });
-  };
 }
 
 // PR8.11 stale-UI recovery has a fixed 45s reload timer. Reproduce that bounded
