@@ -67,8 +67,7 @@ def test_recovery_awaits_probe_decision_before_early_terminal_success() -> None:
     recovery = browser_native_extension_dir() / "service_worker_recovery.js"
     source = recovery.read_text(encoding="utf-8")
     start = source.index(
-        "executeOfficialPageTurn = async function "
-        "_executeOfficialPageTurnWithEarlyTerminalBoundary"
+        "async function _executeOfficialPageTurnWithEarlyTerminalBoundary"
     )
     end = source.index(
         "async function _executeNativeTurnWithStaleUiRecovery",
