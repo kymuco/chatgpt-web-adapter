@@ -39,7 +39,7 @@ def test_schema_6_rich_submit_uses_page_deadline_guard_not_raw_cdp_input():
     guarded_submit = text[
         text.index("submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit") :
     ]
-    guarded_submit = guarded_submit.split("executeNativeTurn = async function", 1)[0]
+    guarded_submit = guarded_submit.split("async function _executeNativeTurnWithPr92ClosureRepair", 1)[0]
     assert 'Input.dispatchMouseEvent' not in guarded_submit
     assert 'Input.dispatchKeyEvent' not in guarded_submit
 

@@ -16,7 +16,6 @@
 // decodes CDP base64 response-body representation as UTF-8, and fails closed if
 // multiple stream_handoff records disagree on conversation identity.
 
-const _pr92Schema28PriorExecuteNativeTurn = executeNativeTurn;
 const _pr92Schema28PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA28_REPAIR_SCHEMA = 28;
 const PR92_SCHEMA28_COMMITTED_IDENTITY_ERROR =
@@ -267,12 +266,12 @@ function _pr92Schema28PrepareRichWriteDiagnostics(message) {
   }
 }
 
-executeNativeTurn = async function _executeNativeTurnWithPr92Schema28Repair(message) {
+async function _executeNativeTurnWithPr92Schema28Repair(message, next) {
   _pr92Schema28PrepareRichWriteDiagnostics(message);
 
   let result;
   try {
-    result = await _pr92Schema28PriorExecuteNativeTurn(message);
+    result = await next(message);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (detail.startsWith(PR92_SCHEMA28_COMMITTED_IDENTITY_ERROR)) {

@@ -488,7 +488,7 @@ def test_schema_29_failed_postdata_fallback_remains_fail_closed():
 def test_schema_29_replaces_only_schema20_final_gate_and_keeps_validated_arm_boundary():
     text = SCHEMA29.read_text(encoding="utf-8")
     start = text.index("executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn")
-    end = text.index("executeNativeTurn = async function", start)
+    end = text.index("async function _executeNativeTurnWithPr92Schema29Repair", start)
     block = text[start:end]
     assert "_pr92Schema20ObserveArmMarker(context, params)" in block
     assert "_pr92Schema29RecordPostArmConversationRequest(debuggee, context, params)" in block
