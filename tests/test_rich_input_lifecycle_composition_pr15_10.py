@@ -42,7 +42,7 @@ def test_mixed_rich_input_layers_no_longer_own_native_turn() -> None:
 
 def test_lower_level_rich_input_hooks_remain_in_original_modules() -> None:
     required = {
-        "service_worker_rich_input_pr9_2.js": ("executeOfficialPageTurn =",),
+        "service_worker_rich_input_pr9_2.js": ("async function _pr92ExecuteOfficialPageTurnWithinTurn",),
         "service_worker_rich_input_closure_repair_pr9_2.js": (
             "submitOfficialPageTurn =",
         ),
