@@ -65,15 +65,17 @@ def test_page_turn_graph_exposes_intentional_bypass_edges() -> None:
     assert "_cwaOfficialPageTurnSchema19" in owner
 
     schema19 = owner[
-        owner.index("async function _cwaOfficialPageTurnSchema19"):
-        owner.index("async function _cwaOfficialPageTurnSchema20")
+        owner.index("async function _cwaOfficialPageTurnSchema19") : owner.index(
+            "async function _cwaOfficialPageTurnSchema20"
+        )
     ]
     assert "_cwaOfficialPageTurnSchema18" in schema19
     assert "_cwaOfficialPageTurnSchema17" in schema19
 
     schema29 = owner[
-        owner.index("async function _cwaOfficialPageTurnSchema29"):
-        owner.index("async function _cwaOfficialPageTurnOrdinaryIdentity")
+        owner.index("async function _cwaOfficialPageTurnSchema29") : owner.index(
+            "async function _cwaOfficialPageTurnOrdinaryIdentity"
+        )
     ]
     assert "_cwaOfficialPageTurnSchema20" in schema29
     assert "_cwaOfficialPageTurnSchema19" in schema29
