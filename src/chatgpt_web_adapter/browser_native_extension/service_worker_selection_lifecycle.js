@@ -5,8 +5,6 @@
 // original modules; native-turn lifecycle ownership is composed here explicitly.
 //
 // Order is outer -> inner and matches the pre-consolidation wrapper chain.
-const _cwaSelectionLifecyclePriorExecuteNativeTurn = executeNativeTurn;
-
 const CWA_SELECTION_LIFECYCLE_LAYERS = Object.freeze([
   ["model-profile-selection", _executeNativeTurnWithModelProfile],
   ["instant-selection-repair", _executeNativeTurnWithInstantSelectionRepair],
@@ -14,9 +12,9 @@ const CWA_SELECTION_LIFECYCLE_LAYERS = Object.freeze([
   ["phase-timing", _executeNativeTurnWithPhaseTiming]
 ]);
 
-async function _cwaRunSelectionLifecycleLayer(index, message) {
+async function _cwaRunSelectionLifecycleLayer(index, message, next) {
   if (index >= CWA_SELECTION_LIFECYCLE_LAYERS.length) {
-    return _cwaSelectionLifecyclePriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const [name, layer] = CWA_SELECTION_LIFECYCLE_LAYERS[index];
@@ -26,10 +24,10 @@ async function _cwaRunSelectionLifecycleLayer(index, message) {
 
   return layer(
     message,
-    (nextMessage) => _cwaRunSelectionLifecycleLayer(index + 1, nextMessage)
+    (nextMessage) => _cwaRunSelectionLifecycleLayer(index + 1, nextMessage, next)
   );
 }
 
-executeNativeTurn = async function _executeNativeTurnWithSelectionLifecycle(message) {
-  return _cwaRunSelectionLifecycleLayer(0, message);
-};
+async function _executeNativeTurnWithSelectionLifecycle(message, next) {
+  return _cwaRunSelectionLifecycleLayer(0, message, next);
+}

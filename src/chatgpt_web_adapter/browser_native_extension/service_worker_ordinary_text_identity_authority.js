@@ -37,7 +37,6 @@ const CWA_ORDINARY_IDENTITY_RPC_RETURN_RESERVE_MS = 750;
 const CWA_ORDINARY_IDENTITY_MAX_REQUESTS = 8;
 const CWA_ORDINARY_IDENTITY_MAX_SSE_BUFFER_CHARS = 262_144;
 
-const _cwaOrdinaryIdentityPriorExecuteNativeTurn = executeNativeTurn;
 const _cwaOrdinaryIdentityPriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _cwaOrdinaryIdentityPriorSendCommand = sendCommand;
 
@@ -722,9 +721,9 @@ executeOfficialPageTurn = async function _cwaOrdinaryIdentityExecuteOfficialPage
   }
 };
 
-executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message) {
+async function _cwaOrdinaryIdentityExecuteNativeTurn(message, next) {
   if (!_cwaOrdinaryIdentityEligible(message)) {
-    return _cwaOrdinaryIdentityPriorExecuteNativeTurn(message);
+    return next(message);
   }
   if (_cwaOrdinaryIdentityActive !== null) {
     throw new Error("CWA_ORDINARY_IDENTITY_CONTEXT_ALREADY_ACTIVE");
@@ -763,7 +762,7 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
 
   _cwaOrdinaryIdentityActive = context;
   try {
-    const result = await _cwaOrdinaryIdentityPriorExecuteNativeTurn(message);
+    const result = await next(message);
     if (context.authoritativeConversationId === null) {
       throw _cwaOrdinaryIdentityError("ORDINARY_IDENTITY_AUTHORITY_NOT_REACHED", {
         requestCount: context.entries.length,
@@ -793,4 +792,4 @@ executeNativeTurn = async function _cwaOrdinaryIdentityExecuteNativeTurn(message
   } finally {
     _cwaOrdinaryIdentityActive = null;
   }
-};
+}

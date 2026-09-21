@@ -6,8 +6,6 @@
 // ownership is composed here explicitly.
 //
 // Order is outer -> inner and matches the pre-consolidation wrapper chain.
-const _cwaRichInputLifecyclePriorExecuteNativeTurn = executeNativeTurn;
-
 const CWA_RICH_INPUT_LIFECYCLE_LAYERS = Object.freeze([
   ["schema29", _executeNativeTurnWithPr92Schema29Repair],
   ["schema28", _executeNativeTurnWithPr92Schema28Repair],
@@ -17,9 +15,9 @@ const CWA_RICH_INPUT_LIFECYCLE_LAYERS = Object.freeze([
   ["base-rich-input", _executeNativeTurnWithPr92RichInput]
 ]);
 
-async function _cwaRunRichInputLifecycleLayer(index, message) {
+async function _cwaRunRichInputLifecycleLayer(index, message, next) {
   if (index >= CWA_RICH_INPUT_LIFECYCLE_LAYERS.length) {
-    return _cwaRichInputLifecyclePriorExecuteNativeTurn(message);
+    return next(message);
   }
 
   const [name, layer] = CWA_RICH_INPUT_LIFECYCLE_LAYERS[index];
@@ -29,10 +27,10 @@ async function _cwaRunRichInputLifecycleLayer(index, message) {
 
   return layer(
     message,
-    (nextMessage) => _cwaRunRichInputLifecycleLayer(index + 1, nextMessage)
+    (nextMessage) => _cwaRunRichInputLifecycleLayer(index + 1, nextMessage, next)
   );
 }
 
-executeNativeTurn = async function _executeNativeTurnWithRichInputLifecycle(message) {
-  return _cwaRunRichInputLifecycleLayer(0, message);
-};
+async function _executeNativeTurnWithRichInputLifecycle(message, next) {
+  return _cwaRunRichInputLifecycleLayer(0, message, next);
+}

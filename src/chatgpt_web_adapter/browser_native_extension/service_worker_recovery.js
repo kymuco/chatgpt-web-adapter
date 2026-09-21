@@ -2,7 +2,6 @@ importScripts("service_worker_hotfix.js");
 
 const STALE_UI_COMPLETION_EVIDENCE_MAX_AGE_MS = 5_000;
 const STALE_UI_RELOAD_TIMEOUT_MS = 45_000;
-const _pr811OriginalExecuteNativeTurn = executeNativeTurn;
 
 // PR8.11.1 installs a per-turn promise here from the later response-stream
 // overlay. The core page turn snapshots the promise after submit observation.
@@ -331,12 +330,12 @@ executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTermin
   }
 };
 
-executeNativeTurn = async function _executeNativeTurnWithStaleUiRecovery(message) {
+async function _executeNativeTurnWithStaleUiRecovery(message, next) {
   const recovery = await _pr811MaybeRecoverStaleRuntimeUi(message);
-  const result = await _pr811OriginalExecuteNativeTurn(message);
+  const result = await next(message);
   return {
     ...result,
     runtimeReloaded: recovery.runtimeReloaded,
     runtimeReloadMs: recovery.runtimeReloadMs
   };
-};
+}
