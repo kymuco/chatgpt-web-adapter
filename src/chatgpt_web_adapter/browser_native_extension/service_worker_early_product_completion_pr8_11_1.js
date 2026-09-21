@@ -12,7 +12,6 @@ const PR8111_COMPOSER_POLL_TIMEOUT_MS = 120000;
 
 const _pr8111PriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
 const _pr8111PriorRecordAssistant = _pr89BrowserStreamRecordAssistant;
-const _pr8111PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 
 let _pr8111Context = null;
 
@@ -242,9 +241,9 @@ async function _pr8111PollComposerReadiness(debuggee, context) {
   }
 }
 
-executeOfficialPageTurn = async function _pr8111ExecuteOfficialPageTurn(args) {
+async function _pr8111ExecuteOfficialPageTurn(args, next) {
   const context = _pr8111Context;
-  if (context === null) return _pr8111PriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
 
   const tabId = args?.tabId;
   const debuggee = { tabId };
@@ -289,7 +288,7 @@ executeOfficialPageTurn = async function _pr8111ExecuteOfficialPageTurn(args) {
   });
 
   try {
-    return await _pr8111PriorExecuteOfficialPageTurn(args);
+    return await next(args);
   } finally {
     _pr8111RecordFirst(context, "officialPageTurnCompleteAt");
     context.stopComposerPoll = true;
