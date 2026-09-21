@@ -25,7 +25,7 @@ def test_schema_14_rejects_rich_input_model_profile_before_prior_chain():
     assert "_pr92Schema14HasAttachmentPaths(message)" in text
     assert "_pr92Schema14HasModelProfileRequirement(message)" in text
     error = 'throw new Error("PR9_2_RICH_INPUT_MODEL_PROFILE_COMBINATION_UNAVAILABLE");'
-    prior = "return _pr92Schema14PriorExecuteNativeTurn(message);"
+    prior = "return next(message);"
     assert error in text
     assert prior in text
     assert text.index(error) < text.index(prior)
