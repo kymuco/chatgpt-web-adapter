@@ -103,7 +103,7 @@ async function _pr811MaybeRecoverStaleRuntimeUi(message) {
 // already HTTP 200 and the page already exposes a concrete /c/<id> route.
 // Otherwise it falls through to the prior network-complete path. Canonical HTTP
 // readback remains mandatory in browser_native_client.py after this returns.
-executeOfficialPageTurn = async function _executeOfficialPageTurnWithEarlyTerminalBoundary({
+async function _executeOfficialPageTurnWithEarlyTerminalBoundary({
   tabId,
   text,
   timeoutMs,
