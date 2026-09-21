@@ -32,7 +32,9 @@ Each domain now exposes a pure `(message, next)` native-turn layer.
 
 `service_worker_native_turn_lifecycle.js` is imported last by
 `service_worker_runtime.js` and is the only active runtime module that captures
-and reassigns `executeNativeTurn`.
+and reassigns `executeNativeTurn`. Loading it after the read and observation
+domains is safe because those domains no longer capture or reassign the native
+turn function.
 
 This makes native-turn composition independent of incidental import-order
 monkeypatching while keeping lower-level page-turn, submit, Browser Authority,
