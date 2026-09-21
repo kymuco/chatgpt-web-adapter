@@ -42,12 +42,12 @@ def test_lower_level_selection_and_timing_hooks_remain_local() -> None:
     required = {
         "service_worker_phase_timing_pr8_8.js": (
             "ensureRuntimeTab =",
-            "executeOfficialPageTurn =",
+            "async function _executeOfficialPageTurnWithPhaseTiming",
         ),
         "service_worker_instant_mode_pr8_8.js": (
             "locateAndFocusComposer =",
             "extractSafeStreamMetadata =",
-            "executeOfficialPageTurn =",
+            "async function _executeOfficialPageTurnWithInstantObservation",
         ),
         "service_worker_instant_selection_repair_pr8_8.js": (
             "locateAndFocusComposer =",
