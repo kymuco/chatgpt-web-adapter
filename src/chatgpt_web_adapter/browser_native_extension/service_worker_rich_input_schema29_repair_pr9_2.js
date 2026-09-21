@@ -37,7 +37,6 @@
 // forbidden. Raw request text, postData, request ids, message ids, and conversation
 // ids are never emitted in diagnostics.
 
-const _pr92Schema29PriorExecuteOfficialPageTurn = executeOfficialPageTurn;
 const _pr92Schema29PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA29_REPAIR_SCHEMA = 29;
 const PR92_SCHEMA29_IDENTITY_AUTHORITY =
@@ -583,9 +582,9 @@ extractSafeStreamMetadata = function _pr92Schema29ExtractSafeStreamMetadata(
   };
 };
 
-executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(args) {
+async function _pr92Schema29ExecuteOfficialPageTurn(args, next, schema19Delegate) {
   const context = _pr92ActiveRichInputContext;
-  if (context === null) return _pr92Schema29PriorExecuteOfficialPageTurn(args);
+  if (context === null) return next(args);
 
   const tabId = args?.tabId;
   const debuggee = { tabId };
@@ -612,7 +611,7 @@ executeOfficialPageTurn = async function _pr92Schema29ExecuteOfficialPageTurn(ar
     // decision. Schema 19 retains schema 17's selected requestId, completion,
     // response-body read, and causal conversation identity. The global schema-20
     // isConversationWrite predicate still denies all pre-arm request authority.
-    const result = await _pr92Schema20PriorExecuteOfficialPageTurn(args);
+    const result = await schema19Delegate(args);
     if (
       result?.diagnostics?.conversationRequestSeen !== true ||
       result?.diagnostics?.loadingFinished !== true
