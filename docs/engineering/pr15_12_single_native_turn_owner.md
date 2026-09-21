@@ -39,7 +39,8 @@ turn function.
 This makes native-turn composition independent of incidental import-order
 monkeypatching while keeping lower-level page-turn, submit, Browser Authority,
 streaming, Temporary, rich-input, and identity hooks in their established domain
-modules.
+modules. Domain modules still load at their historical boundaries; only the
+native-turn call graph is assembled once at the runtime root.
 
 ## Preserved semantics
 
