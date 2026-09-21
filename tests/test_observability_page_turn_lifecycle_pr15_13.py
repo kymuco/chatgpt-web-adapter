@@ -56,8 +56,10 @@ def test_observability_page_turn_owner_is_loaded_at_historical_outer_boundary() 
     normalized = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
 
     assert repair in assembly and owner_import in assembly and normalized in assembly
-    assert assembly.index(repair) < assembly.index(owner_import) < assembly.index(
-        normalized
+    assert (
+        assembly.index(repair)
+        < assembly.index(owner_import)
+        < assembly.index(normalized)
     )
     assert owner.count("executeOfficialPageTurn =") == 1
 
