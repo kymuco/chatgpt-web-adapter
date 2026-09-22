@@ -1,5 +1,7 @@
 # PR15.6 — Picker Trigger Diagnostic Ownership
 
+> **PR15.17 supersession:** this failure/picker-trigger instrumentation was later retired after its selection helpers were verified equivalent to the base Instant-selection path. Git history retains the diagnostic evidence.
+
 Status: implementation candidate  
 Base: `6f595f516f0c90b7f3342abfbbdbe9483dfd14ad`
 
