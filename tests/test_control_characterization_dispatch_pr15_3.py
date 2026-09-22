@@ -31,7 +31,6 @@ def test_each_control_characterization_concept_has_explicit_owner() -> None:
 
 
 def test_zero_product_write_and_retry_boundaries_remain_explicit() -> None:
-    reasoning = _source("reasoning")
     instant = _source("instant")
 
     assert "advancedPickerClickForbidden: true" in instant
