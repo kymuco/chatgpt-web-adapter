@@ -4,7 +4,10 @@ import argparse
 import json
 from urllib.parse import urlparse
 
-from pr13_1_conversation_files_identity_probe import _conversation_id, run_probe
+if __package__:
+    from .pr13_1_conversation_files_identity_probe import _conversation_id, run_probe
+else:
+    from pr13_1_conversation_files_identity_probe import _conversation_id, run_probe
 
 _ALLOWED_CHATGPT_HOSTS = frozenset({"chatgpt.com", "www.chatgpt.com"})
 

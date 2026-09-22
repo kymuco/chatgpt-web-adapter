@@ -6,14 +6,22 @@ import json
 import subprocess
 from typing import Any, Callable
 
-from pr13_1_conversation_files_identity_probe import (
-    _conversation_id,
-    _safe_filename,
-    probe_conversation_files,
-)
-from pr13_1_conversation_files_live_gate import conversation_id_from_selector
-
 from chatgpt_web_adapter import ChatGPTWebClient
+
+if __package__:
+    from .pr13_1_conversation_files_identity_probe import (
+        _conversation_id,
+        _safe_filename,
+        probe_conversation_files,
+    )
+    from .pr13_1_conversation_files_live_gate import conversation_id_from_selector
+else:
+    from pr13_1_conversation_files_identity_probe import (
+        _conversation_id,
+        _safe_filename,
+        probe_conversation_files,
+    )
+    from pr13_1_conversation_files_live_gate import conversation_id_from_selector
 
 STABILITY_SCHEMA = "CWA_PR13_1_CONVERSATION_FILES_STABILITY_GATE_V1"
 

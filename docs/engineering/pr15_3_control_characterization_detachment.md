@@ -1,5 +1,7 @@
 # PR15.3 — Detach Zero-Write Control Characterization
 
+> **PR15.16 supersession:** the orphan-lease reconciliation diagnostic described below was later retired and deleted from the shipping tree. The reasoning-effort and Instant-effort owners remain active pending their own consolidation slices.
+
 Status: implementation candidate  
 Base: `e7a3fe8ca78562265c27128fc739076d52a1e980`  
 Tracking: #107  

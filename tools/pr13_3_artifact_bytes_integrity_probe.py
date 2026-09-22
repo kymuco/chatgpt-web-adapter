@@ -8,17 +8,28 @@ import subprocess
 from typing import Any, Callable
 from urllib.parse import urlparse
 
-from pr13_1_conversation_files_identity_probe import (
-    CHATGPT_ORIGIN,
-    _conversation_id,
-    _safe_filename,
-    probe_conversation_files,
-)
-from pr13_1_conversation_files_live_gate import conversation_id_from_selector
-from pr13_1_conversation_files_stability_gate import _target_record
-from pr13_2_identity_bound_artifact_resolution_probe import _resolution_endpoint
-
 from chatgpt_web_adapter import ChatGPTWebClient
+
+if __package__:
+    from .pr13_1_conversation_files_identity_probe import (
+        CHATGPT_ORIGIN,
+        _conversation_id,
+        _safe_filename,
+        probe_conversation_files,
+    )
+    from .pr13_1_conversation_files_live_gate import conversation_id_from_selector
+    from .pr13_1_conversation_files_stability_gate import _target_record
+    from .pr13_2_identity_bound_artifact_resolution_probe import _resolution_endpoint
+else:
+    from pr13_1_conversation_files_identity_probe import (
+        CHATGPT_ORIGIN,
+        _conversation_id,
+        _safe_filename,
+        probe_conversation_files,
+    )
+    from pr13_1_conversation_files_live_gate import conversation_id_from_selector
+    from pr13_1_conversation_files_stability_gate import _target_record
+    from pr13_2_identity_bound_artifact_resolution_probe import _resolution_endpoint
 
 INTEGRITY_SCHEMA = "CWA_PR13_3_ARTIFACT_BYTES_INTEGRITY_PROBE_V1"
 _LOCATOR_KEYS = ("download_url", "url", "href")

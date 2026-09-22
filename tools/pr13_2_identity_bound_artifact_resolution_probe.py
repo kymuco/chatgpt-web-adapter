@@ -6,16 +6,26 @@ import subprocess
 from typing import Any, Callable
 from urllib.parse import quote
 
-from pr13_1_conversation_files_identity_probe import (
-    CHATGPT_ORIGIN,
-    _conversation_id,
-    _safe_filename,
-    probe_conversation_files,
-)
-from pr13_1_conversation_files_live_gate import conversation_id_from_selector
-from pr13_1_conversation_files_stability_gate import _target_record
-
 from chatgpt_web_adapter import ChatGPTWebClient
+
+if __package__:
+    from .pr13_1_conversation_files_identity_probe import (
+        CHATGPT_ORIGIN,
+        _conversation_id,
+        _safe_filename,
+        probe_conversation_files,
+    )
+    from .pr13_1_conversation_files_live_gate import conversation_id_from_selector
+    from .pr13_1_conversation_files_stability_gate import _target_record
+else:
+    from pr13_1_conversation_files_identity_probe import (
+        CHATGPT_ORIGIN,
+        _conversation_id,
+        _safe_filename,
+        probe_conversation_files,
+    )
+    from pr13_1_conversation_files_live_gate import conversation_id_from_selector
+    from pr13_1_conversation_files_stability_gate import _target_record
 
 RESOLUTION_SCHEMA = "CWA_PR13_2_IDENTITY_BOUND_ARTIFACT_RESOLUTION_PROBE_V1"
 _RESOLUTION_LOCATOR_KEYS = ("download_url", "url", "href")

@@ -10,7 +10,6 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 WORKERS = (
-    "service_worker_orphan_lease_reconciliation_pr8_8.js",
     "service_worker_reasoning_effort_slider_governance_pr8_8.js",
     "service_worker_instant_effort_slider_support_pr8_8.js",
 )
@@ -44,7 +43,6 @@ globalThis.chrome = {
 };
 """
     epilogue = r"""
-_pr88ReconcileOrphanLease = async () => ({ probe: "orphan-reconcile" });
 _pr88EffortProbe = async () => ({ probe: "reasoning-topology" });
 
 (async () => {
@@ -53,19 +51,12 @@ _pr88EffortProbe = async () => ({ probe: "reasoning-topology" });
     .filter(([, handler]) => handler.matches(ordinary) === true)
     .map(([name]) => name);
 
-  const orphan = registrations.get("orphan-lease-reconciliation");
   const reasoning = registrations.get("reasoning-effort-characterization");
   const instant = registrations.get("instant-effort-support");
 
   const result = {
     names: Array.from(registrations.keys()).sort(),
     ordinaryMatches,
-    orphanSupport: await orphan.handle({
-      characterizeOrphanLeaseReconciliationSupport: true
-    }),
-    orphanReconcile: await orphan.handle({
-      reconcileOrphanedBrowserAuthorityLease: true
-    }),
     reasoningSupport: await reasoning.handle({
       characterizeReasoningEffortSliderSupport: true
     }),
@@ -113,15 +104,9 @@ def test_explicit_control_diagnostics_bypass_ordinary_requests_and_route_exactly
 
     assert result["names"] == [
         "instant-effort-support",
-        "orphan-lease-reconciliation",
         "reasoning-effort-characterization",
     ]
     assert result["ordinaryMatches"] == []
-
-    assert result["orphanSupport"]["orphanLeaseReconciliationSupported"] is True
-    assert result["orphanSupport"]["zeroProductWrites"] is True
-    assert result["orphanSupport"]["automaticRetry"] is False
-    assert result["orphanReconcile"] == {"probe": "orphan-reconcile"}
 
     assert result["reasoningSupport"]["reasoningEffortSliderSupported"] is True
     assert result["reasoningSupport"]["selectionControlClickForbidden"] is True
