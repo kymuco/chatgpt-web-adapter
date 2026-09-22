@@ -64,15 +64,10 @@ def test_generated_artifact_overlay_loads_after_pr10_router_and_before_patch_pro
     assert source.index(router) < source.index(artifact) < source.index(patch)
 
 
-def test_closed_artifact_characterization_overlays_are_disabled_in_ordinary_startup():
+def test_closed_artifact_characterization_overlays_are_absent_from_ordinary_startup():
     source = OBSERVABILITY.read_text(encoding="utf-8")
-    flag = "const PR101_ARTIFACT_CHARACTERIZATION_ENABLED = false;"
-    guard = "if (PR101_ARTIFACT_CHARACTERIZATION_ENABLED) {"
-    patch = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
 
-    assert source.count(flag) == 1
-    assert source.count(guard) == 1
-    guarded = source[source.index(guard) : source.index(patch)]
+    assert "PR101_ARTIFACT_CHARACTERIZATION_ENABLED" not in source
     for worker in (
         "service_worker_generated_artifact_shape_pr10_1.js",
         "service_worker_generated_artifact_surface_overlay_pr10_1.js",
@@ -86,6 +81,4 @@ def test_closed_artifact_characterization_overlays_are_disabled_in_ordinary_star
         "service_worker_generated_artifact_root_key_shape_v9_pr10_1.js",
         "service_worker_generated_artifact_array_element_shape_v10_pr10_1.js",
     ):
-        assert f'importScripts("{worker}");' in guarded
-
-    assert 'importScripts("service_worker_generated_artifact_pr10_1.js");' not in guarded
+        assert worker not in source
