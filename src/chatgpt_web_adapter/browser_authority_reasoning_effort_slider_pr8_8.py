@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .browser_authority_retained_picker_forensics_pr8_8 import RetainedPickerForensicsProvider
+from .browser_authority_instant_selection_repair_pr8_8 import InstantSelectionRepairProvider
 
 SCHEMA = 1
 
@@ -143,7 +143,7 @@ def _advanced(value: Any) -> dict[str, Any] | None:
     }
 
 
-class ReasoningEffortSliderProvider(RetainedPickerForensicsProvider):
+class ReasoningEffortSliderProvider(InstantSelectionRepairProvider):
     def reasoning_effort_slider_support(self) -> dict[str, Any]:
         r = self._characterization_rpc(
             {"characterizeReasoningEffortSliderSupport": True, "timeoutMs": 3000},
