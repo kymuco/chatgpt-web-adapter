@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .browser_authority_retained_route_identity_pr8_8 import RetainedRouteIdentityProvider
+from .browser_authority_instant_selection_repair_pr8_8 import InstantSelectionRepairProvider
 SCHEMA = 1
 POPUP_SUBTREE_SCHEMA = 1
 
@@ -118,7 +118,7 @@ def _popup_subtree(value):
         'actionable_descendants_truncated': topology.get('actionableDescendantsTruncated') is True,
     }
 
-class InstantFailureForensicsProvider(RetainedRouteIdentityProvider):
+class InstantFailureForensicsProvider(InstantSelectionRepairProvider):
 
     def instant_failure_forensics_support(self):
         r = self._characterization_rpc({'characterizeInstantFailureForensicsSupport': True, 'timeoutMs': 3000}, timeout=max(1.0, self.connect_timeout))
@@ -127,8 +127,6 @@ class InstantFailureForensicsProvider(RetainedRouteIdentityProvider):
             'schema': _int(r.get('instantFailureForensicsSchemaVersion')),
             'failure_record_persistence_supported': r.get('failureRecordPersistenceSupported') is True,
             'pre_input_failure_boundary_supported': r.get('preInputFailureBoundarySupported') is True,
-            'retained_route_forensics_composition_supported': r.get('retainedRouteForensicsCompositionSupported') is True,
-            'retained_picker_forensics_composition_supported': r.get('retainedPickerForensicsCompositionSupported') is True,
             'raw_error_redaction_supported': r.get('rawErrorRedactionSupported') is True,
             'lease_id_exported': r.get('leaseIdExported') is True,
             'zero_product_writes': r.get('zeroProductWrites') is True,
@@ -190,27 +188,3 @@ class InstantFailureForensicsProvider(RetainedRouteIdentityProvider):
             },
         }
 
-def _validate_route(record, conversation, tab_id):
-    _require(record.get('conversation_id') == conversation, 'PR8_8_FRESH_FORENSICS_ROUTE_CONVERSATION_RECORD_MISMATCH')
-    _require(record.get('runtime_tab_id') == tab_id == record.get('runtime_tab_id_after'), 'PR8_8_FRESH_FORENSICS_ROUTE_TAB_CHANGED')
-    _require(record.get('runtime_tab_retained') is True, 'PR8_8_FRESH_FORENSICS_ROUTE_TAB_NOT_RETAINED')
-    _require(record.get('zero_product_writes') is True, 'PR8_8_FRESH_FORENSICS_ROUTE_ZERO_WRITE_BOUNDARY_VIOLATED')
-    _require(record.get('lease_id_present') is True, 'PR8_8_FRESH_FORENSICS_ROUTE_LEASE_METADATA_MISSING')
-    _require(record.get('route_identity_stable') is True, 'PR8_8_FRESH_FORENSICS_ROUTE_NOT_STABLE')
-    _require(record.get('dom_ax_inspection_performed') is False, 'PR8_8_FRESH_FORENSICS_ROUTE_UNEXPECTED_DOM_AX')
-    _require(record.get('conversation_write_guard_observed') is False, 'PR8_8_FRESH_FORENSICS_ROUTE_WRITE_GUARD_INVALID')
-    _require(record.get('conversation_write_count') is None, 'PR8_8_FRESH_FORENSICS_ROUTE_WRITE_COUNT_MUST_BE_UNKNOWN')
-    _require(record.get('debugger_attached_before') == record.get('debugger_attached_after'), 'PR8_8_FRESH_FORENSICS_ROUTE_DEBUGGER_STATE_CHANGED')
-    route = _dict(record.get('route_identity'))
-    for key in ('raw_url_exported', 'query_exported', 'fragment_exported'):
-        _require(route.get(key) is not True, 'PR8_8_FRESH_FORENSICS_ROUTE_PRIVACY_BOUNDARY_VIOLATED')
-
-def _validate_surface(record, conversation, tab_id):
-    _require(record.get('conversation_id') == conversation, 'PR8_8_FRESH_FORENSICS_SURFACE_CONVERSATION_MISMATCH')
-    _require(record.get('runtime_tab_id') == tab_id == record.get('runtime_tab_id_after'), 'PR8_8_FRESH_FORENSICS_SURFACE_TAB_CHANGED')
-    _require(record.get('runtime_tab_retained') is True, 'PR8_8_FRESH_FORENSICS_SURFACE_TAB_NOT_RETAINED')
-    _require(record.get('zero_product_writes') is True, 'PR8_8_FRESH_FORENSICS_SURFACE_ZERO_WRITE_BOUNDARY_VIOLATED')
-    _require(record.get('conversation_write_count') == 0, 'PR8_8_FRESH_FORENSICS_SURFACE_WRITE_OBSERVED')
-    _require(record.get('debugger_attached_before') is not True, 'PR8_8_FRESH_FORENSICS_SURFACE_DEBUGGER_ALREADY_ATTACHED')
-    _require(record.get('debugger_attached_after') is not True, 'PR8_8_FRESH_FORENSICS_SURFACE_DEBUGGER_LEAK')
-    _require(record.get('tab_activated_during_probe') is not True, 'PR8_8_FRESH_FORENSICS_SURFACE_FOREGROUND_ACTIVATION')
