@@ -256,8 +256,6 @@ async function _pr88FailureSupport(message) {
       PR88_INSTANT_FAILURE_FORENSICS_SCHEMA_VERSION,
     failureRecordPersistenceSupported: true,
     preInputFailureBoundarySupported: true,
-    retainedRouteForensicsCompositionSupported: true,
-    retainedPickerForensicsCompositionSupported: true,
     rawErrorRedactionSupported: true,
     leaseIdExported: false
   };
