@@ -1,5 +1,7 @@
 # PR8.8 — Fresh Instant Failure Reproduction, Pre-Input Failure Record Persistence, Immediate Route/Picker Forensics and Evidence-Preserving Single-Write Governance
 
+> **PR15.17 supersession:** the post-failure retained route/picker probes described in this historical document were retired. The in-failure bounded record, popup-subtree evidence, and picker-trigger timeline remain; ordinary selection/write semantics are unchanged.
+
 ## Why this slice exists
 
 The previous fresh-tab Instant repair proved that a fresh runtime tab for the fixed durable conversation can hydrate as `HIGH` and then fail while trying to discover the `Instant` picker option:
