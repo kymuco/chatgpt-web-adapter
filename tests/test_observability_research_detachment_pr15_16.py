@@ -40,6 +40,7 @@ def test_closed_artifact_characterization_has_no_dormant_runtime_imports() -> No
         "service_worker_generated_artifact_array_element_shape_v10_pr10_1.js",
     ):
         assert worker not in source
+        assert not (EXT / worker).exists()
 
 
 def test_live_generated_artifact_overlay_remains_in_runtime() -> None:
