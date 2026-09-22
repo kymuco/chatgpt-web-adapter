@@ -218,10 +218,10 @@ def test_extension_failure_layer_is_additive_and_does_not_add_product_mutation()
     assert manifest["version"] == "0.1.13"
     observability = (root / "service_worker_observability.js").read_text(encoding="utf-8")
     worker = (root / "service_worker_instant_failure_forensics_pr8_8.js").read_text(encoding="utf-8")
-    prior = 'importScripts("service_worker_orphan_lease_reconciliation_pr8_8.js")'
+    selection = 'importScripts("service_worker_instant_selection_repair_pr8_8.js")'
     new = 'importScripts("service_worker_instant_failure_forensics_pr8_8.js")'
-    assert prior in observability and new in observability
-    assert observability.index(prior) < observability.index(new)
+    assert selection in observability and new in observability
+    assert observability.index(selection) < observability.index(new)
     for token in (
         "failureRecordPersistenceSupported",
         "preInputFailureBoundaryProven",
