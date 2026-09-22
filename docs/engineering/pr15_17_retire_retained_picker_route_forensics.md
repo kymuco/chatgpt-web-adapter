@@ -77,6 +77,12 @@ PR15.17 preserves:
 
 What disappears is only extra research evidence on the failure path.
 
+## Physical deletion
+
+This slice removes 48 historical files from the branch diff. No replacement
+telemetry framework is introduced; production falls back to the already-tested base
+Instant-selection implementation.
+
 ## Acceptance
 
 ```text
