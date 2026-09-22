@@ -12,7 +12,6 @@ TEMPORARY_CHARACTERIZATION_FILES = (
     "service_worker_temporary_chat_turn_probe.js",
     "service_worker_temporary_chat_history_probe.js",
     "service_worker_temporary_chat_manual_ground_truth.js",
-    "service_worker_runtime_legacy_impl.js",
 )
 
 
@@ -20,34 +19,23 @@ def _source(name: str) -> str:
     return (EXT / name).read_text(encoding="utf-8")
 
 
-def test_temporary_characterization_has_one_explicit_dispatch_owner() -> None:
+def test_temporary_characterization_sources_no_longer_own_production_dispatch() -> None:
     sources = {name: _source(name) for name in TEMPORARY_CHARACTERIZATION_FILES}
 
     for name, source in sources.items():
         assert "executeNativeTurn = async function" not in source, name
         assert "PriorExecuteNativeTurn" not in source, name
 
-    owner = sources["service_worker_runtime_legacy_impl.js"]
-    assert "registerNativeTurnDiagnosticHandler(" in owner
-    assert '"temporary-characterization"' in owner
-    assert "function _cwaTemporaryCharacterizationMatches(message)" in owner
-    assert "async function _cwaHandleTemporaryCharacterization(message)" in owner
+    runtime = _source("service_worker_runtime.js")
+    assert "service_worker_runtime_legacy.js" not in runtime
+    assert "service_worker_runtime_legacy_impl.js" not in runtime
+    assert "service_worker_temporary_chat_manual_ground_truth.js" not in runtime
 
 
-def test_temporary_characterization_preserves_historical_route_precedence() -> None:
-    source = _source("service_worker_runtime_legacy_impl.js")
-
-    route = source.index("message?.probeTemporaryRouteReopen === true")
-    manual = source.index(
-        "message?.characterizeManualTemporaryGroundTruth === true", route
-    )
-    history = source.index("message?.probeTemporaryHistoryPresence === true", manual)
-    turn = source.index("message?.characterizeTemporaryTurn === true", history)
-    mode_call = source.index(
-        "return _pr87HandleTemporaryModeProbeWithAX(message);", turn
-    )
-
-    assert route < manual < history < turn < mode_call
+def test_historical_characterization_sources_remain_non_runtime_evidence() -> None:
+    for name in TEMPORARY_CHARACTERIZATION_FILES:
+        source = _source(name)
+        assert "registerNativeTurnDiagnosticHandler(" not in source
 
 
 def test_temporary_mode_composition_remains_snapshot_based() -> None:

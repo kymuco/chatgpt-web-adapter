@@ -5,7 +5,9 @@ import json
 from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
 
-def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
+def test_production_runtime_bypasses_historical_temporary_characterization_chain() -> (
+    None
+):
     root = browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
@@ -15,49 +17,25 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
 
     bootstrap = (root / worker_name).read_text(encoding="utf-8")
     assert 'importScripts("service_worker_runtime.js")' in bootstrap
+
     runtime = (root / "service_worker_runtime.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_runtime_legacy.js")' in runtime
-    legacy = (root / "service_worker_runtime_legacy.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_runtime_legacy_impl.js")' in legacy
-    route_worker = (root / "service_worker_runtime_legacy_impl.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_manual_ground_truth.js")' in route_worker
-    manual_worker = (
-        root / "service_worker_temporary_chat_manual_ground_truth.js"
+    assert 'importScripts("service_worker_runtime_tab_reconciliation.js")' in runtime
+    assert "service_worker_runtime_legacy.js" not in runtime
+    assert "service_worker_runtime_legacy_impl.js" not in runtime
+    assert "service_worker_temporary_chat_manual_ground_truth.js" not in runtime
+
+    readiness = (
+        root / "service_worker_temporary_startup_readiness_pr8_13_2.js"
     ).read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_temporary_chat_history_probe.js")' in manual_worker
-    history_worker = (root / "service_worker_temporary_chat_history_probe.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_turn_probe.js")' in history_worker
-    turn_worker = (root / "service_worker_temporary_chat_turn_probe.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_semantic_notice.js")' in turn_worker
-    semantic_worker = (root / "service_worker_temporary_chat_semantic_notice.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_ax_semantics.js")' in semantic_worker
-    ax_worker = (root / "service_worker_temporary_chat_ax_semantics.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_state_semantics.js")' in ax_worker
-    state_worker = (root / "service_worker_temporary_chat_state_semantics.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat.js")' in state_worker
-    base_worker = (root / "service_worker_temporary_chat.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_runtime_tab_reconciliation.js")' in base_worker
-    assert "probeTemporaryMode" in base_worker
-    assert "isolated_new_chat" in base_worker
+    assert "_cwaTemporaryControlSnapshot" in readiness
+    assert "_pr87TemporaryControlSnapshot" not in readiness
 
 
 def test_temporary_probe_is_no_write_and_uses_isolated_disposable_tab() -> None:
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat.js").read_text(encoding="utf-8")
 
-    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })" in worker
     assert "chrome.tabs.remove(tabId)" in worker
     assert "isConversationWrite" in worker
     assert "TEMPORARY_CHAT_PROBE_UNEXPECTED_CONVERSATION_WRITE" in worker
@@ -134,7 +112,9 @@ def test_temporary_page_semantics_are_ui_markers_not_selection_proof() -> None:
     assert "y: 1" in worker
 
 
-def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization() -> None:
+def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization() -> (
+    None
+):
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat_turn_probe.js").read_text(
         encoding="utf-8"
@@ -143,7 +123,7 @@ def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization
     assert "characterizeTemporaryTurn" in worker
     assert "acknowledgeDurableRisk" in worker
     assert "TEMPORARY_CHAT_TURN_PROBE_DURABLE_RISK_ACK_REQUIRED" in worker
-    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })" in worker
     assert "chrome.tabs.remove(tabId)" in worker
     assert "click_unique_control_without_selected_state_proof" in worker
     assert "conversationWriteCount += 1" in worker
@@ -164,7 +144,7 @@ def test_temporary_history_probe_observes_exact_link_over_settling_window() -> N
     )
 
     assert "probeTemporaryHistoryPresence" in worker
-    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })" in worker
     assert "chrome.tabs.remove(tabId)" in worker
     assert "document.querySelectorAll('a[href]')" in worker
     assert "exactLinkPresent" in worker
@@ -198,13 +178,15 @@ def test_temporary_history_probe_requires_ready_settled_surface_for_absence() ->
     assert "Absence is evidence only" in worker
 
 
-def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close() -> None:
+def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close() -> (
+    None
+):
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat_manual_ground_truth.js").read_text(
         encoding="utf-8"
     )
 
-    assert "characterizeManualTemporaryGroundTruth" in worker
+    assert "async function _pr87HandleManualTemporaryGroundTruth(message)" in worker
     assert "manualTemporaryConfirmed" in worker
     assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_CONFIRMATION_REQUIRED" in worker
     assert "chrome.tabs.query({ active: true, lastFocusedWindow: true })" in worker
@@ -238,34 +220,29 @@ def test_manual_temporary_ground_truth_requires_visible_page_turn_evidence() -> 
     assert "sameSourceTab &&" in worker
     assert "initialUrlEvidence.temporaryQueryTrue === true" in worker
     assert "finalUrlEvidence.temporaryQueryTrue === true" in worker
-    assert "(!expectedAssistantText || afterSurface?.assistantExactExpectedReplyVisible === true)" not in worker
-    assert 'turnSurfaceEvidenceStatus: visibleTurnGroundTruthProven ? "PROVEN" : "INCONCLUSIVE"' in worker
+    assert (
+        "(!expectedAssistantText || afterSurface?.assistantExactExpectedReplyVisible === true)"
+        not in worker
+    )
+    assert (
+        'turnSurfaceEvidenceStatus: visibleTurnGroundTruthProven ? "PROVEN" : "INCONCLUSIVE"'
+        in worker
+    )
     assert "initialUrlTemporaryQueryTrue" in worker
     assert "finalUrlTemporaryQueryTrue" in worker
     assert "sameSourceTab" in worker
     assert "raw response data never leaves this context" in worker
 
 
-def test_temporary_route_reopen_probe_is_explicit_read_only_and_settled() -> None:
+def test_retired_route_reopen_owner_is_not_packaged_into_runtime() -> None:
     root = browser_native_extension_dir()
-    worker = (root / "service_worker_runtime_legacy_impl.js").read_text(
-        encoding="utf-8"
-    )
 
-    assert "probeTemporaryRouteReopen" in worker
-    assert "sourceTemporaryTabConfirmedClosed" in worker
-    assert '`${CHATGPT_ORIGIN}/c/${encodeURIComponent(conversationId)}`' in worker
-    assert "PR87_ROUTE_REOPEN_MAX_OBSERVATION_MS" in worker
-    assert "PR87_ROUTE_REOPEN_STABLE_SAMPLE_COUNT" in worker
-    assert "targetRouteObserved" in worker
-    assert "redirectAwayFromTargetObserved" in worker
-    assert "visibleTurnCount" in worker
-    assert 'recoveryEvidenceStatus = "STABLE_RECOVERED"' in worker
-    assert 'recoveryEvidenceStatus = "TRANSIENT_RECOVERED"' in worker
-    assert "TEMPORARY_CHAT_ROUTE_REOPEN_UNEXPECTED_CONVERSATION_WRITE" in worker
-    assert "Input.insertText" not in worker
-    assert "submitOfficialPageTurn" not in worker
-    assert "Network.getResponseBody" not in worker
+    assert not (root / "service_worker_runtime_legacy.js").exists()
+    assert not (root / "service_worker_runtime_legacy_impl.js").exists()
+
+    runtime = (root / "service_worker_runtime.js").read_text(encoding="utf-8")
+    assert "probeTemporaryRouteReopen" not in runtime
+    assert "temporary-characterization" not in runtime
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:

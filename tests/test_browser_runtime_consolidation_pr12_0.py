@@ -7,8 +7,6 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 MANIFEST = EXT / "manifest.json"
 RUNTIME = EXT / "service_worker_runtime.js"
-LEGACY = EXT / "service_worker_runtime_legacy.js"
-LEGACY_IMPL = EXT / "service_worker_runtime_legacy_impl.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 READ = EXT / "service_worker_runtime_read.js"
 OBSERVATION = EXT / "service_worker_runtime_observation.js"
@@ -43,7 +41,7 @@ def test_manifest_identity_is_preserved_as_thin_pr12_bootstrap() -> None:
 def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> None:
     source = _source(RUNTIME)
     expected = [
-        'importScripts("service_worker_runtime_legacy.js");',
+        'importScripts("service_worker_runtime_tab_reconciliation.js");',
         'importScripts("service_worker_runtime_write.js");',
         'importScripts("service_worker_runtime_read.js");',
         'importScripts("service_worker_runtime_observation.js");',
@@ -68,25 +66,15 @@ def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> Non
         assert forbidden not in source
 
 
-def test_legacy_domain_quarantines_historical_runtime_chain() -> None:
-    source = _source(LEGACY)
+def test_runtime_enters_reviewed_base_chain_without_temporary_research_bootstrap() -> (
+    None
+):
+    source = _source(RUNTIME)
 
-    assert _active_imports(source) == [
-        'importScripts("service_worker_runtime_legacy_impl.js");'
-    ]
-
-    legacy_impl = _source(LEGACY_IMPL)
-    assert '"temporary-characterization"' in legacy_impl
-    assert "registerNativeTurnDiagnosticHandler(" in legacy_impl
-    assert "executeNativeTurn = async function" not in legacy_impl
-    for cross_domain_import in (
-        "service_worker_rich_input_pr9_2.js",
-        "service_worker_rich_input_deadline_repair_pr9_2.js",
-        "service_worker_rich_input_closure_repair_pr9_2.js",
-        "service_worker_rich_input_schema7_repair_pr9_2.js",
-        "service_worker_connector_support_pr10_0.js",
-    ):
-        assert cross_domain_import not in legacy_impl
+    assert 'importScripts("service_worker_runtime_tab_reconciliation.js");' in source
+    assert "service_worker_runtime_legacy.js" not in source
+    assert "service_worker_runtime_legacy_impl.js" not in source
+    assert "service_worker_temporary_chat_manual_ground_truth.js" not in source
 
 
 def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:

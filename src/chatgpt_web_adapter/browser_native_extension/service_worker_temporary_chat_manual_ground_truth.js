@@ -393,8 +393,7 @@ async function _pr87ManualGroundTruthTurn(message) {
   }
 }
 
-// Compatibility marker: characterizeManualTemporaryGroundTruth is dispatched by
-// the single "temporary-characterization" owner in service_worker_runtime_legacy_impl.js.
+// Historical PR8.7 characterization source. PR15.15 retired this RPC from\n// production runtime dispatch; the implementation remains only as in-tree evidence.
 async function _pr87HandleManualTemporaryGroundTruth(message) {
   if (
     message?.probeTemporaryMode === true ||

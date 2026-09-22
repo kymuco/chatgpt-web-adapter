@@ -17,6 +17,100 @@ const _pr8132PriorRejectProof = _pr813RejectProof;
 
 const _pr8132TurnDiagnostics = new Map();
 
+function _cwaTemporaryControlSnapshotExpression() {
+  return `(() => {
+    const normalize = (value) => typeof value === 'string'
+      ? value.trim().toLowerCase().replace(/\\s+/g, ' ')
+      : '';
+    const matchesTemporary = (value) => {
+      const text = normalize(value);
+      return text.includes('temporary') || text.includes('временн');
+    };
+    const explicitTrueStates = new Set(['on', 'checked', 'active', 'selected']);
+    const explicitFalseStates = new Set(['off', 'unchecked', 'inactive', 'unselected']);
+    const candidates = [];
+
+    for (const element of Array.from(document.querySelectorAll('button,[role="button"]'))) {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') {
+        continue;
+      }
+
+      const fields = {
+        text: element.innerText || element.textContent || '',
+        aria_label: element.getAttribute('aria-label') || '',
+        title: element.getAttribute('title') || '',
+        data_testid: element.getAttribute('data-testid') || ''
+      };
+      const matchSignals = Object.entries(fields)
+        .filter(([, value]) => matchesTemporary(value))
+        .map(([name]) => name);
+      if (!matchSignals.length) continue;
+
+      const proofSignals = [];
+      const falseSignals = [];
+      const ariaPressed = normalize(element.getAttribute('aria-pressed'));
+      const ariaChecked = normalize(element.getAttribute('aria-checked'));
+      const ariaCurrent = normalize(element.getAttribute('aria-current'));
+      const dataState = normalize(element.getAttribute('data-state'));
+      const dataSelected = normalize(element.getAttribute('data-selected'));
+
+      if (ariaPressed === 'true') proofSignals.push('aria-pressed:true');
+      else if (ariaPressed === 'false') falseSignals.push('aria-pressed:false');
+      if (ariaChecked === 'true') proofSignals.push('aria-checked:true');
+      else if (ariaChecked === 'false') falseSignals.push('aria-checked:false');
+      if (ariaCurrent === 'true') proofSignals.push('aria-current:true');
+      if (explicitTrueStates.has(dataState)) proofSignals.push('data-state:' + dataState);
+      else if (explicitFalseStates.has(dataState)) falseSignals.push('data-state:' + dataState);
+      if (dataSelected === 'true') proofSignals.push('data-selected:true');
+      else if (dataSelected === 'false') falseSignals.push('data-selected:false');
+
+      const selected = proofSignals.length
+        ? true
+        : (falseSignals.length ? false : null);
+      candidates.push({
+        matchSignals,
+        proofSignals,
+        selected,
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      });
+    }
+
+    const primary = candidates.length === 1 ? candidates[0] : null;
+    return {
+      candidateCount: candidates.length,
+      controlFound: candidates.length > 0,
+      ambiguous: candidates.length > 1,
+      selected: primary ? primary.selected : null,
+      matchSignals: primary ? primary.matchSignals : [],
+      proofSignals: primary ? primary.proofSignals : [],
+      point: primary ? { x: primary.x, y: primary.y } : null
+    };
+  })()`;
+}
+
+async function _cwaTemporaryControlSnapshot(debuggee) {
+  const result = await chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
+    expression: _cwaTemporaryControlSnapshotExpression(),
+    returnByValue: true,
+    awaitPromise: true
+  });
+  const value = result?.result?.value;
+  return value && typeof value === "object"
+    ? value
+    : {
+        candidateCount: 0,
+        controlFound: false,
+        ambiguous: false,
+        selected: null,
+        matchSignals: [],
+        proofSignals: [],
+        point: null
+      };
+}
+
 function _pr8132ContextToken(context) {
   return _pr813TemporaryToken(context?.token);
 }
@@ -48,7 +142,7 @@ function _pr8132TemporaryUrlHint(url) {
 }
 
 async function _pr8132TemporaryControlHint(debuggee) {
-  if (typeof _pr87TemporaryControlSnapshot !== "function") {
+  if (typeof _cwaTemporaryControlSnapshot !== "function") {
     return {
       available: false,
       controlFound: false,
@@ -57,7 +151,7 @@ async function _pr8132TemporaryControlHint(debuggee) {
     };
   }
   try {
-    const snapshot = await _pr87TemporaryControlSnapshot(debuggee);
+    const snapshot = await _cwaTemporaryControlSnapshot(debuggee);
     return {
       available: true,
       controlFound: snapshot?.controlFound === true,
