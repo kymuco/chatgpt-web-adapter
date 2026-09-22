@@ -74,6 +74,7 @@ def test_runtime_enters_reviewed_base_chain_without_temporary_research_bootstrap
     assert "service_worker_runtime_legacy_impl.js" not in source
     assert "service_worker_temporary_chat_manual_ground_truth.js" not in source
 
+
 def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
     source = _source(WRITE)
     ordered = [
