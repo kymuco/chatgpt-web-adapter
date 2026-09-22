@@ -31,10 +31,12 @@ def test_temporary_characterization_sources_no_longer_own_production_dispatch() 
     assert "service_worker_runtime_legacy_impl.js" not in runtime
     assert "service_worker_temporary_chat_manual_ground_truth.js" not in runtime
 
+
 def test_historical_characterization_sources_remain_non_runtime_evidence() -> None:
     for name in TEMPORARY_CHARACTERIZATION_FILES:
         source = _source(name)
         assert 'registerNativeTurnDiagnosticHandler(' not in source
+
 
 def test_temporary_mode_composition_remains_snapshot_based() -> None:
     base = _source("service_worker_temporary_chat.js")
