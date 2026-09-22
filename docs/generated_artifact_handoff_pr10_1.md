@@ -1,4 +1,6 @@
 # PR10.1 — Generated Artifact Observation and Explicit Download Handoff
+> **PR15.16 supersession:** the closed DOM/React artifact-shape characterization chain (shape through v10, including its live-gate tooling) was removed from the shipping tree. Git history retains that research evidence. The active explicit-identity artifact observation contract remains.
+
 
 _Status: bounded milestone complete — observation contract retained; download handoff unsupported on the proven product surface._
 
