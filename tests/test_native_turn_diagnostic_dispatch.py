@@ -5,8 +5,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 WORKER = EXTENSION / "service_worker.js"
-ROUTE = EXTENSION / "service_worker_retained_route_identity_pr8_8.js"
-PICKER = EXTENSION / "service_worker_retained_picker_forensics_pr8_8.js"
 FAILURE = EXTENSION / "service_worker_instant_failure_forensics_pr8_8.js"
 POPUP = EXTENSION / "service_worker_instant_popup_subtree_forensics_pr8_8.js"
 OBSERVABILITY = EXTENSION / "service_worker_observability.js"
@@ -36,21 +34,17 @@ def test_native_turn_diagnostic_dispatch_falls_through_to_single_runtime_owner()
     assert "const result = await dispatchNativeTurn(message);" in source
 
 
-def test_retained_route_and_picker_diagnostics_do_not_wrap_native_turn() -> None:
-    route = ROUTE.read_text(encoding="utf-8")
-    picker = PICKER.read_text(encoding="utf-8")
+def test_retained_route_and_picker_diagnostics_are_retired() -> None:
+    source = OBSERVABILITY.read_text(encoding="utf-8")
 
-    assert "executeNativeTurn = async function" not in route
-    assert "_pr88RoutePriorExecuteNativeTurn" not in route
-    assert "registerNativeTurnDiagnosticHandler(" in route
-    assert '"retained-route-identity"' in route
-
-    assert "executeNativeTurn = async function" not in picker
-    assert "_pr88ForensicsPriorExecuteNativeTurn" not in picker
-    assert "registerNativeTurnDiagnosticHandler(" in picker
-    assert '"retained-picker-forensics"' in picker
-    assert "characterizeRetainedRouteIdentitySupport" in picker
-    assert "characterizeRetainedRouteIdentity" in picker
+    assert "service_worker_retained_route_identity_pr8_8.js" not in source
+    assert "service_worker_retained_picker_forensics_pr8_8.js" not in source
+    assert not (
+        EXTENSION / "service_worker_retained_route_identity_pr8_8.js"
+    ).exists()
+    assert not (
+        EXTENSION / "service_worker_retained_picker_forensics_pr8_8.js"
+    ).exists()
 
 
 def test_instant_failure_diagnostics_have_one_explicit_owner() -> None:
