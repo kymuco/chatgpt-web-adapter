@@ -28,6 +28,7 @@ def test_production_runtime_bypasses_historical_temporary_characterization_chain
     assert "_cwaTemporaryControlSnapshot" in readiness
     assert "_pr87TemporaryControlSnapshot" not in readiness
 
+
 def test_temporary_probe_is_no_write_and_uses_isolated_disposable_tab() -> None:
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat.js").read_text(encoding="utf-8")
@@ -221,26 +222,15 @@ def test_manual_temporary_ground_truth_requires_visible_page_turn_evidence() -> 
     assert "raw response data never leaves this context" in worker
 
 
-def test_temporary_route_reopen_probe_is_explicit_read_only_and_settled() -> None:
+def test_retired_route_reopen_owner_is_not_packaged_into_runtime() -> None:
     root = browser_native_extension_dir()
-    worker = (root / "service_worker_runtime_legacy_impl.js").read_text(
-        encoding="utf-8"
-    )
 
-    assert "probeTemporaryRouteReopen" in worker
-    assert "sourceTemporaryTabConfirmedClosed" in worker
-    assert '`${CHATGPT_ORIGIN}/c/${encodeURIComponent(conversationId)}`' in worker
-    assert "PR87_ROUTE_REOPEN_MAX_OBSERVATION_MS" in worker
-    assert "PR87_ROUTE_REOPEN_STABLE_SAMPLE_COUNT" in worker
-    assert "targetRouteObserved" in worker
-    assert "redirectAwayFromTargetObserved" in worker
-    assert "visibleTurnCount" in worker
-    assert 'recoveryEvidenceStatus = "STABLE_RECOVERED"' in worker
-    assert 'recoveryEvidenceStatus = "TRANSIENT_RECOVERED"' in worker
-    assert "TEMPORARY_CHAT_ROUTE_REOPEN_UNEXPECTED_CONVERSATION_WRITE" in worker
-    assert "Input.insertText" not in worker
-    assert "submitOfficialPageTurn" not in worker
-    assert "Network.getResponseBody" not in worker
+    assert not (root / "service_worker_runtime_legacy.js").exists()
+    assert not (root / "service_worker_runtime_legacy_impl.js").exists()
+
+    runtime = (root / "service_worker_runtime.js").read_text(encoding="utf-8")
+    assert "probeTemporaryRouteReopen" not in runtime
+    assert "temporary-characterization" not in runtime
 
 
 def test_temporary_probe_bypasses_submit_mouse_hotfix_for_mode_control_click() -> None:
