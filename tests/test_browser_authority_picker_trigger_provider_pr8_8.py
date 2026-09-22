@@ -12,7 +12,6 @@ def test_provider_parses_exact_lease_timeline(monkeypatch):
             return {
                 "instantFailureForensicsSupported": True, "instantFailureForensicsSchemaVersion": 1,
                 "failureRecordPersistenceSupported": True, "preInputFailureBoundarySupported": True,
-                "retainedRouteForensicsCompositionSupported": True, "retainedPickerForensicsCompositionSupported": True,
                 "rawErrorRedactionSupported": True, "leaseIdExported": False, "zeroProductWrites": True, "automaticRetry": False,
                 "pickerTriggerIdentitySupported": True, "clickActuationVerificationSupported": True,
                 "perPollMenuMaterializationTimelineSupported": True, "falseOpenSurfaceDealiasingSupported": True,
