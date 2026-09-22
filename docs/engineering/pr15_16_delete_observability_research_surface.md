@@ -48,8 +48,8 @@ contained eleven dormant `importScripts(...)` references and a research re-entry
 switch.
 
 PR15.16 removes the switch and those references entirely from the production
-assembly source. The closed research files remain as source/Git evidence and are not
-loaded by ordinary runtime.
+assembly source. The closed v1-v10 research workers and their dedicated live-gate/test tooling are
+removed from the shipping tree entirely. Git history remains the evidence archive.
 
 The active generated-artifact observation overlay remains loaded.
 
@@ -71,5 +71,7 @@ orphan lease diagnostic shipping implementation      = 0
 orphan lease Python research wrapper                  = 0
 dormant PR10.1 artifact import switch                 = 0
 dormant artifact research import refs in observability = 0
-active generated-artifact overlay                     = preserved
+closed artifact v1-v10 research workers                = 0
+closed artifact live-gate tooling/tests                 = 0
+active generated-artifact overlay                       = preserved
 ```
