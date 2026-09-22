@@ -35,7 +35,8 @@ def test_fresh_readiness_is_bounded_and_non_authoritative() -> None:
     assert "PR8132_FRESH_READINESS_REQUIRED_SAMPLES = 3" in text
     assert 'searchParams.get("temporary-chat") === "true"' in text
     assert "queryComposerReadiness(debuggee)" in text
-    assert "_pr87TemporaryControlSnapshot" in text
+    assert "_cwaTemporaryControlSnapshot" in text
+    assert "_pr87TemporaryControlSnapshot" not in text
     assert "temporary_control_explicitly_false" in text
     assert "PR8_13_2_TEMPORARY_FRESH_READINESS_TIMEOUT" in text
 
