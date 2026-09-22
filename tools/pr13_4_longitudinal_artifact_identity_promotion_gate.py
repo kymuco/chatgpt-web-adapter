@@ -8,17 +8,28 @@ import subprocess
 import time
 from typing import Any, Callable
 
-from pr13_1_conversation_files_identity_probe import probe_conversation_files
-from pr13_1_conversation_files_live_gate import conversation_id_from_selector
-from pr13_1_conversation_files_stability_gate import _target_record
-from pr13_3_artifact_bytes_integrity_probe import (
-    _extract_resolution_locator,
-    _resolver_payload,
-    characterize_integrity,
-    probe_locator_bytes,
-)
-
 from chatgpt_web_adapter import ChatGPTWebClient
+
+if __package__:
+    from .pr13_1_conversation_files_identity_probe import probe_conversation_files
+    from .pr13_1_conversation_files_live_gate import conversation_id_from_selector
+    from .pr13_1_conversation_files_stability_gate import _target_record
+    from .pr13_3_artifact_bytes_integrity_probe import (
+        _extract_resolution_locator,
+        _resolver_payload,
+        characterize_integrity,
+        probe_locator_bytes,
+    )
+else:
+    from pr13_1_conversation_files_identity_probe import probe_conversation_files
+    from pr13_1_conversation_files_live_gate import conversation_id_from_selector
+    from pr13_1_conversation_files_stability_gate import _target_record
+    from pr13_3_artifact_bytes_integrity_probe import (
+        _extract_resolution_locator,
+        _resolver_payload,
+        characterize_integrity,
+        probe_locator_bytes,
+    )
 
 PROMOTION_SCHEMA = "CWA_PR13_4_LONGITUDINAL_ARTIFACT_IDENTITY_PROMOTION_GATE_V1"
 BASELINE_EVIDENCE_COMMIT = "eebd48cef2896a285331896741e3ba0225e5cc5f"
