@@ -22,11 +22,6 @@ function _pr88PopupLeaseId(value) {
 }
 
 function _pr88PopupModes(value) {
-  try {
-    if (typeof _pr88ForensicsModes === "function") {
-      return _pr88ForensicsModes(value);
-    }
-  } catch {}
   const text = typeof value === "string"
     ? value.trim().toLowerCase().replace(/[\s_\-]+/g, " ")
     : "";
