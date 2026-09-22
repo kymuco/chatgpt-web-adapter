@@ -2,8 +2,6 @@ importScripts("service_worker_phase_timing_pr8_8.js");
 importScripts("service_worker_instant_mode_pr8_8.js");
 importScripts("service_worker_instant_unified_route_semantics_pr8_8.js");
 importScripts("service_worker_instant_selection_repair_pr8_8.js");
-importScripts("service_worker_retained_picker_forensics_pr8_8.js");
-importScripts("service_worker_retained_route_identity_pr8_8.js");
 importScripts("service_worker_instant_failure_forensics_pr8_8.js");
 importScripts("service_worker_instant_popup_subtree_forensics_pr8_8.js");
 importScripts("service_worker_picker_trigger_identity_pr8_8.js");
