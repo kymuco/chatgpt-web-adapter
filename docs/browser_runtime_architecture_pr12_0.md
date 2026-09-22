@@ -1,6 +1,6 @@
 # PR12.0 Browser Runtime Architecture
 
-PR12.0 replaces the historical product-wide nested `importScripts(previous_layer)` topology with one stable runtime assembly root and four explicit domains.
+> **PR15.15 supersession:** the PR12 legacy-domain bootstrap described below is historical evidence only. Production now enters `service_worker_runtime_tab_reconciliation.js` directly from `service_worker_runtime.js`; the PR8.7 Temporary characterization chain is no longer part of ordinary runtime assembly.\n\nPR12.0 replaces the historical product-wide nested `importScripts(previous_layer)` topology with one stable runtime assembly root and four explicit domains.
 
 ## Compatibility bootstrap and stable assembly root
 
