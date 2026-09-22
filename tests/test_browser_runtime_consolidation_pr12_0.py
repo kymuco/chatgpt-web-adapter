@@ -66,7 +66,9 @@ def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> Non
         assert forbidden not in source
 
 
-def test_runtime_enters_reviewed_base_chain_without_temporary_research_bootstrap() -> None:
+def test_runtime_enters_reviewed_base_chain_without_temporary_research_bootstrap() -> (
+    None
+):
     source = _source(RUNTIME)
 
     assert 'importScripts("service_worker_runtime_tab_reconciliation.js");' in source
