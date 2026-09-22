@@ -8,20 +8,14 @@ def run_preflight(runner, report, conversation: str, timeout: float, phase: list
     phase[0] = "support_preflight"
     failure_support = runner.provider.instant_failure_forensics_support()
     selection_support = runner.provider.instant_selection_support()
-    route_support = runner.provider.retained_route_identity_support()
-    picker_support = runner.provider.retained_picker_forensics_support()
     report["failure_forensics_support"] = failure_support
     report["instant_selection_support"] = selection_support
-    report["route_forensics_support"] = route_support
-    report["picker_forensics_support"] = picker_support
 
     _require(
         failure_support["supported"]
         and failure_support["schema"] == SCHEMA
         and failure_support["failure_record_persistence_supported"]
         and failure_support["pre_input_failure_boundary_supported"]
-        and failure_support["retained_route_forensics_composition_supported"]
-        and failure_support["retained_picker_forensics_composition_supported"]
         and failure_support["raw_error_redaction_supported"]
         and not failure_support["lease_id_exported"]
         and failure_support["zero_product_writes"]
@@ -46,17 +40,6 @@ def run_preflight(runner, report, conversation: str, timeout: float, phase: list
         and selection_support.get("product_ui_selection_supported") is True,
         "PR8_8_FRESH_FORENSICS_SELECTION_SUPPORT_UNAVAILABLE",
     )
-    _require(
-        route_support.get("retained_route_identity_supported") is True
-        and route_support.get("zero_product_writes") is True,
-        "PR8_8_FRESH_FORENSICS_ROUTE_SUPPORT_UNAVAILABLE",
-    )
-    _require(
-        picker_support.get("retained_picker_forensics_supported") is True
-        and picker_support.get("zero_product_writes") is True,
-        "PR8_8_FRESH_FORENSICS_PICKER_SUPPORT_UNAVAILABLE",
-    )
-
     phase[0] = "clean_baseline_preflight"
     status = runner.provider.characterization_status()
     report["initial_authority_status"] = status.to_dict()
