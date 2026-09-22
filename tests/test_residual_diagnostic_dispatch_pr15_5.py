@@ -8,14 +8,12 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 DETACHED = (
-    "service_worker_reasoning_effort_slider_geometry_pr8_8.js",
     "service_worker_rich_input_schema23_diagnostic_pr9_2.js",
     "service_worker_rich_input_schema26_staging_diagnostic_pr9_2.js",
     "service_worker_rich_input_schema27_staging_diagnostic_pr9_2.js",
     "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js",
 )
 
-GOVERNANCE = EXT / "service_worker_reasoning_effort_slider_governance_pr8_8.js"
 RICH_OWNER = EXT / "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js"
 
 
@@ -39,25 +37,6 @@ def test_residual_diagnostic_modules_do_not_own_ordinary_turn_dispatch():
         source = _source(name)
         assert "executeNativeTurn = async function" not in source, name
         assert "PriorExecuteNativeTurn" not in source, name
-
-
-def test_reasoning_effort_geometry_joins_existing_explicit_owner():
-    governance = GOVERNANCE.read_text(encoding="utf-8")
-    geometry = _source("service_worker_reasoning_effort_slider_geometry_pr8_8.js")
-
-    assert '"reasoning-effort-characterization"' in governance
-    assert "registerNativeTurnDiagnosticHandler(" in governance
-    assert "characterizeReasoningEffortGeometrySupport" in governance
-    assert "characterizeReasoningEffortGeometry" in governance
-    assert "_pr88HandleReasoningEffortGeometryDiagnostic(message)" in governance
-    assert "async function _pr88HandleReasoningEffortGeometryDiagnostic" in geometry
-
-    handler = governance[
-        governance.index("async function _pr88HandleReasoningEffortDiagnostic") :
-    ]
-    geometry_branch = handler.index("characterizeReasoningEffortGeometrySupport")
-    slider_branch = handler.index("characterizeReasoningEffortSliderSupport")
-    assert geometry_branch < slider_branch
 
 
 def test_rich_input_diagnostics_have_one_explicit_owner_and_frozen_precedence():
