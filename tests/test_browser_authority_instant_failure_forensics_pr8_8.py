@@ -44,65 +44,8 @@ class FakeWriteError(Exception):
     browser_authority_lease = FakeLease()
 
 
-def route_record(match=True):
-    observed = CONVERSATION if match else "11111111-2222-3333-4444-555555555555"
-    status = "EXPECTED_CONVERSATION_MATCH" if match else "OTHER_CONVERSATION"
-    return {
-        "conversation_id": CONVERSATION,
-        "runtime_tab_id": TAB_ID,
-        "runtime_tab_id_after": TAB_ID,
-        "runtime_tab_retained": True,
-        "lease_id_present": True,
-        "zero_product_writes": True,
-        "route_identity": {
-            "route_kind": "CONVERSATION",
-            "observed_conversation_id": observed,
-            "expected_conversation_id": CONVERSATION,
-            "conversation_matches_expected": match,
-            "route_identity_status": status,
-            "raw_url_exported": False,
-            "query_exported": False,
-            "fragment_exported": False,
-        },
-        "route_identity_after": {},
-        "route_identity_stable": True,
-        "route_mismatch_characterized": not match,
-        "dom_ax_inspection_performed": False,
-        "conversation_write_guard_observed": False,
-        "conversation_write_count": None,
-        "debugger_attached_before": False,
-        "debugger_attached_after": False,
-    }
-
-
-def surface_record():
-    return {
-        "conversation_id": CONVERSATION,
-        "runtime_tab_id": TAB_ID,
-        "runtime_tab_id_after": TAB_ID,
-        "runtime_tab_retained": True,
-        "lease_id_present": True,
-        "zero_product_writes": True,
-        "conversation_write_count": 0,
-        "debugger_attached_before": False,
-        "debugger_attached_after": False,
-        "tab_activated_during_probe": False,
-        "picker_surface_open": True,
-        "recognized_modes": ["HIGH", "INSTANT"],
-        "instant_dom_candidate_count": 1,
-        "instant_ax_candidate_count": 1,
-        "dom_topology": {
-            "dom_candidates": [{"role": "menuitemradio", "modes": ["INSTANT"]}],
-            "popup_surfaces": [{"role": "menu"}],
-        },
-        "accessibility_topology": {"candidate_count": 1},
-    }
-
-
 class FakeProvider:
-    def __init__(self, *, route_match=True):
-        self.route_match = route_match
-        self.surface_calls = 0
+    def __init__(self):
         self.after_write = False
 
     def instant_failure_forensics_support(self):
@@ -111,8 +54,6 @@ class FakeProvider:
             "schema": 1,
             "failure_record_persistence_supported": True,
             "pre_input_failure_boundary_supported": True,
-            "retained_route_forensics_composition_supported": True,
-            "retained_picker_forensics_composition_supported": True,
             "raw_error_redaction_supported": True,
             "lease_id_exported": False,
             "zero_product_writes": True,
@@ -123,15 +64,6 @@ class FakeProvider:
         return {
             "instant_selection_repair_supported": True,
             "product_ui_selection_supported": True,
-        }
-
-    def retained_route_identity_support(self):
-        return {"retained_route_identity_supported": True, "zero_product_writes": True}
-
-    def retained_picker_forensics_support(self):
-        return {
-            "retained_picker_forensics_supported": True,
-            "zero_product_writes": True,
         }
 
     def characterization_status(self):
@@ -179,20 +111,6 @@ class FakeProvider:
             },
         }
 
-    def retained_route_identity_forensics(
-        self, conversation, *, expected_runtime_tab_id, timeout
-    ):
-        assert conversation == CONVERSATION
-        assert expected_runtime_tab_id == TAB_ID
-        return route_record(self.route_match)
-
-    def retained_picker_surface_forensics(
-        self, conversation, *, expected_runtime_tab_id, timeout
-    ):
-        self.surface_calls += 1
-        assert conversation == CONVERSATION
-        assert expected_runtime_tab_id == TAB_ID
-        return surface_record()
 
 
 class FakeRuntime:
@@ -215,8 +133,8 @@ class FakeRuntime:
         )
 
 
-def make_runner(route_match=True):
-    provider = FakeProvider(route_match=route_match)
+def make_runner():
+    provider = FakeProvider()
     runtime = FakeRuntime(provider)
     return (
         FreshInstantFailureForensicsRunner(runtime, provider=provider),
@@ -297,8 +215,8 @@ def test_provider_parses_redacted_failure_record(monkeypatch):
     assert record["selection"]["conversation_write_count_during_selection"] == 0
 
 
-def test_single_failure_is_characterized_and_retained_surface_is_captured():
-    runner, runtime, provider = make_runner(route_match=True)
+def test_single_failure_is_characterized_without_post_failure_retained_probe():
+    runner, runtime, provider = make_runner()
     report = runner.run(
         acknowledge_live_writes=True,
         confirm_instant_auto_switch_disabled=True,
@@ -314,27 +232,10 @@ def test_single_failure_is_characterized_and_retained_surface_is_captured():
     assert report["summary"]["pre_input_failure_boundary_proven"] is True
     assert report["summary"]["prompt_insertion_reached"] is False
     assert report["summary"]["submit_reached"] is False
-    assert report["surface_forensics_performed"] is True
-    assert provider.surface_calls == 1
-    assert report["topology_summary"]["instant_dom_candidate_count"] == 1
+    assert "route_forensics" not in report
+    assert "picker_surface_forensics" not in report
     assert report["evidence_preservation"]["retained_tab_left_untouched"] is True
     assert report["automatic_write_retry"] is False
-
-
-def test_route_mismatch_suppresses_picker_surface_but_preserves_evidence():
-    runner, _, provider = make_runner(route_match=False)
-    report = runner.run(
-        acknowledge_live_writes=True,
-        confirm_instant_auto_switch_disabled=True,
-        conversation=CONVERSATION,
-        timeout=1,
-        forensics_timeout=1,
-    )
-    assert report["ok"] is True
-    assert report["target_failure_reproduced"] is True
-    assert report["surface_forensics_performed"] is False
-    assert provider.surface_calls == 0
-    assert report["summary"]["conversation_route_matches_expected"] is False
 
 
 def test_conversation_write_during_selection_fails_closed_without_retry():
