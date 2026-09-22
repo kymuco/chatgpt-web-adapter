@@ -36,8 +36,9 @@ service_worker_runtime.js
 → production runtime
 ```
 
-The PR8.7 characterization sources remain historical evidence only. They are not
-loaded by ordinary production assembly.
+The surviving PR8.7 characterization source files remain historical evidence only.
+They are not loaded by ordinary production assembly. The former route-reopen owner
+lived in the deleted legacy implementation and now remains only in Git history.
 
 ## Production dependency retained deliberately
 
