@@ -5,7 +5,9 @@ import json
 from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
 
-def test_production_runtime_bypasses_historical_temporary_characterization_chain() -> None:
+def test_production_runtime_bypasses_historical_temporary_characterization_chain() -> (
+    None
+):
     root = browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
@@ -33,7 +35,7 @@ def test_temporary_probe_is_no_write_and_uses_isolated_disposable_tab() -> None:
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat.js").read_text(encoding="utf-8")
 
-    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })" in worker
     assert "chrome.tabs.remove(tabId)" in worker
     assert "isConversationWrite" in worker
     assert "TEMPORARY_CHAT_PROBE_UNEXPECTED_CONVERSATION_WRITE" in worker
@@ -110,7 +112,9 @@ def test_temporary_page_semantics_are_ui_markers_not_selection_proof() -> None:
     assert "y: 1" in worker
 
 
-def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization() -> None:
+def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization() -> (
+    None
+):
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat_turn_probe.js").read_text(
         encoding="utf-8"
@@ -119,7 +123,7 @@ def test_temporary_turn_probe_is_explicit_isolated_single_write_characterization
     assert "characterizeTemporaryTurn" in worker
     assert "acknowledgeDurableRisk" in worker
     assert "TEMPORARY_CHAT_TURN_PROBE_DURABLE_RISK_ACK_REQUIRED" in worker
-    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })" in worker
     assert "chrome.tabs.remove(tabId)" in worker
     assert "click_unique_control_without_selected_state_proof" in worker
     assert "conversationWriteCount += 1" in worker
@@ -140,7 +144,7 @@ def test_temporary_history_probe_observes_exact_link_over_settling_window() -> N
     )
 
     assert "probeTemporaryHistoryPresence" in worker
-    assert 'chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })' in worker
+    assert "chrome.tabs.create({ url: `${CHATGPT_ORIGIN}/`, active: false })" in worker
     assert "chrome.tabs.remove(tabId)" in worker
     assert "document.querySelectorAll('a[href]')" in worker
     assert "exactLinkPresent" in worker
@@ -174,7 +178,9 @@ def test_temporary_history_probe_requires_ready_settled_surface_for_absence() ->
     assert "Absence is evidence only" in worker
 
 
-def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close() -> None:
+def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close() -> (
+    None
+):
     root = browser_native_extension_dir()
     worker = (root / "service_worker_temporary_chat_manual_ground_truth.js").read_text(
         encoding="utf-8"
@@ -214,8 +220,14 @@ def test_manual_temporary_ground_truth_requires_visible_page_turn_evidence() -> 
     assert "sameSourceTab &&" in worker
     assert "initialUrlEvidence.temporaryQueryTrue === true" in worker
     assert "finalUrlEvidence.temporaryQueryTrue === true" in worker
-    assert "(!expectedAssistantText || afterSurface?.assistantExactExpectedReplyVisible === true)" not in worker
-    assert 'turnSurfaceEvidenceStatus: visibleTurnGroundTruthProven ? "PROVEN" : "INCONCLUSIVE"' in worker
+    assert (
+        "(!expectedAssistantText || afterSurface?.assistantExactExpectedReplyVisible === true)"
+        not in worker
+    )
+    assert (
+        'turnSurfaceEvidenceStatus: visibleTurnGroundTruthProven ? "PROVEN" : "INCONCLUSIVE"'
+        in worker
+    )
     assert "initialUrlTemporaryQueryTrue" in worker
     assert "finalUrlTemporaryQueryTrue" in worker
     assert "sameSourceTab" in worker
