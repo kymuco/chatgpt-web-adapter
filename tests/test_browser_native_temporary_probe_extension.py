@@ -5,7 +5,7 @@ import json
 from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
 
-def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
+def test_production_runtime_bypasses_historical_temporary_characterization_chain() -> None:
     root = browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
@@ -15,43 +15,18 @@ def test_temporary_probe_is_layered_above_reconciled_worker() -> None:
 
     bootstrap = (root / worker_name).read_text(encoding="utf-8")
     assert 'importScripts("service_worker_runtime.js")' in bootstrap
-    runtime = (root / "service_worker_runtime.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_runtime_legacy.js")' in runtime
-    legacy = (root / "service_worker_runtime_legacy.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_runtime_legacy_impl.js")' in legacy
-    route_worker = (root / "service_worker_runtime_legacy_impl.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_manual_ground_truth.js")' in route_worker
-    manual_worker = (
-        root / "service_worker_temporary_chat_manual_ground_truth.js"
-    ).read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_temporary_chat_history_probe.js")' in manual_worker
-    history_worker = (root / "service_worker_temporary_chat_history_probe.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_turn_probe.js")' in history_worker
-    turn_worker = (root / "service_worker_temporary_chat_turn_probe.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_semantic_notice.js")' in turn_worker
-    semantic_worker = (root / "service_worker_temporary_chat_semantic_notice.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_ax_semantics.js")' in semantic_worker
-    ax_worker = (root / "service_worker_temporary_chat_ax_semantics.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat_state_semantics.js")' in ax_worker
-    state_worker = (root / "service_worker_temporary_chat_state_semantics.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'importScripts("service_worker_temporary_chat.js")' in state_worker
-    base_worker = (root / "service_worker_temporary_chat.js").read_text(encoding="utf-8")
-    assert 'importScripts("service_worker_runtime_tab_reconciliation.js")' in base_worker
-    assert "probeTemporaryMode" in base_worker
-    assert "isolated_new_chat" in base_worker
 
+    runtime = (root / "service_worker_runtime.js").read_text(encoding="utf-8")
+    assert 'importScripts("service_worker_runtime_tab_reconciliation.js")' in runtime
+    assert "service_worker_runtime_legacy.js" not in runtime
+    assert "service_worker_runtime_legacy_impl.js" not in runtime
+    assert "service_worker_temporary_chat_manual_ground_truth.js" not in runtime
+
+    readiness = (
+        root / "service_worker_temporary_startup_readiness_pr8_13_2.js"
+    ).read_text(encoding="utf-8")
+    assert "_cwaTemporaryControlSnapshot" in readiness
+    assert "_pr87TemporaryControlSnapshot" not in readiness
 
 def test_temporary_probe_is_no_write_and_uses_isolated_disposable_tab() -> None:
     root = browser_native_extension_dir()
