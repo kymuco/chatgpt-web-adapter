@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from .browser_authority_instant_failure_forensics_support_pr8_8 import (
     POPUP_SUBTREE_SCHEMA,
-    _dict,
     _require,
-    _validate_route,
-    _validate_surface,
 )
 
 
@@ -100,56 +97,20 @@ def characterize_failure(runner, report, write_error, conversation: str, forensi
                 "PR8_8_FRESH_FORENSICS_TARGET_FAILURE_MODE_BEARING_SURFACE_MISSING",
             )
 
-    phase[0] = "retained_tab_resolution"
-    retained = runner.provider.characterization_status()
-    report["retained_authority_status"] = retained.to_dict()
-    tab_id = retained.runtime_tab_id
-    _require(isinstance(tab_id, int) and not isinstance(tab_id, bool), "PR8_8_FRESH_FORENSICS_RETAINED_RUNTIME_TAB_MISSING")
-    _require(retained.lease_id_present is True, "PR8_8_FRESH_FORENSICS_RETAINED_LEASE_METADATA_MISSING")
-
-    phase[0] = "immediate_route_forensics"
-    route = runner.provider.retained_route_identity_forensics(
-        conversation,
-        expected_runtime_tab_id=tab_id,
-        timeout=min(10.0, forensics_timeout),
-    )
-    report["route_forensics"] = route
-    _validate_route(route, conversation, tab_id)
-    route_identity = _dict(route.get("route_identity"))
-    exact_route = route_identity.get("conversation_matches_expected") is True
-    report["surface_forensics_performed"] = False
-
-    if exact_route:
-        phase[0] = "immediate_picker_surface_forensics"
-        surface = runner.provider.retained_picker_surface_forensics(
-            conversation,
-            expected_runtime_tab_id=tab_id,
-            timeout=forensics_timeout,
-        )
-        report["picker_surface_forensics"] = surface
-        report["surface_forensics_performed"] = True
-        _validate_surface(surface, conversation, tab_id)
-        report["topology_summary"] = {
-            "picker_surface_open": surface["picker_surface_open"],
-            "recognized_modes": surface["recognized_modes"],
-            "instant_dom_candidate_count": surface["instant_dom_candidate_count"],
-            "instant_ax_candidate_count": surface["instant_ax_candidate_count"],
-            "dom_candidate_count": len(surface["dom_topology"]["dom_candidates"]),
-            "ax_candidate_count": surface["accessibility_topology"]["candidate_count"],
-            "popup_surface_count": len(surface["dom_topology"]["popup_surfaces"]),
-        }
-
-    phase[0] = "post_forensics_recheck"
+    phase[0] = "post_failure_recheck"
     post_health = runner.runtime.health(conversation)
-    report["post_forensics_runtime_health"] = runner._health(post_health)
+    report["post_failure_runtime_health"] = runner._health(post_health)
     _require(
         post_health.ready is True and post_health.canonical_status == "completed",
-        "PR8_8_FRESH_FORENSICS_POST_PROBE_CANONICAL_STATE_CHANGED",
+        "PR8_8_FRESH_FORENSICS_POST_FAILURE_CANONICAL_STATE_CHANGED",
     )
     final_status = runner.provider.characterization_status()
     report["final_authority_status"] = final_status.to_dict()
+    tab_id = final_status.runtime_tab_id
     _require(
-        final_status.runtime_tab_id == tab_id and final_status.lease_id_present is True,
+        isinstance(tab_id, int)
+        and not isinstance(tab_id, bool)
+        and final_status.lease_id_present is True,
         "PR8_8_FRESH_FORENSICS_EVIDENCE_BEARING_AUTHORITY_CHANGED",
     )
 
@@ -161,8 +122,6 @@ def characterize_failure(runner, report, write_error, conversation: str, forensi
         "lease_metadata_preserved": True,
         "automatic_retry_attempted": False,
         "additional_product_writes_after_failure": 0,
-        "route_forensics_zero_write": True,
-        "picker_surface_forensics_zero_write": report["surface_forensics_performed"],
         "in_failure_popup_subtree_persisted": popup_supported and isinstance(popup, dict),
     }
     popup_modes = popup.get("recognized_modes", []) if isinstance(popup, dict) else []
@@ -173,9 +132,6 @@ def characterize_failure(runner, report, write_error, conversation: str, forensi
         "prompt_insertion_reached": False,
         "submit_reached": False,
         "conversation_writes_during_selection": 0,
-        "route_identity_status": route_identity.get("route_identity_status"),
-        "conversation_route_matches_expected": exact_route,
-        "surface_forensics_performed": report["surface_forensics_performed"],
         "in_failure_popup_subtree_captured": popup_supported and isinstance(popup, dict) and popup.get("capture_status") == "POPUP_SUBTREE_CAPTURED",
         "popup_candidate_cap_dealiased": popup.get("candidate_cap_dealiased") if isinstance(popup, dict) else None,
         "popup_recognized_modes": popup_modes,
