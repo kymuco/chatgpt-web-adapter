@@ -10,7 +10,6 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 WORKERS = (
-    "service_worker_reasoning_effort_slider_governance_pr8_8.js",
     "service_worker_instant_effort_slider_support_pr8_8.js",
 )
 
@@ -30,7 +29,6 @@ function registerNativeTurnDiagnosticHandler(name, matches, handle) {
 
 let _pr88SelectionRecord = () => ({});
 const PR88_INSTANT_EFFORT_SELECTION_SCHEMA_VERSION = 1;
-const PR88_REASONING_EFFORT_SLIDER_SCHEMA_VERSION = 1;
 
 function _pr88InstantEffortSupportConflict(message) {
   return message?.text != null;
@@ -43,26 +41,17 @@ globalThis.chrome = {
 };
 """
     epilogue = r"""
-_pr88EffortProbe = async () => ({ probe: "reasoning-topology" });
-
 (async () => {
   const ordinary = { text: "ordinary product turn" };
   const ordinaryMatches = Array.from(registrations.entries())
     .filter(([, handler]) => handler.matches(ordinary) === true)
     .map(([name]) => name);
 
-  const reasoning = registrations.get("reasoning-effort-characterization");
   const instant = registrations.get("instant-effort-support");
 
   const result = {
     names: Array.from(registrations.keys()).sort(),
     ordinaryMatches,
-    reasoningSupport: await reasoning.handle({
-      characterizeReasoningEffortSliderSupport: true
-    }),
-    reasoningTopology: await reasoning.handle({
-      characterizeReasoningEffortSliderTopology: true
-    }),
     instantSupport: await instant.handle({
       characterizeInstantEffortSelectionSupport: true
     })
@@ -104,14 +93,8 @@ def test_explicit_control_diagnostics_bypass_ordinary_requests_and_route_exactly
 
     assert result["names"] == [
         "instant-effort-support",
-        "reasoning-effort-characterization",
     ]
     assert result["ordinaryMatches"] == []
-
-    assert result["reasoningSupport"]["reasoningEffortSliderSupported"] is True
-    assert result["reasoningSupport"]["selectionControlClickForbidden"] is True
-    assert result["reasoningSupport"]["zeroProductWrites"] is True
-    assert result["reasoningTopology"] == {"probe": "reasoning-topology"}
 
     assert result["instantSupport"]["instantEffortSelectionSupported"] is True
     assert result["instantSupport"]["advancedPickerClickForbidden"] is True
