@@ -21,15 +21,6 @@ def characterize_success(runner, report, execution, conversation: str, forensics
 
     status = runner.provider.characterization_status()
     report["final_authority_status"] = status.to_dict()
-    if isinstance(status.runtime_tab_id, int):
-        try:
-            report["route_forensics"] = runner.provider.retained_route_identity_forensics(
-                conversation,
-                expected_runtime_tab_id=status.runtime_tab_id,
-                timeout=min(10.0, forensics_timeout),
-            )
-        except Exception as error:
-            report["route_forensics_error"] = runner._failure(error)
 
     report["write_outcome"] = "SUCCEEDED"
     report["target_failure_reproduced"] = False
