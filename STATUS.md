@@ -148,7 +148,8 @@ Preferred direction:
 PR15 Architecture Reset
 → PR15.1–PR15.14 explicit ownership consolidation [merged]
 → PR15.15 detach PR8.7 Temporary research bootstrap [merged]
-→ PR15.16 delete isolated observability research surface [active]
+→ PR15.16 delete isolated observability research surface [merged]
+→ PR15.17 retire retained picker/route forensics [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```
