@@ -186,7 +186,7 @@ def test_manual_temporary_ground_truth_uses_prepared_tab_without_click_or_close(
         encoding="utf-8"
     )
 
-    assert "characterizeManualTemporaryGroundTruth" in worker
+    assert "async function _pr87HandleManualTemporaryGroundTruth(message)" in worker
     assert "manualTemporaryConfirmed" in worker
     assert "TEMPORARY_CHAT_MANUAL_GROUND_TRUTH_CONFIRMATION_REQUIRED" in worker
     assert "chrome.tabs.query({ active: true, lastFocusedWindow: true })" in worker
