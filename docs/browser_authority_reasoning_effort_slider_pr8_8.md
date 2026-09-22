@@ -1,5 +1,7 @@
 # PR8.8 — Reasoning-Effort Slider Topology, Discrete Step-to-Mode Mapping, Quick-vs-Advanced Picker Dimension Separation and Zero-Write Interaction-Target Governance
 
+> **PR15.17 ownership note:** this provider now inherits directly from the Instant selection provider. The retired retained-picker forensics provider is no longer part of its Python ownership chain.
+
 ## Motivation
 
 Current ChatGPT web UI evidence shows that the composer control displaying the current effort (for example `Высокий`) opens a quick reasoning-effort surface. `Instant / Средний / Высокий` are presented as discrete slider states, while `Расширенные` navigates to an advanced surface separating `Модель` from `Усилие`.
