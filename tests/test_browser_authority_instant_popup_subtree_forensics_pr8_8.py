@@ -67,8 +67,6 @@ def test_provider_parses_popup_subtree_support(monkeypatch):
             "instantFailureForensicsSchemaVersion": 1,
             "failureRecordPersistenceSupported": True,
             "preInputFailureBoundarySupported": True,
-            "retainedRouteForensicsCompositionSupported": True,
-            "retainedPickerForensicsCompositionSupported": True,
             "rawErrorRedactionSupported": True,
             "leaseIdExported": False,
             "zeroProductWrites": True,
@@ -226,8 +224,6 @@ def test_production_popup_support_false_fails_preflight_before_authority_or_writ
                 "schema": 1,
                 "failure_record_persistence_supported": True,
                 "pre_input_failure_boundary_supported": True,
-                "retained_route_forensics_composition_supported": True,
-                "retained_picker_forensics_composition_supported": True,
                 "raw_error_redaction_supported": True,
                 "lease_id_exported": False,
                 "zero_product_writes": True,
@@ -241,10 +237,6 @@ def test_production_popup_support_false_fails_preflight_before_authority_or_writ
             }
         def instant_selection_support(self):
             return {"instant_selection_repair_supported": True, "product_ui_selection_supported": True}
-        def retained_route_identity_support(self):
-            return {"retained_route_identity_supported": True, "zero_product_writes": True}
-        def retained_picker_forensics_support(self):
-            return {"retained_picker_forensics_supported": True, "zero_product_writes": True}
         def characterization_status(self):
             raise AssertionError("must fail before authority preflight")
 
