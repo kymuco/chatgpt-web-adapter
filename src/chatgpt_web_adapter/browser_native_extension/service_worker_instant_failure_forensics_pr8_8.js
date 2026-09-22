@@ -1,6 +1,6 @@
 // PR8.8 fresh Instant failure evidence capture.
 //
-// Loaded after Instant selection repair and retained route/picker forensics.
+// Loaded after Instant selection repair.
 // This layer does not add a new product mutation. It wraps the existing
 // locateAndFocusComposer call only to persist bounded evidence if that call
 // fails before control returns to the transport's clear/input/submit sequence.
