@@ -129,7 +129,10 @@ class FakeProvider:
         return {"retained_route_identity_supported": True, "zero_product_writes": True}
 
     def retained_picker_forensics_support(self):
-        return {"retained_picker_forensics_supported": True, "zero_product_writes": True}
+        return {
+            "retained_picker_forensics_supported": True,
+            "zero_product_writes": True,
+        }
 
     def characterization_status(self):
         return SimpleNamespace(
@@ -176,12 +179,16 @@ class FakeProvider:
             },
         }
 
-    def retained_route_identity_forensics(self, conversation, *, expected_runtime_tab_id, timeout):
+    def retained_route_identity_forensics(
+        self, conversation, *, expected_runtime_tab_id, timeout
+    ):
         assert conversation == CONVERSATION
         assert expected_runtime_tab_id == TAB_ID
         return route_record(self.route_match)
 
-    def retained_picker_surface_forensics(self, conversation, *, expected_runtime_tab_id, timeout):
+    def retained_picker_surface_forensics(
+        self, conversation, *, expected_runtime_tab_id, timeout
+    ):
         self.surface_calls += 1
         assert conversation == CONVERSATION
         assert expected_runtime_tab_id == TAB_ID
@@ -203,21 +210,31 @@ class FakeRuntime:
         self.write_calls += 1
         assert kwargs["conversation"] == CONVERSATION
         self.provider.after_write = True
-        raise FakeWriteError("PR8_8_INSTANT_SELECTION_OPTION_NOT_FOUND:instant_option_missing")
+        raise FakeWriteError(
+            "PR8_8_INSTANT_SELECTION_OPTION_NOT_FOUND:instant_option_missing"
+        )
 
 
 def make_runner(route_match=True):
     provider = FakeProvider(route_match=route_match)
     runtime = FakeRuntime(provider)
-    return FreshInstantFailureForensicsRunner(runtime, provider=provider), runtime, provider
+    return (
+        FreshInstantFailureForensicsRunner(runtime, provider=provider),
+        runtime,
+        provider,
+    )
 
 
 def test_extension_failure_layer_is_additive_and_does_not_add_product_mutation():
     root = browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == "0.1.13"
-    observability = (root / "service_worker_observability.js").read_text(encoding="utf-8")
-    worker = (root / "service_worker_instant_failure_forensics_pr8_8.js").read_text(encoding="utf-8")
+    observability = (root / "service_worker_observability.js").read_text(
+        encoding="utf-8"
+    )
+    worker = (root / "service_worker_instant_failure_forensics_pr8_8.js").read_text(
+        encoding="utf-8"
+    )
     selection = 'importScripts("service_worker_instant_selection_repair_pr8_8.js")'
     new = 'importScripts("service_worker_instant_failure_forensics_pr8_8.js")'
     assert selection in observability and new in observability
@@ -247,6 +264,7 @@ def test_extension_failure_layer_is_additive_and_does_not_add_product_mutation()
 
 def test_provider_parses_redacted_failure_record(monkeypatch):
     provider = InstantFailureForensicsProvider()
+
     def rpc(payload, *, timeout):
         assert payload["expectedBrowserAuthorityLeaseId"] == LEASE_ID
         return {
@@ -269,6 +287,7 @@ def test_provider_parses_redacted_failure_record(monkeypatch):
                 "unexpectedConversationWriteBeforeSelectionComplete": False,
             },
         }
+
     monkeypatch.setattr(provider, "_characterization_rpc", rpc)
     record = provider.instant_failure_forensics_record(LEASE_ID)
     assert record["failure_code"] == "OPTION_NOT_FOUND"
@@ -321,11 +340,15 @@ def test_route_mismatch_suppresses_picker_surface_but_preserves_evidence():
 def test_conversation_write_during_selection_fails_closed_without_retry():
     runner, runtime, provider = make_runner()
     original = provider.instant_failure_forensics_record
+
     def contradicted(*args, **kwargs):
         record = original(*args, **kwargs)
         record["selection"]["conversation_write_count_during_selection"] = 1
-        record["selection"]["unexpected_conversation_write_before_selection_complete"] = True
+        record["selection"][
+            "unexpected_conversation_write_before_selection_complete"
+        ] = True
         return record
+
     provider.instant_failure_forensics_record = contradicted
     report = runner.run(
         acknowledge_live_writes=True,
