@@ -147,7 +147,8 @@ Preferred direction:
 ```text
 PR15 Architecture Reset
 → PR15.1–PR15.14 explicit ownership consolidation [merged]
-→ PR15.15 detach PR8.7 Temporary research bootstrap [active]
+→ PR15.15 detach PR8.7 Temporary research bootstrap [merged]
+→ PR15.16 delete isolated observability research surface [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```
