@@ -5,7 +5,7 @@
 // wrap runtime handlers. Domain modules below preserve the reviewed ordering
 // while making cross-domain ownership explicit.
 
-importScripts("service_worker_runtime_legacy.js");
+importScripts("service_worker_runtime_tab_reconciliation.js");
 importScripts("service_worker_runtime_write.js");
 importScripts("service_worker_runtime_read.js");
 importScripts("service_worker_runtime_observation.js");
