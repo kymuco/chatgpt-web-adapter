@@ -1,5 +1,9 @@
 // PR15.22 explicit production owner for product observations.
 //
+// Connector observation never exports raw metadata, arguments, results, credentials, URLs,
+// cookies, authorization material, DOM, raw SSE, or private reasoning.
+// Router characterization never exports raw arguments/results/content.
+//
 // Consolidates connector lifecycle, connector-router characterization, and
 // generated-artifact observation. Production installs exactly one wrapper on
 // PR8.12 message inspection and preserves historical observer side-effect order.
