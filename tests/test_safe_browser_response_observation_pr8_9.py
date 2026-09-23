@@ -15,7 +15,7 @@ from chatgpt_web_adapter.safe_browser_response_observation_pr8_9 import (
 def test_worker_is_loaded_after_pr8_8_selection_stack() -> None:
     root = browser_native_extension_dir()
     observability = (root / "service_worker_observability.js").read_text(encoding="utf-8")
-    prior = 'importScripts("service_worker_instant_effort_slider_support_pr8_8.js")'
+    prior = 'importScripts("service_worker_instant_effort_selection.js")'
     current = 'importScripts("service_worker_safe_browser_response_stream_pr8_9.js")'
     assert prior in observability
     assert current in observability
