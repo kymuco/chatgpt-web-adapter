@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 FILES = {
-    "instant": EXT / "service_worker_instant_effort_slider_support_pr8_8.js",
+    "instant": EXT / "service_worker_instant_effort_selection.js",
 }
 
 

@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
-WORKERS = ("service_worker_instant_effort_slider_support_pr8_8.js",)
+WORKERS = ("service_worker_instant_effort_selection.js",)
 
 
 def _source(name: str) -> str:
@@ -23,13 +23,6 @@ const registrations = new Map();
 function registerNativeTurnDiagnosticHandler(name, matches, handle) {
   if (registrations.has(name)) throw new Error("duplicate:" + name);
   registrations.set(name, { matches, handle });
-}
-
-let _pr88SelectionRecord = () => ({});
-const PR88_INSTANT_EFFORT_SELECTION_SCHEMA_VERSION = 1;
-
-function _pr88InstantEffortSupportConflict(message) {
-  return message?.text != null;
 }
 
 globalThis.chrome = {

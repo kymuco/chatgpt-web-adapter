@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 from chatgpt_web_adapter.browser_authority_live_characterization import (
     BrowserAuthorityCharacterizationProvider,
 )
+from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 from chatgpt_web_adapter.safe_browser_response_observation_pr8_9 import (
     SafeBrowserResponseObservationProvider,
     summarize_safe_browser_stream,
@@ -14,8 +14,10 @@ from chatgpt_web_adapter.safe_browser_response_observation_pr8_9 import (
 
 def test_worker_is_loaded_after_pr8_8_selection_stack() -> None:
     root = browser_native_extension_dir()
-    observability = (root / "service_worker_observability.js").read_text(encoding="utf-8")
-    prior = 'importScripts("service_worker_instant_effort_slider_support_pr8_8.js")'
+    observability = (root / "service_worker_observability.js").read_text(
+        encoding="utf-8"
+    )
+    prior = 'importScripts("service_worker_instant_effort_selection.js")'
     current = 'importScripts("service_worker_safe_browser_response_stream_pr8_9.js")'
     assert prior in observability
     assert current in observability
@@ -24,9 +26,9 @@ def test_worker_is_loaded_after_pr8_8_selection_stack() -> None:
 
 def test_worker_uses_bounded_non_intercepting_cdp_stream_observation() -> None:
     root = browser_native_extension_dir()
-    source = (
-        root / "service_worker_safe_browser_response_stream_pr8_9.js"
-    ).read_text(encoding="utf-8")
+    source = (root / "service_worker_safe_browser_response_stream_pr8_9.js").read_text(
+        encoding="utf-8"
+    )
 
     for token in (
         "Network.streamResourceContent",

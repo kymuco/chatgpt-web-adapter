@@ -79,6 +79,7 @@ def base_turn():
 
 def base_success_report():
     selection = Provider().selection_record
+
     def turn(phase, before, performed):
         record = dict(selection)
         record["selected_mode_before_selection"] = before
@@ -96,16 +97,19 @@ def base_success_report():
             "instant_selection": record,
             "observation": {"browser_authority_lease_id": "lease-1"},
         }
+
     cycles = []
     for index in range(3):
-        cycles.append({
-            "cycle": index + 1,
-            "cold_turn": turn("cold", "HIGH", True),
-            "warm_turn": turn("warm", "INSTANT", False),
-            "close_turn": turn("close", "INSTANT", False),
-            "close_disposal": {"confirmed": True},
-            "closed_window": {"confirmed": True},
-        })
+        cycles.append(
+            {
+                "cycle": index + 1,
+                "cold_turn": turn("cold", "HIGH", True),
+                "warm_turn": turn("warm", "INSTANT", False),
+                "close_turn": turn("close", "INSTANT", False),
+                "close_disposal": {"confirmed": True},
+                "closed_window": {"confirmed": True},
+            }
+        )
     return {
         "ok": True,
         "probe_context": "instant_mode_phase_level_latency_no_reasoning_baseline",
@@ -139,7 +143,9 @@ def test_extension_selection_layer_preserves_manifest_and_import_order():
         "service_worker_temporary_chat_route_reopen_probe.js"
     )
 
-    observability = (root / "service_worker_observability.js").read_text(encoding="utf-8")
+    observability = (root / "service_worker_observability.js").read_text(
+        encoding="utf-8"
+    )
     phase_import = 'importScripts("service_worker_phase_timing_pr8_8.js")'
     instant_import = 'importScripts("service_worker_instant_mode_pr8_8.js")'
     repair_import = 'importScripts("service_worker_instant_selection_repair_pr8_8.js")'
@@ -172,9 +178,15 @@ def test_selection_worker_mutates_only_picker_before_prompt_and_tracks_network_b
         assert token in text
     assert "Input.insertText" not in text
     assert "submitOfficialPageTurn" not in text
-    assert 'chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent"' in text
-    assert 'await sendCommand(debuggee, "Input.dispatchMouseEvent"' not in text
+    assert "Input.dispatchMouseEvent" not in text
     assert "raw request/response payloads" in text
+
+    owner = (root / "service_worker_instant_effort_selection.js").read_text(
+        encoding="utf-8"
+    )
+    assert "target.click();" in owner
+    assert "_pr88InstantEffortDispatchHome(debuggee)" in owner
+    assert "Input.dispatchMouseEvent" not in owner
 
 
 def test_provider_parses_lease_fenced_selection_record(monkeypatch):
@@ -235,9 +247,7 @@ def test_fresh_tab_high_is_valid_preflight_evidence_not_failure():
         "debugger_attached_after": False,
         "foreground_activation_observed": False,
     }
-    InstantSelectionRepairLatencyRunner._validate_preflight_mode(
-        record, "conversation"
-    )
+    InstantSelectionRepairLatencyRunner._validate_preflight_mode(record, "conversation")
 
 
 def test_preflight_still_fails_closed_when_mode_is_not_proven():
@@ -257,7 +267,9 @@ def test_preflight_still_fails_closed_when_mode_is_not_proven():
         )
 
 
-def test_completed_turn_requires_instant_materialized_without_selection_write(monkeypatch):
+def test_completed_turn_requires_instant_materialized_without_selection_write(
+    monkeypatch,
+):
     runner, provider = make_runner()
 
     def parent_turn(self, *args, **kwargs):
@@ -277,16 +289,22 @@ def test_completed_turn_requires_instant_materialized_without_selection_write(mo
     assert record["instant_selection"]["conversation_write_count_during_selection"] == 0
 
 
-def test_selection_conversation_write_contradiction_fails_after_completed_turn(monkeypatch):
+def test_selection_conversation_write_contradiction_fails_after_completed_turn(
+    monkeypatch,
+):
     runner, provider = make_runner()
-    provider.selection_record["unexpected_conversation_write_before_selection_complete"] = True
+    provider.selection_record[
+        "unexpected_conversation_write_before_selection_complete"
+    ] = True
     provider.selection_record["conversation_write_count_during_selection"] = 1
 
     def parent_turn(self, *args, **kwargs):
         return "conversation", base_turn()
 
     monkeypatch.setattr(InstantModePhaseLatencyRunner, "_turn", parent_turn)
-    with pytest.raises(RuntimeError, match="CONVERSATION_WRITE_OCCURRED_DURING_SELECTION"):
+    with pytest.raises(
+        RuntimeError, match="CONVERSATION_WRITE_OCCURRED_DURING_SELECTION"
+    ):
         runner._turn(
             report={},
             cycle=1,
@@ -342,9 +360,14 @@ def test_success_relabels_high_fresh_preflight_and_summarizes_selection(monkeypa
     assert report["summary"]["cold_selection_performed_count"] == 3
     assert report["summary"]["warm_selection_performed_count"] == 0
     assert report["summary"]["conversation_writes_during_model_selection"] == 0
-    assert report["summary"]["fresh_tab_picker_state_not_assumed_from_conversation"] is True
+    assert (
+        report["summary"]["fresh_tab_picker_state_not_assumed_from_conversation"]
+        is True
+    )
     selection = report["instant_selection_materialization"]
     assert selection["cold_fresh_tab_initial_mode_counts"] == {"HIGH": 3}
     assert selection["setting_like_mutation_observed_count"] == 0
     assert report["cross_mode_governance"]["library_default_change_performed"] is False
-    assert report["cross_mode_governance"]["hde_assembly_policy_change_performed"] is False
+    assert (
+        report["cross_mode_governance"]["hde_assembly_policy_change_performed"] is False
+    )
