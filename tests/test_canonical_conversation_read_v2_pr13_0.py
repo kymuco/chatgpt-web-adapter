@@ -496,10 +496,48 @@ def test_timeout_recovery_progress_reports_load_shedding_without_ids(capsys) -> 
 
     captured = capsys.readouterr()
     assert (
-        "page 1 timed out at num_turns=20; retrying with num_turns=10"
-        in captured.err
+        "page 1 timed out at num_turns=20; retrying with num_turns=10" in captured.err
     )
     assert "conversation-1" not in captured.err
+
+
+@pytest.mark.parametrize("messages_value", [None, "not-a-list", {"u1": "one"}])
+def test_progress_preserves_request_error_for_malformed_paginated_messages(
+    messages_value: Any,
+) -> None:
+    latest = {
+        "conversation_id": "conversation-1",
+        "current_node": "a2",
+        "messages": [
+            _message("u1", "user", "one"),
+            _message("a2", "assistant", "two", finish=True),
+        ],
+        "page_info": {
+            "has_previous_page": True,
+            "start_cursor": "cursor-2",
+        },
+    }
+    malformed_older = {
+        "conversation_id": "conversation-1",
+        "messages": messages_value,
+        "page_info": {"has_previous_page": False},
+    }
+    client = _RequestClient([(200, latest), (200, malformed_older)])
+    client.conversation_read_progress = True
+
+    with pytest.raises(
+        RequestError,
+        match=r"canonical conversation pagination page missing messages\[\]",
+    ):
+        read_conversation_payload_v2(
+            client,
+            "conversation-1",
+            current_base_url="https://chatgpt.com/backend-api/conversations",
+            legacy_url_template=(
+                "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+            ),
+            include_all_pages=True,
+        )
 
 
 def test_persistent_successful_non_json_response_keeps_diagnostics() -> None:
