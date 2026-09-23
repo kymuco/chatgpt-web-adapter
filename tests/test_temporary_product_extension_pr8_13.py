@@ -17,15 +17,14 @@ def _source() -> str:
     return PRODUCTION.read_text(encoding="utf-8")
 
 
-def test_pr813_layer_loads_after_pr812_stream_and_answer_channel() -> None:
+def test_pr813_layer_loads_after_single_pr812_response_owner() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
-    activity = (
-        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
-    )
-    channel = 'importScripts("service_worker_answer_channel_pr8_12.js");'
+    owner = 'importScripts("service_worker_response_activity.js");'
     temporary = 'importScripts("service_worker_temporary_chat_production_pr8_13.js");'
-    assert activity in source and channel in source and temporary in source
-    assert source.index(activity) < source.index(channel) < source.index(temporary)
+    assert owner in source and temporary in source
+    assert source.index(owner) < source.index(temporary)
+    assert "service_worker_answer_channel_pr8_12.js" not in source
+    assert "service_worker_normalized_activity_patch_protocol_pr8_12.js" not in source
 
 
 def test_temporary_write_is_paused_before_network_dispatch_for_mode_proof() -> None:

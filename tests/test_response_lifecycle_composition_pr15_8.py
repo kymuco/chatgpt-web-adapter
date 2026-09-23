@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 LAYERS = (
-    "service_worker_normalized_activity_stream_pr8_12.js",
+    "service_worker_response_activity.js",
     "service_worker_early_response_completion.js",
     "service_worker_browser_response_stream.js",
 )
@@ -55,8 +55,12 @@ def test_lower_level_stream_and_page_hooks_remain_in_original_modules() -> None:
             "_pr89BrowserStreamRecordAssistant = _pr811RecordAssistantOwner;",
             "_pr89BrowserStreamProcessSseEvent = _pr811ProcessSseEventOwner;",
         ),
-        "service_worker_normalized_activity_stream_pr8_12.js": (
-            "_pr89BrowserStreamProcessSseEvent =",
+        "service_worker_response_activity.js": (
+            "async function _pr812ProcessSseEventLayer(",
+            "async function _pr812ExecuteNativeTurn(",
+            "_pr89BrowserStreamProcessSseEvent = _pr812ProcessSseEventOwner;",
+            "_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;",
+            "_pr89BrowserStreamRecordAssistant = _pr812RecordAssistantOwner;",
         ),
     }
     for name, tokens in required.items():
@@ -69,7 +73,7 @@ def test_response_lifecycle_is_pure_layer_at_same_assembly_boundary() -> None:
     assembly = _source("service_worker_observability.js")
     owner = _source(OWNER)
 
-    activity = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
+    activity = 'importScripts("service_worker_response_activity.js");'
     owner_import = f'importScripts("{OWNER}");'
     connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
 

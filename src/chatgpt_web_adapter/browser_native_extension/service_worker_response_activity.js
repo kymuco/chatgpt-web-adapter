@@ -1,16 +1,14 @@
-// PR8.12: normalized user-visible activity / tool-progress streaming.
+// PR15.21 explicit production owner for PR8.12 response activity and answer channel.
 //
-// This layer extends the proven PR8.9 response observer without changing write,
-// retry, Browser Authority, early-completion, or canonical-finality semantics.
-// It exports only bounded normalized activity events and explicitly user-visible
-// recap/display text. Raw tool arguments/results, raw SSE, hidden messages,
-// credentials, DOM/HTML, and private `thoughts` content never leave the worker.
+// Consolidates normalized activity streaming, compact patch compatibility, and
+// bounded assistant-channel propagation. PR8.12 now installs each PR8.9 hook
+// exactly once instead of relying on source-ordered monkeypatch overlays.
+// Raw tool arguments/results, raw SSE, private thoughts, credentials and DOM/HTML
+// remain browser-local and are never exported by this owner.
 
 const PR812_ACTIVITY_SCHEMA_VERSION = 1;
 const PR812_MAX_ACTIVITY_TEXT_CHARS = 12000;
 const PR812_MAX_OPERATION_DEPTH = 7;
-
-const _pr812PriorProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
 
 let _pr812RequestId = null;
 let _pr812Sequence = 0;
@@ -341,7 +339,7 @@ function _pr812CollectMessages(value, output, depth = 0) {
   }
 }
 
-function _pr812PatchSelect(state, message) {
+function _pr812PatchSelectCore(state, message) {
   if (!message || typeof message !== "object") return;
   state.currentPatchMessage = {
     ...message,
@@ -351,7 +349,7 @@ function _pr812PatchSelect(state, message) {
   };
 }
 
-function _pr812PatchApplyItem(context, state, item) {
+function _pr812PatchApplyItemCore(context, state, item) {
   if (!item || typeof item !== "object") return;
   const path = typeof item.p === "string" ? item.p : null;
   const value = item.v;
@@ -410,8 +408,8 @@ function _pr812InspectTypedOperation(context, state, payload) {
   });
 }
 
-_pr89BrowserStreamProcessSseEvent = async function _pr812ProcessSseEvent(context, block) {
-  const result = await _pr812PriorProcessSseEvent(context, block);
+async function _pr812ProcessSseEventLayer(context, block, next) {
+  const result = await next(context, block);
   if (_pr812RequestId === null) return result;
 
   let data = "";
@@ -448,7 +446,7 @@ _pr89BrowserStreamProcessSseEvent = async function _pr812ProcessSseEvent(context
     // Activity observation is best-effort and can never perturb the write path.
   }
   return result;
-};
+}
 
 async function _pr812ExecuteNativeTurn(message, next) {
   const streaming = message?.streamTextObservations === true;
@@ -468,3 +466,136 @@ async function _pr812ExecuteNativeTurn(message, next) {
     _pr812RequestId = null;
   }
 };
+
+
+function _pr812PatchSelect(state, message) {
+  if (!message || typeof message !== "object") return;
+  let selected = message;
+  if (!_pr812OptionalString(message.id)) {
+    state.syntheticCounter += 1;
+    selected = {
+      ...message,
+      id: `pr812-patch-${state.syntheticCounter}`
+    };
+  }
+  _pr812PatchSelectCore(state, selected);
+}
+
+function _pr812PatchApplyItem(
+  context,
+  state,
+  item
+) {
+  if (!item || typeof item !== "object") return;
+  const path = typeof item.p === "string" ? item.p : null;
+  const value = item.v;
+
+  if (
+    path === null &&
+    typeof value === "string" &&
+    value.length > 0 &&
+    state.currentPatchMessage
+  ) {
+    const content = state.currentPatchMessage.content || {};
+    const parts = Array.isArray(content.parts) ? [...content.parts] : [];
+    const previous = typeof parts[0] === "string" ? parts[0] : "";
+    parts[0] = previous + value;
+    state.currentPatchMessage.content = { ...content, parts };
+    _pr812InspectMessage(context, state, state.currentPatchMessage);
+    return;
+  }
+
+  return _pr812PatchApplyItemCore(context, state, item);
+}
+
+
+function _pr812NormalizedAssistantChannel(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "final" || normalized === "commentary") return normalized;
+  return null;
+}
+
+function _pr812AssistantChannel(message) {
+  if (!message || typeof message !== "object") return null;
+  const metadata = message.metadata && typeof message.metadata === "object"
+    ? message.metadata
+    : {};
+  for (const value of [
+    message.channel,
+    metadata.channel,
+    metadata.output_channel,
+    metadata.message_channel,
+  ]) {
+    const channel = _pr812NormalizedAssistantChannel(value);
+    if (channel) return channel;
+  }
+  return null;
+}
+
+function _pr812VisibleAssistantTextLayer(message, next) {
+  const candidate = next(message);
+  if (!candidate) return candidate;
+  return {
+    ...candidate,
+    channel: _pr812AssistantChannel(message),
+  };
+}
+
+async function _pr812RecordAssistantLayer(context, candidate, next) {
+  if (!context || !candidate || typeof candidate !== "object") {
+    return next(context, candidate);
+  }
+
+  if (!(context.pr812AnswerChannelByKey instanceof Map)) {
+    context.pr812AnswerChannelByKey = new Map();
+  }
+
+  const key = typeof candidate.messageKey === "string" && candidate.messageKey
+    ? candidate.messageKey
+    : null;
+  const explicit = _pr812NormalizedAssistantChannel(candidate.channel);
+  if (key && explicit) context.pr812AnswerChannelByKey.set(key, explicit);
+
+  const remembered = key ? context.pr812AnswerChannelByKey.get(key) || null : null;
+  return next(context, {
+    ...candidate,
+    channel: explicit || remembered,
+  });
+}
+
+
+
+// Explicit PR8.12 hook installation. At this boundary the upstream response
+// hooks are the PR8.11/PR8.9 owners. Later PR8.13 Temporary identity may wrap
+// the SSE hook outside this owner, preserving historical nesting.
+const _pr812UpstreamProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
+const _pr812UpstreamVisibleAssistantText = _pr89BrowserStreamVisibleAssistantText;
+const _pr812UpstreamRecordAssistant = _pr89BrowserStreamRecordAssistant;
+
+async function _pr812ProcessSseEventOwner(context, block) {
+  return _pr812ProcessSseEventLayer(
+    context,
+    block,
+    _pr812UpstreamProcessSseEvent
+  );
+}
+
+function _pr812VisibleAssistantTextOwner(message) {
+  return _pr812VisibleAssistantTextLayer(
+    message,
+    _pr812UpstreamVisibleAssistantText
+  );
+}
+
+async function _pr812RecordAssistantOwner(context, candidate) {
+  return _pr812RecordAssistantLayer(
+    context,
+    candidate,
+    _pr812UpstreamRecordAssistant
+  );
+}
+
+_pr89BrowserStreamProcessSseEvent = _pr812ProcessSseEventOwner;
+_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;
+_pr89BrowserStreamRecordAssistant = _pr812RecordAssistantOwner;

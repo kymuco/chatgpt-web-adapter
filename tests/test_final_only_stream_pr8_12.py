@@ -119,24 +119,30 @@ def test_final_only_cli_flag_requires_stream() -> None:
         cli._run_send(args)
 
 
-def test_answer_channel_overlay_is_loaded_and_delivery_is_bounded() -> None:
+def test_answer_channel_is_owned_by_single_pr812_response_worker() -> None:
     observability = (EXTENSION / "service_worker_observability.js").read_text(
         encoding="utf-8"
     )
     delivery = (EXTENSION / "service_worker_browser_response_stream.js").read_text(
         encoding="utf-8"
     )
-    overlay = (EXTENSION / "service_worker_answer_channel_pr8_12.js").read_text(
+    owner = (EXTENSION / "service_worker_response_activity.js").read_text(
         encoding="utf-8"
     )
 
-    patch = (
-        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    owner_import = 'importScripts("service_worker_response_activity.js");'
+    assert owner_import in observability
+    assert "service_worker_answer_channel_pr8_12.js" not in observability
+    assert (
+        "service_worker_normalized_activity_patch_protocol_pr8_12.js"
+        not in observability
     )
-    channel = 'importScripts("service_worker_answer_channel_pr8_12.js");'
-    assert patch in observability and channel in observability
-    assert observability.index(patch) < observability.index(channel)
     assert "channel," in delivery
-    assert 'normalized === "final" || normalized === "commentary"' in overlay
-    assert "metadata.output_channel" in overlay
-    assert "metadata.message_channel" in overlay
+    assert 'normalized === "final" || normalized === "commentary"' in owner
+    assert "metadata.output_channel" in owner
+    assert "metadata.message_channel" in owner
+    assert (
+        "_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;"
+        in owner
+    )
+    assert "_pr89BrowserStreamRecordAssistant = _pr812RecordAssistantOwner;" in owner

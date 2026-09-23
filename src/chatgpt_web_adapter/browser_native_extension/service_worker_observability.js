@@ -8,7 +8,7 @@ importScripts("service_worker_selection_lifecycle.js");
 importScripts("service_worker_browser_response_stream.js");
 importScripts("service_worker_early_response_completion.js");
 importScripts("service_worker_observability_page_turn_lifecycle.js");
-importScripts("service_worker_normalized_activity_stream_pr8_12.js");
+importScripts("service_worker_response_activity.js");
 importScripts("service_worker_response_lifecycle.js");
 importScripts("service_worker_connector_lifecycle_pr10_0.js");
 importScripts("service_worker_connector_router_characterization_pr10_0.js");
@@ -18,8 +18,6 @@ importScripts("service_worker_generated_artifact_pr10_1.js");
 // Git history/source-specific tests only; ordinary runtime contains no dormant
 // import switch for those research overlays.
 
-importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");
-importScripts("service_worker_answer_channel_pr8_12.js");
 importScripts("service_worker_temporary_chat_production_pr8_13.js");
 importScripts("service_worker_temporary_session_identity_pr8_13.js");
 importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");
