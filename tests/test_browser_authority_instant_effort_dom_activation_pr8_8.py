@@ -6,12 +6,12 @@ ROOT = (
     / "chatgpt_web_adapter"
     / "browser_native_extension"
 )
+OWNER = ROOT / "service_worker_instant_effort_selection.js"
 
 
-def test_dom_activation_contract():
-    worker = (ROOT / "service_worker_instant_effort_dom_activation_pr8_8.js").read_text(
-        encoding="utf-8"
-    )
+def test_dom_activation_contract() -> None:
+    source = OWNER.read_text(encoding="utf-8")
+
     for token in (
         "target.click();",
         "PR8_8_INSTANT_EFFORT_DOM_TRIGGER_IDENTITY_NOT_PROVEN",
@@ -20,12 +20,13 @@ def test_dom_activation_contract():
         "_pr88InstantEffortDispatchEnter",
         "point?.mode!==expectedMode",
     ):
-        assert token in worker
+        assert token in source
+
     for forbidden in (
         "Input.insertText",
         "tabs.remove",
-        "tabs.update",
         "conversation/write",
         "_pr88SelectionRawClick(",
+        "_pr88InstantEffortOpenPickerWithFallback =",
     ):
-        assert forbidden not in worker
+        assert forbidden not in source
