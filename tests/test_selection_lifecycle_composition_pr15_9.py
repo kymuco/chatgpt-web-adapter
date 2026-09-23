@@ -68,7 +68,7 @@ def test_selection_lifecycle_is_pure_layer_at_historical_boundary() -> None:
 
     model = 'importScripts("service_worker_model_profile_selection_pr8_10.js");'
     owner_import = f'importScripts("{OWNER}");'
-    response = 'importScripts("service_worker_safe_browser_response_stream_pr8_9.js");'
+    response = 'importScripts("service_worker_browser_response_stream.js");'
 
     assert model in assembly and owner_import in assembly and response in assembly
     assert (
