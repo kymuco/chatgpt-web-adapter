@@ -14,9 +14,6 @@
 
 const PR88_INSTANT_SELECTION_SCHEMA_VERSION = 1;
 const PR88_INSTANT_SELECTION_STORAGE_KEY = "browserAuthorityLastInstantSelectionV1";
-const PR88_INSTANT_SELECTION_OPTION_TIMEOUT_MS = 8000;
-const PR88_INSTANT_SELECTION_SETTLE_TIMEOUT_MS = 8000;
-const PR88_INSTANT_SELECTION_POLL_MS = 100;
 
 const _pr88SelectionPriorLocateAndFocusComposer = locateAndFocusComposer;
 
@@ -166,63 +163,6 @@ async function _pr88SelectionPoint(debuggee, kind) {
   return value && typeof value === "object"
     ? value
     : { found: false, reason: "point_probe_failed", candidateCount: 0 };
-}
-
-async function _pr88SelectionRawClick(debuggee, point) {
-  if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
-    throw new Error("PR8_8_INSTANT_SELECTION_CLICK_POINT_REQUIRED");
-  }
-  // Intentionally bypass sendCommand(): the proven submit hotfix treats generic
-  // mouse release as possible send-button activity. Picker clicks are unrelated
-  // product UI and must not enter that fallback ladder.
-  await chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
-    type: "mouseMoved",
-    x: point.x,
-    y: point.y
-  });
-  await chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
-    type: "mousePressed",
-    x: point.x,
-    y: point.y,
-    button: "left",
-    buttons: 1,
-    clickCount: 1
-  });
-  await chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent", {
-    type: "mouseReleased",
-    x: point.x,
-    y: point.y,
-    button: "left",
-    buttons: 0,
-    clickCount: 1
-  });
-}
-
-async function _pr88SelectionWaitForInstantOption(debuggee, timeoutMs) {
-  const startedAt = performance.now();
-  let last = null;
-  while (performance.now() - startedAt < timeoutMs) {
-    last = await _pr88SelectionPoint(debuggee, "instant_option");
-    if (last?.found === true) return last;
-    await sleep(PR88_INSTANT_SELECTION_POLL_MS);
-  }
-  return last || { found: false, reason: "instant_option_timeout", candidateCount: 0 };
-}
-
-async function _pr88SelectionWaitForInstantSelected(debuggee, timeoutMs) {
-  const startedAt = performance.now();
-  let last = null;
-  while (performance.now() - startedAt < timeoutMs) {
-    last = await _pr88InstantSelectedModeSnapshot(debuggee);
-    if (
-      last?.selectedModeProven === true &&
-      last?.selectedMode === "INSTANT"
-    ) {
-      return last;
-    }
-    await sleep(PR88_INSTANT_SELECTION_POLL_MS);
-  }
-  return last || await _pr88InstantSelectedModeSnapshot(debuggee);
 }
 
 function _pr88SelectionNetworkClass(url, method) {
