@@ -133,10 +133,16 @@ def test_answer_channel_is_owned_by_single_pr812_response_worker() -> None:
     owner_import = 'importScripts("service_worker_response_activity.js");'
     assert owner_import in observability
     assert "service_worker_answer_channel_pr8_12.js" not in observability
-    assert "service_worker_normalized_activity_patch_protocol_pr8_12.js" not in observability
+    assert (
+        "service_worker_normalized_activity_patch_protocol_pr8_12.js"
+        not in observability
+    )
     assert "channel," in delivery
     assert 'normalized === "final" || normalized === "commentary"' in owner
     assert "metadata.output_channel" in owner
     assert "metadata.message_channel" in owner
-    assert "_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;" in owner
+    assert (
+        "_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;"
+        in owner
+    )
     assert "_pr89BrowserStreamRecordAssistant = _pr812RecordAssistantOwner;" in owner

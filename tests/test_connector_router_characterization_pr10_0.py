@@ -7,7 +7,6 @@ from chatgpt_web_adapter.product_connector_router_characterization_pr10_0 import
     ProductConnectorRouterCharacterizationCollector,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OBSERVABILITY = EXT / "service_worker_observability.js"
@@ -18,7 +17,9 @@ def test_router_overlay_loads_after_pr812_owner_and_connector_metadata() -> None
     source = OBSERVABILITY.read_text(encoding="utf-8")
     owner = 'importScripts("service_worker_response_activity.js");'
     connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
-    router = 'importScripts("service_worker_connector_router_characterization_pr10_0.js");'
+    router = (
+        'importScripts("service_worker_connector_router_characterization_pr10_0.js");'
+    )
 
     assert owner in source and connector in source and router in source
     assert source.index(owner) < source.index(connector) < source.index(router)
@@ -30,8 +31,8 @@ def test_router_characterization_is_scoped_to_explicit_api_tool_router() -> None
 
     assert 'const PR100_CONNECTOR_ROUTER_NAME = "api_tool.call_tool";' in source
     assert 'role !== "assistant"' in source
-    assert 'recipient !== PR100_CONNECTOR_ROUTER_NAME' in source
-    assert "role === \"tool\"" not in source
+    assert "recipient !== PR100_CONNECTOR_ROUTER_NAME" in source
+    assert 'role === "tool"' not in source
     assert "generic tool" not in source.lower()
 
 
@@ -51,7 +52,10 @@ def test_router_never_descends_into_payload_argument_or_result_scopes() -> None:
     ):
         assert blocked in source
 
-    assert "const nextBlocked = valueScopeBlocked || _pr100RouterBlockedValueScopes.has(normalizedKey);" in source
+    assert (
+        "const nextBlocked = valueScopeBlocked || _pr100RouterBlockedValueScopes.has(normalizedKey);"
+        in source
+    )
     assert "_pr100RouterTraversableEnvelopeKeys.has(normalizedKey)" in source
     assert "!nextBlocked &&" in source
     assert "visit(child, [...path, safeKey], depth + 1, false);" in source
@@ -89,8 +93,8 @@ def test_router_exports_only_bounded_structure_and_safe_identifier_candidates() 
     assert "_pr100RouterSensitiveIdentifierText" in source
     assert "PR100_CONNECTOR_ROUTER_MAX_DEPTH = 4" in source
     assert "PR100_CONNECTOR_ROUTER_MAX_KEYS = 64" in source
-    assert 'source_event_type: _pr100RouterStructuralSummary(shape)' in source
-    assert 'tool_name: PR100_CONNECTOR_ROUTER_NAME' in source
+    assert "source_event_type: _pr100RouterStructuralSummary(shape)" in source
+    assert "tool_name: PR100_CONNECTOR_ROUTER_NAME" in source
     assert "topLevelKeys" in source
     assert "identityKeyPaths" in source
     assert "toolKeyPaths" in source
@@ -101,7 +105,10 @@ def test_router_exports_only_bounded_structure_and_safe_identifier_candidates() 
 def test_router_promotes_only_explicit_envelope_identity_to_point_observation() -> None:
     source = ROUTER.read_text(encoding="utf-8")
 
-    assert "if (!messageId || (!shape.connectorId && !shape.connectorName)) return;" in source
+    assert (
+        "if (!messageId || (!shape.connectorId && !shape.connectorName)) return;"
+        in source
+    )
     assert 'type: "product_connector_observed"' in source
     assert "connector_id: shape.connectorId" in source
     assert "connector_name: shape.connectorName" in source
@@ -110,7 +117,9 @@ def test_router_promotes_only_explicit_envelope_identity_to_point_observation() 
     assert "product_connector_completed" not in source
 
 
-def test_router_shape_event_is_known_diagnostic_not_dropped_public_observation() -> None:
+def test_router_shape_event_is_known_diagnostic_not_dropped_public_observation() -> (
+    None
+):
     collector = ProductConnectorRouterCharacterizationCollector()
     event = {
         "type": PRODUCT_CONNECTOR_ROUTER_SHAPE_OBSERVED,

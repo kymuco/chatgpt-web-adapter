@@ -3,6 +3,8 @@
 // Consolidates normalized activity streaming, compact patch compatibility, and
 // bounded assistant-channel propagation. PR8.12 now installs each PR8.9 hook
 // exactly once instead of relying on source-ordered monkeypatch overlays.
+// Raw tool arguments/results, raw SSE, private thoughts, credentials and DOM/HTML
+// remain browser-local and are never exported by this owner.
 
 const PR812_ACTIVITY_SCHEMA_VERSION = 1;
 const PR812_MAX_ACTIVITY_TEXT_CHARS = 12000;
