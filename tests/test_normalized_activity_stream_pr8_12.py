@@ -12,7 +12,6 @@ from chatgpt_web_adapter.revision_safe_streaming_pr8_9 import (
 )
 from chatgpt_web_adapter.standalone_send import RevisionSafeTerminalRenderer
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 ACTIVITY_JS = EXTENSION / "service_worker_normalized_activity_stream_pr8_12.js"
@@ -116,7 +115,9 @@ def test_terminal_renderer_prints_activity_then_answer_without_mixing_planes() -
     )
 
 
-def test_terminal_renderer_separates_commentary_and_suppresses_generic_completion_noise() -> None:
+def test_terminal_renderer_separates_commentary_and_suppresses_generic_completion_noise() -> (
+    None
+):
     stream = StringIO()
     renderer = RevisionSafeTerminalRenderer(stream)
 
@@ -235,6 +236,8 @@ def test_activity_stream_load_order_preserves_pr8111_then_patch_compatibility() 
     source = OBSERVABILITY_JS.read_text(encoding="utf-8")
     early = 'importScripts("service_worker_early_response_completion.js");'
     activity = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
-    patch = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    patch = (
+        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    )
     assert early in source and activity in source and patch in source
     assert source.index(early) < source.index(activity) < source.index(patch)
