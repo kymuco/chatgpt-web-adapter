@@ -10,9 +10,7 @@ importScripts("service_worker_early_response_completion.js");
 importScripts("service_worker_observability_page_turn_lifecycle.js");
 importScripts("service_worker_response_activity.js");
 importScripts("service_worker_response_lifecycle.js");
-importScripts("service_worker_connector_lifecycle_pr10_0.js");
-importScripts("service_worker_connector_router_characterization_pr10_0.js");
-importScripts("service_worker_generated_artifact_pr10_1.js");
+importScripts("service_worker_product_observation.js");
 
 // PR15.16: closed PR10.1 artifact-shape characterization remains available in
 // Git history/source-specific tests only; ordinary runtime contains no dormant
