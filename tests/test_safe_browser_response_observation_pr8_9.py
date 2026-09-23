@@ -18,7 +18,7 @@ def test_worker_is_loaded_after_pr8_8_selection_stack() -> None:
         encoding="utf-8"
     )
     prior = 'importScripts("service_worker_instant_effort_selection.js")'
-    current = 'importScripts("service_worker_safe_browser_response_stream_pr8_9.js")'
+    current = 'importScripts("service_worker_browser_response_stream.js")'
     assert prior in observability
     assert current in observability
     assert observability.index(prior) < observability.index(current)
@@ -26,7 +26,7 @@ def test_worker_is_loaded_after_pr8_8_selection_stack() -> None:
 
 def test_worker_uses_bounded_non_intercepting_cdp_stream_observation() -> None:
     root = browser_native_extension_dir()
-    source = (root / "service_worker_safe_browser_response_stream_pr8_9.js").read_text(
+    source = (root / "service_worker_browser_response_stream.js").read_text(
         encoding="utf-8"
     )
 

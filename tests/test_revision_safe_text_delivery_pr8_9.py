@@ -16,12 +16,16 @@ EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 def test_accumulator_reconstructs_snapshot_delta_and_revision() -> None:
     state = RevisionSafeTextAccumulator()
-    assert state.apply({"type": "assistant_text_snapshot", "sequence": 1, "text": "Hel"})
+    assert state.apply(
+        {"type": "assistant_text_snapshot", "sequence": 1, "text": "Hel"}
+    )
     assert state.apply({"type": "assistant_text_delta", "sequence": 2, "delta": "lo"})
     assert state.text == "Hello"
     assert state.reconcile("Hello") == EXACT_MATCH
 
-    event = state.apply({"type": "assistant_text_revision", "sequence": 3, "text": "Hallo"})
+    event = state.apply(
+        {"type": "assistant_text_revision", "sequence": 3, "text": "Hallo"}
+    )
     assert event is not None
     assert state.text == "Hallo"
     assert state.revision_count == 1
@@ -53,9 +57,9 @@ def test_finalization_event_keeps_canonical_text_authoritative() -> None:
 
 
 def test_extension_delivery_exports_only_reduced_text_events() -> None:
-    source = (
-        EXTENSION / "service_worker_revision_safe_text_delivery_pr8_9.js"
-    ).read_text(encoding="utf-8")
+    source = (EXTENSION / "service_worker_browser_response_stream.js").read_text(
+        encoding="utf-8"
+    )
     assert 'type: "turn_event"' in source
     assert '"assistant_text_snapshot"' in source
     assert '"assistant_text_delta"' in source
@@ -72,10 +76,16 @@ def test_extension_delivery_exports_only_reduced_text_events() -> None:
         assert forbidden not in source
 
 
-def test_observability_loads_delivery_after_patch_protocol() -> None:
+def test_observability_loads_single_response_stream_owner() -> None:
     source = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
-    patch = 'importScripts("service_worker_safe_browser_response_patch_protocol_pr8_9.js");'
-    delivery = 'importScripts("service_worker_revision_safe_text_delivery_pr8_9.js");'
-    assert patch in source
-    assert delivery in source
-    assert source.index(patch) < source.index(delivery)
+    owner = 'importScripts("service_worker_browser_response_stream.js");'
+    assert owner in source
+    assert "service_worker_safe_browser_response_patch_protocol_pr8_9.js" not in source
+    assert "service_worker_revision_safe_text_delivery_pr8_9.js" not in source
+
+    owner_source = (EXTENSION / "service_worker_browser_response_stream.js").read_text(
+        encoding="utf-8"
+    )
+    assert "_pr89BrowserStreamRecordAssistant =" not in owner_source
+    assert "_pr89BrowserStreamProcessSseEvent =" not in owner_source
+    assert "_pr89BrowserStreamSafeResult =" not in owner_source

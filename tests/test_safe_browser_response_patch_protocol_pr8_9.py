@@ -3,25 +3,26 @@ from __future__ import annotations
 from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
 
-def test_patch_protocol_overlay_loads_after_safe_browser_stream_worker() -> None:
+def test_patch_protocol_is_owned_by_single_response_stream_worker() -> None:
     root = browser_native_extension_dir()
     observability = (root / "service_worker_observability.js").read_text(
         encoding="utf-8"
     )
-    stream = 'importScripts("service_worker_safe_browser_response_stream_pr8_9.js")'
-    patch = (
-        'importScripts("service_worker_safe_browser_response_patch_protocol_pr8_9.js")'
+    owner = 'importScripts("service_worker_browser_response_stream.js")'
+    assert owner in observability
+    assert "service_worker_safe_browser_response_stream_pr8_9.js" not in observability
+    assert (
+        "service_worker_safe_browser_response_patch_protocol_pr8_9.js"
+        not in observability
     )
-    assert stream in observability
-    assert patch in observability
-    assert observability.index(stream) < observability.index(patch)
+    assert "service_worker_revision_safe_text_delivery_pr8_9.js" not in observability
 
 
 def test_patch_protocol_matches_existing_product_stream_parser_contract() -> None:
     root = browser_native_extension_dir()
-    overlay = (
-        root / "service_worker_safe_browser_response_patch_protocol_pr8_9.js"
-    ).read_text(encoding="utf-8")
+    overlay = (root / "service_worker_browser_response_stream.js").read_text(
+        encoding="utf-8"
+    )
     client = (root.parent / "legacy_client_core.py").read_text(encoding="utf-8")
 
     for token in (
@@ -48,9 +49,9 @@ def test_patch_protocol_matches_existing_product_stream_parser_contract() -> Non
 
 def test_patch_protocol_overlay_does_not_widen_network_or_secret_surface() -> None:
     root = browser_native_extension_dir()
-    source = (
-        root / "service_worker_safe_browser_response_patch_protocol_pr8_9.js"
-    ).read_text(encoding="utf-8")
+    source = (root / "service_worker_browser_response_stream.js").read_text(
+        encoding="utf-8"
+    )
 
     for forbidden in (
         "Network.getResponseBody",
@@ -68,3 +69,13 @@ def test_patch_protocol_overlay_does_not_widen_network_or_secret_surface() -> No
         "conversation/write",
     ):
         assert forbidden not in source
+
+
+def test_fragmented_pr89_response_workers_are_retired() -> None:
+    root = browser_native_extension_dir()
+    for name in (
+        "service_worker_safe_browser_response_stream_pr8_9.js",
+        "service_worker_safe_browser_response_patch_protocol_pr8_9.js",
+        "service_worker_revision_safe_text_delivery_pr8_9.js",
+    ):
+        assert not (root / name).exists()

@@ -150,7 +150,8 @@ PR15 Architecture Reset
 → PR15.15 detach PR8.7 Temporary research bootstrap [merged]
 → PR15.16 delete isolated observability research surface [merged]
 → PR15.17 retire PR8.8 selection forensics [merged]
-→ PR15.18 consolidate Instant-effort production ownership [active]
+→ PR15.18 consolidate Instant-effort production ownership [merged]
+→ PR15.19 consolidate PR8.9 response-stream ownership [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```
