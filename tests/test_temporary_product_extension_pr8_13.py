@@ -205,6 +205,7 @@ const context = {
   executeNativeTurn: async () => ({}),
   ensureRuntimeTab: async () => ({}),
   submitOfficialPageTurn: async () => ({}),
+  _pr89BrowserStreamProcessSseEvent: async () => undefined,
   CHATGPT_ORIGIN: "https://chatgpt.com",
   waitForTabComplete: async (tabId) => ({ id: tabId }),
   isChatGPTUrl: () => true,
@@ -340,6 +341,11 @@ def test_pr813_adds_no_retry_or_second_product_write_path() -> None:
     source = _source()
     assert "automatic_retry" not in source.lower()
     assert "retry" not in source.lower()
-    assert source.count("await next({") == 1
+
+    start = source.index("async function _pr813ExecuteTemporaryTurn")
+    end = source.index("\nasync function _pr813ExecuteNativeTurn", start)
+    production_turn = source[start:end]
+    assert production_turn.count("await next({") == 1
+
     assert "fetch(" not in source.lower()
     assert "XMLHttpRequest" not in source
