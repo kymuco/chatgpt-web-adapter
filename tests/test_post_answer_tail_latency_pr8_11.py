@@ -16,16 +16,16 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 
-def test_extension_loads_tail_timing_after_revision_safe_delivery() -> None:
+def test_extension_loads_early_response_owner_after_pr89_stream() -> None:
     source = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
-    delivery = 'importScripts("service_worker_browser_response_stream.js");'
-    tail = 'importScripts("service_worker_post_answer_tail_timing_pr8_11.js");'
-    assert delivery in source and tail in source
-    assert source.index(delivery) < source.index(tail)
+    stream = 'importScripts("service_worker_browser_response_stream.js");'
+    owner = 'importScripts("service_worker_early_response_completion.js");'
+    assert stream in source and owner in source
+    assert source.index(stream) < source.index(owner)
 
 
 def test_tail_overlay_is_numeric_observability_only() -> None:
-    source = (EXTENSION / "service_worker_post_answer_tail_timing_pr8_11.js").read_text(
+    source = (EXTENSION / "service_worker_early_response_completion.js").read_text(
         encoding="utf-8"
     )
     assert "lastTextToNetworkCompleteMs" in source

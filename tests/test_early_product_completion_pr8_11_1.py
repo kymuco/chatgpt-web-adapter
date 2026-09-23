@@ -8,19 +8,24 @@ from chatgpt_web_adapter.post_answer_tail_latency_pr8_11 import (
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-SOURCE = EXTENSION / "service_worker_early_product_completion_pr8_11_1.js"
+SOURCE = EXTENSION / "service_worker_early_response_completion.js"
 
 
 def _source() -> str:
     return SOURCE.read_text(encoding="utf-8")
 
 
-def test_observability_loads_pr8111_after_pr811() -> None:
+def test_observability_loads_single_pr811_response_owner() -> None:
     source = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
-    tail = 'importScripts("service_worker_post_answer_tail_timing_pr8_11.js");'
-    early = 'importScripts("service_worker_early_product_completion_pr8_11_1.js");'
-    assert tail in source and early in source
-    assert source.index(tail) < source.index(early)
+    owner = 'importScripts("service_worker_early_response_completion.js");'
+    assert owner in source
+    for retired in (
+        "service_worker_post_answer_tail_timing_pr8_11.js",
+        "service_worker_early_product_completion_pr8_11_1.js",
+        "service_worker_early_product_completion_repair_pr8_11_1.js",
+    ):
+        assert retired not in source
+        assert not (EXTENSION / retired).exists()
 
 
 def test_pr8111_is_read_only_characterization() -> None:
@@ -90,7 +95,7 @@ def test_pr8111_does_not_export_raw_text_or_sse() -> None:
 def test_earliest_terminal_excludes_nonterminal_handoff_markers() -> None:
     source = _source()
     start = source.index("function _pr8111FirstTerminal(context)")
-    end = source.index("\nfunction _pr8111Record(context)", start)
+    end = source.index("\nasync function _pr8111RepairExecuteOfficialPageTurn", start)
     block = source[start:end]
     assert '"assistant_finish_reason"' in block
     assert '"assistant_end_turn"' in block

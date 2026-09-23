@@ -9,9 +9,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 LAYERS = (
     "service_worker_normalized_activity_stream_pr8_12.js",
-    "service_worker_early_product_completion_repair_pr8_11_1.js",
-    "service_worker_early_product_completion_pr8_11_1.js",
-    "service_worker_post_answer_tail_timing_pr8_11.js",
+    "service_worker_early_response_completion.js",
     "service_worker_browser_response_stream.js",
 )
 OWNER = "service_worker_response_lifecycle.js"
@@ -47,19 +45,15 @@ def test_lower_level_stream_and_page_hooks_remain_in_original_modules() -> None:
             "async function _executeNativeTurnWithRevisionSafeTextDelivery",
             "async function _executeNativeTurnWithSafeBrowserStream",
         ),
-        "service_worker_post_answer_tail_timing_pr8_11.js": (
-            "_pr89BrowserStreamRecordAssistant =",
+        "service_worker_early_response_completion.js": (
             "async function _executeOfficialPageTurnWithPostAnswerTailTiming",
-        ),
-        "service_worker_early_product_completion_pr8_11_1.js": (
-            "_pr89BrowserStreamProcessSseEvent =",
-            "_pr89BrowserStreamRecordAssistant =",
             "async function _pr8111ExecuteOfficialPageTurn",
-        ),
-        "service_worker_early_product_completion_repair_pr8_11_1.js": (
-            "_pr89BrowserStreamProcessSseEvent =",
-            "_pr89BrowserStreamRecordAssistant =",
             "async function _pr8111RepairExecuteOfficialPageTurn",
+            "async function _pr811TailRecordAssistantLayer(",
+            "async function _pr8111RecordAssistantLayer(",
+            "async function _pr8111RepairRecordAssistantLayer(",
+            "_pr89BrowserStreamRecordAssistant = _pr811RecordAssistantOwner;",
+            "_pr89BrowserStreamProcessSseEvent = _pr811ProcessSseEventOwner;",
         ),
         "service_worker_normalized_activity_stream_pr8_12.js": (
             "_pr89BrowserStreamProcessSseEvent =",
