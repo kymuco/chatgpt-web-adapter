@@ -9,7 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-PRODUCTION = EXTENSION / "service_worker_temporary_chat_production_pr8_13.js"
+PRODUCTION = EXTENSION / "service_worker_temporary_product.js"
 OBSERVABILITY = EXTENSION / "service_worker_observability.js"
 
 
@@ -20,7 +20,7 @@ def _source() -> str:
 def test_pr813_layer_loads_after_single_pr812_response_owner() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
     owner = 'importScripts("service_worker_response_activity.js");'
-    temporary = 'importScripts("service_worker_temporary_chat_production_pr8_13.js");'
+    temporary = 'importScripts("service_worker_temporary_product.js");'
     assert owner in source and temporary in source
     assert source.index(owner) < source.index(temporary)
     assert "service_worker_answer_channel_pr8_12.js" not in source
