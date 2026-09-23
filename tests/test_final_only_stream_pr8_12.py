@@ -12,7 +12,6 @@ from chatgpt_web_adapter.revision_safe_streaming_pr8_9 import (
 )
 from chatgpt_web_adapter.standalone_send import RevisionSafeTerminalRenderer
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
@@ -66,7 +65,9 @@ def test_final_only_renders_only_explicit_final_channel() -> None:
     assert stream.getvalue() == "Final answer\n"
 
 
-def test_final_only_falls_back_to_new_message_after_activity_when_channel_absent() -> None:
+def test_final_only_falls_back_to_new_message_after_activity_when_channel_absent() -> (
+    None
+):
     stream = StringIO()
     renderer = RevisionSafeTerminalRenderer(stream, final_answer_only=True)
 
@@ -119,19 +120,23 @@ def test_final_only_cli_flag_requires_stream() -> None:
 
 
 def test_answer_channel_overlay_is_loaded_and_delivery_is_bounded() -> None:
-    observability = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
-    delivery = (
-        EXTENSION / "service_worker_browser_response_stream.js"
-    ).read_text(encoding="utf-8")
-    overlay = (
-        EXTENSION / "service_worker_answer_channel_pr8_12.js"
-    ).read_text(encoding="utf-8")
+    observability = (EXTENSION / "service_worker_observability.js").read_text(
+        encoding="utf-8"
+    )
+    delivery = (EXTENSION / "service_worker_browser_response_stream.js").read_text(
+        encoding="utf-8"
+    )
+    overlay = (EXTENSION / "service_worker_answer_channel_pr8_12.js").read_text(
+        encoding="utf-8"
+    )
 
-    patch = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    patch = (
+        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
+    )
     channel = 'importScripts("service_worker_answer_channel_pr8_12.js");'
     assert patch in observability and channel in observability
     assert observability.index(patch) < observability.index(channel)
-    assert 'channel,' in delivery
+    assert "channel," in delivery
     assert 'normalized === "final" || normalized === "commentary"' in overlay
     assert "metadata.output_channel" in overlay
     assert "metadata.message_channel" in overlay
