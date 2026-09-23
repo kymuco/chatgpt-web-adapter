@@ -135,7 +135,7 @@ def test_selection_record_is_namespaced_away_from_transport_lease() -> None:
 
 def test_model_profile_overlay_loads_after_pr8_8_selector_before_pr8_9_streaming() -> None:
     source = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
-    pr88 = 'importScripts("service_worker_instant_effort_slider_support_pr8_8.js");'
+    pr88 = 'importScripts("service_worker_instant_effort_selection.js");'
     pr810 = 'importScripts("service_worker_model_profile_selection_pr8_10.js");'
     pr89 = 'importScripts("service_worker_safe_browser_response_stream_pr8_9.js");'
     assert pr88 in source and pr810 in source and pr89 in source
