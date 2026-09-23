@@ -59,9 +59,9 @@ without requiring a new transport hypothesis.
 
 ## Repair
 
-`service_worker_safe_browser_response_patch_protocol_pr8_9.js` is loaded immediately after the original Candidate-B worker.
+The original PR8.9.2a implementation was introduced as a source-ordered patch overlay. PR15.19 later consolidated that behavior into `service_worker_browser_response_stream.js`, where the patch-aware reducer is now an explicit owner rather than a runtime reassignment.
 
-It replaces only the browser-local SSE event reducer and adds bounded diagnostics.
+The compatibility behavior remains limited to the browser-local SSE event reducer plus bounded diagnostics.
 
 The repair mirrors the existing Python parser semantics:
 
