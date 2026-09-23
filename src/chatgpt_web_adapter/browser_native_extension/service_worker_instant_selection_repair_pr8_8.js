@@ -288,83 +288,6 @@ function _pr88SelectionInstallNetworkWindow(debuggee, context) {
   context.networkListener = listener;
 }
 
-async function _pr88SelectionEnsureInstant(debuggee, context) {
-  if (context.selectionChecked === true) return;
-  context.selectionChecked = true;
-  const startedAt = performance.now();
-
-  const before = await _pr88InstantSelectedModeSnapshot(debuggee);
-  context.selectedModeBeforeSelection = before?.selectedMode || null;
-  context.selectedModeBeforeSelectionProven = before?.selectedModeProven === true;
-  context.selectedModeBeforeSelectionProofKind = before?.proofKind || "unknown";
-  context.selectedModeBeforeSelectionCandidateCount = Number.isInteger(before?.candidateCount)
-    ? before.candidateCount
-    : 0;
-
-  if (before?.selectedModeProven !== true || typeof before?.selectedMode !== "string") {
-    throw new Error("PR8_8_INSTANT_SELECTION_INITIAL_MODE_NOT_PROVEN");
-  }
-
-  if (before.selectedMode === "INSTANT") {
-    context.selectionPerformed = false;
-    context.selectedModeAfterSelection = "INSTANT";
-    context.selectedModeAfterSelectionProven = true;
-    context.selectedModeAfterSelectionProofKind = before.proofKind || "unknown";
-    context.selectionElapsedMs = _pr88SelectionDurationMs(startedAt);
-    context.selectionMutationElapsedMs = 0;
-    context.selectionComplete = true;
-    return;
-  }
-
-  context.selectionPerformed = true;
-  _pr88SelectionInstallNetworkWindow(debuggee, context);
-
-  const mutationStartedAt = performance.now();
-  const picker = await _pr88SelectionPoint(debuggee, "picker");
-  context.pickerCandidateCount = Number.isInteger(picker?.candidateCount)
-    ? picker.candidateCount
-    : 0;
-  context.pickerNearestDistancePx = _pr88SelectionSafeInt(picker?.nearestDistancePx);
-  context.pickerModeBeforeClick = typeof picker?.mode === "string" ? picker.mode : null;
-  if (picker?.found !== true) {
-    throw new Error(`PR8_8_INSTANT_SELECTION_PICKER_NOT_FOUND:${picker?.reason || "unknown"}`);
-  }
-  await _pr88SelectionRawClick(debuggee, picker);
-
-  const option = await _pr88SelectionWaitForInstantOption(
-    debuggee,
-    PR88_INSTANT_SELECTION_OPTION_TIMEOUT_MS
-  );
-  context.instantOptionCandidateCount = Number.isInteger(option?.candidateCount)
-    ? option.candidateCount
-    : 0;
-  if (option?.found !== true) {
-    throw new Error(`PR8_8_INSTANT_SELECTION_OPTION_NOT_FOUND:${option?.reason || "unknown"}`);
-  }
-  await _pr88SelectionRawClick(debuggee, option);
-
-  const after = await _pr88SelectionWaitForInstantSelected(
-    debuggee,
-    PR88_INSTANT_SELECTION_SETTLE_TIMEOUT_MS
-  );
-  context.selectedModeAfterSelection = after?.selectedMode || null;
-  context.selectedModeAfterSelectionProven = after?.selectedModeProven === true;
-  context.selectedModeAfterSelectionProofKind = after?.proofKind || "unknown";
-  if (
-    after?.selectedModeProven !== true ||
-    after?.selectedMode !== "INSTANT"
-  ) {
-    throw new Error("PR8_8_INSTANT_SELECTION_DID_NOT_SETTLE_TO_INSTANT");
-  }
-
-  context.selectionMutationElapsedMs = _pr88SelectionDurationMs(mutationStartedAt);
-  context.selectionElapsedMs = _pr88SelectionDurationMs(startedAt);
-  context.selectionComplete = true;
-  // Keep the network window open until the actual conversation POST. This
-  // captures any asynchronous model-selection persistence without adding an
-  // artificial sleep to the latency measurement.
-}
-
 locateAndFocusComposer = async function _locateAndFocusComposerWithInstantSelectionRepair(debuggee) {
   const context = _pr88SelectionContext;
   if (context !== null) {
@@ -427,6 +350,28 @@ function _pr88SelectionRecord(context) {
   return {
     instantSelectionLeaseId: context.leaseId,
     instantSelectionSchemaVersion: PR88_INSTANT_SELECTION_SCHEMA_VERSION,
+    instantEffortSelectionSchemaVersion:
+      context.instantEffortSelectionSchemaVersion || PR88_INSTANT_EFFORT_SELECTION_SCHEMA_VERSION,
+    selectionMechanism: context.selectionMechanism || null,
+    instantEffortPickerClickPerformed: context.instantEffortPickerClickPerformed === true,
+    effortSliderCandidateCount: Number.isInteger(context.effortSliderCandidateCount)
+      ? context.effortSliderCandidateCount : 0,
+    effortSliderAriaValueMin: Number.isFinite(context.effortSliderAriaValueMin)
+      ? context.effortSliderAriaValueMin : null,
+    effortSliderAriaValueMax: Number.isFinite(context.effortSliderAriaValueMax)
+      ? context.effortSliderAriaValueMax : null,
+    effortSliderAriaValueNowBefore: Number.isFinite(context.effortSliderAriaValueNowBefore)
+      ? context.effortSliderAriaValueNowBefore : null,
+    effortSliderAriaValueNowAfter: Number.isFinite(context.effortSliderAriaValueNowAfter)
+      ? context.effortSliderAriaValueNowAfter : null,
+    effortSliderStepCount: Number.isInteger(context.effortSliderStepCount)
+      ? context.effortSliderStepCount : null,
+    effortSliderFocusProven: context.effortSliderFocusProven === true,
+    effortSliderHomeDispatched: context.effortSliderHomeDispatched === true,
+    effortSliderMinReachedProven: context.effortSliderMinReachedProven === true,
+    effortSliderObservedAfterHome: context.effortSliderObservedAfterHome === true,
+    advancedControlClicked: context.advancedControlClicked === true,
+    modelControlClicked: context.modelControlClicked === true,
     requestedModelMode: "INSTANT",
     selectedModeBeforeSelection: context.selectedModeBeforeSelection,
     selectedModeBeforeSelectionProven: context.selectedModeBeforeSelectionProven,
