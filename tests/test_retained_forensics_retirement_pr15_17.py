@@ -31,17 +31,24 @@ def test_pr88_selection_forensics_are_not_shipped_or_loaded() -> None:
 def test_base_instant_selection_repair_remains_in_production() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
     selection = EXT / "service_worker_instant_selection_repair_pr8_8.js"
+    effort = EXT / "service_worker_instant_effort_selection.js"
 
     assert (
         'importScripts("service_worker_instant_selection_repair_pr8_8.js");' in source
     )
+    assert 'importScripts("service_worker_instant_effort_selection.js");' in source
     assert selection.exists()
+    assert effort.exists()
 
-    code = selection.read_text(encoding="utf-8")
-    assert "async function _pr88SelectionPoint(" in code
-    assert "async function _pr88SelectionRawClick(" in code
-    assert "async function _pr88SelectionWaitForInstantOption(" in code
-    assert "async function _pr88SelectionEnsureInstant(" in code
+    base_code = selection.read_text(encoding="utf-8")
+    effort_code = effort.read_text(encoding="utf-8")
+    assert "async function _pr88SelectionPoint(" in base_code
+    assert "function _pr88SelectionInstallNetworkWindow(" in base_code
+    assert "async function _pr88SelectionEnsureInstant(" not in base_code
+    assert "async function _pr88SelectionRawClick(" not in base_code
+    assert "async function _pr88SelectionWaitForInstantOption(" not in base_code
+    assert "async function _pr88SelectionEnsureInstant(" in effort_code
+    assert "_pr88SelectionEnsureInstant =" not in effort_code
 
 
 def test_retired_python_forensics_are_not_in_shipping_package() -> None:
