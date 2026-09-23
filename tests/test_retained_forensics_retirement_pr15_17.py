@@ -32,7 +32,9 @@ def test_base_instant_selection_repair_remains_in_production() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
     selection = EXT / "service_worker_instant_selection_repair_pr8_8.js"
 
-    assert 'importScripts("service_worker_instant_selection_repair_pr8_8.js");' in source
+    assert (
+        'importScripts("service_worker_instant_selection_repair_pr8_8.js");' in source
+    )
     assert selection.exists()
 
     code = selection.read_text(encoding="utf-8")
