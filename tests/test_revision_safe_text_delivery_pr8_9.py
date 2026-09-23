@@ -16,12 +16,16 @@ EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 def test_accumulator_reconstructs_snapshot_delta_and_revision() -> None:
     state = RevisionSafeTextAccumulator()
-    assert state.apply({"type": "assistant_text_snapshot", "sequence": 1, "text": "Hel"})
+    assert state.apply(
+        {"type": "assistant_text_snapshot", "sequence": 1, "text": "Hel"}
+    )
     assert state.apply({"type": "assistant_text_delta", "sequence": 2, "delta": "lo"})
     assert state.text == "Hello"
     assert state.reconcile("Hello") == EXACT_MATCH
 
-    event = state.apply({"type": "assistant_text_revision", "sequence": 3, "text": "Hallo"})
+    event = state.apply(
+        {"type": "assistant_text_revision", "sequence": 3, "text": "Hallo"}
+    )
     assert event is not None
     assert state.text == "Hallo"
     assert state.revision_count == 1
