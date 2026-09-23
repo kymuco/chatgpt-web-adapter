@@ -78,13 +78,17 @@ def test_connector_lifecycle_overlay_does_not_own_native_turn_dispatch() -> None
     assert "characterizeConnectorObservationSupport" not in source
 
 
-def test_overlay_loads_after_normalized_stream_and_before_patch_protocol() -> None:
+def test_overlay_loads_after_single_pr812_response_owner() -> None:
     source = OBSERVABILITY_JS.read_text(encoding="utf-8")
-    activity = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
+    owner = 'importScripts("service_worker_response_activity.js");'
     connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
-    patch = (
-        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
-    )
 
-    assert activity in source and connector in source and patch in source
-    assert source.index(activity) < source.index(connector) < source.index(patch)
+    assert owner in source and connector in source
+    assert source.index(owner) < source.index(connector)
+    assert "service_worker_normalized_activity_patch_protocol_pr8_12.js" not in source
+
+    owner_source = (EXTENSION / "service_worker_response_activity.js").read_text(
+        encoding="utf-8"
+    )
+    assert "function _pr812PatchSelect(state, message)" in owner_source
+    assert "function _pr812PatchApplyItem(" in owner_source
