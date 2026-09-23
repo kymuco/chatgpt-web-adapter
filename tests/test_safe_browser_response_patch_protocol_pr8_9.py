@@ -11,7 +11,10 @@ def test_patch_protocol_is_owned_by_single_response_stream_worker() -> None:
     owner = 'importScripts("service_worker_browser_response_stream.js")'
     assert owner in observability
     assert "service_worker_safe_browser_response_stream_pr8_9.js" not in observability
-    assert "service_worker_safe_browser_response_patch_protocol_pr8_9.js" not in observability
+    assert (
+        "service_worker_safe_browser_response_patch_protocol_pr8_9.js"
+        not in observability
+    )
     assert "service_worker_revision_safe_text_delivery_pr8_9.js" not in observability
 
 
