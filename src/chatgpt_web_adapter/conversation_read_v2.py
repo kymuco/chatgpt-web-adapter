@@ -12,6 +12,12 @@ from .types import ChatConversation, ConversationRef
 # guarantee: a live long-chat response returned far more than 20 messages while
 # still requiring this smaller value to avoid an upstream HTTP 500.
 CURRENT_CONVERSATION_NUM_TURNS = 20
+CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES = (
+    CURRENT_CONVERSATION_NUM_TURNS,
+    10,
+    5,
+)
+CANONICAL_CONVERSATION_NON_JSON_RETRIES = 1
 MAX_CANONICAL_CONVERSATION_PAGES = 100
 
 
@@ -196,16 +202,94 @@ def _current_conversation_url(
     conversation_id: str,
     *,
     before: str | None = None,
+    num_turns: int = CURRENT_CONVERSATION_NUM_TURNS,
 ) -> str:
     params: dict[str, str | int] = {
         "include_has_versions": "true",
-        "num_turns": CURRENT_CONVERSATION_NUM_TURNS,
+        "num_turns": num_turns,
     }
     if before is not None:
         params["before"] = before
     return (
         f"{base_url.rstrip('/')}/{quote(conversation_id, safe='')}?{urlencode(params)}"
     )
+
+
+def _is_success_status(status: int) -> bool:
+    return 200 <= status < 300
+
+
+def _timeout_like_response(status: int, data: Any) -> bool:
+    if status in {408, 504}:
+        return True
+    if status != 500:
+        return False
+
+    if isinstance(data, str):
+        text = data
+    elif isinstance(data, dict):
+        parts = [
+            data[key]
+            for key in ("detail", "message", "error")
+            if isinstance(data.get(key), str)
+        ]
+        text = " ".join(parts)
+    else:
+        return False
+
+    normalized = text.casefold()
+    return "timeout" in normalized or "timed out" in normalized
+
+
+def _read_current_page(
+    client: Any,
+    *,
+    current_base_url: str,
+    conversation_id: str,
+    headers: dict[str, str],
+    before: str | None = None,
+) -> tuple[int, Any]:
+    """Read one current-endpoint page with bounded load-shedding recovery.
+
+    num_turns is a server-side query hint rather than a message-count contract.
+    When the product explicitly reports a request timeout, retrying the same heavy
+    request is wasteful. Step down the hint while preserving the exact conversation
+    identity and pagination cursor.
+
+    A successful non-object response is retried once at the same hint. This covers
+    transient empty/HTML intermediary responses without turning redirects, auth
+    failures, or arbitrary HTTP 500s into silent retry loops.
+    """
+
+    last_status = 0
+    last_data: Any = None
+
+    for num_turns in CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES:
+        non_json_retries = CANONICAL_CONVERSATION_NON_JSON_RETRIES
+        while True:
+            current_url = _current_conversation_url(
+                current_base_url,
+                conversation_id,
+                before=before,
+                num_turns=num_turns,
+            )
+            status, data = client._json_request("GET", current_url, None, headers)
+            last_status, last_data = status, data
+
+            if _timeout_like_response(status, data):
+                break
+
+            if (
+                _is_success_status(status)
+                and not isinstance(data, dict)
+                and non_json_retries > 0
+            ):
+                non_json_retries -= 1
+                continue
+
+            return status, data
+
+    return last_status, last_data
 
 
 def read_conversation_payload_v2(
@@ -226,14 +310,18 @@ def read_conversation_payload_v2(
         }
     )
 
-    current_url = _current_conversation_url(current_base_url, ref.conversation_id)
-    status, data = client._json_request("GET", current_url, None, headers)
+    status, data = _read_current_page(
+        client,
+        current_base_url=current_base_url,
+        conversation_id=ref.conversation_id,
+        headers=headers,
+    )
     if status == 404:
         legacy_url = legacy_url_template.format(conversation_id=ref.conversation_id)
         legacy_status, legacy_data = client._json_request(
             "GET", legacy_url, None, headers
         )
-        if legacy_status >= 400:
+        if not _is_success_status(legacy_status):
             raise RequestError(
                 f"conversation status={legacy_status}: {legacy_data}",
                 status_code=legacy_status,
@@ -243,11 +331,14 @@ def read_conversation_payload_v2(
         if not isinstance(legacy_data, dict):
             raise RequestError(
                 "conversation response expected JSON object",
+                status_code=legacy_status,
+                endpoint="conversation",
+                body_preview=legacy_data,
                 request_stage="conversation_fetch",
             )
         return normalize_conversation_payload(legacy_data)
 
-    if status >= 400:
+    if not _is_success_status(status):
         raise RequestError(
             f"conversation status={status}: {data}",
             status_code=status,
@@ -257,6 +348,9 @@ def read_conversation_payload_v2(
     if not isinstance(data, dict):
         raise RequestError(
             "conversation response expected JSON object",
+            status_code=status,
+            endpoint="conversations",
+            body_preview=data,
             request_stage="conversation_fetch",
         )
 
@@ -280,13 +374,14 @@ def read_conversation_payload_v2(
                 request_stage="conversation_fetch",
             )
         seen_cursors.add(cursor)
-        page_url = _current_conversation_url(
-            current_base_url,
-            ref.conversation_id,
+        page_status, page_data = _read_current_page(
+            client,
+            current_base_url=current_base_url,
+            conversation_id=ref.conversation_id,
+            headers=headers,
             before=cursor,
         )
-        page_status, page_data = client._json_request("GET", page_url, None, headers)
-        if page_status >= 400:
+        if not _is_success_status(page_status):
             raise RequestError(
                 f"conversation status={page_status}: {page_data}",
                 status_code=page_status,
@@ -296,6 +391,9 @@ def read_conversation_payload_v2(
         if not isinstance(page_data, dict):
             raise RequestError(
                 "conversation pagination response expected JSON object",
+                status_code=page_status,
+                endpoint="conversations",
+                body_preview=page_data,
                 request_stage="conversation_fetch",
             )
         pages.append(page_data)
