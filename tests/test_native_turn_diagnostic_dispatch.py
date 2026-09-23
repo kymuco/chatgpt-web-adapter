@@ -37,9 +37,7 @@ def test_retained_route_and_picker_diagnostics_are_retired() -> None:
 
     assert "service_worker_retained_route_identity_pr8_8.js" not in source
     assert "service_worker_retained_picker_forensics_pr8_8.js" not in source
-    assert not (
-        EXTENSION / "service_worker_retained_route_identity_pr8_8.js"
-    ).exists()
+    assert not (EXTENSION / "service_worker_retained_route_identity_pr8_8.js").exists()
     assert not (
         EXTENSION / "service_worker_retained_picker_forensics_pr8_8.js"
     ).exists()
