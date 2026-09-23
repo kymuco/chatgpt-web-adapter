@@ -384,6 +384,114 @@ def test_successful_non_json_response_retries_once_at_same_hint() -> None:
     ]
 
 
+def test_full_history_progress_uses_stderr_and_reports_completion(capsys) -> None:
+    latest = {
+        "conversation_id": "conversation-1",
+        "current_node": "a4",
+        "messages": [
+            _message("u3", "user", "three"),
+            _message("a4", "assistant", "four", finish=True),
+        ],
+        "page_info": {
+            "has_previous_page": True,
+            "start_cursor": "cursor-2",
+        },
+    }
+    older = {
+        "conversation_id": "conversation-1",
+        "messages": [
+            _message("u1", "user", "one"),
+            _message("a2", "assistant", "two"),
+        ],
+        "page_info": {"has_previous_page": False},
+    }
+    client = _RequestClient([(200, latest), (200, older)])
+    client.conversation_read_progress = True
+
+    read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+        include_all_pages=True,
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "[cwa] conversation read: starting full history" in captured.err
+    assert "page 1 received, 2 records" in captured.err
+    assert "page 2 received, 2 records, 4 accumulated" in captured.err
+    assert "complete, 2 pages, 4 records" in captured.err
+    assert "cursor-2" not in captured.err
+    assert "conversation-1" not in captured.err
+
+
+def test_full_history_progress_can_be_disabled(capsys) -> None:
+    payload = {
+        "conversation_id": "conversation-1",
+        "current_node": "a2",
+        "messages": [
+            _message("u1", "user", "one"),
+            _message("a2", "assistant", "two", finish=True),
+        ],
+        "page_info": {"has_previous_page": False},
+    }
+    client = _RequestClient([(200, payload)])
+    client.conversation_read_progress = False
+
+    read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+        include_all_pages=True,
+    )
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_timeout_recovery_progress_reports_load_shedding_without_ids(capsys) -> None:
+    payload = {
+        "conversation_id": "conversation-1",
+        "current_node": "a2",
+        "messages": [
+            _message("u1", "user", "one"),
+            _message("a2", "assistant", "two", finish=True),
+        ],
+        "page_info": {"has_previous_page": False},
+    }
+    client = _RequestClient(
+        [
+            (500, {"detail": "Request timeout"}),
+            (200, payload),
+        ]
+    )
+    client.conversation_read_progress = True
+
+    read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+        include_all_pages=True,
+    )
+
+    captured = capsys.readouterr()
+    assert (
+        "page 1 timed out at num_turns=20; retrying with num_turns=10"
+        in captured.err
+    )
+    assert "conversation-1" not in captured.err
+
+
 def test_persistent_successful_non_json_response_keeps_diagnostics() -> None:
     client = _RequestClient(
         [(200, "<html>temporary</html>"), (200, "<html>still temporary</html>")]
