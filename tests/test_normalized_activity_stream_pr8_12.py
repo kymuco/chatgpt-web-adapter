@@ -14,8 +14,8 @@ from chatgpt_web_adapter.standalone_send import RevisionSafeTerminalRenderer
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-ACTIVITY_JS = EXTENSION / "service_worker_normalized_activity_stream_pr8_12.js"
-PATCH_JS = EXTENSION / "service_worker_normalized_activity_patch_protocol_pr8_12.js"
+ACTIVITY_JS = EXTENSION / "service_worker_response_activity.js"
+PATCH_JS = ACTIVITY_JS
 OBSERVABILITY_JS = EXTENSION / "service_worker_observability.js"
 
 
@@ -232,12 +232,16 @@ def test_compact_patch_protocol_keeps_stable_message_and_null_path_text() -> Non
     assert "_pr812InspectMessage(context, state, state.currentPatchMessage)" in source
 
 
-def test_activity_stream_load_order_preserves_pr8111_then_patch_compatibility() -> None:
+def test_activity_stream_loads_as_single_pr812_owner_after_pr811() -> None:
     source = OBSERVABILITY_JS.read_text(encoding="utf-8")
     early = 'importScripts("service_worker_early_response_completion.js");'
-    activity = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
-    patch = (
-        'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
-    )
-    assert early in source and activity in source and patch in source
-    assert source.index(early) < source.index(activity) < source.index(patch)
+    owner = 'importScripts("service_worker_response_activity.js");'
+    assert early in source and owner in source
+    assert source.index(early) < source.index(owner)
+    for retired in (
+        "service_worker_normalized_activity_stream_pr8_12.js",
+        "service_worker_normalized_activity_patch_protocol_pr8_12.js",
+        "service_worker_answer_channel_pr8_12.js",
+    ):
+        assert retired not in source
+        assert not (EXTENSION / retired).exists()
