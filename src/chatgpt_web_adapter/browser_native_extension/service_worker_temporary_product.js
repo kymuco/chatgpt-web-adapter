@@ -3,6 +3,9 @@
 // Consolidates Temporary write/lifecycle authority, live SSE session identity,
 // and fresh-session identity normalization. Startup-readiness and the explicit
 // Temporary native lifecycle remain separate outer layers.
+//
+// A Temporary conversation id is session-local routing metadata only. It never
+// grants continuation authority without the live lifecycle token/tab binding.
 
 const PR813_TEMPORARY_RUNTIME_TAB_KEY = "browserNativeTemporaryRuntimeTabIdV1";
 const PR813_TEMPORARY_PROOF_TIMEOUT_MS = 10_000;
