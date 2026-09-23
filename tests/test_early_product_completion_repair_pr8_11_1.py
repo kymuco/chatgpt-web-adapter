@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 RECOVERY = EXTENSION / "service_worker_recovery.js"
-REPAIR = EXTENSION / "service_worker_early_product_completion_repair_pr8_11_1.js"
+REPAIR = EXTENSION / "service_worker_early_response_completion.js"
 OBSERVABILITY = EXTENSION / "service_worker_observability.js"
 
 
@@ -13,16 +13,17 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_repair_overlay_loads_after_characterization() -> None:
+def test_repair_is_owned_by_single_pr811_response_worker() -> None:
     source = _read(OBSERVABILITY)
-    characterization = (
-        'importScripts("service_worker_early_product_completion_pr8_11_1.js");'
-    )
-    repair = (
-        'importScripts("service_worker_early_product_completion_repair_pr8_11_1.js");'
-    )
-    assert characterization in source and repair in source
-    assert source.index(characterization) < source.index(repair)
+    owner = 'importScripts("service_worker_early_response_completion.js");'
+    assert owner in source
+    for retired in (
+        "service_worker_post_answer_tail_timing_pr8_11.js",
+        "service_worker_early_product_completion_pr8_11_1.js",
+        "service_worker_early_product_completion_repair_pr8_11_1.js",
+    ):
+        assert retired not in source
+        assert not (EXTENSION / retired).exists()
 
 
 def test_core_page_boundary_is_fail_closed() -> None:
@@ -81,17 +82,17 @@ def test_early_repair_requires_conjunctive_current_answer_terminal_proof() -> No
 
 def test_terminal_decision_runs_after_established_sse_processing() -> None:
     source = _read(REPAIR)
-    start = source.index("_pr89BrowserStreamProcessSseEvent = async function")
+    start = source.index("async function _pr8111RepairProcessSseEventLayer")
     end = source.index("\n// Generic status", start)
     block = source[start:end]
-    prior_index = block.index("await _pr8111RepairPriorProcessSseEvent")
+    prior_index = block.index("await next(streamContext, block)")
     decision_index = block.index("finishReason !== null && finishCurrent")
     assert prior_index < decision_index
 
 
 def test_pre_text_completed_status_cannot_be_earliest_terminal() -> None:
     source = _read(REPAIR)
-    start = source.index("_pr8111FirstTerminal = function")
+    start = source.index("function _pr8111FirstTerminal(context)")
     end = source.index("\nasync function _pr8111RepairExecuteOfficialPageTurn", start)
     block = source[start:end]
     assert "const firstText = context?.firstAssistantTextObservedAt" in block
