@@ -1,10 +1,11 @@
-// PR8.13: production Temporary Chat write routing and lifecycle authority.
+// PR15.23 explicit production owner for PR8.13 Temporary product behavior.
 //
-// Temporary mode is never inferred from a URL/title alone. For every Temporary
-// product write, the page-generated conversation POST is paused with CDP Fetch
-// before it reaches the server. Only a request whose browser-local JSON payload
-// proves `history_and_training_disabled === true` is allowed to continue.
-// Raw request bodies never leave this worker and are never rewritten here.
+// Consolidates Temporary write/lifecycle authority, live SSE session identity,
+// and fresh-session identity normalization. Startup-readiness and the explicit
+// Temporary native lifecycle remain separate outer layers.
+//
+// A Temporary conversation id is session-local routing metadata only.
+// It never grants continuation authority without the live lifecycle token/tab binding.
 
 const PR813_TEMPORARY_RUNTIME_TAB_KEY = "browserNativeTemporaryRuntimeTabIdV1";
 const PR813_TEMPORARY_PROOF_TIMEOUT_MS = 10_000;
@@ -19,7 +20,7 @@ function _pr813TemporaryToken(value) {
   return token || null;
 }
 
-function _pr813ConversationId(value) {
+function _pr813ConversationIdCore(value) {
   const conversationId = typeof value === "string" ? value.trim() : "";
   return conversationId || null;
 }
@@ -457,3 +458,161 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   const stored = await _pr813StoredTemporaryTabId();
   if (stored === tabId) await _pr813ClearStoredTemporaryTabId(tabId);
 });
+
+
+const PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL = "__cwa_pr813_live_temporary_identity_pending__";
+function _pr813FreshIdentityFromLiveContext() {
+  const active = _pr813TemporaryTurnContext;
+  const activeId = _pr813ConversationIdCore(
+    active?.ephemeralConversationId
+  );
+  if (activeId) return activeId;
+
+  const liveId = _pr813ConversationIdCore(
+    _pr813LiveTemporaryLifecycle?.conversationId
+  );
+  return liveId || null;
+}
+
+function _pr813ConversationId(value) {
+  if (value === PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL) {
+    return _pr813FreshIdentityFromLiveContext();
+  }
+  return _pr813ConversationIdCore(value);
+};
+
+async function _pr813ExecuteNativeTurnWithFreshIdentityFlush(message, next) {
+  const mode = typeof message?.conversationMode === "string"
+    ? message.conversationMode.trim().toLowerCase()
+    : "normal";
+  const freshTemporary = (
+    mode === "temporary" &&
+    _pr813ConversationIdCore(message?.conversationId) === null
+  );
+
+  if (!freshTemporary) {
+    return next(message);
+  }
+
+  const result = await next({
+    ...message,
+    // This satisfies only the legacy base native-turn identity assertion. The
+    // PR8.13 ensureRuntimeTab/prewrite layers normalize this sentinel back to
+    // null, so the page still performs a true fresh Temporary write with no
+    // conversation_id in its request payload.
+    conversationId: PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL,
+  });
+
+  if (!result || typeof result !== "object") return result;
+  if (result.conversationId !== PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL) {
+    return result;
+  }
+
+  const resolvedConversationId = _pr813FreshIdentityFromLiveContext();
+  if (!resolvedConversationId) {
+    throw new Error("PR8_13_TEMPORARY_SESSION_ROUTING_IDENTITY_MISSING_AFTER_STREAM_FLUSH");
+  }
+
+  return {
+    ...result,
+    conversationId: resolvedConversationId,
+    temporarySessionRoutingIdentitySource: "LIVE_SSE_STREAM",
+  };
+};
+
+
+const _pr813SessionIdentityUpstreamProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
+
+function _pr813SessionIdentityDirect(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const conversationId = _pr813ConversationId(
+    value.conversation_id ?? value.conversationId
+  );
+  if (!conversationId) return null;
+  const turnExchangeId = typeof (value.turn_exchange_id ?? value.turnExchangeId) === "string" &&
+    (value.turn_exchange_id ?? value.turnExchangeId).trim()
+    ? (value.turn_exchange_id ?? value.turnExchangeId).trim()
+    : null;
+  return { conversationId, turnExchangeId };
+}
+
+function _pr813SessionIdentityFromPayload(payload) {
+  const direct = _pr813SessionIdentityDirect(payload);
+  if (direct) return direct;
+
+  // Bounded envelope traversal only. Do not recursively inspect arbitrary tool,
+  // message, metadata, or attachment objects for conversation-shaped strings.
+  for (const key of ["payload", "data", "result", "turn"]) {
+    const nested = _pr813SessionIdentityDirect(payload?.[key]);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function _pr813SessionIdentityFromSseBlock(block) {
+  const lines = String(block || "").split(/\r?\n/);
+  const dataLines = [];
+  for (const line of lines) {
+    if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+  }
+  if (!dataLines.length) return null;
+
+  const data = dataLines.join("\n").trim();
+  if (!data || data === "[DONE]") return null;
+
+  let payload;
+  try {
+    payload = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  if (!payload || typeof payload !== "object") return null;
+  return _pr813SessionIdentityFromPayload(payload);
+}
+
+async function _pr813ProcessSseWithTemporarySessionIdentity(context, block) {
+  const temporaryContext = _pr813TemporaryTurnContext;
+  if (temporaryContext !== null) {
+    const identity = _pr813SessionIdentityFromSseBlock(block);
+    if (identity !== null) {
+      if (
+        temporaryContext.expectedConversationId !== null &&
+        identity.conversationId !== temporaryContext.expectedConversationId
+      ) {
+        temporaryContext.modeViolation = "TEMPORARY_STREAM_IDENTITY_CONVERSATION_MISMATCH";
+      } else {
+        temporaryContext.ephemeralConversationId = identity.conversationId;
+        if (identity.turnExchangeId) {
+          temporaryContext.ephemeralTurnExchangeId = identity.turnExchangeId;
+        }
+      }
+    }
+  }
+
+  return _pr813SessionIdentityUpstreamProcessSseEvent(context, block);
+}
+
+async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next) {
+  const result = await next(args);
+  const temporaryContext = _pr813TemporaryTurnContext;
+  if (temporaryContext === null || !result || typeof result !== "object") return result;
+
+  const conversationId = _pr813ConversationId(result.conversationId)
+    || _pr813ConversationId(temporaryContext.ephemeralConversationId);
+  const turnExchangeId = (
+    typeof result.turnExchangeId === "string" && result.turnExchangeId.trim()
+      ? result.turnExchangeId.trim()
+      : typeof temporaryContext.ephemeralTurnExchangeId === "string" &&
+        temporaryContext.ephemeralTurnExchangeId.trim()
+        ? temporaryContext.ephemeralTurnExchangeId.trim()
+        : null
+  );
+
+  return {
+    ...result,
+    conversationId,
+    turnExchangeId,
+  };
+};
+
+_pr89BrowserStreamProcessSseEvent = _pr813ProcessSseWithTemporarySessionIdentity;

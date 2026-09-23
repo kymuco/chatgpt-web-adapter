@@ -9,7 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-PRODUCTION = EXTENSION / "service_worker_temporary_chat_production_pr8_13.js"
+PRODUCTION = EXTENSION / "service_worker_temporary_product.js"
 OBSERVABILITY = EXTENSION / "service_worker_observability.js"
 
 
@@ -20,7 +20,7 @@ def _source() -> str:
 def test_pr813_layer_loads_after_single_pr812_response_owner() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
     owner = 'importScripts("service_worker_response_activity.js");'
-    temporary = 'importScripts("service_worker_temporary_chat_production_pr8_13.js");'
+    temporary = 'importScripts("service_worker_temporary_product.js");'
     assert owner in source and temporary in source
     assert source.index(owner) < source.index(temporary)
     assert "service_worker_answer_channel_pr8_12.js" not in source
@@ -205,6 +205,7 @@ const context = {
   executeNativeTurn: async () => ({}),
   ensureRuntimeTab: async () => ({}),
   submitOfficialPageTurn: async () => ({}),
+  _pr89BrowserStreamProcessSseEvent: async () => undefined,
   CHATGPT_ORIGIN: "https://chatgpt.com",
   waitForTabComplete: async (tabId) => ({ id: tabId }),
   isChatGPTUrl: () => true,
@@ -340,6 +341,11 @@ def test_pr813_adds_no_retry_or_second_product_write_path() -> None:
     source = _source()
     assert "automatic_retry" not in source.lower()
     assert "retry" not in source.lower()
-    assert source.count("await next({") == 1
+
+    start = source.index("async function _pr813ExecuteTemporaryTurn")
+    end = source.index("\nasync function _pr813ExecuteNativeTurn", start)
+    production_turn = source[start:end]
+    assert production_turn.count("await next({") == 1
+
     assert "fetch(" not in source.lower()
     assert "XMLHttpRequest" not in source

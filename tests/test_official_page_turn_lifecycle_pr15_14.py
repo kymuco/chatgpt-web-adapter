@@ -10,7 +10,7 @@ OWNER = "service_worker_official_page_turn_lifecycle.js"
 
 FORMER_OWNERS = (
     "service_worker_observability_page_turn_lifecycle.js",
-    "service_worker_temporary_session_identity_pr8_13.js",
+    "service_worker_temporary_product.js",
     "service_worker_rich_input_pr9_2.js",
     "service_worker_rich_input_schema16_repair_pr9_2.js",
     "service_worker_rich_input_schema17_repair_pr9_2.js",

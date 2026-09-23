@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OBSERVABILITY = EXTENSION / "service_worker_observability.js"
 READINESS = EXTENSION / "service_worker_temporary_startup_readiness_pr8_13_2.js"
-PRODUCTION = EXTENSION / "service_worker_temporary_chat_production_pr8_13.js"
+PRODUCTION = EXTENSION / "service_worker_temporary_product.js"
 
 
 def _text(path: Path) -> str:
@@ -15,16 +15,14 @@ def _text(path: Path) -> str:
 
 def test_pr8132_overlay_loads_after_temporary_identity_repairs() -> None:
     text = _text(OBSERVABILITY)
-    fresh_identity = (
-        'importScripts("service_worker_temporary_fresh_identity_flush_pr8_13.js");'
-    )
+    temporary_product = 'importScripts("service_worker_temporary_product.js");'
     readiness = (
         'importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");'
     )
 
-    assert fresh_identity in text
+    assert temporary_product in text
     assert readiness in text
-    assert text.index(readiness) > text.index(fresh_identity)
+    assert text.index(readiness) > text.index(temporary_product)
 
 
 def test_fresh_readiness_is_bounded_and_non_authoritative() -> None:
