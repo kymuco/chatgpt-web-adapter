@@ -18,7 +18,7 @@ EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 def test_extension_loads_tail_timing_after_revision_safe_delivery() -> None:
     source = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
-    delivery = 'importScripts("service_worker_revision_safe_text_delivery_pr8_9.js");'
+    delivery = 'importScripts("service_worker_browser_response_stream.js");'
     tail = 'importScripts("service_worker_post_answer_tail_timing_pr8_11.js");'
     assert delivery in source and tail in source
     assert source.index(delivery) < source.index(tail)
