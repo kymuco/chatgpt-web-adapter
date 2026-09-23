@@ -25,13 +25,6 @@ function registerNativeTurnDiagnosticHandler(name, matches, handle) {
   registrations.set(name, { matches, handle });
 }
 
-let _pr88SelectionRecord = () => ({});
-const PR88_INSTANT_EFFORT_SELECTION_SCHEMA_VERSION = 1;
-
-function _pr88InstantEffortSupportConflict(message) {
-  return message?.text != null;
-}
-
 globalThis.chrome = {
   storage: { local: {} },
   tabs: {},
