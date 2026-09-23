@@ -65,9 +65,7 @@ def test_missing_base_turn_identity_can_be_filled_before_native_turn_returns() -
 def test_fresh_temporary_identity_flush_uses_extension_local_sentinel_only() -> None:
     source = _source("service_worker_temporary_product.js")
     start = source.index("const PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL")
-    end = source.index(
-        "\nconst _pr813SessionIdentityUpstreamProcessSseEvent", start
-    )
+    end = source.index("\nconst _pr813SessionIdentityUpstreamProcessSseEvent", start)
     fresh = source[start:end]
 
     assert "PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in fresh
