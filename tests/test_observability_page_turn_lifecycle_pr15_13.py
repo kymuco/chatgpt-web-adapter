@@ -9,9 +9,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OWNER = "service_worker_observability_page_turn_lifecycle.js"
 
 LAYERS = (
-    "service_worker_early_product_completion_repair_pr8_11_1.js",
-    "service_worker_early_product_completion_pr8_11_1.js",
-    "service_worker_post_answer_tail_timing_pr8_11.js",
+    "service_worker_early_response_completion.js",
     "service_worker_browser_response_stream.js",
     "service_worker_instant_mode_pr8_8.js",
     "service_worker_phase_timing_pr8_8.js",
@@ -49,15 +47,13 @@ def test_observability_page_turn_owner_is_loaded_at_historical_outer_boundary() 
     assembly = _source("service_worker_observability.js")
     owner = _source(OWNER)
 
-    repair = (
-        'importScripts("service_worker_early_product_completion_repair_pr8_11_1.js");'
-    )
+    early = 'importScripts("service_worker_early_response_completion.js");'
     owner_import = f'importScripts("{OWNER}");'
     normalized = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
 
-    assert repair in assembly and owner_import in assembly and normalized in assembly
+    assert early in assembly and owner_import in assembly and normalized in assembly
     assert (
-        assembly.index(repair)
+        assembly.index(early)
         < assembly.index(owner_import)
         < assembly.index(normalized)
     )
