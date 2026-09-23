@@ -14,15 +14,15 @@ OBSERVABILITY = EXT / "service_worker_observability.js"
 ROUTER = EXT / "service_worker_connector_router_characterization_pr10_0.js"
 
 
-def test_router_overlay_loads_after_connector_metadata_and_before_patch_protocol() -> None:
+def test_router_overlay_loads_after_pr812_owner_and_connector_metadata() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
-    normalized = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
+    owner = 'importScripts("service_worker_response_activity.js");'
     connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
     router = 'importScripts("service_worker_connector_router_characterization_pr10_0.js");'
-    patch = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
 
-    assert normalized in source and connector in source and router in source and patch in source
-    assert source.index(normalized) < source.index(connector) < source.index(router) < source.index(patch)
+    assert owner in source and connector in source and router in source
+    assert source.index(owner) < source.index(connector) < source.index(router)
+    assert "service_worker_normalized_activity_patch_protocol_pr8_12.js" not in source
 
 
 def test_router_characterization_is_scoped_to_explicit_api_tool_router() -> None:
