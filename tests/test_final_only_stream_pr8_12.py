@@ -121,7 +121,7 @@ def test_final_only_cli_flag_requires_stream() -> None:
 def test_answer_channel_overlay_is_loaded_and_delivery_is_bounded() -> None:
     observability = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
     delivery = (
-        EXTENSION / "service_worker_revision_safe_text_delivery_pr8_9.js"
+        EXTENSION / "service_worker_browser_response_stream.js"
     ).read_text(encoding="utf-8")
     overlay = (
         EXTENSION / "service_worker_answer_channel_pr8_12.js"
