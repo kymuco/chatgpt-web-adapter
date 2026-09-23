@@ -43,7 +43,8 @@ def test_closed_artifact_characterization_has_no_dormant_runtime_imports() -> No
         assert not (EXT / worker).exists()
 
 
-def test_live_generated_artifact_overlay_remains_in_runtime() -> None:
+def test_live_generated_artifact_observation_remains_in_runtime() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
 
-    assert 'importScripts("service_worker_generated_artifact_pr10_1.js");' in source
+    assert 'importScripts("service_worker_product_observation.js");' in source
+    assert "service_worker_generated_artifact_pr10_1.js" not in source
