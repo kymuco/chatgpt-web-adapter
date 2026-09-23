@@ -95,6 +95,12 @@ Pre-text generic completion status remains diagnostic only and cannot establish 
 - PR15.13 page-turn lifecycle order is unchanged;
 - later PR8.12 activity/answer-channel overlays remain outside this owner.
 
+## Updated-main revalidation
+
+While this PR was in CI, main advanced through PR13.6 canonical conversation read timeout recovery. That change is confined to the Python canonical-read implementation and its dedicated test; it does not overlap this PR's browser-native extension or ownership-regression files.
+
+This note commit intentionally retriggers pull-request CI so the final merge ref is validated against the updated main rather than relying on the earlier green merge ref.
+
 ## Acceptance
 
 - one shipping PR8.11 owner replaces three workers;
