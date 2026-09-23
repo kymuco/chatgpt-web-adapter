@@ -233,8 +233,8 @@ def test_compact_patch_protocol_keeps_stable_message_and_null_path_text() -> Non
 
 def test_activity_stream_load_order_preserves_pr8111_then_patch_compatibility() -> None:
     source = OBSERVABILITY_JS.read_text(encoding="utf-8")
-    repair = 'importScripts("service_worker_early_product_completion_repair_pr8_11_1.js");'
+    early = 'importScripts("service_worker_early_response_completion.js");'
     activity = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
     patch = 'importScripts("service_worker_normalized_activity_patch_protocol_pr8_12.js");'
-    assert repair in source and activity in source and patch in source
-    assert source.index(repair) < source.index(activity) < source.index(patch)
+    assert early in source and activity in source and patch in source
+    assert source.index(early) < source.index(activity) < source.index(patch)
