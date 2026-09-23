@@ -16,8 +16,8 @@ def test_temporary_product_owner_replaces_identity_overlay_chain() -> None:
     assert owner in source
     for retired in (
         "service_worker_temporary_chat_production_pr8_13.js",
-        "service_worker_temporary_product.js",
-        "service_worker_temporary_product.js",
+        "service_worker_temporary_session_identity_pr8_13.js",
+        "service_worker_temporary_fresh_identity_flush_pr8_13.js",
     ):
         assert retired not in source
         assert not (EXT / retired).exists()
@@ -64,16 +64,22 @@ def test_missing_base_turn_identity_can_be_filled_before_native_turn_returns() -
 
 def test_fresh_temporary_identity_flush_uses_extension_local_sentinel_only() -> None:
     source = _source("service_worker_temporary_product.js")
-    assert "PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in source
-    assert "function _pr813ConversationId(value)" in source
-    assert "conversationId: PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in source
-    assert "LIVE_SSE_STREAM" in source
-    assert "TEMPORARY_SESSION_ROUTING_IDENTITY_MISSING_AFTER_STREAM_FLUSH" in source
-    assert "Network.getResponseBody" not in source
-    assert "Fetch.continueRequest" not in source
-    assert "backend-api/conversation" not in source
-    assert "chrome.tabs.update" not in source
-    assert "/c/" not in source
+    start = source.index("const PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL")
+    end = source.index(
+        "\nconst _pr813SessionIdentityUpstreamProcessSseEvent", start
+    )
+    fresh = source[start:end]
+
+    assert "PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in fresh
+    assert "function _pr813ConversationId(value)" in fresh
+    assert "conversationId: PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in fresh
+    assert "LIVE_SSE_STREAM" in fresh
+    assert "TEMPORARY_SESSION_ROUTING_IDENTITY_MISSING_AFTER_STREAM_FLUSH" in fresh
+    assert "Network.getResponseBody" not in fresh
+    assert "Fetch.continueRequest" not in fresh
+    assert "backend-api/conversation" not in fresh
+    assert "chrome.tabs.update" not in fresh
+    assert "/c/" not in fresh
 
 
 def test_fresh_identity_sentinel_resolves_only_from_live_temporary_context() -> None:
