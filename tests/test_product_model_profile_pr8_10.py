@@ -37,7 +37,9 @@ def test_max_remains_explicitly_unmapped() -> None:
         normalize_model_profile("max")
 
 
-def test_provider_injects_required_mode_only_for_leased_product_turn(monkeypatch) -> None:
+def test_provider_injects_required_mode_only_for_leased_product_turn(
+    monkeypatch,
+) -> None:
     captured = []
 
     def fake_rpc(self, payload, *, timeout, on_event=None):
@@ -71,7 +73,9 @@ def test_nested_profile_requirements_fail_closed() -> None:
                 pass
 
 
-def test_selection_lookup_uses_nested_record_not_transport_envelope(monkeypatch) -> None:
+def test_selection_lookup_uses_nested_record_not_transport_envelope(
+    monkeypatch,
+) -> None:
     provider = ProductModelProfileProvider()
     record = {
         "browserAuthorityLeaseId": "lease-1",
@@ -112,15 +116,17 @@ def test_selection_validation_requires_exact_prewrite_proof() -> None:
         _validate_selection("DEEP", "lease-1", bad)
 
 
-def test_extension_uses_semantic_keyboard_slider_selection_and_no_option_guessing() -> None:
+def test_extension_uses_semantic_keyboard_slider_selection_and_no_option_guessing() -> (
+    None
+):
     source = (EXTENSION / "service_worker_model_profile_selection_pr8_10.js").read_text(
         encoding="utf-8"
     )
-    assert 'INSTANT: 0, MEDIUM: 1, HIGH: 2' in source
-    assert '_pr88InstantEffortDispatchHome(debuggee)' in source
+    assert "INSTANT: 0, MEDIUM: 1, HIGH: 2" in source
+    assert "_pr88InstantEffortDispatchHome(debuggee)" in source
     assert '"ArrowRight"' in source
-    assert 'selectedModeAfterProven' in source
-    assert 'conversationWriteBeforeSelection' in source
+    assert "selectedModeAfterProven" in source
+    assert "conversationWriteBeforeSelection" in source
     assert "Fetch.enable" not in source
     assert "Network.getResponseBody" not in source
 
@@ -133,7 +139,9 @@ def test_selection_record_is_namespaced_away_from_transport_lease() -> None:
     assert "return {modelProfileSelectionSupported: true, ...record};" not in source
 
 
-def test_model_profile_overlay_loads_after_pr8_8_selector_before_pr8_9_streaming() -> None:
+def test_model_profile_overlay_loads_after_pr8_8_selector_before_pr8_9_streaming() -> (
+    None
+):
     source = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
     pr88 = 'importScripts("service_worker_instant_effort_selection.js");'
     pr810 = 'importScripts("service_worker_model_profile_selection_pr8_10.js");'
