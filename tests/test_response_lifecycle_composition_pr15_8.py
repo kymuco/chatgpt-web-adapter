@@ -75,7 +75,7 @@ def test_response_lifecycle_is_pure_layer_at_same_assembly_boundary() -> None:
 
     activity = 'importScripts("service_worker_response_activity.js");'
     owner_import = f'importScripts("{OWNER}");'
-    connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
+    connector = 'importScripts("service_worker_product_observation.js");'
 
     assert activity in assembly and owner_import in assembly and connector in assembly
     assert (
