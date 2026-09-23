@@ -145,6 +145,6 @@ def test_model_profile_overlay_loads_after_pr8_8_selector_before_pr8_9_streaming
     source = (EXTENSION / "service_worker_observability.js").read_text(encoding="utf-8")
     pr88 = 'importScripts("service_worker_instant_effort_selection.js");'
     pr810 = 'importScripts("service_worker_model_profile_selection_pr8_10.js");'
-    pr89 = 'importScripts("service_worker_safe_browser_response_stream_pr8_9.js");'
+    pr89 = 'importScripts("service_worker_browser_response_stream.js");'
     assert pr88 in source and pr810 in source and pr89 in source
     assert source.index(pr88) < source.index(pr810) < source.index(pr89)
