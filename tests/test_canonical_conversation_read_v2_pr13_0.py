@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -11,6 +12,7 @@ from chatgpt_web_adapter.browser_context_canonical_v2 import (
 from chatgpt_web_adapter.browser_owned_product_transport import (
     BrowserOwnedProductTransport,
 )
+from chatgpt_web_adapter.client import ChatGPTWebClient
 from chatgpt_web_adapter.conversation_read_v2 import (
     get_messages_v2,
     merge_conversation_pages,
@@ -65,6 +67,14 @@ def _legacy_payload(*message_ids: str) -> dict[str, Any]:
         "current_node": message_ids[-1] if message_ids else None,
         "mapping": mapping,
     }
+
+
+def test_client_exposes_default_on_conversation_read_progress_toggle() -> None:
+    signature = inspect.signature(ChatGPTWebClient)
+    parameter = signature.parameters["conversation_read_progress"]
+
+    assert parameter.default is True
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
 
 
 def test_flat_messages_normalize_to_current_branch_mapping() -> None:
