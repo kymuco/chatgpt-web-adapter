@@ -71,9 +71,7 @@ def test_pr813_production_temporary_lifecycle_remains_separate() -> None:
     observation = _source("service_worker_observability.js")
 
     for production in (
-        "service_worker_temporary_chat_production_pr8_13.js",
-        "service_worker_temporary_session_identity_pr8_13.js",
-        "service_worker_temporary_fresh_identity_flush_pr8_13.js",
+        "service_worker_temporary_product.js",
         "service_worker_temporary_startup_readiness_pr8_13_2.js",
     ):
         assert f'importScripts("{production}");' in observation
