@@ -49,7 +49,7 @@ def test_observability_page_turn_owner_is_loaded_at_historical_outer_boundary() 
 
     early = 'importScripts("service_worker_early_response_completion.js");'
     owner_import = f'importScripts("{OWNER}");'
-    normalized = 'importScripts("service_worker_normalized_activity_stream_pr8_12.js");'
+    normalized = 'importScripts("service_worker_response_activity.js");'
 
     assert early in assembly and owner_import in assembly and normalized in assembly
     assert (
