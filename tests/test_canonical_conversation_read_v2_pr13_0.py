@@ -266,6 +266,145 @@ def test_current_non_404_failure_never_falls_back_to_legacy(status: int) -> None
     assert len(client.urls) == 1
 
 
+def test_timeout_like_500_steps_down_server_query_hint() -> None:
+    payload = {
+        "conversation_id": "conversation-1",
+        "current_node": "a2",
+        "messages": [
+            _message("u1", "user", "one"),
+            _message("a2", "assistant", "two", finish=True),
+        ],
+        "page_info": {"has_previous_page": False},
+    }
+    client = _RequestClient(
+        [
+            (500, {"detail": "Request timeout"}),
+            (500, {"detail": "request timed out"}),
+            (200, payload),
+        ]
+    )
+
+    result = read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+        include_all_pages=True,
+    )
+
+    assert result["current_node"] == "a2"
+    assert len(client.urls) == 3
+    assert [parse_qs(urlparse(url).query)["num_turns"] for url in client.urls] == [
+        ["20"],
+        ["10"],
+        ["5"],
+    ]
+    assert all(
+        urlparse(url).path == "/backend-api/conversations/conversation-1"
+        for url in client.urls
+    )
+
+
+def test_timeout_recovery_preserves_exact_pagination_cursor() -> None:
+    latest = {
+        "conversation_id": "conversation-1",
+        "current_node": "a4",
+        "messages": [
+            _message("u3", "user", "three"),
+            _message("a4", "assistant", "four", finish=True),
+        ],
+        "page_info": {
+            "has_previous_page": True,
+            "start_cursor": "cursor-2",
+        },
+    }
+    older = {
+        "conversation_id": "conversation-1",
+        "messages": [
+            _message("u1", "user", "one"),
+            _message("a2", "assistant", "two"),
+        ],
+        "page_info": {"has_previous_page": False},
+    }
+    client = _RequestClient(
+        [
+            (200, latest),
+            (500, {"detail": "Request timeout"}),
+            (200, older),
+        ]
+    )
+
+    result = read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+        include_all_pages=True,
+    )
+
+    assert list(result["mapping"]) == ["u1", "a2", "u3", "a4"]
+    timed_out = parse_qs(urlparse(client.urls[1]).query)
+    recovered = parse_qs(urlparse(client.urls[2]).query)
+    assert timed_out["before"] == ["cursor-2"]
+    assert recovered["before"] == ["cursor-2"]
+    assert timed_out["num_turns"] == ["20"]
+    assert recovered["num_turns"] == ["10"]
+
+
+def test_successful_non_json_response_retries_once_at_same_hint() -> None:
+    payload = {
+        "conversation_id": "conversation-1",
+        "current_node": "a2",
+        "messages": [
+            _message("u1", "user", "one"),
+            _message("a2", "assistant", "two", finish=True),
+        ],
+        "page_info": {"has_previous_page": False},
+    }
+    client = _RequestClient([(200, "<html>temporary</html>"), (200, payload)])
+
+    result = read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+    )
+
+    assert result["current_node"] == "a2"
+    assert len(client.urls) == 2
+    assert [parse_qs(urlparse(url).query)["num_turns"] for url in client.urls] == [
+        ["20"],
+        ["20"],
+    ]
+
+
+def test_persistent_successful_non_json_response_keeps_diagnostics() -> None:
+    client = _RequestClient(
+        [(200, "<html>temporary</html>"), (200, "<html>still temporary</html>")]
+    )
+
+    with pytest.raises(RequestError, match="expected JSON object") as captured:
+        read_conversation_payload_v2(
+            client,
+            "conversation-1",
+            current_base_url="https://chatgpt.com/backend-api/conversations",
+            legacy_url_template=(
+                "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+            ),
+        )
+
+    assert captured.value.status_code == 200
+    assert captured.value.endpoint == "conversations"
+    assert captured.value.body_preview == "<html>still temporary</html>"
+    assert len(client.urls) == 2
+
+
 def test_message_limit_uses_latest_page_when_it_already_satisfies_limit() -> None:
     class _Reader:
         def __init__(self):
