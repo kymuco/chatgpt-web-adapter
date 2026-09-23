@@ -10,20 +10,23 @@ from chatgpt_web_adapter.product_connector_router_characterization_pr10_0 import
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OBSERVABILITY = EXT / "service_worker_observability.js"
-ROUTER = EXT / "service_worker_connector_router_characterization_pr10_0.js"
+ROUTER = EXT / "service_worker_product_observation.js"
 
 
-def test_router_overlay_loads_after_pr812_owner_and_connector_metadata() -> None:
+def test_router_is_owned_by_single_product_observation_worker() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
-    owner = 'importScripts("service_worker_response_activity.js");'
-    connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
-    router = (
-        'importScripts("service_worker_connector_router_characterization_pr10_0.js");'
-    )
+    response = 'importScripts("service_worker_response_activity.js");'
+    product = 'importScripts("service_worker_product_observation.js");'
 
-    assert owner in source and connector in source and router in source
-    assert source.index(owner) < source.index(connector) < source.index(router)
-    assert "service_worker_normalized_activity_patch_protocol_pr8_12.js" not in source
+    assert response in source and product in source
+    assert source.index(response) < source.index(product)
+    for retired in (
+        "service_worker_connector_lifecycle_pr10_0.js",
+        "service_worker_connector_router_characterization_pr10_0.js",
+        "service_worker_generated_artifact_pr10_1.js",
+    ):
+        assert retired not in source
+        assert not (EXT / retired).exists()
 
 
 def test_router_characterization_is_scoped_to_explicit_api_tool_router() -> None:
