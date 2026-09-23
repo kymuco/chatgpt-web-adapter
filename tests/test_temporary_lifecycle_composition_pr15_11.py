@@ -9,8 +9,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 LAYERS = (
     "service_worker_temporary_startup_readiness_pr8_13_2.js",
-    "service_worker_temporary_fresh_identity_flush_pr8_13.js",
-    "service_worker_temporary_chat_production_pr8_13.js",
+    "service_worker_temporary_product.js",
 )
 OWNER = "service_worker_temporary_lifecycle.js"
 
@@ -38,15 +37,15 @@ def test_temporary_layers_no_longer_own_native_turn() -> None:
 
 
 def test_temporary_lower_level_authority_hooks_remain_local() -> None:
-    production = _source("service_worker_temporary_chat_production_pr8_13.js")
-    fresh = _source("service_worker_temporary_fresh_identity_flush_pr8_13.js")
+    production = _source("service_worker_temporary_product.js")
+    fresh = production
     readiness = _source("service_worker_temporary_startup_readiness_pr8_13_2.js")
 
     assert "Fetch.requestPaused" in production
     assert "_pr813EndTemporaryLifecycle" in production
     assert "_pr813ExecuteTemporaryTurn(message, next)" in production
     assert "PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in fresh
-    assert "_pr813ConversationIdWithFreshIdentitySentinel" in fresh
+    assert "function _pr813ConversationId(value)" in fresh
     assert "_pr8132WaitForFreshTemporaryReadiness" in readiness
     assert "_pr8132PriorSubmitOfficialPageTurn" in readiness
 
