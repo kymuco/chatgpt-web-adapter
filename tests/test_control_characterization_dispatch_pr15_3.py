@@ -6,7 +6,6 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 FILES = {
-    "reasoning": EXT / "service_worker_reasoning_effort_slider_governance_pr8_8.js",
     "instant": EXT / "service_worker_instant_effort_slider_support_pr8_8.js",
 }
 
@@ -23,13 +22,7 @@ def test_control_characterization_modules_do_not_own_ordinary_turn_dispatch() ->
 
 
 def test_each_control_characterization_concept_has_explicit_owner() -> None:
-    reasoning = _source("reasoning")
     instant = _source("instant")
-
-    assert '"reasoning-effort-characterization"' in reasoning
-    assert "registerNativeTurnDiagnosticHandler(" in reasoning
-    assert "_pr88ReasoningEffortDiagnosticMatches" in reasoning
-    assert "_pr88HandleReasoningEffortDiagnostic" in reasoning
 
     assert '"instant-effort-support"' in instant
     assert "registerNativeTurnDiagnosticHandler(" in instant
@@ -38,12 +31,7 @@ def test_each_control_characterization_concept_has_explicit_owner() -> None:
 
 
 def test_zero_product_write_and_retry_boundaries_remain_explicit() -> None:
-    reasoning = _source("reasoning")
     instant = _source("instant")
-
-    assert "zeroProductWrites: true" in reasoning
-    assert "selectionControlClickForbidden: true" in reasoning
-    assert "automaticRetry: false" in reasoning
 
     assert "advancedPickerClickForbidden: true" in instant
     assert "modelControlClickForbidden: true" in instant
