@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-CONNECTOR_JS = EXTENSION / "service_worker_connector_lifecycle_pr10_0.js"
+CONNECTOR_JS = EXTENSION / "service_worker_product_observation.js"
 OBSERVABILITY_JS = EXTENSION / "service_worker_observability.js"
 
 
@@ -72,7 +72,8 @@ def test_connector_lifecycle_overlay_does_not_own_native_turn_dispatch() -> None
     source = CONNECTOR_JS.read_text(encoding="utf-8")
 
     assert "const PR100_CONNECTOR_OBSERVATION_SCHEMA = 1;" in source
-    assert "_pr812InspectMessage = function _pr100InspectMessageOverlay" in source
+    assert "function _pr100ConnectorInspectMessageLayer(" in source
+    assert "_pr812InspectMessage = _pr10ProductInspectMessageOwner;" in source
     assert "executeNativeTurn = async function" not in source
     assert "_pr100PriorExecuteNativeTurn" not in source
     assert "characterizeConnectorObservationSupport" not in source
@@ -81,7 +82,7 @@ def test_connector_lifecycle_overlay_does_not_own_native_turn_dispatch() -> None
 def test_overlay_loads_after_single_pr812_response_owner() -> None:
     source = OBSERVABILITY_JS.read_text(encoding="utf-8")
     owner = 'importScripts("service_worker_response_activity.js");'
-    connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
+    connector = 'importScripts("service_worker_product_observation.js");'
 
     assert owner in source and connector in source
     assert source.index(owner) < source.index(connector)
@@ -92,3 +93,16 @@ def test_overlay_loads_after_single_pr812_response_owner() -> None:
     )
     assert "function _pr812PatchSelect(state, message)" in owner_source
     assert "function _pr812PatchApplyItem(" in owner_source
+
+
+def test_product_observation_owner_preserves_historical_message_order() -> None:
+    source = CONNECTOR_JS.read_text(encoding="utf-8")
+    start = source.index("function _pr10ProductInspectMessageOwner")
+    owner = source[start:]
+
+    artifact = owner.index("_pr101GeneratedArtifactInspectMessageLayer(")
+    router = owner.index("_pr100RouterInspectMessageLayer(")
+    connector = owner.index("_pr100ConnectorInspectMessageLayer(")
+    upstream = owner.index("_pr10ProductObservationUpstreamInspectMessage")
+    assert artifact < router < connector < upstream
+    assert source.count("_pr812InspectMessage =") == 1
