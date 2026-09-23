@@ -40,7 +40,9 @@ def test_tail_overlay_is_numeric_observability_only() -> None:
 
 def test_base_turn_removes_redundant_fixed_post_network_sleep() -> None:
     source = (EXTENSION / "service_worker.js").read_text(encoding="utf-8")
-    start = source.index("let safeMetadata = { conversationId: null, turnExchangeId: null };")
+    start = source.index(
+        "let safeMetadata = { conversationId: null, turnExchangeId: null };"
+    )
     end = source.index("const finalTab = await chrome.tabs.get(tabId);", start)
     completion = source[start:end]
     assert "await sleep(500);" not in completion
@@ -82,7 +84,9 @@ def test_tail_provider_normalizes_bounded_record(monkeypatch) -> None:
 def test_local_observer_measures_stream_to_return_tail() -> None:
     values = iter([10.0, 10.1, 10.2, 10.8, 11.4, 11.5, 11.51, 11.52])
     forwarded = []
-    observer = StandaloneTailTimingObserver(forwarded.append, monotonic=lambda: next(values))
+    observer = StandaloneTailTimingObserver(
+        forwarded.append, monotonic=lambda: next(values)
+    )
 
     observer.on_event({"type": "browser_native_turn_started"})
     observer.on_event({"type": "assistant_text_snapshot", "sequence": 1, "text": "a"})
@@ -96,7 +100,9 @@ def test_local_observer_measures_stream_to_return_tail() -> None:
     assert len(forwarded) == 6
     assert report["local_text_event_count"] == 2
     assert report["local_tail_deltas_ms"]["last_text_to_write_completed"] == 600
-    assert report["local_tail_deltas_ms"]["write_completed_to_canonical_finalized"] == 100
+    assert (
+        report["local_tail_deltas_ms"]["write_completed_to_canonical_finalized"] == 100
+    )
     assert report["local_tail_deltas_ms"]["last_text_to_runtime_return"] == 720
 
 
@@ -175,7 +181,11 @@ def test_canonical_finality_reuses_one_payload_for_message_status_and_attach() -
     assert response.conversation.message_id == "new-assistant"
     assert response.request.observed_model == "gpt-test"
     assert client.payload_reads == 1
-    readback = [event for event in client.events if event["type"] == "browser_native_readback_completed"]
+    readback = [
+        event
+        for event in client.events
+        if event["type"] == "browser_native_readback_completed"
+    ]
     assert readback[-1]["canonical_payload_read_count"] == 1
     assert readback[-1]["canonical_payload_reused_for_attach"] is True
 
