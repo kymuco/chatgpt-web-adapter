@@ -443,12 +443,18 @@ def read_conversation_payload_v2(
                 body_preview=page_data,
                 request_stage="conversation_fetch",
             )
+        page_messages = page_data.get("messages")
+        if not isinstance(page_messages, list):
+            raise RequestError(
+                "canonical conversation pagination page missing messages[]",
+                request_stage="conversation_fetch",
+            )
         pages.append(page_data)
-        total_records += len(page_data["messages"])
+        total_records += len(page_messages)
         _emit_read_progress(
             client,
             (
-                f"page {page_number} received, {len(page_data['messages'])} records, "
+                f"page {page_number} received, {len(page_messages)} records, "
                 f"{total_records} accumulated"
             ),
         )
