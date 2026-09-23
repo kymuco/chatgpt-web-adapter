@@ -153,7 +153,8 @@ PR15 Architecture Reset
 → PR15.18 consolidate Instant-effort production ownership [merged]
 → PR15.19 consolidate PR8.9 response-stream ownership [merged]
 → PR15.20 consolidate PR8.11 early response completion [merged]
-→ PR15.21 consolidate PR8.12 response activity ownership [active]
+→ PR15.21 consolidate PR8.12 response activity ownership [merged]
+→ PR15.22 consolidate product observation ownership [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```

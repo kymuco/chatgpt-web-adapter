@@ -9,7 +9,7 @@ BOOTSTRAP = EXT / "service_worker_temporary_chat_route_reopen_probe.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 OBSERVATION = EXT / "service_worker_runtime_observation.js"
 SUPPORT = EXT / "service_worker_connector_support_pr10_0.js"
-LIFECYCLE = EXT / "service_worker_connector_lifecycle_pr10_0.js"
+LIFECYCLE = EXT / "service_worker_product_observation.js"
 MANIFEST = EXT / "manifest.json"
 WORKER = EXT / "service_worker.js"
 

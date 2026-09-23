@@ -10,19 +10,16 @@ from chatgpt_web_adapter.product_connector_router_characterization_pr10_0 import
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OBSERVABILITY = EXT / "service_worker_observability.js"
-ROUTER = EXT / "service_worker_connector_router_characterization_pr10_0.js"
+ROUTER = EXT / "service_worker_product_observation.js"
 
 
 def test_router_overlay_loads_after_pr812_owner_and_connector_metadata() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
     owner = 'importScripts("service_worker_response_activity.js");'
-    connector = 'importScripts("service_worker_connector_lifecycle_pr10_0.js");'
-    router = (
-        'importScripts("service_worker_connector_router_characterization_pr10_0.js");'
-    )
+    product_observation = 'importScripts("service_worker_product_observation.js");'
 
-    assert owner in source and connector in source and router in source
-    assert source.index(owner) < source.index(connector) < source.index(router)
+    assert owner in source and product_observation in source
+    assert source.index(owner) < source.index(product_observation)
     assert "service_worker_normalized_activity_patch_protocol_pr8_12.js" not in source
 
 
@@ -131,3 +128,14 @@ def test_router_shape_event_is_known_diagnostic_not_dropped_public_observation()
     assert collector.consume(event) is None
     assert collector.observations == ()
     assert collector.dropped_event_count == 0
+
+
+def test_product_observation_owner_preserves_historical_observer_order() -> None:
+    source = ROUTER.read_text(encoding="utf-8")
+    owner_start = source.index("function _pr10ProductObservationInspectMessage")
+    owner = source[owner_start:]
+    upstream = owner.index("_pr10ProductObservationUpstreamInspectMessage")
+    connector = owner.index("_pr100InspectMessage(context, state, message)")
+    router = owner.index("_pr100RouterInspect(context, state, message)")
+    artifact = owner.index("_pr101InspectMessage(context, state, message)")
+    assert upstream < connector < router < artifact
