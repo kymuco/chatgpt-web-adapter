@@ -1,11 +1,8 @@
-// PR15.23 explicit production owner for PR8.13 Temporary product behavior.
+// PR15.24 explicit production owner for PR8.13 Temporary product behavior.
 //
-// Consolidates Temporary write/lifecycle authority, live SSE session identity,
-// and fresh-session identity normalization. Startup-readiness and the explicit
-// Temporary native lifecycle remain separate outer layers.
-//
-// A Temporary conversation id is session-local routing metadata only.
-// It never grants continuation authority without the live lifecycle token/tab binding.
+// Consolidates Temporary write/lifecycle authority, session identity, fresh
+// identity normalization, and fresh-startup readiness. The explicit Temporary
+// native lifecycle remains a separate outer composition owner.
 
 const PR813_TEMPORARY_RUNTIME_TAB_KEY = "browserNativeTemporaryRuntimeTabIdV1";
 const PR813_TEMPORARY_PROOF_TIMEOUT_MS = 10_000;
@@ -132,13 +129,13 @@ function _pr813NewProofPromise(context) {
   return context.proofPromise;
 }
 
-function _pr813RejectProof(context, error) {
+function _pr813RejectProofCore(context, error) {
   if (context.proofSettled) return;
   context.proofSettled = true;
   if (typeof context.rejectProof === "function") context.rejectProof(error);
 }
 
-function _pr813ResolveProof(context, evidence) {
+function _pr813ResolveProofCore(context, evidence) {
   if (context.proofSettled) return;
   context.proofSettled = true;
   context.prewriteProof = evidence;
@@ -248,7 +245,7 @@ ensureRuntimeTab = async function _pr813EnsureRuntimeTab(conversationId) {
   return _pr813RequireLiveTemporaryTab(context);
 };
 
-submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, timeoutMs) {
+async function _pr813SubmitOfficialPageTurn(debuggee, timeoutMs) {
   const context = _pr813TemporaryTurnContext;
   if (context === null || debuggee?.tabId !== context.tabId) {
     return _pr813PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
@@ -278,7 +275,7 @@ submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, t
     );
   }
   return submit;
-};
+}
 
 async function _pr813EndTemporaryLifecycle(message) {
   const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);
@@ -616,3 +613,396 @@ async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next) {
 };
 
 _pr89BrowserStreamProcessSseEvent = _pr813ProcessSseWithTemporarySessionIdentity;
+
+
+const PR8132_FRESH_READINESS_TIMEOUT_MS = 5_000;
+const PR8132_FRESH_READINESS_STABLE_MS = 750;
+const PR8132_FRESH_READINESS_POLL_MS = 125;
+const PR8132_FRESH_READINESS_REQUIRED_SAMPLES = 3;
+
+const _pr8132TurnDiagnostics = new Map();
+
+function _cwaTemporaryControlSnapshotExpression() {
+  return `(() => {
+    const normalize = (value) => typeof value === 'string'
+      ? value.trim().toLowerCase().replace(/\\s+/g, ' ')
+      : '';
+    const matchesTemporary = (value) => {
+      const text = normalize(value);
+      return text.includes('temporary') || text.includes('временн');
+    };
+    const explicitTrueStates = new Set(['on', 'checked', 'active', 'selected']);
+    const explicitFalseStates = new Set(['off', 'unchecked', 'inactive', 'unselected']);
+    const candidates = [];
+
+    for (const element of Array.from(document.querySelectorAll('button,[role="button"]'))) {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      if (rect.width <= 0 || rect.height <= 0 || style.visibility === 'hidden' || style.display === 'none') {
+        continue;
+      }
+
+      const fields = {
+        text: element.innerText || element.textContent || '',
+        aria_label: element.getAttribute('aria-label') || '',
+        title: element.getAttribute('title') || '',
+        data_testid: element.getAttribute('data-testid') || ''
+      };
+      const matchSignals = Object.entries(fields)
+        .filter(([, value]) => matchesTemporary(value))
+        .map(([name]) => name);
+      if (!matchSignals.length) continue;
+
+      const proofSignals = [];
+      const falseSignals = [];
+      const ariaPressed = normalize(element.getAttribute('aria-pressed'));
+      const ariaChecked = normalize(element.getAttribute('aria-checked'));
+      const ariaCurrent = normalize(element.getAttribute('aria-current'));
+      const dataState = normalize(element.getAttribute('data-state'));
+      const dataSelected = normalize(element.getAttribute('data-selected'));
+
+      if (ariaPressed === 'true') proofSignals.push('aria-pressed:true');
+      else if (ariaPressed === 'false') falseSignals.push('aria-pressed:false');
+      if (ariaChecked === 'true') proofSignals.push('aria-checked:true');
+      else if (ariaChecked === 'false') falseSignals.push('aria-checked:false');
+      if (ariaCurrent === 'true') proofSignals.push('aria-current:true');
+      if (explicitTrueStates.has(dataState)) proofSignals.push('data-state:' + dataState);
+      else if (explicitFalseStates.has(dataState)) falseSignals.push('data-state:' + dataState);
+      if (dataSelected === 'true') proofSignals.push('data-selected:true');
+      else if (dataSelected === 'false') falseSignals.push('data-selected:false');
+
+      const selected = proofSignals.length
+        ? true
+        : (falseSignals.length ? false : null);
+      candidates.push({
+        matchSignals,
+        proofSignals,
+        selected,
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      });
+    }
+
+    const primary = candidates.length === 1 ? candidates[0] : null;
+    return {
+      candidateCount: candidates.length,
+      controlFound: candidates.length > 0,
+      ambiguous: candidates.length > 1,
+      selected: primary ? primary.selected : null,
+      matchSignals: primary ? primary.matchSignals : [],
+      proofSignals: primary ? primary.proofSignals : [],
+      point: primary ? { x: primary.x, y: primary.y } : null
+    };
+  })()`;
+}
+
+async function _cwaTemporaryControlSnapshot(debuggee) {
+  const result = await chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
+    expression: _cwaTemporaryControlSnapshotExpression(),
+    returnByValue: true,
+    awaitPromise: true
+  });
+  const value = result?.result?.value;
+  return value && typeof value === "object"
+    ? value
+    : {
+        candidateCount: 0,
+        controlFound: false,
+        ambiguous: false,
+        selected: null,
+        matchSignals: [],
+        proofSignals: [],
+        point: null
+      };
+}
+
+function _pr8132ContextToken(context) {
+  return _pr813TemporaryToken(context?.token);
+}
+
+function _pr8132UpdateDiagnostic(context, patch) {
+  const token = _pr8132ContextToken(context);
+  if (!token) return;
+  const current = _pr8132TurnDiagnostics.get(token) || {};
+  _pr8132TurnDiagnostics.set(token, {
+    ...current,
+    ...patch,
+    pausedConversationWriteCount: Number.isInteger(context?.pausedConversationWriteCount)
+      ? context.pausedConversationWriteCount
+      : (current.pausedConversationWriteCount ?? 0),
+    modeViolation: typeof context?.modeViolation === "string"
+      ? context.modeViolation
+      : (current.modeViolation ?? null),
+  });
+}
+
+function _pr8132TemporaryUrlHint(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === CHATGPT_ORIGIN &&
+      parsed.searchParams.get("temporary-chat") === "true";
+  } catch {
+    return false;
+  }
+}
+
+async function _pr8132TemporaryControlHint(debuggee) {
+  if (typeof _cwaTemporaryControlSnapshot !== "function") {
+    return {
+      available: false,
+      controlFound: false,
+      ambiguous: false,
+      selected: null,
+    };
+  }
+  try {
+    const snapshot = await _cwaTemporaryControlSnapshot(debuggee);
+    return {
+      available: true,
+      controlFound: snapshot?.controlFound === true,
+      ambiguous: snapshot?.ambiguous === true,
+      selected: typeof snapshot?.selected === "boolean" ? snapshot.selected : null,
+    };
+  } catch {
+    return {
+      available: false,
+      controlFound: false,
+      ambiguous: false,
+      selected: null,
+    };
+  }
+}
+
+async function _pr8132FreshReadinessSample(debuggee) {
+  let tab;
+  try {
+    tab = await chrome.tabs.get(debuggee.tabId);
+  } catch {
+    return {
+      readyHint: false,
+      reason: "temporary_tab_unavailable",
+      urlTemporaryQueryTrue: false,
+      composerReady: false,
+      controlAvailable: false,
+      controlFound: false,
+      controlAmbiguous: false,
+      controlSelected: null,
+    };
+  }
+
+  let composer = { ready: false, reason: "composer_probe_failed" };
+  try {
+    composer = await queryComposerReadiness(debuggee);
+  } catch {
+    // Keep the readiness hint fail-closed. The authoritative Fetch proof has not
+    // run yet and no product write is submitted from this probe.
+  }
+
+  const control = await _pr8132TemporaryControlHint(debuggee);
+  const urlTemporaryQueryTrue = _pr8132TemporaryUrlHint(tab?.url || "");
+  const explicitControlFalse = Boolean(
+    control.available &&
+    control.controlFound &&
+    !control.ambiguous &&
+    control.selected === false
+  );
+  const readyHint = Boolean(
+    urlTemporaryQueryTrue &&
+    composer?.ready === true &&
+    !explicitControlFalse
+  );
+
+  let reason = "ready_hint";
+  if (!urlTemporaryQueryTrue) reason = "temporary_url_hint_missing";
+  else if (composer?.ready !== true) reason = `composer_${composer?.reason || "not_ready"}`;
+  else if (explicitControlFalse) reason = "temporary_control_explicitly_false";
+
+  return {
+    readyHint,
+    reason,
+    urlTemporaryQueryTrue,
+    composerReady: composer?.ready === true,
+    controlAvailable: control.available,
+    controlFound: control.controlFound,
+    controlAmbiguous: control.ambiguous,
+    controlSelected: control.selected,
+  };
+}
+
+async function _pr8132WaitForFreshTemporaryReadiness(debuggee, timeoutMs) {
+  const startedAt = performance.now();
+  const budgetMs = Math.min(
+    PR8132_FRESH_READINESS_TIMEOUT_MS,
+    Math.max(1_000, Number.isFinite(timeoutMs) ? timeoutMs : PR8132_FRESH_READINESS_TIMEOUT_MS)
+  );
+  let stableStartedAt = null;
+  let consecutiveReady = 0;
+  let last = {
+    readyHint: false,
+    reason: "not_sampled",
+    urlTemporaryQueryTrue: false,
+    composerReady: false,
+    controlAvailable: false,
+    controlFound: false,
+    controlAmbiguous: false,
+    controlSelected: null,
+  };
+
+  while (performance.now() - startedAt < budgetMs) {
+    last = await _pr8132FreshReadinessSample(debuggee);
+    if (!last.readyHint) {
+      stableStartedAt = null;
+      consecutiveReady = 0;
+    } else {
+      if (stableStartedAt === null) stableStartedAt = performance.now();
+      consecutiveReady += 1;
+      const stableMs = Math.round(performance.now() - stableStartedAt);
+      const explicitSelected = Boolean(
+        last.controlAvailable &&
+        last.controlFound &&
+        !last.controlAmbiguous &&
+        last.controlSelected === true
+      );
+
+      if (explicitSelected && consecutiveReady >= 2) {
+        return {
+          kind: "TEMPORARY_CONTROL_SELECTED_STABLE",
+          waitMs: Math.round(performance.now() - startedAt),
+          stableMs,
+          consecutiveReady,
+          ...last,
+        };
+      }
+
+      if (
+        consecutiveReady >= PR8132_FRESH_READINESS_REQUIRED_SAMPLES &&
+        stableMs >= PR8132_FRESH_READINESS_STABLE_MS
+      ) {
+        return {
+          kind: "TEMPORARY_URL_COMPOSER_STABLE_HINT",
+          waitMs: Math.round(performance.now() - startedAt),
+          stableMs,
+          consecutiveReady,
+          ...last,
+        };
+      }
+    }
+    await sleep(PR8132_FRESH_READINESS_POLL_MS);
+  }
+
+  throw new Error(
+    `PR8_13_2_TEMPORARY_FRESH_READINESS_TIMEOUT:${last.reason || "unknown"}`
+  );
+}
+
+function _pr813ResolveProof(context, evidence) {
+  _pr8132UpdateDiagnostic(context, {
+    prewriteProofKind: typeof evidence?.proofKind === "string" ? evidence.proofKind : null,
+    prewriteProofResolved: true,
+  });
+  return _pr813ResolveProofCore(context, evidence);
+}
+
+function _pr813RejectProof(context, error) {
+  _pr8132UpdateDiagnostic(context, {
+    prewriteProofRejected: true,
+    proofError: error instanceof Error ? error.message : String(error),
+  });
+  return _pr813RejectProofCore(context, error);
+}
+
+async function _pr8132SubmitOfficialPageTurn(debuggee, timeoutMs) {
+  const context = _pr813TemporaryTurnContext;
+  if (context === null || debuggee?.tabId !== context.tabId) {
+    return _pr813SubmitOfficialPageTurn(debuggee, timeoutMs);
+  }
+
+  if (context.expectedConversationId === null) {
+    const readiness = await _pr8132WaitForFreshTemporaryReadiness(debuggee, timeoutMs);
+    context.pr8132FreshReadiness = readiness;
+    _pr8132UpdateDiagnostic(context, {
+      freshReadinessApplied: true,
+      freshReadinessKind: readiness.kind,
+      freshReadinessWaitMs: readiness.waitMs,
+      freshReadinessStableMs: readiness.stableMs,
+      freshReadinessControlSelected: readiness.controlSelected,
+      freshReadinessUrlQueryTrue: readiness.urlTemporaryQueryTrue,
+    });
+  } else {
+    _pr8132UpdateDiagnostic(context, {
+      freshReadinessApplied: false,
+    });
+  }
+
+  return _pr813SubmitOfficialPageTurn(debuggee, timeoutMs);
+}
+
+function _pr8132AbortError(error, diagnostic) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!message.includes("CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED")) {
+    return null;
+  }
+
+  if (typeof diagnostic?.modeViolation === "string" && diagnostic.modeViolation) {
+    return new Error(
+      `PR8_13_2_TEMPORARY_PREWRITE_ABORT:${diagnostic.modeViolation}:${message}`
+    );
+  }
+  if (typeof diagnostic?.prewriteProofKind === "string" && diagnostic.prewriteProofKind) {
+    return new Error(
+      `PR8_13_2_TEMPORARY_ABORT_AFTER_PREWRITE_PROOF:${diagnostic.prewriteProofKind}:${message}`
+    );
+  }
+  if ((diagnostic?.pausedConversationWriteCount ?? 0) > 0) {
+    return new Error(
+      `PR8_13_2_TEMPORARY_ABORT_WITHOUT_RETAINED_PROOF:paused=${diagnostic.pausedConversationWriteCount}:${message}`
+    );
+  }
+  return new Error(
+    `PR8_13_2_TEMPORARY_ABORT_BEFORE_FETCH_OBSERVATION:${message}`
+  );
+}
+
+async function _pr8132ExecuteNativeTurnWithStartupDiagnostics(message, next) {
+  const mode = typeof message?.conversationMode === "string"
+    ? message.conversationMode.trim().toLowerCase()
+    : "normal";
+  if (mode !== "temporary") {
+    return next(message);
+  }
+
+  const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);
+  if (token) _pr8132TurnDiagnostics.set(token, {});
+
+  try {
+    const result = await next(message);
+    if (!result || typeof result !== "object") return result;
+    const diagnostic = token ? (_pr8132TurnDiagnostics.get(token) || {}) : {};
+    return {
+      ...result,
+      temporaryFreshReadinessApplied: diagnostic.freshReadinessApplied === true,
+      temporaryFreshReadinessKind: typeof diagnostic.freshReadinessKind === "string"
+        ? diagnostic.freshReadinessKind
+        : null,
+      temporaryFreshReadinessWaitMs: Number.isInteger(diagnostic.freshReadinessWaitMs)
+        ? diagnostic.freshReadinessWaitMs
+        : null,
+      temporaryFreshReadinessStableMs: Number.isInteger(diagnostic.freshReadinessStableMs)
+        ? diagnostic.freshReadinessStableMs
+        : null,
+      temporaryFreshReadinessControlSelected: typeof diagnostic.freshReadinessControlSelected === "boolean"
+        ? diagnostic.freshReadinessControlSelected
+        : null,
+      temporaryFreshReadinessUrlQueryTrue: diagnostic.freshReadinessUrlQueryTrue === true,
+    };
+  } catch (error) {
+    const diagnostic = token ? (_pr8132TurnDiagnostics.get(token) || {}) : {};
+    const enriched = _pr8132AbortError(error, diagnostic);
+    if (enriched) throw enriched;
+    throw error;
+  } finally {
+    if (token) _pr8132TurnDiagnostics.delete(token);
+  }
+}
+
+submitOfficialPageTurn = _pr8132SubmitOfficialPageTurn;
