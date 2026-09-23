@@ -12,7 +12,7 @@ LAYERS = (
     "service_worker_early_product_completion_repair_pr8_11_1.js",
     "service_worker_early_product_completion_pr8_11_1.js",
     "service_worker_post_answer_tail_timing_pr8_11.js",
-    "service_worker_safe_browser_response_stream_pr8_9.js",
+    "service_worker_browser_response_stream.js",
     "service_worker_instant_mode_pr8_8.js",
     "service_worker_phase_timing_pr8_8.js",
 )
