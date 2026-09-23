@@ -181,6 +181,15 @@ _original_send = _core.ChatGPTWebClient.send
 class ChatGPTWebClient(_core.ChatGPTWebClient):
     """Explicitly composed compatibility client over the frozen historical core."""
 
+    def __init__(
+        self,
+        *args: Any,
+        conversation_read_progress: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.conversation_read_progress = bool(conversation_read_progress)
+
     _normalize_reasoning_effort = staticmethod(_normalize_reasoning_effort)
     _resolve_model = staticmethod(_resolve_model)
     _poll_conversation_after_prepare = gate_browserless_poll_deadline(
