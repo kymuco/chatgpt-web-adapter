@@ -172,9 +172,15 @@ def test_selection_worker_mutates_only_picker_before_prompt_and_tracks_network_b
         assert token in text
     assert "Input.insertText" not in text
     assert "submitOfficialPageTurn" not in text
-    assert 'chrome.debugger.sendCommand(debuggee, "Input.dispatchMouseEvent"' in text
-    assert 'await sendCommand(debuggee, "Input.dispatchMouseEvent"' not in text
+    assert "Input.dispatchMouseEvent" not in text
     assert "raw request/response payloads" in text
+
+    owner = (root / "service_worker_instant_effort_selection.js").read_text(
+        encoding="utf-8"
+    )
+    assert "target.click();" in owner
+    assert '_pr88InstantEffortDispatchHome(debuggee)' in owner
+    assert "Input.dispatchMouseEvent" not in owner
 
 
 def test_provider_parses_lease_fenced_selection_record(monkeypatch):
