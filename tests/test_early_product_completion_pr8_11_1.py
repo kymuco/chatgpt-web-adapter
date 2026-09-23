@@ -95,9 +95,7 @@ def test_pr8111_does_not_export_raw_text_or_sse() -> None:
 def test_earliest_terminal_excludes_nonterminal_handoff_markers() -> None:
     source = _source()
     start = source.index("function _pr8111FirstTerminal(context)")
-    end = source.index(
-        "\nasync function _pr8111RepairExecuteOfficialPageTurn", start
-    )
+    end = source.index("\nasync function _pr8111RepairExecuteOfficialPageTurn", start)
     block = source[start:end]
     assert '"assistant_finish_reason"' in block
     assert '"assistant_end_turn"' in block
