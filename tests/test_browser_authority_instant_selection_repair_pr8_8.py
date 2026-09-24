@@ -149,13 +149,16 @@ def test_extension_selection_layer_preserves_manifest_and_import_order():
     phase_import = 'importScripts("service_worker_phase_timing_pr8_8.js")'
     instant_import = 'importScripts("service_worker_instant_mode_pr8_8.js")'
     repair_import = 'importScripts("service_worker_instant_selection_repair_pr8_8.js")'
+    preparation_import = 'importScripts("service_worker_selection_preparation.js")'
     assert phase_import in observability
     assert instant_import in observability
     assert repair_import in observability
+    assert preparation_import in observability
     assert (
         observability.index(phase_import)
         < observability.index(instant_import)
         < observability.index(repair_import)
+        < observability.index(preparation_import)
     )
 
 
