@@ -58,7 +58,7 @@ def test_schema_10_bounds_prestage_debugger_setup_and_detaches_late_attach():
     text = SCHEMA10.read_text(encoding="utf-8")
     prestage = text[
         text.index("async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging") :
-        text.index("_pr92StageOfficialPageAttachments = async function _pr92Schema10StageFromOfficialCleanComposer")
+        text.index("async function _pr92Schema10StageFromOfficialCleanComposer")
     ]
     assert '"SCHEMA10_PRESTAGE_CLEAN_DEBUGGER_ATTACH"' in prestage
     assert '"SCHEMA10_PRESTAGE_CLEAN_RUNTIME_ENABLE"' in prestage
@@ -74,7 +74,7 @@ def test_schema_10_bounds_prestage_debugger_setup_and_detaches_late_attach():
 def test_schema_10_bypasses_only_the_schema_8_unbounded_prestage_wrapper():
     text = SCHEMA10.read_text(encoding="utf-8")
     assert "await _pr92Schema10RequireOfficialCleanComposerBeforeStaging" in text
-    assert "return _pr92Schema8PriorStageOfficialPageAttachments(" in text
+    assert "return _pr92StageWithPageOwnedEvidence(" in text
     assert (
         "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema10AttachmentEvidenceExpression;"
         in text
