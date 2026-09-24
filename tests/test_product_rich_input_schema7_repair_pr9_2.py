@@ -44,7 +44,7 @@ def test_schema_7_final_attachment_validation_and_click_are_one_page_expression(
         text.index(
             "function _pr92Schema7AtomicAttachmentSubmitExpression"
         ) : text.index(
-            "submitOfficialPageTurn = async function _pr92Schema7AtomicAttachmentSubmit"
+            "async function _pr92Schema7AtomicAttachmentSubmit("
         )
     ]
     assert expression.index(
@@ -56,7 +56,7 @@ def test_schema_7_does_not_await_debugger_ack_after_potential_click():
     text = SCHEMA7.read_text(encoding="utf-8")
     submit = text[
         text.index(
-            "submitOfficialPageTurn = async function _pr92Schema7AtomicAttachmentSubmit"
+            "async function _pr92Schema7AtomicAttachmentSubmit("
         ) : text.index("function _pr92Schema7AugmentSupportResult")
     ]
 
