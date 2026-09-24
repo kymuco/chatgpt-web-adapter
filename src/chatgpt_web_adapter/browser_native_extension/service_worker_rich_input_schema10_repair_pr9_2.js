@@ -208,15 +208,15 @@ async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging(tabId, con
 
 // Bypass only schema 8's unbounded pre-stage wrapper. The captured schema-8 prior
 // points to the already-governed staging implementation before schema 8 was loaded.
-_pr92StageOfficialPageAttachments = async function _pr92Schema10StageFromOfficialCleanComposer(
+async function _pr92Schema10StageFromOfficialCleanComposer(
   tabId,
   attachmentPaths,
   context
 ) {
   if (attachmentPaths.length === 0) return 0;
   await _pr92Schema10RequireOfficialCleanComposerBeforeStaging(tabId, context);
-  return _pr92Schema8PriorStageOfficialPageAttachments(tabId, attachmentPaths, context);
-};
+  return _pr92StageWithPageOwnedEvidence(tabId, attachmentPaths, context);
+}
 
 function _pr92Schema10AugmentSupportResult(result) {
   return {
