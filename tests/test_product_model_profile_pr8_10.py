@@ -147,7 +147,9 @@ def test_model_profile_overlay_loads_after_pr8_8_selector_before_pr8_9_streaming
     pr810 = 'importScripts("service_worker_model_profile_selection_pr8_10.js");'
     preparation = 'importScripts("service_worker_selection_preparation.js");'
     pr89 = 'importScripts("service_worker_browser_response_stream.js");'
-    assert pr88 in source and pr810 in source and preparation in source and pr89 in source
+    assert (
+        pr88 in source and pr810 in source and preparation in source and pr89 in source
+    )
     assert (
         source.index(pr88)
         < source.index(pr810)
