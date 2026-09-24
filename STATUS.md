@@ -160,7 +160,8 @@ PR15 Architecture Reset
 → PR15.25 consolidate composer-selection preparation [merged]
 → PR15.26 consolidate Instant route semantics [merged]
 → PR15.27 consolidate runtime-tab resolution ownership [merged]
-→ PR15.28 consolidate stream-metadata extraction ownership [active]
+→ PR15.28 consolidate stream-metadata extraction ownership [merged]
+→ PR15.29 consolidate submit authority ownership [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```
