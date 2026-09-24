@@ -52,7 +52,7 @@ def test_lower_level_rich_input_hooks_remain_in_original_modules() -> None:
             "async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority",
         ),
         "service_worker_rich_input_schema28_repair_pr9_2.js": (
-            "extractSafeStreamMetadata =",
+            "function _pr92Schema28ExtractSafeStreamMetadata(",
         ),
         "service_worker_rich_input_schema29_repair_pr9_2.js": (
             "async function _pr92Schema29ExecuteOfficialPageTurn",
