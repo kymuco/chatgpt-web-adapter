@@ -7,7 +7,6 @@
 
 const _pr92DeadlineRepairPriorClickSendButton = clickSendButton;
 const _pr92DeadlineRepairPriorSubmitWithEnter = submitWithEnter;
-const _pr92DeadlineRepairPriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 const _pr92DeadlineRepairPriorTryClearDirtyAttachmentFence = (
   _pr92TryClearDirtyAttachmentFence
 );
@@ -155,13 +154,14 @@ submitWithEnter = async function _pr92SubmitWithEnterWithinDeadline(debuggee) {
 // fall back to Enter. That is safe only before the mouse release is attempted.
 // Once mouseReleased has been delegated, an ACK loss/timeout can coexist with a
 // real conversation write. Never issue a second submit in that state.
-submitOfficialPageTurn = async function _pr92SubmitOfficialPageTurnWithoutPostBoundaryRetry(
+async function _pr92SubmitOfficialPageTurnWithoutPostBoundaryRetry(
   debuggee,
-  timeoutMs
+  timeoutMs,
+  next
 ) {
   const context = _pr92DeadlineRepairRichContext();
   if (context === null) {
-    return _pr92DeadlineRepairPriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+    return next(debuggee, timeoutMs);
   }
 
   let point = null;
@@ -246,7 +246,7 @@ submitOfficialPageTurn = async function _pr92SubmitOfficialPageTurnWithoutPostBo
     await submitWithEnter(debuggee);
     return { strategy: "enter_fallback", selector: null };
   }
-};
+}
 
 async function _pr92DeadlineRepairProveTabAbsent(tabId, deadlineAt) {
   try {
