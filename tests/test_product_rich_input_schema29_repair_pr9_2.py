@@ -45,7 +45,7 @@ def _response_parser_source() -> str:
 def _request_correlation_source() -> str:
     schema29 = SCHEMA29.read_text(encoding="utf-8")
     start = schema29.index("function _pr92Schema29NonEmptyString")
-    end = schema29.index("extractSafeStreamMetadata = function", start)
+    end = schema29.index("function _pr92Schema29ExtractSafeStreamMetadata", start)
     return "const PR92_SCHEMA29_POSTDATA_SETTLE_CAP_MS = 1000;\n" + schema29[start:end]
 
 
