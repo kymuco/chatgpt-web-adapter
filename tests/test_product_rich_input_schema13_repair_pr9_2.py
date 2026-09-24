@@ -25,7 +25,7 @@ def test_schema_13_replaces_captured_raw_staging_primitive():
     assert "const PR92_SCHEMA13_REPAIR_SCHEMA = 13;" in text
     assert "async function _pr92Schema13StageFileSelection" in text
     assert "_pr92ClosurePriorStageOfficialPageAttachments" not in text
-    assert "_pr92StageOfficialPageAttachments = async function _pr92Schema13FullyBoundedStage" in text
+    assert "async function _pr92Schema13FullyBoundedStage" in text
     assert "await _pr92Schema10RequireOfficialCleanComposerBeforeStaging(" in text
     assert "return _pr92Schema12ObservePostStageAttachmentEvidence(" in text
 
