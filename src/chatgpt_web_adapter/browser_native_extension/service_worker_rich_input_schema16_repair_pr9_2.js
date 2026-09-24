@@ -10,7 +10,6 @@
 //      inherited debugger detach/getTargets teardown becomes best-effort and can
 //      no longer convert an already-submitted write into a response-lost timeout.
 
-const _pr92Schema16PriorEnsureRuntimeTab = ensureRuntimeTab;
 const PR92_SCHEMA16_REPAIR_SCHEMA = 16;
 
 _pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline() {
@@ -34,19 +33,20 @@ _pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentF
   }
 };
 
-ensureRuntimeTab = async function _pr92Schema16EnsureRuntimeTabWithinRichDeadline(
-  conversationId
+async function _pr92Schema16ResolveRuntimeTabWithinRichDeadline(
+  conversationId,
+  next
 ) {
   const context = _pr92ActiveRichInputContext;
   if (context === null) {
-    return _pr92Schema16PriorEnsureRuntimeTab(conversationId);
+    return next(conversationId);
   }
   return _pr92Schema7RunUntil(
     context.deadlineAt,
     "SCHEMA16_RUNTIME_TAB_ACQUISITION",
-    () => _pr92Schema16PriorEnsureRuntimeTab(conversationId)
+    () => next(conversationId)
   );
-};
+}
 
 function _pr92Schema16DispatchPostWriteDebuggerTeardown(debuggee) {
   // After the POST is observed, teardown has no authority over the submitted
