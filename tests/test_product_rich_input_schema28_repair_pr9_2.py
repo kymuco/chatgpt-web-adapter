@@ -10,9 +10,13 @@ PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
 LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA28 = EXT / "service_worker_rich_input_schema28_repair_pr9_2.js"
-DIAGNOSTIC_REPAIR28 = EXT / "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js"
+DIAGNOSTIC_REPAIR28 = (
+    EXT / "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js"
+)
 GATE28 = PKG / "product_rich_input_live_gate_schema28_pr9_2.py"
-DIAGNOSTIC28 = PKG / "product_rich_input_committed_identity_diagnostic_schema28_pr9_2.py"
+DIAGNOSTIC28 = (
+    PKG / "product_rich_input_committed_identity_diagnostic_schema28_pr9_2.py"
+)
 
 
 def _run_parser_cases() -> dict[str, object]:
@@ -50,8 +54,12 @@ console.log(JSON.stringify({{
 def _run_observer_preservation_case() -> dict[str, object]:
     text = SCHEMA28.read_text(encoding="utf-8")
     helper_start = text.index("function _pr92Schema28DecodeResponseBody")
-    override_start = text.index("function _pr92Schema28ExtractSafeStreamMetadata", helper_start)
-    override_end = text.index("async function _pr92Schema28ReadDiagnosticTab", override_start)
+    override_start = text.index(
+        "function _pr92Schema28ExtractSafeStreamMetadata", helper_start
+    )
+    override_end = text.index(
+        "async function _pr92Schema28ReadDiagnosticTab", override_start
+    )
     helpers = text[helper_start:override_start]
     override = text[override_start:override_end]
     script = f"""
@@ -158,7 +166,9 @@ def test_schema_28_repaired_metadata_still_populates_schema_19_request_bound_con
     end = text.index("async function _pr92Schema28ReadDiagnosticTab", start)
     block = text[start:end]
     assert "next(body, base64Encoded)" in block
-    assert "_pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded)" in block
+    assert (
+        "_pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded)" in block
+    )
     assert block.index("next(") < block.index(
         "_pr92Schema28ExtractRequestBoundStreamMetadata"
     )
@@ -211,7 +221,7 @@ def test_schema_28_reconciliation_diagnostic_is_zero_write_and_reserves_cleanup_
     assert "skippedForCleanupReserve" in js
     assert "await _pr92ReadDirtyAttachmentFence()" in js
     assert "await _pr92RequireCleanAttachmentState(context)" in js
-    assert 'cleanupProofAuthority: cleanupRequired' in js
+    assert "cleanupProofAuthority: cleanupRequired" in js
     assert '"PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in js
     assert '"POST_CLEANUP_TAB_ABSENCE_PROBE"' in js
     assert '"POST_CLEANUP_TAB_PRESENCE_PROBE"' in js
@@ -235,8 +245,10 @@ def test_schema_28_reconciliation_diagnostic_is_zero_write_and_reserves_cleanup_
     assert 'response.get("protectedSubmitAttempted") is not False' in py
     assert 'response.get("durableFenceCleared") is not True' in py
     assert 'response.get("staleComposerReconciled") is not True' in py
-    assert 'cleanup_proof_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in py
-    assert 'fenced_tab_absent is True' in py
-    assert 'fenced_tab_absent is False' in py
+    assert (
+        'cleanup_proof_authority != "PRODUCTION_REQUIRE_CLEAN_ATTACHMENT_STATE"' in py
+    )
+    assert "fenced_tab_absent is True" in py
+    assert "fenced_tab_absent is False" in py
     assert '"POST_CLEANUP_TAB_ABSENCE_PROBE"' in py
     assert '"POST_CLEANUP_TAB_PRESENCE_PROBE"' in py
