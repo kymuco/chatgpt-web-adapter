@@ -7,7 +7,6 @@ const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelecti
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = 8000;
 
-const _pr810ModelProfilePriorLocateAndFocusComposer = locateAndFocusComposer;
 let _pr810ModelProfileContext = null;
 
 function _pr810Mode(value) {
@@ -194,12 +193,11 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   context.selectionElapsedMs = Math.max(0, Math.round(performance.now() - startedAt));
 }
 
-locateAndFocusComposer = async function _locateAndFocusComposerWithModelProfile(debuggee) {
+async function _pr810PrepareComposer(debuggee) {
   if (_pr810ModelProfileContext !== null) {
     await _pr810EnsureTargetMode(debuggee, _pr810ModelProfileContext);
   }
-  return _pr810ModelProfilePriorLocateAndFocusComposer(debuggee);
-};
+}
 
 function _pr810Record(context) {
   return {
