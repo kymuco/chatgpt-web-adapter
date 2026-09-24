@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 OBSERVABILITY = EXTENSION / "service_worker_observability.js"
-READINESS = EXTENSION / "service_worker_temporary_startup_readiness_pr8_13_2.js"
+READINESS = EXTENSION / "service_worker_temporary_startup_readiness.js"
 PRODUCTION = EXTENSION / "service_worker_temporary_product.js"
 
 
@@ -13,16 +13,15 @@ def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_pr8132_overlay_loads_after_temporary_identity_repairs() -> None:
+def test_pr8132_helpers_load_before_temporary_product_owner() -> None:
     text = _text(OBSERVABILITY)
+    readiness = 'importScripts("service_worker_temporary_startup_readiness.js");'
     temporary_product = 'importScripts("service_worker_temporary_product.js");'
-    readiness = (
-        'importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");'
-    )
 
-    assert temporary_product in text
     assert readiness in text
-    assert text.index(readiness) > text.index(temporary_product)
+    assert temporary_product in text
+    assert text.index(readiness) < text.index(temporary_product)
+    assert "service_worker_temporary_startup_readiness_pr8_13_2.js" not in text
 
 
 def test_fresh_readiness_is_bounded_and_non_authoritative() -> None:
@@ -90,3 +89,29 @@ def test_pr8132_readiness_applies_only_to_fresh_temporary_turns() -> None:
     assert "freshReadinessApplied: false" in text
     assert "temporaryFreshReadinessApplied" in text
     assert "temporaryFreshReadinessKind" in text
+
+
+def test_startup_readiness_no_longer_reassigns_temporary_product_hooks() -> None:
+    readiness = _text(READINESS)
+    product = _text(PRODUCTION)
+
+    for forbidden in (
+        "_pr813ResolveProof =",
+        "_pr813RejectProof =",
+        "submitOfficialPageTurn =",
+        "_pr8132PriorResolveProof",
+        "_pr8132PriorRejectProof",
+        "_pr8132PriorSubmitOfficialPageTurn",
+    ):
+        assert forbidden not in readiness
+
+    assert "function _pr8132ResolveProofWithDiagnostics(" in readiness
+    assert "function _pr8132RejectProofWithDiagnostics(" in readiness
+    assert "async function _pr8132SubmitOfficialPageTurnWithReadiness(" in readiness
+
+    assert "function _pr813ResolveProof(context, evidence)" in product
+    assert "function _pr813RejectProof(context, error)" in product
+    assert "submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn" in product
+    assert "_pr8132ResolveProofWithDiagnostics(" in product
+    assert "_pr8132RejectProofWithDiagnostics(" in product
+    assert "_pr8132SubmitOfficialPageTurnWithReadiness(" in product
