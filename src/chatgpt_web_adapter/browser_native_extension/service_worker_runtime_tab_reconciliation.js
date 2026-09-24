@@ -60,7 +60,7 @@ async function _pr824a3ValidateStoredRuntimeTab() {
 storedRuntimeTabId = async function _storedRuntimeTabIdWithLiveValidation() {
   const state = await _pr824a3ValidateStoredRuntimeTab();
   return state.tabId;
-}
+};
 
 async function _pr824a3PublishValidatedRuntimeState() {
   const state = await _pr824a3ValidateStoredRuntimeTab();
@@ -442,4 +442,4 @@ async function _pr88OnNativeMessageWithBrowserAuthorityLease(message, port, next
   } finally {
     activeRequestId = null;
   }
-};
+}
