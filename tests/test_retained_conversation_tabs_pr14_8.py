@@ -22,8 +22,7 @@ def test_pr14_8_routes_saved_conversations_to_retained_background_tabs() -> None
     for token in (
         'const PR148_CONVERSATION_TAB_POOL_KEY = "browserNativeConversationTabsV1"',
         "const PR148_CONVERSATION_TAB_POOL_MAX = 16",
-        "const _pr148PriorEnsureRuntimeTab = ensureRuntimeTab",
-        "ensureRuntimeTab = async function _pr148EnsureRetainedConversationTab",
+        "async function _pr148ResolveRuntimeTab(conversationId, next)",
         "chrome.tabs.create({ url: targetUrl, active: false })",
         'conversationIdFromUrl(tab?.url || "") === conversationId',
         "_pr148BindConversationTab(savedConversationId, legacy.id)",
@@ -39,7 +38,7 @@ def test_pr14_8_never_repurposes_retained_saved_tab_for_fresh_chat() -> None:
 
     assert "await _pr148DetachLegacyPointerIfConversationBound()" in source
     assert "chrome.storage.local.remove(RUNTIME_TAB_KEY)" in source
-    assert "return _pr148PriorEnsureRuntimeTab(conversationId)" in source
+    assert "return next(conversationId)" in source
     assert "chrome.tabs.update(" not in source
 
 
@@ -51,7 +50,7 @@ def test_pr14_8_preserves_temporary_chat_lifecycle_authority() -> None:
         "const savedConversationId = _pr148ConversationId(conversationId)"
     )
     delegate = source.index(
-        "return _pr148PriorEnsureRuntimeTab(conversationId)",
+        "return next(conversationId)",
         temporary_guard,
     )
 
