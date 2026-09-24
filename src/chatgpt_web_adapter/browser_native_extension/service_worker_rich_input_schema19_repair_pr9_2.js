@@ -15,7 +15,6 @@
 // returned and automatic write retry remains forbidden.
 
 const _pr92Schema19PriorCreateTurnContext = _pr92CreateTurnContext;
-const _pr92Schema19PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const _pr92Schema19PriorOptionalPostWrite = _pr92Schema17OptionalPostWrite;
 const PR92_SCHEMA19_REPAIR_SCHEMA = 19;
 const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;
@@ -34,11 +33,12 @@ _pr92CreateTurnContext = function _pr92Schema19CreateTurnContext(message) {
   return context;
 };
 
-extractSafeStreamMetadata = function _pr92Schema19ExtractRequestBoundStreamMetadata(
+function _pr92Schema19ExtractRequestBoundStreamMetadata(
   body,
-  base64Encoded
+  base64Encoded,
+  next
 ) {
-  const metadata = _pr92Schema19PriorExtractSafeStreamMetadata(body, base64Encoded);
+  const metadata = next(body, base64Encoded);
   const context = _pr92ActiveRichInputContext;
   if (context !== null) {
     if (typeof metadata?.conversationId === "string" && metadata.conversationId.trim()) {
@@ -49,7 +49,7 @@ extractSafeStreamMetadata = function _pr92Schema19ExtractRequestBoundStreamMetad
     }
   }
   return metadata;
-};
+}
 
 // For a new chat, response-body metadata is no longer optional identity
 // decoration: it is the sole causal identity source. Give that exact-request
