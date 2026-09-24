@@ -142,7 +142,7 @@ function isConversationWrite(url, method) {
   }
 }
 
-function extractSafeStreamMetadata(body, base64Encoded) {
+function _cwaBaseExtractSafeStreamMetadata(body, base64Encoded) {
   const result = { conversationId: null, turnExchangeId: null };
   if (base64Encoded || typeof body !== "string") return result;
   for (const rawLine of body.split(/\r?\n/)) {
