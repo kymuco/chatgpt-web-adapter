@@ -24,9 +24,9 @@ def test_production_runtime_bypasses_historical_temporary_characterization_chain
     assert "service_worker_runtime_legacy_impl.js" not in runtime
     assert "service_worker_temporary_chat_manual_ground_truth.js" not in runtime
 
-    readiness = (
-        root / "service_worker_temporary_startup_readiness.js"
-    ).read_text(encoding="utf-8")
+    readiness = (root / "service_worker_temporary_startup_readiness.js").read_text(
+        encoding="utf-8"
+    )
     assert "_cwaTemporaryControlSnapshot" in readiness
     assert "_pr87TemporaryControlSnapshot" not in readiness
 
