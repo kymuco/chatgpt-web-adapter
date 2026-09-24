@@ -18,7 +18,7 @@ DIAGNOSTIC28 = PKG / "product_rich_input_committed_identity_diagnostic_schema28_
 def _run_parser_cases() -> dict[str, object]:
     text = SCHEMA28.read_text(encoding="utf-8")
     start = text.index("function _pr92Schema28DecodeResponseBody")
-    end = text.index("extractSafeStreamMetadata = function", start)
+    end = text.index("function _pr92Schema28ExtractSafeStreamMetadata", start)
     functions = text[start:end]
     script = f"""
 {functions}
@@ -50,14 +50,14 @@ console.log(JSON.stringify({{
 def _run_observer_preservation_case() -> dict[str, object]:
     text = SCHEMA28.read_text(encoding="utf-8")
     helper_start = text.index("function _pr92Schema28DecodeResponseBody")
-    override_start = text.index("extractSafeStreamMetadata = function", helper_start)
+    override_start = text.index("function _pr92Schema28ExtractSafeStreamMetadata", helper_start)
     override_end = text.index("async function _pr92Schema28ReadDiagnosticTab", override_start)
     helpers = text[helper_start:override_start]
     override = text[override_start:override_end]
     script = f"""
 {helpers}
 let priorCalls = 0;
-const _pr92Schema28PriorExtractSafeStreamMetadata = (body, base64Encoded) => {{
+const next = (body, base64Encoded) => {{
   priorCalls += 1;
   globalThis.observerSideEffect = `${{base64Encoded === true}}:${{body.length}}`;
   return {{ conversationId: "WRONG_PRIOR_ID", turnExchangeId: "WRONG_PRIOR_TURN" }};
@@ -67,12 +67,11 @@ let _pr92ActiveRichInputContext = {{
   schema19CausalConversationId: "OLD_ID",
   schema19CausalTurnExchangeId: "OLD_TURN"
 }};
-let extractSafeStreamMetadata;
 {override}
 const cid = "11111111-2222-3333-4444-555555555555";
 const turn = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const body = `data: {{\"type\": \"stream_handoff\", \"conversation_id\": \"${{cid}}\", \"turn_exchange_id\": \"${{turn}}\"}}\n`;
-const result = extractSafeStreamMetadata(body, false);
+const result = _pr92Schema28ExtractSafeStreamMetadata(body, false, next);
 console.log(JSON.stringify({{
   priorCalls,
   observerSideEffect: globalThis.observerSideEffect,
@@ -104,7 +103,7 @@ def test_schema_28_overlay_is_loaded_after_schema_27_diagnostic():
 def test_schema_28_parser_is_json_first_and_not_serialization_specific():
     text = SCHEMA28.read_text(encoding="utf-8")
     start = text.index("function _pr92Schema28ExtractRequestBoundStreamMetadata")
-    end = text.index("extractSafeStreamMetadata = function", start)
+    end = text.index("function _pr92Schema28ExtractSafeStreamMetadata", start)
     block = text[start:end]
     assert "JSON.parse(payloadText)" in block
     assert 'payload?.type !== "stream_handoff"' in block
@@ -154,13 +153,13 @@ def test_schema_28_preserves_prior_metadata_observer_side_effects_without_trusti
 
 def test_schema_28_repaired_metadata_still_populates_schema_19_request_bound_context():
     text = SCHEMA28.read_text(encoding="utf-8")
-    assert "const _pr92Schema28PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;" in text
-    start = text.index("extractSafeStreamMetadata = function")
+    assert "PriorExtractSafeStreamMetadata" not in text
+    start = text.index("function _pr92Schema28ExtractSafeStreamMetadata")
     end = text.index("async function _pr92Schema28ReadDiagnosticTab", start)
     block = text[start:end]
-    assert "_pr92Schema28PriorExtractSafeStreamMetadata(body, base64Encoded)" in block
+    assert "next(body, base64Encoded)" in block
     assert "_pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded)" in block
-    assert block.index("_pr92Schema28PriorExtractSafeStreamMetadata") < block.index(
+    assert block.index("next(") < block.index(
         "_pr92Schema28ExtractRequestBoundStreamMetadata"
     )
     assert "context.schema19CausalConversationId" in block
