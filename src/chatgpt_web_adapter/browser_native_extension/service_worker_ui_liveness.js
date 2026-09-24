@@ -1,4 +1,3 @@
-const _cwaUiLivenessPriorOnNativeMessage = onNativeMessage;
 let _cwaUiLivenessProbeActive = false;
 let _cwaUiLivenessProbePromise = null;
 
@@ -171,7 +170,7 @@ async function _cwaObserveUiLiveness() {
   });
 }
 
-onNativeMessage = async function _cwaOnNativeMessageWithUiLiveness(message, port) {
+async function _cwaOnNativeMessageWithUiLiveness(message, port, next) {
   if (
     message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
     message?.type !== "ui_liveness"
@@ -180,7 +179,7 @@ onNativeMessage = async function _cwaOnNativeMessageWithUiLiveness(message, port
     if (activeProbe) {
       try { await activeProbe; } catch {}
     }
-    return _cwaUiLivenessPriorOnNativeMessage(message, port);
+    return next(message, port);
   }
 
   const requestId = message.request_id;
@@ -230,4 +229,4 @@ onNativeMessage = async function _cwaOnNativeMessageWithUiLiveness(message, port
     ok: true,
     ...observation
   });
-};
+}
