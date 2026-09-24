@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA28 = (
@@ -18,15 +17,19 @@ SCHEMA28 = (
 def _run_base64_observer_case() -> dict[str, object]:
     text = SCHEMA28.read_text(encoding="utf-8")
     helper_start = text.index("function _pr92Schema28DecodeResponseBody")
-    override_start = text.index("extractSafeStreamMetadata = function", helper_start)
-    override_end = text.index("async function _pr92Schema28ReadDiagnosticTab", override_start)
+    override_start = text.index(
+        "function _pr92Schema28ExtractSafeStreamMetadata", helper_start
+    )
+    override_end = text.index(
+        "async function _pr92Schema28ReadDiagnosticTab", override_start
+    )
     helpers = text[helper_start:override_start]
     override = text[override_start:override_end]
     script = f"""
 {helpers}
 const priorCalls = [];
 let responseHintsObserved = false;
-const _pr92Schema28PriorExtractSafeStreamMetadata = (body, base64Encoded) => {{
+const next = (body, base64Encoded) => {{
   priorCalls.push({{ body, base64Encoded }});
   if (
     base64Encoded === false &&
@@ -42,14 +45,13 @@ let _pr92ActiveRichInputContext = {{
   schema19CausalConversationId: "OLD_ID",
   schema19CausalTurnExchangeId: "OLD_TURN"
 }};
-let extractSafeStreamMetadata;
 {override}
 const cid = "11111111-2222-3333-4444-555555555555";
 const turn = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const decoded = `data: {{\"model\": \"instant\", \"reasoning_effort\": \"none\"}}\n` +
   `data: {{\"type\": \"stream_handoff\", \"conversation_id\": \"${{cid}}\", \"turn_exchange_id\": \"${{turn}}\"}}\n`;
 const encoded = Buffer.from(decoded, "utf8").toString("base64");
-const result = extractSafeStreamMetadata(encoded, true);
+const result = _pr92Schema28ExtractSafeStreamMetadata(encoded, true, next);
 console.log(JSON.stringify({{
   priorCalls,
   responseHintsObserved,
@@ -93,15 +95,17 @@ def test_schema_28_decodes_base64_before_prior_metadata_observer_side_effects():
 
 def test_schema_28_prior_observer_receives_decoded_text_before_request_bound_parse():
     text = SCHEMA28.read_text(encoding="utf-8")
-    start = text.index("extractSafeStreamMetadata = function")
+    start = text.index("function _pr92Schema28ExtractSafeStreamMetadata")
     end = text.index("async function _pr92Schema28ReadDiagnosticTab", start)
     block = text[start:end]
 
-    decode = "const observerBody = _pr92Schema28DecodeResponseBody(body, base64Encoded);"
-    observe = "_pr92Schema28PriorExtractSafeStreamMetadata(observerBody, false);"
+    decode = (
+        "const observerBody = _pr92Schema28DecodeResponseBody(body, base64Encoded);"
+    )
+    observe = "next(observerBody, false);"
     parse = "_pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded)"
     assert decode in block
     assert observe in block
     assert parse in block
     assert block.index(decode) < block.index(observe) < block.index(parse)
-    assert "_pr92Schema28PriorExtractSafeStreamMetadata(body, base64Encoded);" in block
+    assert "next(body, base64Encoded);" in block

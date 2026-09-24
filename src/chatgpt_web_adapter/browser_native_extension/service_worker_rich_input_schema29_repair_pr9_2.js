@@ -37,7 +37,6 @@
 // forbidden. Raw request text, postData, request ids, message ids, and conversation
 // ids are never emitted in diagnostics.
 
-const _pr92Schema29PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA29_REPAIR_SCHEMA = 29;
 const PR92_SCHEMA29_IDENTITY_AUTHORITY =
   "NETWORK_REQUEST_BOUND_PROTOCOL_CONVERSATION_ID_CONSENSUS";
@@ -548,12 +547,13 @@ function _pr92Schema29EvaluateSubmitCorrelation(context) {
   };
 }
 
-extractSafeStreamMetadata = function _pr92Schema29ExtractSafeStreamMetadata(
+function _pr92Schema29ExtractSafeStreamMetadata(
   body,
-  base64Encoded
+  base64Encoded,
+  next
 ) {
   try {
-    _pr92Schema29PriorExtractSafeStreamMetadata(body, base64Encoded);
+    next(body, base64Encoded);
   } catch {
     // Observability must never perturb exact-request identity.
   }
@@ -580,7 +580,7 @@ extractSafeStreamMetadata = function _pr92Schema29ExtractSafeStreamMetadata(
     conversationId: parsed.conversationId,
     turnExchangeId: parsed.turnExchangeId
   };
-};
+}
 
 async function _pr92Schema29ExecuteOfficialPageTurn(args, next, bypassSchema20) {
   const context = _pr92ActiveRichInputContext;

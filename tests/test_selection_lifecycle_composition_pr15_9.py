@@ -46,7 +46,7 @@ def test_lower_level_selection_and_timing_hooks_remain_local() -> None:
         ),
         "service_worker_instant_mode_pr8_8.js": (
             "async function _pr88InstantObserveComposerBeforeWrite(",
-            "extractSafeStreamMetadata =",
+            "function _pr88ExtractSafeStreamMetadataWithInstantHints(",
             "async function _executeOfficialPageTurnWithInstantObservation",
         ),
         "service_worker_instant_selection_repair_pr8_8.js": (

@@ -16,7 +16,6 @@
 // decodes CDP base64 response-body representation as UTF-8, and fails closed if
 // multiple stream_handoff records disagree on conversation identity.
 
-const _pr92Schema28PriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 const PR92_SCHEMA28_REPAIR_SCHEMA = 28;
 const PR92_SCHEMA28_COMMITTED_IDENTITY_ERROR =
   "PR9_2_WRITE_COMPLETED_CONVERSATION_ID_UNRESOLVED";
@@ -102,9 +101,10 @@ function _pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded) {
   };
 }
 
-extractSafeStreamMetadata = function _pr92Schema28ExtractSafeStreamMetadata(
+function _pr92Schema28ExtractSafeStreamMetadata(
   body,
-  base64Encoded
+  base64Encoded,
+  next
 ) {
   // Preserve the complete pre-schema-28 metadata observer chain for side effects
   // such as PR8.8 INSTANT/model/reasoning responseHints. When CDP represents the
@@ -116,9 +116,9 @@ extractSafeStreamMetadata = function _pr92Schema28ExtractSafeStreamMetadata(
   const observerBody = _pr92Schema28DecodeResponseBody(body, base64Encoded);
   try {
     if (typeof observerBody === "string") {
-      _pr92Schema28PriorExtractSafeStreamMetadata(observerBody, false);
+      next(observerBody, false);
     } else {
-      _pr92Schema28PriorExtractSafeStreamMetadata(body, base64Encoded);
+      next(body, base64Encoded);
     }
   } catch {
     // Observability must never perturb the request-bound identity path.
@@ -146,7 +146,7 @@ extractSafeStreamMetadata = function _pr92Schema28ExtractSafeStreamMetadata(
     conversationId: parsed.conversationId,
     turnExchangeId: parsed.turnExchangeId
   };
-};
+}
 
 async function _pr92Schema28ReadDiagnosticTab(tabId, context) {
   if (!Number.isInteger(tabId)) return null;

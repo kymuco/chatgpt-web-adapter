@@ -14,8 +14,6 @@ const PR88_INSTANT_MODE_STORAGE_KEY = "browserAuthorityLastInstantModeV1";
 const PR88_INSTANT_PROBE_TIMEOUT_MS = 15_000;
 const PR88_INSTANT_MODE_SNAPSHOT_POLL_MS = 200;
 
-const _pr88InstantPriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
-
 let _pr88InstantContext = null;
 
 function _pr88InstantLeaseId(value) {
@@ -396,7 +394,11 @@ async function _pr88InstantObserveComposerBeforeWrite(debuggee) {
   }
 }
 
-extractSafeStreamMetadata = function _extractSafeStreamMetadataWithInstantHints(body, base64Encoded) {
+function _pr88ExtractSafeStreamMetadataWithInstantHints(
+  body,
+  base64Encoded,
+  next
+) {
   const context = _pr88InstantContext;
   if (context !== null) {
     try {
@@ -408,8 +410,8 @@ extractSafeStreamMetadata = function _extractSafeStreamMetadataWithInstantHints(
       // Never perturb the existing safe stream metadata path.
     }
   }
-  return _pr88InstantPriorExtractSafeStreamMetadata(body, base64Encoded);
-};
+  return next(body, base64Encoded);
+}
 
 async function _executeOfficialPageTurnWithInstantObservation(args, next) {
   const context = _pr88InstantContext;

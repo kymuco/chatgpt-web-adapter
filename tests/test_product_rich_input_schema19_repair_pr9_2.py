@@ -23,7 +23,7 @@ def test_schema_19_overlay_is_loaded_after_schema_18():
 def test_schema_19_turn_context_records_new_chat_vs_continuation_identity():
     text = SCHEMA19.read_text(encoding="utf-8")
     start = text.index("_pr92CreateTurnContext = function")
-    end = text.index("extractSafeStreamMetadata = function", start)
+    end = text.index("function _pr92Schema19ExtractRequestBoundStreamMetadata", start)
     block = text[start:end]
     assert 'typeof message?.conversationId === "string"' in block
     assert "context.schema19RequestedConversationId = requestedConversationId" in block
@@ -33,10 +33,11 @@ def test_schema_19_turn_context_records_new_chat_vs_continuation_identity():
 
 def test_schema_19_causal_identity_is_captured_only_from_safe_stream_metadata():
     text = SCHEMA19.read_text(encoding="utf-8")
-    start = text.index("extractSafeStreamMetadata = function")
+    start = text.index("function _pr92Schema19ExtractRequestBoundStreamMetadata")
     end = text.index("_pr92Schema17OptionalPostWrite = async function", start)
     block = text[start:end]
-    assert "_pr92Schema19PriorExtractSafeStreamMetadata(body, base64Encoded)" in block
+    assert "const metadata = next(body, base64Encoded);" in block
+    assert "PriorExtractSafeStreamMetadata" not in block
     assert (
         "context.schema19CausalConversationId = metadata.conversationId.trim()" in block
     )
@@ -59,7 +60,9 @@ def test_schema_19_causal_stream_metadata_is_bound_to_exact_completed_request_id
     assert "extractSafeStreamMetadata" in schema17
 
     schema19 = SCHEMA19.read_text(encoding="utf-8")
-    capture_start = schema19.index("extractSafeStreamMetadata = function")
+    capture_start = schema19.index(
+        "function _pr92Schema19ExtractRequestBoundStreamMetadata"
+    )
     capture_end = schema19.index(
         "_pr92Schema17OptionalPostWrite = async function", capture_start
     )

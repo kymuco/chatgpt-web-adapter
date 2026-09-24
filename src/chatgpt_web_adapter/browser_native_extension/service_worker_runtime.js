@@ -7,6 +7,7 @@
 
 importScripts("service_worker_runtime_tab_reconciliation.js");
 importScripts("service_worker_runtime_write.js");
+importScripts("service_worker_stream_metadata.js");
 importScripts("service_worker_runtime_tab_resolution.js");
 importScripts("service_worker_runtime_read.js");
 importScripts("service_worker_runtime_observation.js");
