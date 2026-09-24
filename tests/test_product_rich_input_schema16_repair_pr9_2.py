@@ -24,7 +24,7 @@ def test_schema_16_durable_fence_read_is_raced_against_outer_deadline():
     start = text.index(
         "_pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline"
     )
-    end = text.index("ensureRuntimeTab = async function", start)
+    end = text.index("async function _pr92Schema16ResolveRuntimeTabWithinRichDeadline", start)
     block = text[start:end]
     assert '"SCHEMA16_STALE_ATTACHMENT_FENCE_READ"' in block
     assert "context.deadlineAt" in block
@@ -36,7 +36,7 @@ def test_schema_16_durable_fence_read_is_raced_against_outer_deadline():
 def test_schema_16_rich_runtime_tab_acquisition_is_complete_helper_deadline_race():
     text = SCHEMA16.read_text(encoding="utf-8")
     start = text.index(
-        "ensureRuntimeTab = async function _pr92Schema16EnsureRuntimeTabWithinRichDeadline"
+        "async function _pr92Schema16ResolveRuntimeTabWithinRichDeadline"
     )
     end = text.index("function _pr92Schema16DispatchPostWriteDebuggerTeardown", start)
     block = text[start:end]
@@ -44,7 +44,7 @@ def test_schema_16_rich_runtime_tab_acquisition_is_complete_helper_deadline_race
     assert "if (context === null)" in block
     assert '"SCHEMA16_RUNTIME_TAB_ACQUISITION"' in block
     assert "context.deadlineAt" in block
-    assert "() => _pr92Schema16PriorEnsureRuntimeTab(conversationId)" in block
+    assert "() => next(conversationId)" in block
 
 
 def test_schema_16_post_write_debugger_teardown_is_best_effort_and_non_awaited():
