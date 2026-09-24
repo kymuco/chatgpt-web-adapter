@@ -16,8 +16,8 @@ importScripts("service_worker_product_observation.js");
 // Git history/source-specific tests only; ordinary runtime contains no dormant
 // import switch for those research overlays.
 
+importScripts("service_worker_temporary_startup_readiness.js");
 importScripts("service_worker_temporary_product.js");
-importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");
 importScripts("service_worker_temporary_lifecycle.js");
 
 async function _pr824aExistingRuntimeTabSnapshot() {
