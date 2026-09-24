@@ -66,7 +66,7 @@ def test_schema_6_attachment_count_requires_page_owned_composer_evidence_after_r
     assert "attachmentEvidenceStablePollCount" in text
     assert "attachmentCountEvidence: PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE" in text
 
-    staging = text.index("_pr92ClosurePriorStageOfficialPageAttachments(")
+    staging = text.index("_pr92BaseStageOfficialPageAttachments(")
     page_evidence = text.index(
         "_pr92ClosureWaitForPageOwnedAttachmentEvidence(", staging
     )
