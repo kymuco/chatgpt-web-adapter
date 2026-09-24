@@ -12,8 +12,6 @@ importScripts("service_worker_recovery.js");
 const PR88_PHASE_TIMING_SCHEMA_VERSION = 1;
 const PR88_PHASE_TIMING_STORAGE_KEY = "browserAuthorityLastPhaseTimingV1";
 
-const _pr88PhasePriorEnsureRuntimeTab = ensureRuntimeTab;
-
 let _pr88PhaseTimingContext = null;
 
 function _pr88PhaseLeaseId(value) {
@@ -43,15 +41,15 @@ function _pr88PhaseTimingQueryConflict(message) {
   );
 }
 
-ensureRuntimeTab = async function _ensureRuntimeTabWithPhaseTiming(conversationId) {
+async function _pr88ResolveRuntimeTabWithPhaseTiming(conversationId, next) {
   const context = _pr88PhaseTimingContext;
   if (context === null) {
-    return _pr88PhasePriorEnsureRuntimeTab(conversationId);
+    return next(conversationId);
   }
 
   const startedAt = performance.now();
   try {
-    return await _pr88PhasePriorEnsureRuntimeTab(conversationId);
+    return await next(conversationId);
   } finally {
     const durationMs = _pr88PhaseDurationMs(startedAt);
     context.runtimeTabResolveCallCount += 1;
@@ -64,7 +62,7 @@ ensureRuntimeTab = async function _ensureRuntimeTabWithPhaseTiming(conversationI
       context.runtimeTabFirstResolveMs = durationMs;
     }
   }
-};
+}
 
 async function _executeOfficialPageTurnWithPhaseTiming(args, next) {
   const context = _pr88PhaseTimingContext;
