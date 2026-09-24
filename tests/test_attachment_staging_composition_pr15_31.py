@@ -125,8 +125,9 @@ def test_historical_staging_generations_have_explicit_dependencies() -> None:
     assert "_pr92BaseStageOfficialPageAttachments(" in schema12
 
     stage13 = schema13[
-        schema13.index("async function _pr92Schema13FullyBoundedStage") :
-        schema13.index("function _pr92Schema13AugmentSupportResult")
+        schema13.index(
+            "async function _pr92Schema13FullyBoundedStage"
+        ) : schema13.index("function _pr92Schema13AugmentSupportResult")
     ]
     clean = "_pr92Schema10RequireOfficialCleanComposerBeforeStaging("
     select = "_pr92Schema13StageFileSelection("
