@@ -330,11 +330,10 @@ def test_normal_mode_delegates_to_existing_production_chain() -> None:
     assert "async function _pr813ExecuteNativeTurn(message, next)" in source
     assert 'if (mode !== "temporary") return next(message);' in source
     assert "return _pr813ExecuteTemporaryTurn(message, next);" in source
-    assert "const _pr813PriorEnsureRuntimeTab = ensureRuntimeTab;" in source
-    assert (
-        "if (context === null) return _pr813PriorEnsureRuntimeTab(conversationId);"
-        in source
-    )
+    assert "async function _pr813ResolveRuntimeTab(conversationId, next)" in source
+    assert "if (context === null) return next(conversationId);" in source
+    assert "_pr813PriorEnsureRuntimeTab" not in source
+    assert "ensureRuntimeTab =" not in source
 
 
 def test_pr813_adds_no_retry_or_second_product_write_path() -> None:
