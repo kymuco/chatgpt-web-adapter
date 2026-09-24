@@ -15,7 +15,6 @@
 const PR88_INSTANT_SELECTION_SCHEMA_VERSION = 1;
 const PR88_INSTANT_SELECTION_STORAGE_KEY = "browserAuthorityLastInstantSelectionV1";
 
-const _pr88SelectionPriorLocateAndFocusComposer = locateAndFocusComposer;
 
 let _pr88SelectionContext = null;
 
@@ -228,15 +227,12 @@ function _pr88SelectionInstallNetworkWindow(debuggee, context) {
   context.networkListener = listener;
 }
 
-locateAndFocusComposer = async function _locateAndFocusComposerWithInstantSelectionRepair(debuggee) {
+async function _pr88SelectionPrepareComposer(debuggee) {
   const context = _pr88SelectionContext;
   if (context !== null) {
     await _pr88SelectionEnsureInstant(debuggee, context);
   }
-  // The prior wrapper is the existing Instant observer. Calling it only after
-  // selection means its preWritePicker snapshot must see the repaired state.
-  return _pr88SelectionPriorLocateAndFocusComposer(debuggee);
-};
+}
 
 async function _pr88SelectionStoredRecord() {
   try {
