@@ -78,8 +78,9 @@ def test_extension_derivation_separates_model_identity_from_reasoning_state():
     end = worker.index("\nfunction _pr88InstantModeSnapshotExpression()", start)
     route = worker[start:end]
 
+    assert "UNIFIED_GPT_5_6_ROUTE_WITHOUT_EXPLICIT_REASONING" in worker
+
     for token in (
-        "UNIFIED_GPT_5_6_ROUTE_WITHOUT_EXPLICIT_REASONING",
         "merged.reasoningHintKeys.size > 0",
         'reasoning.has("ON")',
         "modelSlugReasoningAliasObserved",
