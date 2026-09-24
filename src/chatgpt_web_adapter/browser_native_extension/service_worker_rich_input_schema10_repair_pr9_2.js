@@ -206,8 +206,8 @@ async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging(tabId, con
   }
 }
 
-// Bypass only schema 8's unbounded pre-stage wrapper. The captured schema-8 prior
-// points to the already-governed staging implementation before schema 8 was loaded.
+// Bypass only schema 8's unbounded pre-stage generation. Delegate explicitly
+// to the already-governed closure staging helper that schema 8 historically captured.
 async function _pr92Schema10StageFromOfficialCleanComposer(
   tabId,
   attachmentPaths,
