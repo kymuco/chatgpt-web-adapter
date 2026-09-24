@@ -60,7 +60,9 @@ def test_schema_19_causal_stream_metadata_is_bound_to_exact_completed_request_id
     assert "extractSafeStreamMetadata" in schema17
 
     schema19 = SCHEMA19.read_text(encoding="utf-8")
-    capture_start = schema19.index("function _pr92Schema19ExtractRequestBoundStreamMetadata")
+    capture_start = schema19.index(
+        "function _pr92Schema19ExtractRequestBoundStreamMetadata"
+    )
     capture_end = schema19.index(
         "_pr92Schema17OptionalPostWrite = async function", capture_start
     )
