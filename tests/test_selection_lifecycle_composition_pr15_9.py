@@ -41,7 +41,7 @@ def test_selection_layers_no_longer_own_native_turn() -> None:
 def test_lower_level_selection_and_timing_hooks_remain_local() -> None:
     required = {
         "service_worker_phase_timing_pr8_8.js": (
-            "ensureRuntimeTab =",
+            "async function _pr88ResolveRuntimeTabWithPhaseTiming(",
             "async function _executeOfficialPageTurnWithPhaseTiming",
         ),
         "service_worker_instant_mode_pr8_8.js": (
