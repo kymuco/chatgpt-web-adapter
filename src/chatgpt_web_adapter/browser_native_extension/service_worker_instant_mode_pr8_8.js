@@ -217,33 +217,68 @@ function _pr88InstantHintsRecord(hints) {
   };
 }
 
+const PR88_UNIFIED_GPT56_ROUTE_STATUS =
+  "UNIFIED_GPT_5_6_ROUTE_WITHOUT_EXPLICIT_REASONING";
+
+function _pr88UnifiedGpt56Identifier(value) {
+  if (typeof value !== "string") return false;
+  const text = value.trim().toLowerCase();
+  return /^gpt-5-6(?:$|[-_.:/])/.test(text);
+}
+
+function _pr88UnifiedModelSlugReasoningAlias(value) {
+  if (!_pr88UnifiedGpt56Identifier(value)) return false;
+  const text = value.trim().toLowerCase();
+  return text.includes("thinking") || text.includes("reasoning");
+}
+
 function _pr88InstantDeriveNetworkRoute(requestHints, responseHints) {
   const merged = _pr88InstantNewHintAccumulator();
   _pr88InstantMergeHints(merged, requestHints);
   _pr88InstantMergeHints(merged, responseHints);
-  const modes = merged.modelModes;
+
   const reasoning = merged.reasoningStates;
-  const reasoningModeObserved = Array.from(modes).some((mode) =>
-    ["MEDIUM", "HIGH", "EXTRA_HIGH", "PRO_STANDARD", "PRO_EXTENDED", "REASONING_OTHER", "PRO_OTHER"].includes(mode)
-  );
-  const reasoningPositive = reasoning.has("ON") || reasoningModeObserved;
-  const instantPositive = modes.has("INSTANT");
+  const explicitReasoningMetadataObserved = merged.reasoningHintKeys.size > 0;
   const reasoningOff = reasoning.has("OFF");
 
+  // A model slug is model identity evidence, not reasoning-state evidence.
+  // If an explicit reasoning/thinking key exists but is not explicitly OFF,
+  // stay conservative and treat it as a positive reasoning-route observation.
+  const explicitReasoningPositive =
+    reasoning.has("ON") ||
+    (explicitReasoningMetadataObserved && !reasoningOff);
+
+  const instantPositive = merged.modelModes.has("INSTANT");
+  const identifiers = Array.from(merged.modelIdentifiers);
+  const unifiedGpt56Observed = identifiers.some(_pr88UnifiedGpt56Identifier);
+  const modelSlugReasoningAliasObserved =
+    identifiers.some(_pr88UnifiedModelSlugReasoningAlias);
+
   let status = "INCONCLUSIVE";
-  if (reasoningPositive) status = "REASONING_ROUTE_OBSERVED";
-  else if (instantPositive && !reasoningPositive) status = "INSTANT_MODEL_ROUTE_OBSERVED";
-  else if (reasoningOff && !reasoningPositive) status = "NO_REASONING_EXPLICITLY_OBSERVED";
+  if (explicitReasoningPositive) {
+    status = "REASONING_ROUTE_OBSERVED";
+  } else if (instantPositive) {
+    status = "INSTANT_MODEL_ROUTE_OBSERVED";
+  } else if (reasoningOff) {
+    status = "NO_REASONING_EXPLICITLY_OBSERVED";
+  } else if (unifiedGpt56Observed) {
+    status = PR88_UNIFIED_GPT56_ROUTE_STATUS;
+  }
 
   return {
     status,
     instantModelRouteObserved: instantPositive,
-    reasoningRouteObserved: reasoningPositive,
+    reasoningRouteObserved: explicitReasoningPositive,
     reasoningOffObserved: reasoningOff,
+    // This legacy field stays strict: a unified GPT-5.6 identity without
+    // explicit reasoning metadata is compatible with INSTANT, but model
+    // identity alone does not prove "no reasoning" at the network layer.
     noReasoningRouteProven: (
       status === "INSTANT_MODEL_ROUTE_OBSERVED" ||
       status === "NO_REASONING_EXPLICITLY_OBSERVED"
-    )
+    ),
+    unifiedGpt56RouteObserved: unifiedGpt56Observed,
+    modelSlugReasoningAliasObserved
   };
 }
 
