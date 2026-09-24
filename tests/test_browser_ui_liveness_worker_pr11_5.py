@@ -12,9 +12,11 @@ OBSERVATION = EXT / "service_worker_runtime_observation.js"
 def test_liveness_worker_wraps_native_messages_without_wrapping_turn_dispatch() -> None:
     source = LIVENESS.read_text(encoding="utf-8")
 
-    assert "const _cwaUiLivenessPriorOnNativeMessage = onNativeMessage;" in source
+    assert "async function _cwaOnNativeMessageWithUiLiveness(" in source
     assert 'message?.type !== "ui_liveness"' in source
-    assert "onNativeMessage = async function" in source
+    assert "return next(message, port);" in source
+    assert "PriorOnNativeMessage" not in source
+    assert "onNativeMessage =" not in source
     assert "executeNativeTurn =" not in source
     assert "_pr117QueryComposerReadiness(debuggee)" in source
 
