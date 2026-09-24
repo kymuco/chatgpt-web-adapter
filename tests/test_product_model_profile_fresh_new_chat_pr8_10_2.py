@@ -13,7 +13,7 @@ def _source() -> str:
 
 def _ensure_target_mode_block(source: str) -> str:
     start = source.index("async function _pr810EnsureTargetMode")
-    end = source.index("\nlocateAndFocusComposer =", start)
+    end = source.index("\nasync function _pr810PrepareComposer(", start)
     return source[start:end]
 
 
