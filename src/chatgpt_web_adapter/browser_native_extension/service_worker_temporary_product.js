@@ -132,17 +132,25 @@ function _pr813NewProofPromise(context) {
   return context.proofPromise;
 }
 
-function _pr813RejectProof(context, error) {
+function _pr813RejectProofCore(context, error) {
   if (context.proofSettled) return;
   context.proofSettled = true;
   if (typeof context.rejectProof === "function") context.rejectProof(error);
 }
 
-function _pr813ResolveProof(context, evidence) {
+function _pr813RejectProof(context, error) {
+  return _pr8132RejectProofWithDiagnostics(context, error, _pr813RejectProofCore);
+}
+
+function _pr813ResolveProofCore(context, evidence) {
   if (context.proofSettled) return;
   context.proofSettled = true;
   context.prewriteProof = evidence;
   if (typeof context.resolveProof === "function") context.resolveProof(evidence);
+}
+
+function _pr813ResolveProof(context, evidence) {
+  return _pr8132ResolveProofWithDiagnostics(context, evidence, _pr813ResolveProofCore);
 }
 
 function _pr813InspectPausedConversationRequest(context, request) {
@@ -248,12 +256,7 @@ ensureRuntimeTab = async function _pr813EnsureRuntimeTab(conversationId) {
   return _pr813RequireLiveTemporaryTab(context);
 };
 
-submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, timeoutMs) {
-  const context = _pr813TemporaryTurnContext;
-  if (context === null || debuggee?.tabId !== context.tabId) {
-    return _pr813PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
-  }
-
+async function _pr813SubmitOfficialPageTurnCore(debuggee, timeoutMs, context) {
   const proofPromise = _pr813NewProofPromise(context);
   await sendCommand(debuggee, "Fetch.enable", {
     patterns: [
@@ -278,6 +281,21 @@ submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, t
     );
   }
   return submit;
+}
+
+submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, timeoutMs) {
+  const context = _pr813TemporaryTurnContext;
+  if (context === null || debuggee?.tabId !== context.tabId) {
+    return _pr813PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+  }
+
+  return _pr8132SubmitOfficialPageTurnWithReadiness(
+    debuggee,
+    timeoutMs,
+    context,
+    (nextDebuggee, nextTimeoutMs) =>
+      _pr813SubmitOfficialPageTurnCore(nextDebuggee, nextTimeoutMs, context)
+  );
 };
 
 async function _pr813EndTemporaryLifecycle(message) {
