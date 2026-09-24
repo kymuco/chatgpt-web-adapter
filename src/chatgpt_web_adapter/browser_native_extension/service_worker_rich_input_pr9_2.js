@@ -296,7 +296,7 @@ async function _pr92TryRevealFileInput(debuggee, context) {
   await _pr92BoundedSleep(context, 100, "REVEAL_FILE_INPUT_SETTLE");
 }
 
-async function _pr92StageOfficialPageAttachments(tabId, attachmentPaths, context) {
+async function _pr92BaseStageOfficialPageAttachments(tabId, attachmentPaths, context) {
   if (attachmentPaths.length === 0) return 0;
   const debuggee = { tabId };
   const stageTimeoutMs = _pr92RemainingTurnMs(context, "ATTACHMENT_STAGE");
