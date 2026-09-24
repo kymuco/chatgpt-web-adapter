@@ -10,8 +10,6 @@
 
 const PR148_CONVERSATION_TAB_POOL_KEY = "browserNativeConversationTabsV1";
 const PR148_CONVERSATION_TAB_POOL_MAX = 16;
-const _pr148PriorEnsureRuntimeTab = ensureRuntimeTab;
-
 let _pr148PoolMutation = Promise.resolve();
 
 function _pr148ConversationId(value) {
@@ -219,14 +217,14 @@ async function _pr148CreateConversationTab(conversationId) {
   }
 }
 
-ensureRuntimeTab = async function _pr148EnsureRetainedConversationTab(conversationId) {
+async function _pr148ResolveRuntimeTab(conversationId, next) {
   // Temporary Chat owns a separate process-local lifecycle/tab authority. Never
   // route it through the saved-conversation pool.
   if (
     typeof _pr813TemporaryTurnContext !== "undefined" &&
     _pr813TemporaryTurnContext !== null
   ) {
-    return _pr148PriorEnsureRuntimeTab(conversationId);
+    return next(conversationId);
   }
 
   const savedConversationId = _pr148ConversationId(conversationId);
@@ -235,7 +233,7 @@ ensureRuntimeTab = async function _pr148EnsureRetainedConversationTab(conversati
     // existing saved conversation, even if that tab still occupies the historical
     // single-runtime storage slot.
     await _pr148DetachLegacyPointerIfConversationBound();
-    return _pr148PriorEnsureRuntimeTab(conversationId);
+    return next(conversationId);
   }
 
   const retained = await _pr148BoundConversationTab(savedConversationId);
@@ -251,7 +249,7 @@ ensureRuntimeTab = async function _pr148EnsureRetainedConversationTab(conversati
   }
 
   return _pr148CreateConversationTab(savedConversationId);
-};
+}
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   _pr148RemoveTabBinding(tabId).catch(() => {});
