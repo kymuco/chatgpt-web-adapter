@@ -727,7 +727,7 @@ function postNative(message) {
   return safePortPost(nativePort, message);
 }
 
-async function onNativeMessage(message, port) {
+async function _cwaBaseOnNativeMessage(message, port) {
   if (message?.protocol !== BRIDGE_PROTOCOL_VERSION) return;
   if (message?.type !== "turn") return;
   const requestId = message.request_id;

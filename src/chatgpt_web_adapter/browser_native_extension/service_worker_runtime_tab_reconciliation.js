@@ -106,7 +106,6 @@ _pr824a3PublishValidatedRuntimeState().catch(() => {});
 const PR88_BROWSER_AUTHORITY_LEASE_KEY = "browserNativeRuntimeTabAuthorityLeaseId";
 const PR88_RESOURCE_SAMPLE_MIN_MS = 1000;
 const PR88_RESOURCE_SAMPLE_MAX_MS = 15000;
-const _pr88PriorOnNativeMessage = onNativeMessage;
 
 function _pr88LeaseId(value) {
   const leaseId = typeof value === "string" ? value.trim() : "";
@@ -403,10 +402,10 @@ async function _pr88ReleaseRuntimeTab(message) {
   };
 }
 
-onNativeMessage = async function _onNativeMessageWithBrowserAuthorityLease(message, port) {
+async function _pr88OnNativeMessageWithBrowserAuthorityLease(message, port, next) {
   if (message?.protocol !== BRIDGE_PROTOCOL_VERSION) return;
   if (message?.type !== "release_runtime_tab") {
-    return _pr88PriorOnNativeMessage(message, port);
+    return next(message, port);
   }
 
   const requestId = message.request_id;
@@ -443,4 +442,4 @@ onNativeMessage = async function _onNativeMessageWithBrowserAuthorityLease(messa
   } finally {
     activeRequestId = null;
   }
-};
+}

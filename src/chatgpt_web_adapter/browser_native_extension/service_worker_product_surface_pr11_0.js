@@ -93,9 +93,8 @@ connectNativeBridge = function _connectNativeBridgeWithProductState() {
   return result;
 };
 
-const _cwaProductPriorOnNativeMessage = onNativeMessage;
-onNativeMessage = async function _onNativeMessageWithProductState(message, port) {
-  const result = _cwaProductPriorOnNativeMessage(message, port);
+async function _cwaOnNativeMessageWithProductState(message, port, next) {
+  const result = next(message, port);
   // The base handler sets activeRequestId synchronously before its first await.
   queueMicrotask(() => _cwaUpdateActionState());
   try {
@@ -103,6 +102,6 @@ onNativeMessage = async function _onNativeMessageWithProductState(message, port)
   } finally {
     _cwaUpdateActionState();
   }
-};
+}
 
 _cwaUpdateActionState();

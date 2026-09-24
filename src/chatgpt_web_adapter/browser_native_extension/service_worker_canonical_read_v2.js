@@ -1,4 +1,3 @@
-const _cwaCanonicalPriorOnNativeMessage = onNativeMessage;
 const CWA_CANONICAL_CHUNK_BASE64_CHARS = 600_000;
 // Product-observed server query hint. It is not a message-count guarantee.
 const CWA_CANONICAL_CURRENT_NUM_TURNS = 20;
@@ -577,12 +576,12 @@ async function _cwaCanonicalRead(message, port) {
   });
 }
 
-onNativeMessage = async function _cwaOnNativeMessageWithCanonicalRead(message, port) {
+async function _cwaOnNativeMessageWithCanonicalRead(message, port, next) {
   if (
     message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
     message?.type !== "canonical_read"
   ) {
-    return _cwaCanonicalPriorOnNativeMessage(message, port);
+    return next(message, port);
   }
   const requestId = message.request_id;
   if (typeof requestId !== "string" || !requestId) return;
@@ -613,4 +612,4 @@ onNativeMessage = async function _cwaOnNativeMessageWithCanonicalRead(message, p
   } finally {
     activeRequestId = null;
   }
-};
+}
