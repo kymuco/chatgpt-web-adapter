@@ -91,12 +91,10 @@ async function _pr92Schema12ObservePostStageAttachmentEvidence(
   }
 }
 
-// Replace the schema-10 -> schema-8 -> closure staging path only at its post-stage
-// observer boundary. Schema 10 still proves the official composer clean before any
-// file selection. The closure-captured prior is the already-reviewed staging path
-// that performs DOM.setFileInputFiles and persists the durable fence. After it
-// returns, schema 12 performs the same stable latest-generation page-owned evidence
-// proof with deadline-bounded debugger setup.
+// Preserve schema-10 official-composer cleanliness before any file selection,
+// then invoke the explicit base staging primitive that performs DOM.setFileInputFiles
+// and persists the durable fence. Schema 12 adds the same stable latest-generation
+// page-owned evidence proof with deadline-bounded debugger setup.
 async function _pr92Schema12StageWithBoundedPostStageEvidence(
   tabId,
   attachmentPaths,
