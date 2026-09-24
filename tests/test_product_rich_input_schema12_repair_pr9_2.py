@@ -36,15 +36,24 @@ def test_schema_12_preserves_clean_staging_and_latest_page_owned_evidence():
     text = SCHEMA12.read_text(encoding="utf-8")
     assert "await _pr92Schema10RequireOfficialCleanComposerBeforeStaging(" in text
     assert "const stagedCount = await _pr92BaseStageOfficialPageAttachments(" in text
-    assert "const pageOwnedCount = await _pr92ClosureWaitForPageOwnedAttachmentEvidence(" in text
+    assert (
+        "const pageOwnedCount = await _pr92ClosureWaitForPageOwnedAttachmentEvidence("
+        in text
+    )
     assert "PR92_PAGE_ATTACHMENT_STABLE_POLLS" in text
     assert 'throw new Error("PR9_2_PAGE_ATTACHMENT_COUNT_MISMATCH")' in text
 
 
 def test_schema_12_bounds_the_complete_send_readiness_helper():
     text = SCHEMA12.read_text(encoding="utf-8")
-    assert "const _pr92Schema12PriorWaitForSendButtonPoint = waitForSendButtonPoint;" in text
-    assert "waitForSendButtonPoint = async function _pr92Schema12DeadlineBoundedSendReadiness(" in text
+    assert (
+        "const _pr92Schema12PriorWaitForSendButtonPoint = waitForSendButtonPoint;"
+        in text
+    )
+    assert (
+        "waitForSendButtonPoint = async function _pr92Schema12DeadlineBoundedSendReadiness("
+        in text
+    )
     assert '"SCHEMA12_SEND_READINESS_WAIT"' in text
     assert "() => _pr92Schema12PriorWaitForSendButtonPoint(debuggee, timeoutMs)" in text
     assert "sendReadinessWaitDeadlineBounded: true" in text
@@ -54,7 +63,7 @@ def test_schema_12_gate_rejects_schema_11_and_requires_new_deadline_guarantees()
     text = GATE12.read_text(encoding="utf-8")
     assert "SCHEMA = 12" in text
     assert "class ProductRichInputSchema12LiveProvider" in text
-    assert "legacy[\"schema\"] = _v11.SCHEMA" in text
+    assert 'legacy["schema"] = _v11.SCHEMA' in text
     assert "poststage_debugger_setup_deadline_bounded" in text
     assert "late_poststage_debugger_attach_auto_detached" in text
     assert "send_readiness_wait_deadline_bounded" in text
