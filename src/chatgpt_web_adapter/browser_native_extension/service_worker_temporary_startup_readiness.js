@@ -112,9 +112,13 @@ async function _cwaTemporaryControlSnapshot(debuggee) {
       };
 }
 
-function _pr8132ContextToken(context) {
-  const token = typeof context?.token === "string" ? context.token.trim() : "";
+function _pr8132Token(value) {
+  const token = typeof value === "string" ? value.trim() : "";
   return token || null;
+}
+
+function _pr8132ContextToken(context) {
+  return _pr8132Token(context?.token);
 }
 
 function _pr8132UpdateDiagnostic(context, patch) {
@@ -372,7 +376,7 @@ async function _pr8132ExecuteNativeTurnWithStartupDiagnostics(message, next) {
     return next(message);
   }
 
-  const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);
+  const token = _pr8132Token(message?.temporaryLifecycleToken);
   if (token) _pr8132TurnDiagnostics.set(token, {});
 
   try {
