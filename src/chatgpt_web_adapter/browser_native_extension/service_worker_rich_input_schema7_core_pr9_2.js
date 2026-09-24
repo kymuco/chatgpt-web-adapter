@@ -15,7 +15,6 @@
 const _pr92Schema7PriorPersistDirtyAttachmentFence = _pr92PersistDirtyAttachmentFence;
 const _pr92Schema7PriorTryClearDirtyAttachmentFence = _pr92TryClearDirtyAttachmentFence;
 const _pr92Schema7PriorClearOfficialPageAttachments = _pr92ClearOfficialPageAttachments;
-const _pr92Schema7PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 
 const PR92_SCHEMA7_REPAIR_SCHEMA = 7;
 const PR92_SCHEMA7_SESSION_IDENTITY_KEY = "pr92DirtyAttachmentSessionIdentityV1";
@@ -270,13 +269,14 @@ function _pr92Schema7AtomicAttachmentSubmitExpression(
   })()`;
 }
 
-submitOfficialPageTurn = async function _pr92Schema7AtomicAttachmentSubmit(
+async function _pr92Schema7AtomicAttachmentSubmit(
   debuggee,
-  timeoutMs
+  timeoutMs,
+  next
 ) {
   const context = _pr92ActiveRichInputContext;
   if (context === null) {
-    return _pr92Schema7PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+    return next(debuggee, timeoutMs);
   }
 
   // Keep the early page-owned evidence check to fail before a readiness wait when
@@ -345,7 +345,7 @@ submitOfficialPageTurn = async function _pr92Schema7AtomicAttachmentSubmit(
     strategy: "page_deadline_guarded_atomic_attachment_validate_and_click",
     selector
   };
-};
+}
 
 function _pr92Schema7AugmentSupportResult(result) {
   return {

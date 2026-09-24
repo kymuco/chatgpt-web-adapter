@@ -46,7 +46,7 @@ def test_lower_level_rich_input_hooks_remain_in_original_modules() -> None:
             "async function _pr92ExecuteOfficialPageTurnWithinTurn",
         ),
         "service_worker_rich_input_closure_repair_pr9_2.js": (
-            "submitOfficialPageTurn =",
+            "async function _pr92ClosurePageDeadlineGuardedSubmit(",
         ),
         "service_worker_rich_input_schema18_repair_pr9_2.js": (
             "async function _pr92Schema18ExecuteOfficialPageTurnWithIdentityAuthority",

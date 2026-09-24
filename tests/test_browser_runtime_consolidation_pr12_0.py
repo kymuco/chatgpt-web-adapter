@@ -43,6 +43,7 @@ def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> Non
     expected = [
         'importScripts("service_worker_runtime_tab_reconciliation.js");',
         'importScripts("service_worker_runtime_write.js");',
+        'importScripts("service_worker_submit_authority.js");',
         'importScripts("service_worker_stream_metadata.js");',
         'importScripts("service_worker_runtime_tab_resolution.js");',
         'importScripts("service_worker_runtime_read.js");',

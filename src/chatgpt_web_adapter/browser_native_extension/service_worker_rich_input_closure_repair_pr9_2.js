@@ -11,7 +11,6 @@
 const _pr92ClosurePriorStageOfficialPageAttachments = _pr92StageOfficialPageAttachments;
 const _pr92ClosurePriorClickSendButton = clickSendButton;
 const _pr92ClosurePriorSubmitWithEnter = submitWithEnter;
-const _pr92ClosurePriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 const PR92_CLOSURE_REPAIR_SCHEMA = 6;
 const PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE = "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE";
 const PR92_PAGE_ATTACHMENT_STABLE_POLLS = 2;
@@ -248,13 +247,14 @@ submitWithEnter = async function _pr92ClosureRejectRawEnterSubmit(debuggee) {
   return _pr92ClosurePriorSubmitWithEnter(debuggee);
 };
 
-submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit(
+async function _pr92ClosurePageDeadlineGuardedSubmit(
   debuggee,
-  timeoutMs
+  timeoutMs,
+  next
 ) {
   const context = _pr92ActiveRichInputContext;
   if (context === null) {
-    return _pr92ClosurePriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+    return next(debuggee, timeoutMs);
   }
 
   // Validate page-owned attachment state before waiting for the Send control. This
@@ -331,7 +331,7 @@ submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit(
     throw new Error(`PR9_2_PAGE_GUARDED_SUBMIT_FAILED:${value?.reason || 'unknown'}`);
   }
   return { strategy: "page_deadline_guarded_send_button_click", selector };
-};
+}
 
 function _pr92ClosureAugmentSupportResult(result) {
   return {

@@ -111,10 +111,9 @@ def test_startup_readiness_no_longer_reassigns_temporary_product_hooks() -> None
 
     assert "function _pr813ResolveProof(context, evidence)" in product
     assert "function _pr813RejectProof(context, error)" in product
-    assert (
-        "submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn"
-        in product
-    )
+    assert "async function _pr813SubmitOfficialPageTurn(" in product
+    assert "submitOfficialPageTurn =" not in product
+    assert "_pr813PriorSubmitOfficialPageTurn" not in product
     assert "_pr8132ResolveProofWithDiagnostics(" in product
     assert "_pr8132RejectProofWithDiagnostics(" in product
     assert "_pr8132SubmitOfficialPageTurnWithReadiness(" in product

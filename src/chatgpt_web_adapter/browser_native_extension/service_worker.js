@@ -457,7 +457,7 @@ async function submitWithEnter(debuggee) {
   });
 }
 
-async function submitOfficialPageTurn(debuggee, timeoutMs) {
+async function _cwaBaseSubmitOfficialPageTurn(debuggee, timeoutMs) {
   try {
     const point = await waitForSendButtonPoint(
       debuggee,

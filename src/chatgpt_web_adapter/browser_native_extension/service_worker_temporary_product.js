@@ -9,7 +9,6 @@
 
 const PR813_TEMPORARY_RUNTIME_TAB_KEY = "browserNativeTemporaryRuntimeTabIdV1";
 const PR813_TEMPORARY_PROOF_TIMEOUT_MS = 10_000;
-const _pr813PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 
 let _pr813LiveTemporaryLifecycle = null;
 let _pr813TemporaryTurnContext = null;
@@ -255,7 +254,7 @@ async function _pr813ResolveRuntimeTab(conversationId, next) {
   return _pr813RequireLiveTemporaryTab(context);
 }
 
-async function _pr813SubmitOfficialPageTurnCore(debuggee, timeoutMs, context) {
+async function _pr813SubmitOfficialPageTurnCore(debuggee, timeoutMs, context, next) {
   const proofPromise = _pr813NewProofPromise(context);
   await sendCommand(debuggee, "Fetch.enable", {
     patterns: [
@@ -266,7 +265,7 @@ async function _pr813SubmitOfficialPageTurnCore(debuggee, timeoutMs, context) {
     ],
   });
 
-  const submit = await _pr813PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+  const submit = await next(debuggee, timeoutMs);
   await Promise.race([
     proofPromise,
     new Promise((_, reject) => setTimeout(
@@ -282,10 +281,10 @@ async function _pr813SubmitOfficialPageTurnCore(debuggee, timeoutMs, context) {
   return submit;
 }
 
-submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, timeoutMs) {
+async function _pr813SubmitOfficialPageTurn(debuggee, timeoutMs, next) {
   const context = _pr813TemporaryTurnContext;
   if (context === null || debuggee?.tabId !== context.tabId) {
-    return _pr813PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+    return next(debuggee, timeoutMs);
   }
 
   return _pr8132SubmitOfficialPageTurnWithReadiness(
@@ -293,9 +292,14 @@ submitOfficialPageTurn = async function _pr813SubmitOfficialPageTurn(debuggee, t
     timeoutMs,
     context,
     (nextDebuggee, nextTimeoutMs) =>
-      _pr813SubmitOfficialPageTurnCore(nextDebuggee, nextTimeoutMs, context)
+      _pr813SubmitOfficialPageTurnCore(
+        nextDebuggee,
+        nextTimeoutMs,
+        context,
+        next
+      )
   );
-};
+}
 
 async function _pr813EndTemporaryLifecycle(message) {
   const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);

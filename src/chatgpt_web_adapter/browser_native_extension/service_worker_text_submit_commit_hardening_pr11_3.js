@@ -6,7 +6,6 @@
 // click commit boundary is attempted. Once mouseReleased is delegated, the
 // outcome is ambiguous on ACK loss and a second submit is forbidden.
 
-const _pr113PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 const PR113_TEXT_SUBMIT_SCHEMA = 3;
 const PR113_MOUSE_RELEASE_UNCONFIRMED = "PR11_3_TEXT_MOUSE_RELEASE_OUTCOME_UNCONFIRMED";
 const PR113_ENTER_KEYDOWN_UNCONFIRMED = "PR11_3_TEXT_ENTER_KEYDOWN_OUTCOME_UNCONFIRMED";
@@ -127,12 +126,13 @@ async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
   return { strategy: "send_button_click", selector: point?.selector ?? null };
 }
 
-submitOfficialPageTurn = async function _pr113SubmitOfficialTextWithoutPostCommitRetry(
+async function _pr113SubmitOfficialTextWithoutPostCommitRetry(
   debuggee,
-  timeoutMs
+  timeoutMs,
+  next
 ) {
   if (_pr113SpecialSubmitContextActive()) {
-    return _pr113PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+    return next(debuggee, timeoutMs);
   }
 
   let point = null;
@@ -153,4 +153,4 @@ submitOfficialPageTurn = async function _pr113SubmitOfficialTextWithoutPostCommi
     }
     return _pr113SubmitTextWithEnterOnce(debuggee);
   }
-};
+}
