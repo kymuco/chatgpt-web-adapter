@@ -157,7 +157,8 @@ PR15 Architecture Reset
 → PR15.22 consolidate product observation ownership [merged]
 → PR15.23 consolidate PR8.13 Temporary product ownership [merged]
 → PR15.24 consolidate Temporary startup-readiness ownership [merged]
-→ PR15.25 consolidate composer-selection preparation [active]
+→ PR15.25 consolidate composer-selection preparation [merged]
+→ PR15.26 consolidate Instant route semantics [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```
