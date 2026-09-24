@@ -9,8 +9,6 @@
 //      immediately before tab removal and aborts if ownership changes while the
 //      proof is being assembled.
 
-const _pr92Schema8PriorStageOfficialPageAttachments = _pr92StageOfficialPageAttachments;
-
 const PR92_SCHEMA8_REPAIR_SCHEMA = 8;
 const PR92_SCHEMA8_PRESTAGE_CLEAN_STABLE_POLLS = 2;
 
@@ -152,15 +150,15 @@ async function _pr92Schema8RequireAttachmentCleanComposerBeforeStaging(tabId, co
   }
 }
 
-_pr92StageOfficialPageAttachments = async function _pr92Schema8StageFromCleanComposer(
+async function _pr92Schema8StageFromCleanComposer(
   tabId,
   attachmentPaths,
   context
 ) {
   if (attachmentPaths.length === 0) return 0;
   await _pr92Schema8RequireAttachmentCleanComposerBeforeStaging(tabId, context);
-  return _pr92Schema8PriorStageOfficialPageAttachments(tabId, attachmentPaths, context);
-};
+  return _pr92StageWithPageOwnedEvidence(tabId, attachmentPaths, context);
+}
 
 function _pr92Schema8FenceIdentityMatches(records, tabId) {
   const localIdentity = records?.local?.runtimeIdentity;
