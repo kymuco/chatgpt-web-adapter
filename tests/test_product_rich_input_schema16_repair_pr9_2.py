@@ -24,7 +24,9 @@ def test_schema_16_durable_fence_read_is_raced_against_outer_deadline():
     start = text.index(
         "_pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline"
     )
-    end = text.index("async function _pr92Schema16ResolveRuntimeTabWithinRichDeadline", start)
+    end = text.index(
+        "async function _pr92Schema16ResolveRuntimeTabWithinRichDeadline", start
+    )
     block = text[start:end]
     assert '"SCHEMA16_STALE_ATTACHMENT_FENCE_READ"' in block
     assert "context.deadlineAt" in block
