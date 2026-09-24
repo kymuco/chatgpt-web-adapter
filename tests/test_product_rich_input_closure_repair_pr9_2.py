@@ -40,7 +40,7 @@ def test_schema_6_rich_submit_uses_page_deadline_guard_not_raw_cdp_input():
 
     guarded_submit = text[
         text.index(
-            "submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit"
+            "async function _pr92ClosurePageDeadlineGuardedSubmit("
         ) :
     ]
     guarded_submit = guarded_submit.split(
@@ -76,7 +76,7 @@ def test_schema_6_attachment_count_requires_page_owned_composer_evidence_after_r
     assert staging < page_evidence < returned_count
 
     submit = text.index(
-        "submitOfficialPageTurn = async function _pr92ClosurePageDeadlineGuardedSubmit"
+        "async function _pr92ClosurePageDeadlineGuardedSubmit("
     )
     pre_submit_evidence = text.index(
         "_pr92ClosureWaitForPageOwnedAttachmentEvidence(", submit
