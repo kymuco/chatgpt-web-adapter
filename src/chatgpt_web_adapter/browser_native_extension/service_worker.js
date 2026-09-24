@@ -203,7 +203,7 @@ async function storeRuntimeTabId(tabId) {
   });
 }
 
-async function ensureRuntimeTab(conversationId) {
+async function _cwaBaseEnsureRuntimeTab(conversationId) {
   const targetUrl = conversationId
     ? `${CHATGPT_ORIGIN}/c/${encodeURIComponent(conversationId)}`
     : `${CHATGPT_ORIGIN}/`;

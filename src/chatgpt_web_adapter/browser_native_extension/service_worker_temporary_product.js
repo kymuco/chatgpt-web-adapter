@@ -9,7 +9,6 @@
 
 const PR813_TEMPORARY_RUNTIME_TAB_KEY = "browserNativeTemporaryRuntimeTabIdV1";
 const PR813_TEMPORARY_PROOF_TIMEOUT_MS = 10_000;
-const _pr813PriorEnsureRuntimeTab = ensureRuntimeTab;
 const _pr813PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
 
 let _pr813LiveTemporaryLifecycle = null;
@@ -245,16 +244,16 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
     });
 });
 
-ensureRuntimeTab = async function _pr813EnsureRuntimeTab(conversationId) {
+async function _pr813ResolveRuntimeTab(conversationId, next) {
   const context = _pr813TemporaryTurnContext;
-  if (context === null) return _pr813PriorEnsureRuntimeTab(conversationId);
+  if (context === null) return next(conversationId);
 
   const requestedConversationId = _pr813ConversationId(conversationId);
   if (requestedConversationId !== context.expectedConversationId) {
     throw new Error("PR8_13_TEMPORARY_RUNTIME_CONVERSATION_MISMATCH");
   }
   return _pr813RequireLiveTemporaryTab(context);
-};
+}
 
 async function _pr813SubmitOfficialPageTurnCore(debuggee, timeoutMs, context) {
   const proofPromise = _pr813NewProofPromise(context);
