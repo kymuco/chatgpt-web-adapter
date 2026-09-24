@@ -45,15 +45,15 @@ def test_lower_level_selection_and_timing_hooks_remain_local() -> None:
             "async function _executeOfficialPageTurnWithPhaseTiming",
         ),
         "service_worker_instant_mode_pr8_8.js": (
-            "locateAndFocusComposer =",
+            "async function _pr88InstantObserveComposerBeforeWrite(",
             "extractSafeStreamMetadata =",
             "async function _executeOfficialPageTurnWithInstantObservation",
         ),
         "service_worker_instant_selection_repair_pr8_8.js": (
-            "locateAndFocusComposer =",
+            "async function _pr88SelectionPrepareComposer(",
         ),
         "service_worker_model_profile_selection_pr8_10.js": (
-            "locateAndFocusComposer =",
+            "async function _pr810PrepareComposer(",
         ),
     }
     for name, tokens in required.items():
@@ -61,18 +61,37 @@ def test_lower_level_selection_and_timing_hooks_remain_local() -> None:
         for token in tokens:
             assert token in source, (name, token)
 
+    for name in (
+        "service_worker_instant_mode_pr8_8.js",
+        "service_worker_instant_selection_repair_pr8_8.js",
+        "service_worker_model_profile_selection_pr8_10.js",
+    ):
+        assert "locateAndFocusComposer =" not in _source(name), name
+
+    preparation = _source("service_worker_selection_preparation.js")
+    assert preparation.count("locateAndFocusComposer =") == 1
+
 
 def test_selection_lifecycle_is_pure_layer_at_historical_boundary() -> None:
     assembly = _source("service_worker_observability.js")
     owner = _source(OWNER)
 
     model = 'importScripts("service_worker_model_profile_selection_pr8_10.js");'
+    preparation = 'importScripts("service_worker_selection_preparation.js");'
     owner_import = f'importScripts("{OWNER}");'
     response = 'importScripts("service_worker_browser_response_stream.js");'
 
-    assert model in assembly and owner_import in assembly and response in assembly
     assert (
-        assembly.index(model) < assembly.index(owner_import) < assembly.index(response)
+        model in assembly
+        and preparation in assembly
+        and owner_import in assembly
+        and response in assembly
+    )
+    assert (
+        assembly.index(model)
+        < assembly.index(preparation)
+        < assembly.index(owner_import)
+        < assembly.index(response)
     )
     assert "executeNativeTurn =" not in owner
     assert "_cwaSelectionLifecyclePriorExecuteNativeTurn" not in owner
