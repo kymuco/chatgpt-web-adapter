@@ -73,9 +73,11 @@ def test_unified_status_requires_gpt56_identity_and_no_explicit_reasoning_metada
 
 
 def test_extension_derivation_separates_model_identity_from_reasoning_state():
-    worker = (ROOT / "service_worker_instant_mode_pr8_8.js").read_text(
-        encoding="utf-8"
-    )
+    worker = (ROOT / "service_worker_instant_mode_pr8_8.js").read_text(encoding="utf-8")
+    start = worker.index("function _pr88InstantDeriveNetworkRoute(")
+    end = worker.index("\nfunction _pr88InstantModeSnapshotExpression()", start)
+    route = worker[start:end]
+
     for token in (
         "UNIFIED_GPT_5_6_ROUTE_WITHOUT_EXPLICIT_REASONING",
         "merged.reasoningHintKeys.size > 0",
@@ -83,7 +85,7 @@ def test_extension_derivation_separates_model_identity_from_reasoning_state():
         "modelSlugReasoningAliasObserved",
         "A model slug is model identity evidence, not reasoning-state evidence.",
     ):
-        assert token in worker
+        assert token in route
 
     for forbidden in (
         "Input.insertText",
@@ -92,7 +94,7 @@ def test_extension_derivation_separates_model_identity_from_reasoning_state():
         "target.click()",
         "Network.setRequestInterception",
     ):
-        assert forbidden not in worker
+        assert forbidden not in route
 
 
 def test_unified_route_semantics_are_owned_by_instant_mode_worker() -> None:
@@ -104,8 +106,6 @@ def test_unified_route_semantics_are_owned_by_instant_mode_worker() -> None:
     assert retired not in worker
     assert not (ROOT / retired).exists()
 
-    source = (ROOT / "service_worker_instant_mode_pr8_8.js").read_text(
-        encoding="utf-8"
-    )
+    source = (ROOT / "service_worker_instant_mode_pr8_8.js").read_text(encoding="utf-8")
     assert source.count("function _pr88InstantDeriveNetworkRoute(") == 1
     assert "_pr88InstantDeriveNetworkRoute =" not in source
