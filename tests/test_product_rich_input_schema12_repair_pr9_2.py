@@ -35,7 +35,7 @@ def test_schema_12_bounds_poststage_debugger_setup_and_late_attach_cleanup():
 def test_schema_12_preserves_clean_staging_and_latest_page_owned_evidence():
     text = SCHEMA12.read_text(encoding="utf-8")
     assert "await _pr92Schema10RequireOfficialCleanComposerBeforeStaging(" in text
-    assert "const stagedCount = await _pr92ClosurePriorStageOfficialPageAttachments(" in text
+    assert "const stagedCount = await _pr92BaseStageOfficialPageAttachments(" in text
     assert "const pageOwnedCount = await _pr92ClosureWaitForPageOwnedAttachmentEvidence(" in text
     assert "PR92_PAGE_ATTACHMENT_STABLE_POLLS" in text
     assert 'throw new Error("PR9_2_PAGE_ATTACHMENT_COUNT_MISMATCH")' in text
