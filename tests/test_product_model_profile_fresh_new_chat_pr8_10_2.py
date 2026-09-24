@@ -13,7 +13,7 @@ def _source() -> str:
 
 def _ensure_target_mode_block(source: str) -> str:
     start = source.index("async function _pr810EnsureTargetMode")
-    end = source.index("\nlocateAndFocusComposer =", start)
+    end = source.index("\nasync function _pr810PrepareComposer(", start)
     return source[start:end]
 
 
@@ -50,8 +50,13 @@ def test_initial_mode_failure_preserves_bounded_diagnostics() -> None:
     assert "PR8_10_MODEL_PROFILE_INITIAL_MODE_NOT_PROVEN:${proofKind}" in source
     assert "composer_ready=${composerReady}" in source
     assert "candidate_count=${candidateCount}" in source
-    assert "context.initialModeComposerReady = before?.composerReady === true;" in source
-    assert "context.selectedModeBeforeProofKind = before?.proofKind || \"unknown\";" in source
+    assert (
+        "context.initialModeComposerReady = before?.composerReady === true;" in source
+    )
+    assert (
+        'context.selectedModeBeforeProofKind = before?.proofKind || "unknown";'
+        in source
+    )
     assert "context.selectedModeBeforeCandidateCount" in source
     assert "context.selectedModeBeforeNearestDistancePx" in source
 
@@ -59,7 +64,10 @@ def test_initial_mode_failure_preserves_bounded_diagnostics() -> None:
 def test_success_record_exposes_initial_mode_acquisition_evidence() -> None:
     source = _source()
 
-    assert "initialModeAcquisitionTimeoutMs: PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS" in source
+    assert (
+        "initialModeAcquisitionTimeoutMs: PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS"
+        in source
+    )
     assert "initialModeAcquisitionElapsedMs:" in source
     assert "initialModeComposerReady:" in source
     assert "selectedModeBeforeProofKind:" in source

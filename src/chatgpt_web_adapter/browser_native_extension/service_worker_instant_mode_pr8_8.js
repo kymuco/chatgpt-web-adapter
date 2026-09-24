@@ -14,7 +14,6 @@ const PR88_INSTANT_MODE_STORAGE_KEY = "browserAuthorityLastInstantModeV1";
 const PR88_INSTANT_PROBE_TIMEOUT_MS = 15_000;
 const PR88_INSTANT_MODE_SNAPSHOT_POLL_MS = 200;
 
-const _pr88InstantPriorLocateAndFocusComposer = locateAndFocusComposer;
 const _pr88InstantPriorExtractSafeStreamMetadata = extractSafeStreamMetadata;
 
 let _pr88InstantContext = null;
@@ -355,13 +354,12 @@ async function _pr88InstantWaitForSelectedMode(debuggee, timeoutMs) {
   return last || await _pr88InstantSelectedModeSnapshot(debuggee);
 }
 
-locateAndFocusComposer = async function _locateAndFocusComposerWithInstantObservation(debuggee) {
+async function _pr88InstantObserveComposerBeforeWrite(debuggee) {
   const context = _pr88InstantContext;
-  if (context !== null && context.preWritePicker === null) {
+  if (context !== null) {
     context.preWritePicker = await _pr88InstantSelectedModeSnapshot(debuggee);
   }
-  return _pr88InstantPriorLocateAndFocusComposer(debuggee);
-};
+}
 
 extractSafeStreamMetadata = function _extractSafeStreamMetadataWithInstantHints(body, base64Encoded) {
   const context = _pr88InstantContext;

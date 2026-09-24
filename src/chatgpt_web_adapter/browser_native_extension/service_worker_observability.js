@@ -4,6 +4,7 @@ importScripts("service_worker_instant_unified_route_semantics_pr8_8.js");
 importScripts("service_worker_instant_selection_repair_pr8_8.js");
 importScripts("service_worker_instant_effort_selection.js");
 importScripts("service_worker_model_profile_selection_pr8_10.js");
+importScripts("service_worker_selection_preparation.js");
 importScripts("service_worker_selection_lifecycle.js");
 importScripts("service_worker_browser_response_stream.js");
 importScripts("service_worker_early_response_completion.js");
