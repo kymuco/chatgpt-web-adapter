@@ -18,8 +18,12 @@ SCHEMA28 = (
 def _run_base64_observer_case() -> dict[str, object]:
     text = SCHEMA28.read_text(encoding="utf-8")
     helper_start = text.index("function _pr92Schema28DecodeResponseBody")
-    override_start = text.index("function _pr92Schema28ExtractSafeStreamMetadata", helper_start)
-    override_end = text.index("async function _pr92Schema28ReadDiagnosticTab", override_start)
+    override_start = text.index(
+        "function _pr92Schema28ExtractSafeStreamMetadata", helper_start
+    )
+    override_end = text.index(
+        "async function _pr92Schema28ReadDiagnosticTab", override_start
+    )
     helpers = text[helper_start:override_start]
     override = text[override_start:override_end]
     script = f"""
@@ -96,7 +100,9 @@ def test_schema_28_prior_observer_receives_decoded_text_before_request_bound_par
     end = text.index("async function _pr92Schema28ReadDiagnosticTab", start)
     block = text[start:end]
 
-    decode = "const observerBody = _pr92Schema28DecodeResponseBody(body, base64Encoded);"
+    decode = (
+        "const observerBody = _pr92Schema28DecodeResponseBody(body, base64Encoded);"
+    )
     observe = "next(observerBody, false);"
     parse = "_pr92Schema28ExtractRequestBoundStreamMetadata(body, base64Encoded)"
     assert decode in block
