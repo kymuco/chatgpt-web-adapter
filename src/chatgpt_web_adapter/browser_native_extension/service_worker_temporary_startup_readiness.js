@@ -1,4 +1,8 @@
-// PR8.13.2: fresh Temporary startup-readiness stabilization and abort diagnostics.
+// PR15.24 explicit Temporary startup-readiness helper owner.
+//
+// Preserves the graduated PR8.13.2 fresh-session stabilization and abort diagnostics,
+// but no longer captures or reassigns production hooks. The Temporary product owner
+// calls these helpers explicitly.
 //
 // This layer is deliberately non-authoritative. It may delay a fresh Temporary
 // submit while the newly-created product page stabilizes, but it never grants
@@ -11,9 +15,6 @@ const PR8132_FRESH_READINESS_STABLE_MS = 750;
 const PR8132_FRESH_READINESS_POLL_MS = 125;
 const PR8132_FRESH_READINESS_REQUIRED_SAMPLES = 3;
 
-const _pr8132PriorSubmitOfficialPageTurn = submitOfficialPageTurn;
-const _pr8132PriorResolveProof = _pr813ResolveProof;
-const _pr8132PriorRejectProof = _pr813RejectProof;
 
 const _pr8132TurnDiagnostics = new Map();
 
@@ -111,8 +112,13 @@ async function _cwaTemporaryControlSnapshot(debuggee) {
       };
 }
 
+function _pr8132Token(value) {
+  const token = typeof value === "string" ? value.trim() : "";
+  return token || null;
+}
+
 function _pr8132ContextToken(context) {
-  return _pr813TemporaryToken(context?.token);
+  return _pr8132Token(context?.token);
 }
 
 function _pr8132UpdateDiagnostic(context, patch) {
@@ -290,26 +296,30 @@ async function _pr8132WaitForFreshTemporaryReadiness(debuggee, timeoutMs) {
   );
 }
 
-_pr813ResolveProof = function _pr8132ResolveProofWithDiagnostics(context, evidence) {
+function _pr8132ResolveProofWithDiagnostics(context, evidence, next) {
   _pr8132UpdateDiagnostic(context, {
     prewriteProofKind: typeof evidence?.proofKind === "string" ? evidence.proofKind : null,
     prewriteProofResolved: true,
   });
-  return _pr8132PriorResolveProof(context, evidence);
-};
+  return next(context, evidence);
+}
 
-_pr813RejectProof = function _pr8132RejectProofWithDiagnostics(context, error) {
+function _pr8132RejectProofWithDiagnostics(context, error, next) {
   _pr8132UpdateDiagnostic(context, {
     prewriteProofRejected: true,
     proofError: error instanceof Error ? error.message : String(error),
   });
-  return _pr8132PriorRejectProof(context, error);
-};
+  return next(context, error);
+}
 
-submitOfficialPageTurn = async function _pr8132SubmitOfficialPageTurn(debuggee, timeoutMs) {
-  const context = _pr813TemporaryTurnContext;
-  if (context === null || debuggee?.tabId !== context.tabId) {
-    return _pr8132PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
+async function _pr8132SubmitOfficialPageTurnWithReadiness(
+  debuggee,
+  timeoutMs,
+  context,
+  next
+) {
+  if (!context || debuggee?.tabId !== context.tabId) {
+    return next(debuggee, timeoutMs);
   }
 
   if (context.expectedConversationId === null) {
@@ -329,8 +339,8 @@ submitOfficialPageTurn = async function _pr8132SubmitOfficialPageTurn(debuggee, 
     });
   }
 
-  return _pr8132PriorSubmitOfficialPageTurn(debuggee, timeoutMs);
-};
+  return next(debuggee, timeoutMs);
+}
 
 function _pr8132AbortError(error, diagnostic) {
   const message = error instanceof Error ? error.message : String(error);
@@ -366,7 +376,7 @@ async function _pr8132ExecuteNativeTurnWithStartupDiagnostics(message, next) {
     return next(message);
   }
 
-  const token = _pr813TemporaryToken(message?.temporaryLifecycleToken);
+  const token = _pr8132Token(message?.temporaryLifecycleToken);
   if (token) _pr8132TurnDiagnostics.set(token, {});
 
   try {

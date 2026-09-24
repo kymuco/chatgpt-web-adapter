@@ -72,6 +72,6 @@ def test_pr813_production_temporary_lifecycle_remains_separate() -> None:
 
     for production in (
         "service_worker_temporary_product.js",
-        "service_worker_temporary_startup_readiness_pr8_13_2.js",
+        "service_worker_temporary_startup_readiness.js",
     ):
         assert f'importScripts("{production}");' in observation

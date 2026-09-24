@@ -2,6 +2,12 @@
 
 _Status: CLOSED / PASS_
 
+> PR15.24 migration note: the historical PR8.13.2 overlay described below has been
+> consolidated into the explicit production helper owner
+> `service_worker_temporary_startup_readiness.js`. The original evidence and
+> graduation record are preserved here; production no longer relies on the
+> source-ordered hook reassignment described in the historical layering section.
+
 _Date: 2026-08-21_
 
 _Base: PR8.13.1 Temporary Chat session-only public API — CLOSED / PASS_

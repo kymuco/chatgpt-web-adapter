@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 LAYERS = (
-    "service_worker_temporary_startup_readiness_pr8_13_2.js",
+    "service_worker_temporary_startup_readiness.js",
     "service_worker_temporary_product.js",
 )
 OWNER = "service_worker_temporary_lifecycle.js"
@@ -39,7 +39,7 @@ def test_temporary_layers_no_longer_own_native_turn() -> None:
 def test_temporary_lower_level_authority_hooks_remain_local() -> None:
     production = _source("service_worker_temporary_product.js")
     fresh = production
-    readiness = _source("service_worker_temporary_startup_readiness_pr8_13_2.js")
+    readiness = _source("service_worker_temporary_startup_readiness.js")
 
     assert "Fetch.requestPaused" in production
     assert "_pr813EndTemporaryLifecycle" in production
@@ -47,26 +47,28 @@ def test_temporary_lower_level_authority_hooks_remain_local() -> None:
     assert "PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in fresh
     assert "function _pr813ConversationId(value)" in fresh
     assert "_pr8132WaitForFreshTemporaryReadiness" in readiness
-    assert "_pr8132PriorSubmitOfficialPageTurn" in readiness
+    assert "_pr8132PriorSubmitOfficialPageTurn" not in readiness
+    assert "async function _pr8132SubmitOfficialPageTurnWithReadiness(" in readiness
 
 
 def test_temporary_lifecycle_is_pure_layer_at_historical_outer_boundary() -> None:
     assembly = _source("service_worker_observability.js")
     owner = _source(OWNER)
 
-    readiness = (
-        'importScripts("service_worker_temporary_startup_readiness_pr8_13_2.js");'
-    )
+    readiness = 'importScripts("service_worker_temporary_startup_readiness.js");'
+    product = 'importScripts("service_worker_temporary_product.js");'
     owner_import = f'importScripts("{OWNER}");'
     product_surface = 'importScripts("service_worker_product_surface_pr11_0.js");'
 
     assert (
         readiness in assembly
+        and product in assembly
         and owner_import in assembly
         and product_surface in assembly
     )
     assert (
         assembly.index(readiness)
+        < assembly.index(product)
         < assembly.index(owner_import)
         < assembly.index(product_surface)
     )
