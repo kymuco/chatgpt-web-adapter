@@ -35,9 +35,9 @@ def test_schema_8_requires_clean_composer_and_exact_attachment_set():
     assert "exactComposerAttachmentSetRequired: true" in text
 
     stage = text[
-        text.index(
-            "async function _pr92Schema8StageFromCleanComposer"
-        ) : text.index("function _pr92Schema8FenceIdentityMatches")
+        text.index("async function _pr92Schema8StageFromCleanComposer") : text.index(
+            "function _pr92Schema8FenceIdentityMatches"
+        )
     ]
     assert stage.index(
         "_pr92Schema8RequireAttachmentCleanComposerBeforeStaging"
