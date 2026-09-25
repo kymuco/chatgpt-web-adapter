@@ -29,7 +29,7 @@ const PR92_SCHEMA18_COMMITTED_IDENTITY_ERROR =
 // Schema 17's optional diagnostics are intentionally non-authoritative. Leave a
 // larger reserve so they can never consume the time needed to resolve the new
 // conversation identity before the transport reports success.
-_pr92Schema17OptionalPostWrite = async function _pr92Schema18OptionalPostWriteWithIdentityReserve(
+async function _pr92Schema18OptionalPostWriteWithIdentityReserve(
   context,
   stage,
   operation,
@@ -52,7 +52,7 @@ _pr92Schema17OptionalPostWrite = async function _pr92Schema18OptionalPostWriteWi
   } catch {
     return { ok: false, value: null };
   }
-};
+}
 
 function _pr92Schema18ConversationIdentityFromUrl(url) {
   const conversationId = conversationIdFromUrl(url || "");
