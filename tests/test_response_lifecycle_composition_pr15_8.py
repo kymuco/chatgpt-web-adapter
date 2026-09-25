@@ -41,7 +41,7 @@ def test_lower_level_stream_and_page_hooks_remain_in_original_modules() -> None:
     required = {
         "service_worker_browser_response_stream.js": (
             "async function _executeOfficialPageTurnWithSafeBrowserStream",
-            "async function _pr89BrowserStreamRecordAssistant(",
+            "async function _pr89BaseBrowserStreamRecordAssistant(",
             "async function _executeNativeTurnWithRevisionSafeTextDelivery",
             "async function _executeNativeTurnWithSafeBrowserStream",
         ),
@@ -52,21 +52,29 @@ def test_lower_level_stream_and_page_hooks_remain_in_original_modules() -> None:
             "async function _pr811TailRecordAssistantLayer(",
             "async function _pr8111RecordAssistantLayer(",
             "async function _pr8111RepairRecordAssistantLayer(",
-            "_pr89BrowserStreamRecordAssistant = _pr811RecordAssistantOwner;",
-            "_pr89BrowserStreamProcessSseEvent = _pr811ProcessSseEventOwner;",
+            "async function _pr811RecordAssistantOwner(",
+            "async function _pr811ProcessSseEventOwner(",
+            "_pr89BaseBrowserStreamRecordAssistant",
+            "_pr89BaseBrowserStreamProcessSseEvent",
         ),
         "service_worker_response_activity.js": (
             "async function _pr812ProcessSseEventLayer(",
             "async function _pr812ExecuteNativeTurn(",
-            "_pr89BrowserStreamProcessSseEvent = _pr812ProcessSseEventOwner;",
-            "_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;",
-            "_pr89BrowserStreamRecordAssistant = _pr812RecordAssistantOwner;",
+            "async function _pr812ProcessSseEventOwner(",
+            "function _pr812VisibleAssistantTextOwner(",
+            "async function _pr812RecordAssistantOwner(",
+            "_pr811ProcessSseEventOwner",
+            "_pr89BaseBrowserStreamVisibleAssistantText",
+            "_pr811RecordAssistantOwner",
         ),
     }
     for name, tokens in required.items():
         source = _source(name)
         for token in tokens:
             assert token in source, (name, token)
+        assert "_pr89BrowserStreamProcessSseEvent =" not in source, name
+        assert "_pr89BrowserStreamVisibleAssistantText =" not in source, name
+        assert "_pr89BrowserStreamRecordAssistant =" not in source, name
 
 
 def test_response_lifecycle_is_pure_layer_at_same_assembly_boundary() -> None:
