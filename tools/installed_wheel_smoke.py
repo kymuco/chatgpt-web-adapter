@@ -32,6 +32,8 @@ HELP_COMMANDS = (
 )
 REQUIRED_PRODUCT_MODULES = (
     "chatgpt_web_adapter.product_runtime",
+    "chatgpt_web_adapter.deepseek_web",
+    "chatgpt_web_adapter.deepseek_web_live_gate",
     "chatgpt_web_adapter.product_transport",
     "chatgpt_web_adapter.product_contract",
     "chatgpt_web_adapter.product_support",
