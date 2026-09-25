@@ -5,8 +5,6 @@
 // outer-to-inner order while eliminating import-order executeNativeTurn
 // reassignment as a composition mechanism.
 
-const _cwaNativeTurnBaseExecute = executeNativeTurn;
-
 const CWA_NATIVE_TURN_LAYERS = Object.freeze([
   ["ordinary-text-identity", _cwaOrdinaryIdentityExecuteNativeTurn],
   ["rich-input", _executeNativeTurnWithRichInputLifecycle],
@@ -19,7 +17,7 @@ const CWA_NATIVE_TURN_LAYERS = Object.freeze([
 
 async function _cwaRunNativeTurnLayer(index, message) {
   if (index >= CWA_NATIVE_TURN_LAYERS.length) {
-    return _cwaNativeTurnBaseExecute(message);
+    return _cwaBaseExecuteNativeTurn(message);
   }
 
   const [name, layer] = CWA_NATIVE_TURN_LAYERS[index];
@@ -33,6 +31,6 @@ async function _cwaRunNativeTurnLayer(index, message) {
   );
 }
 
-executeNativeTurn = async function _executeNativeTurnWithRuntimeLifecycle(message) {
+async function executeNativeTurn(message) {
   return _cwaRunNativeTurnLayer(0, message);
-};
+}

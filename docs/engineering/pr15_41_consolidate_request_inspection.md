@@ -188,3 +188,11 @@ no-reassignment gate over the shipping worker surface after these remaining
 clusters are consolidated.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.42 later finalizes the two root runtime lifecycle owners,
+`executeNativeTurn` and `executeOfficialPageTurn`, by removing the remaining
+assignment-form ownership and native base capture while preserving the already
+explicit PR15.8–PR15.14 lifecycle graphs.
