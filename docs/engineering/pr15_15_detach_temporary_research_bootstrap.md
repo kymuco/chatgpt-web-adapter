@@ -90,3 +90,12 @@ deleted active legacy bootstrap owners                           = 2
 
 This is the first PR15 slice whose primary purpose is deletion of historical
 production composition rather than introduction of another owner.
+
+
+## PR15.51 retirement follow-up
+
+PR15.15 intentionally left the detached PR8.7 characterization workers in the
+repository as historical source evidence. After PR15.50 mechanically proved
+that this chain was outside the manifest-rooted production graph, PR15.51
+removes those workers from the extension tree entirely. Git history now serves
+as the evidence archive; production behavior remains on the PR8.13 path.
