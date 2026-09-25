@@ -46,7 +46,9 @@ def test_initial_bootstrap_uses_base_but_future_callbacks_use_public_owner() -> 
     assert "_cwaBaseConnectNativeBridge();" not in schedule_block
 
     tail = core[core.index("chrome.runtime.onInstalled.addListener") :]
-    assert "chrome.runtime.onInstalled.addListener(() => connectNativeBridge());" in tail
+    assert (
+        "chrome.runtime.onInstalled.addListener(() => connectNativeBridge());" in tail
+    )
     assert "chrome.runtime.onStartup.addListener(() => connectNativeBridge());" in tail
     assert tail.rstrip().endswith("_cwaBaseConnectNativeBridge();")
 
