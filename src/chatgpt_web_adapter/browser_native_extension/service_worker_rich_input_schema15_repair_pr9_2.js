@@ -20,7 +20,7 @@ async function _pr92Schema15DetachWithinDeadline(debuggee, context, stage) {
   );
 }
 
-_pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function _pr92Schema15RequireOfficialCleanComposerBeforeStaging(
+async function _pr92Schema15RequireOfficialCleanComposerBeforeStaging(
   tabId,
   context
 ) {
@@ -100,7 +100,7 @@ _pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function _pr92Sch
   }
 };
 
-_pr92Schema12ObservePostStageAttachmentEvidence = async function _pr92Schema15ObservePostStageAttachmentEvidence(
+async function _pr92Schema15ObservePostStageAttachmentEvidence(
   tabId,
   attachmentPaths,
   context

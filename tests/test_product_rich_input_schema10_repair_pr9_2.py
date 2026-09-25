@@ -57,7 +57,7 @@ def test_schema_10_bounds_prestage_debugger_setup_and_detaches_late_attach():
     text = SCHEMA10.read_text(encoding="utf-8")
     prestage = text[
         text.index(
-            "async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging"
+            "async function _pr92Schema10BaseRequireOfficialCleanComposerBeforeStaging"
         ) : text.index("async function _pr92Schema10StageFromOfficialCleanComposer")
     ]
     assert '"SCHEMA10_PRESTAGE_CLEAN_DEBUGGER_ATTACH"' in prestage

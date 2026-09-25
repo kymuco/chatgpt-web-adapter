@@ -48,14 +48,12 @@ def test_schema_11_parses_complete_removal_payload_without_suffix_aliases():
 
 def test_schema_11_bounds_the_shared_attachment_evidence_read():
     text = SCHEMA11.read_text(encoding="utf-8")
-    assert (
-        "const _pr92Schema11PriorReadPageOwnedAttachmentEvidence =\n"
-        "  _pr92ClosureReadPageOwnedAttachmentEvidence;"
-    ) in text
-    assert "_pr92ClosureReadPageOwnedAttachmentEvidence = async function" in text
+    assert "_pr92Schema11PriorReadPageOwnedAttachmentEvidence" not in text
+    assert "async function _pr92Schema11ReadPageOwnedAttachmentEvidence(" in text
+    assert "_pr92ClosureReadPageOwnedAttachmentEvidence =" not in text
     assert "return _pr92Schema7RunUntil(" in text
     assert '"SCHEMA11_PAGE_ATTACHMENT_EVIDENCE_READ"' in text
-    assert "() => _pr92Schema11PriorReadPageOwnedAttachmentEvidence(" in text
+    assert "() => _pr92ClosureBaseReadPageOwnedAttachmentEvidence(" in text
     assert "attachmentEvidenceReadsDeadlineBounded: true" in text
 
 

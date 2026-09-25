@@ -40,7 +40,7 @@ function _pr92Schema24EvidenceIsClean(evidence) {
     groupCount === 0 && removalCount === 0;
 }
 
-_pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function _pr92Schema24RequireOfficialCleanComposerBeforeStaging(
+async function _pr92Schema24RequireOfficialCleanComposerBeforeStaging(
   tabId,
   context
 ) {

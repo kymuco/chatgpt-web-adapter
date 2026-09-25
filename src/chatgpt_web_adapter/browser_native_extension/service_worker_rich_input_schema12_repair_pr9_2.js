@@ -23,7 +23,7 @@ function _pr92Schema12BestEffortDetach(debuggee) {
   } catch {}
 }
 
-async function _pr92Schema12ObservePostStageAttachmentEvidence(
+async function _pr92Schema12BaseObservePostStageAttachmentEvidence(
   tabId,
   attachmentPaths,
   context

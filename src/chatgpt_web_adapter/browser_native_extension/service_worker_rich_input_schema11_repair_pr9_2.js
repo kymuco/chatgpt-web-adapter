@@ -8,8 +8,6 @@
 //   2. every page-owned attachment evidence read is raced against the one outer
 //      rich-turn deadline instead of awaiting a raw Runtime.evaluate indefinitely.
 
-const _pr92Schema11PriorReadPageOwnedAttachmentEvidence =
-  _pr92ClosureReadPageOwnedAttachmentEvidence;
 const PR92_SCHEMA11_REPAIR_SCHEMA = 11;
 
 function _pr92Schema11AttachmentEvidenceExpression(expectedNames) {
@@ -135,7 +133,7 @@ function _pr92Schema11AttachmentEvidenceExpression(expectedNames) {
 // performs the Runtime.evaluate and value-shape validation; schema 11 only adds the
 // missing outer-deadline race around that complete read. A late DOM read has no
 // write authority and cannot change the already-reported timeout outcome.
-_pr92ClosureReadPageOwnedAttachmentEvidence = async function _pr92Schema11ReadPageOwnedAttachmentEvidence(
+async function _pr92Schema11ReadPageOwnedAttachmentEvidence(
   debuggee,
   expectedNames,
   context
@@ -143,7 +141,7 @@ _pr92ClosureReadPageOwnedAttachmentEvidence = async function _pr92Schema11ReadPa
   return _pr92Schema7RunUntil(
     context.deadlineAt,
     "SCHEMA11_PAGE_ATTACHMENT_EVIDENCE_READ",
-    () => _pr92Schema11PriorReadPageOwnedAttachmentEvidence(
+    () => _pr92ClosureBaseReadPageOwnedAttachmentEvidence(
       debuggee,
       expectedNames,
       context
