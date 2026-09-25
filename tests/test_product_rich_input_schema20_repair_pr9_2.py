@@ -33,7 +33,7 @@ def test_schema_20_turn_context_has_unique_page_side_arm_state():
 def test_schema_20_arm_marker_and_atomic_click_share_one_page_expression():
     text = SCHEMA20.read_text(encoding="utf-8")
     start = text.index("function _pr92Schema20PageSideArmProtectedSubmit")
-    end = text.index("isConversationWrite = function", start)
+    end = text.index("function _pr92Schema20SubmitBoundConversationWrite", start)
     block = text[start:end]
     assert "_pr92Schema7BaseAtomicAttachmentSubmitExpression" in block
     assert "_pr92Schema20PriorAtomicAttachmentSubmitExpression" not in text
@@ -55,11 +55,12 @@ def test_schema_20_arm_marker_and_atomic_click_share_one_page_expression():
 
 def test_schema_20_schema17_request_authority_is_closed_before_page_marker():
     text = SCHEMA20.read_text(encoding="utf-8")
-    start = text.index("isConversationWrite = function")
+    start = text.index("function _pr92Schema20SubmitBoundConversationWrite")
     end = text.index("function _pr92Schema20ObserveArmMarker", start)
     block = text[start:end]
-    assert "_pr92Schema20PriorIsConversationWrite(url, method)" in block
+    assert "_cwaBaseIsConversationWrite(url, method)" in block
     assert "context.schema20ProtectedSubmitArmed === true" in block
+    assert "_pr92Schema20PriorIsConversationWrite" not in text
 
     schema17 = SCHEMA17.read_text(encoding="utf-8")
     listener_start = schema17.index('if (method === "Network.requestWillBeSent")')
@@ -88,7 +89,7 @@ def test_schema_20_raw_observer_records_post_arm_requests_independently_of_gated
     )
     block = text[start:end]
     assert "context.schema20ProtectedSubmitArmed !== true" in block
-    assert "_pr92Schema20PriorIsConversationWrite(" in block
+    assert "_cwaBaseIsConversationWrite(" in block
     assert "_pr92Schema20SubmitBoundConversationWrite" not in block
     assert "hasUserGesture: params?.hasUserGesture === true" in block
     assert "entry.requestId === requestId" in block

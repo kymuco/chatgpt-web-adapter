@@ -129,7 +129,7 @@ function conversationIdFromUrl(url) {
   }
 }
 
-function isConversationWrite(url, method) {
+function _cwaBaseIsConversationWrite(url, method) {
   if (method !== "POST") return false;
   try {
     const parsed = new URL(url);
