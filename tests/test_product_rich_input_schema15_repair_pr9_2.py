@@ -22,10 +22,10 @@ def test_schema_15_overlay_is_loaded_after_schema_14():
 def test_schema_15_pre_stage_success_detach_is_deadline_bounded_before_return():
     text = SCHEMA15.read_text(encoding="utf-8")
     start = text.index(
-        "_pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function"
+        "async function _pr92Schema15RequireOfficialCleanComposerBeforeStaging"
     )
     end = text.index(
-        "_pr92Schema12ObservePostStageAttachmentEvidence = async function",
+        "async function _pr92Schema15ObservePostStageAttachmentEvidence",
         start,
     )
     block = text[start:end]
@@ -42,7 +42,7 @@ def test_schema_15_pre_stage_success_detach_is_deadline_bounded_before_return():
 def test_schema_15_post_stage_success_detach_is_deadline_bounded_before_evidence_return():
     text = SCHEMA15.read_text(encoding="utf-8")
     start = text.index(
-        "_pr92Schema12ObservePostStageAttachmentEvidence = async function"
+        "async function _pr92Schema15ObservePostStageAttachmentEvidence"
     )
     end = text.index(
         "function _pr92Schema15AugmentSupportResult",
@@ -65,7 +65,7 @@ def test_schema_15_detach_helper_uses_same_outer_deadline():
     text = SCHEMA15.read_text(encoding="utf-8")
     start = text.index("async function _pr92Schema15DetachWithinDeadline")
     end = text.index(
-        "_pr92Schema10RequireOfficialCleanComposerBeforeStaging = async function",
+        "async function _pr92Schema15RequireOfficialCleanComposerBeforeStaging",
         start,
     )
     block = text[start:end]
