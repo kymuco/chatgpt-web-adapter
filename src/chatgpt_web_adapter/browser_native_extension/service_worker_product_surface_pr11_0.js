@@ -82,16 +82,15 @@ if (nativePort !== null) {
   _cwaAttachNativePortProductState(nativePort);
 }
 
-const _cwaProductPriorConnectNativeBridge = connectNativeBridge;
-connectNativeBridge = function _connectNativeBridgeWithProductState() {
+function _cwaConnectNativeBridgeWithProductState() {
   const previousPort = nativePort;
-  const result = _cwaProductPriorConnectNativeBridge();
+  const result = _cwaBaseConnectNativeBridge();
   if (nativePort !== null && nativePort !== previousPort) {
     _cwaAttachNativePortProductState(nativePort);
   }
   _cwaUpdateActionState();
   return result;
-};
+}
 
 async function _cwaOnNativeMessageWithProductState(message, port, next) {
   const result = next(message, port);

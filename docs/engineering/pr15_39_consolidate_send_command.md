@@ -140,3 +140,11 @@ After this slice, the remaining obvious shared-name wrapper is the smaller
 `connectNativeBridge` product-state chain.
 
 Tracking: #107
+
+
+## Follow-up closure audit note
+
+PR15.40's exact-main ownership audit confirmed that `connectNativeBridge` was
+not the last source-order mutation. Additional shipping mutation clusters remain
+and are tracked in the PR15.40 inventory before any architecture-reset closure
+claim is made.
