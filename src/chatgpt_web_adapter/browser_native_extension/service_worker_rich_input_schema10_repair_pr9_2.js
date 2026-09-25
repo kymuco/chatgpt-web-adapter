@@ -125,9 +125,8 @@ function _pr92Schema10AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// Every schema-8/9 clean/stable read and schema-7 atomic final validation resolves
-// this binding at call time, so all later evidence uses schema-10 semantics.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema10AttachmentEvidenceExpression;
+// Historical schema-10 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 function _pr92Schema10BestEffortDetach(debuggee) {
   try {

@@ -77,7 +77,5 @@ def test_schema_10_bypasses_only_the_schema_8_unbounded_prestage_wrapper():
     text = SCHEMA10.read_text(encoding="utf-8")
     assert "await _pr92Schema10RequireOfficialCleanComposerBeforeStaging" in text
     assert "return _pr92StageWithPageOwnedEvidence(" in text
-    assert (
-        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema10AttachmentEvidenceExpression;"
-        in text
-    )
+    assert "function _pr92Schema10AttachmentEvidenceExpression" in text
+    assert "_pr92ClosureAttachmentEvidenceExpression =" not in text

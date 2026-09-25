@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
@@ -26,14 +25,20 @@ def test_schema_9_requires_cross_channel_attachment_exactness():
     assert "const PR92_SCHEMA9_REPAIR_SCHEMA = 9;" in text
     assert "_pr92Schema9AttachmentEvidenceExpression" in text
     assert "const groupsCompatible = groupLabels.length === 0 || groups.exact;" in text
-    assert "const removalsCompatible = removalLabels.length === 0 || removals.exact;" in text
-    assert "const atLeastOneExpectedChannelExact = groups.exact || removals.exact;" in text
-    assert "groupsCompatible && removalsCompatible && atLeastOneExpectedChannelExact" in text
-    assert "crossEvidenceChannelExactness: true" in text
     assert (
-        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema9AttachmentEvidenceExpression;"
+        "const removalsCompatible = removalLabels.length === 0 || removals.exact;"
         in text
     )
+    assert (
+        "const atLeastOneExpectedChannelExact = groups.exact || removals.exact;" in text
+    )
+    assert (
+        "groupsCompatible && removalsCompatible && atLeastOneExpectedChannelExact"
+        in text
+    )
+    assert "crossEvidenceChannelExactness: true" in text
+    assert "function _pr92Schema9AttachmentEvidenceExpression" in text
+    assert "_pr92ClosureAttachmentEvidenceExpression =" not in text
 
 
 def test_schema_9_rejects_the_schema_8_cross_channel_counterexample():
@@ -56,15 +61,12 @@ def test_schema_9_rejects_the_schema_8_cross_channel_counterexample():
     groups_compatible = group_count == 0 or groups_exact
     removals_compatible = removal_count == 0 or removals_exact
     schema_9 = (
-        groups_compatible
-        and removals_compatible
-        and (groups_exact or removals_exact)
+        groups_compatible and removals_compatible and (groups_exact or removals_exact)
     )
     assert schema_9 is False
 
 
 def test_schema_9_keeps_empty_secondary_evidence_channel_compatible():
-    expected_count = 1
     group_count = 1
     removal_count = 0
     groups_exact = True
@@ -73,8 +75,6 @@ def test_schema_9_keeps_empty_secondary_evidence_channel_compatible():
     groups_compatible = group_count == 0 or groups_exact
     removals_compatible = removal_count == 0 or removals_exact
     schema_9 = (
-        groups_compatible
-        and removals_compatible
-        and (groups_exact or removals_exact)
+        groups_compatible and removals_compatible and (groups_exact or removals_exact)
     )
     assert schema_9 is True

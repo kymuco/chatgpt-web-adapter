@@ -27,7 +27,7 @@ function _pr92ClosureExpectedBasenames(attachmentPaths) {
   });
 }
 
-function _pr92ClosureAttachmentEvidenceExpression(expectedNames) {
+function _pr92BaseAttachmentEvidenceExpression(expectedNames) {
   const encodedNames = JSON.stringify(expectedNames);
   return `(() => {
     const expected = ${encodedNames};

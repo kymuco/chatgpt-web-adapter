@@ -86,7 +86,7 @@ def test_schema_25_production_expression_uses_one_shared_anchored_parser():
     )
     expression_start = text.index("function _pr92Schema25AttachmentEvidenceExpression")
     expression_end = text.index(
-        "_pr92ClosureAttachmentEvidenceExpression =", expression_start
+        "function _pr92Schema25DiagnosticRemovalNormalization", expression_start
     )
     expression = text[expression_start:expression_end]
     assert ".includes(name)" not in expression
@@ -102,10 +102,8 @@ def test_schema_25_keeps_cross_channel_and_unknown_group_fail_closed_authority()
     assert "exactAttachmentSet = crossEvidenceChannelExact" in text
     assert "unknownRoleGroupsFailClosed: true" in text
     assert "filenameGroupIndependentOfRemovalControl: true" in text
-    assert (
-        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema25AttachmentEvidenceExpression"
-        in text
-    )
+    assert "function _pr92Schema25AttachmentEvidenceExpression" in text
+    assert "_pr92ClosureAttachmentEvidenceExpression =" not in text
 
 
 def test_schema_25_diagnostic_reports_live_normalization_without_write_authority():

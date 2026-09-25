@@ -143,11 +143,8 @@ function _pr92Schema22AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// All pre-stage clean polls, post-stage stable evidence reads, and schema-7's
-// final synchronous validate+click resolve this binding at call time. Therefore
-// the classification repair is consistent across every attachment authority
-// boundary rather than being a special-case live-gate bypass.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema22AttachmentEvidenceExpression;
+// Historical schema-22 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 function _pr92Schema22AugmentSupportResult(result) {
   return {
