@@ -25,7 +25,25 @@ service_worker_ui_compat_pr11_7.js
   _pr117HistoricalQueryComposerReadiness
 ```
 
-PR15.50 closes both before enabling the gate.
+The first gate run then found 12 additional debt entries across three reachable
+response-stream modules:
+
+```text
+service_worker_early_response_completion.js
+  2 captured upstream aliases
+  2 public stream-hook rebindings
+
+service_worker_response_activity.js
+  3 captured upstream aliases
+  3 public stream-hook rebindings
+
+service_worker_temporary_product.js
+  1 captured upstream alias
+  1 public SSE-hook rebinding
+```
+
+PR15.50 closes all of these before the gate can pass. No production exception
+or grandfathered hook remains.
 
 ## Explicit composer-focus ownership
 
@@ -72,6 +90,39 @@ queryComposerReadiness(...)
 
 No runtime assignment or historical query alias remains.
 
+## Explicit response-stream hook ownership
+
+Immutable PR8.9 bases:
+
+```text
+_pr89BaseBrowserStreamProcessSseEvent(...)
+_pr89BaseBrowserStreamVisibleAssistantText(...)
+_pr89BaseBrowserStreamRecordAssistant(...)
+```
+
+The final shipping public owner is `service_worker_response_stream_hooks.js`:
+
+```text
+_pr89BrowserStreamProcessSseEvent(...)
+→ _pr813ProcessSseWithTemporarySessionIdentity(...)
+→ _pr812ProcessSseEventOwner(...)
+→ _pr811ProcessSseEventOwner(...)
+→ _pr89BaseBrowserStreamProcessSseEvent(...)
+
+_pr89BrowserStreamVisibleAssistantText(...)
+→ _pr812VisibleAssistantTextOwner(...)
+→ _pr89BaseBrowserStreamVisibleAssistantText(...)
+
+_pr89BrowserStreamRecordAssistant(...)
+→ _pr812RecordAssistantOwner(...)
+→ _pr811RecordAssistantOwner(...)
+→ _pr89BaseBrowserStreamRecordAssistant(...)
+```
+
+This owner loads after `service_worker_temporary_product.js`, preserving the
+historical outermost Temporary session-identity layer without source-order
+rebinding.
+
 ## Static closure gate
 
 `tools/browser_worker_ownership_closure_gate.py`:
@@ -81,7 +132,7 @@ No runtime assignment or historical query alias remains.
 3. recursively follows active `importScripts(...)` edges;
 4. rejects any reachable top-level bare identifier assignment;
 5. rejects reachable captured aliases whose names encode historical composition
-   (`Prior`, `Original`, or `Upstream`);
+   (`Prior`, `Original`, `Upstream`, or `Historical`);
 6. rejects any accidental production reachability of the detached PR8.7 Temporary
    characterization chain.
 
