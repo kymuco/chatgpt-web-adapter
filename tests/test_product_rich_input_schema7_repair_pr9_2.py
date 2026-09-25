@@ -93,9 +93,9 @@ def test_schema_7_fenced_tab_cleanup_requires_browser_session_identity():
     assert "staleAttachmentUnprovenIdentityFailsClosed: true" in text
 
     cleanup = text[
-        text.index(
-            "_pr92ClearOfficialPageAttachments = async function _pr92Schema7ClearFencedRuntimeTab"
-        ) : text.index("function _pr92Schema7AtomicAttachmentSubmitExpression")
+        text.index("async function _pr92Schema7ClearFencedRuntimeTab") : text.index(
+            "function _pr92Schema7AtomicAttachmentSubmitExpression"
+        )
     ]
     current_id_branch = cleanup[
         cleanup.index("if (currentRuntimeTabId !== tabId)") : cleanup.index(

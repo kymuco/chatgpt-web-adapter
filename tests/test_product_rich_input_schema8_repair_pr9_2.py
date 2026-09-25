@@ -47,9 +47,9 @@ def test_schema_8_requires_clean_composer_and_exact_attachment_set():
 def test_schema_8_revalidates_destructive_authority_at_close_boundary():
     text = SCHEMA8.read_text(encoding="utf-8")
     cleanup = text[
-        text.index(
-            "_pr92ClearOfficialPageAttachments = async function _pr92Schema8ClearFencedRuntimeTab"
-        ) : text.index("function _pr92Schema8AugmentSupportResult")
+        text.index("async function _pr92Schema8ClearFencedRuntimeTab") : text.index(
+            "function _pr92Schema8AugmentSupportResult"
+        )
     ]
 
     assert "chrome.tabs.onUpdated.addListener(onUpdated)" in cleanup

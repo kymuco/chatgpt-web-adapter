@@ -90,6 +90,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
         "service_worker_rich_input_closure_repair_pr9_2.js",
         "service_worker_rich_input_schema7_repair_pr9_2.js",
         "service_worker_attachment_evidence.js",
+        "service_worker_attachment_cleanup.js",
         "service_worker_attachment_staging.js",
         "service_worker_rich_input_lifecycle.js",
         "service_worker_request_text_shape_compat.js",
