@@ -52,9 +52,11 @@ def test_runtime_loads_single_native_turn_owner_last() -> None:
     assert imports[-1] == 'importScripts("service_worker_native_turn_lifecycle.js");'
 
     owner = OWNER.read_text(encoding="utf-8")
-    assert owner.count("executeNativeTurn =") == 1
-    assert owner.count("= executeNativeTurn;") == 1
-    assert "const _cwaNativeTurnBaseExecute = executeNativeTurn;" in owner
+    assert owner.count("async function executeNativeTurn(") == 1
+    assert "executeNativeTurn =" not in owner
+    assert "= executeNativeTurn;" not in owner
+    assert "_cwaNativeTurnBaseExecute" not in owner
+    assert "_cwaBaseExecuteNativeTurn(message)" in owner
 
 
 def test_root_composition_preserves_historical_outer_to_inner_order() -> None:
@@ -77,10 +79,10 @@ def test_single_owner_preserves_nested_order_and_message_handoff() -> None:
     script = f"""
 const events = [];
 
-let executeNativeTurn = async (message) => {{
+async function _cwaBaseExecuteNativeTurn(message) {{
   events.push("base");
   return {{ chain: message.chain }};
-}};
+}}
 
 function layer(name) {{
   return async (message, next) => {{

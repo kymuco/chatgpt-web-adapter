@@ -73,6 +73,6 @@ async function _cwaOfficialPageTurnOrdinaryIdentity(args) {
   );
 }
 
-executeOfficialPageTurn = async function _executeOfficialPageTurnWithRuntimeLifecycle(args) {
+async function executeOfficialPageTurn(args) {
   return _cwaOfficialPageTurnOrdinaryIdentity(args);
-};
+}

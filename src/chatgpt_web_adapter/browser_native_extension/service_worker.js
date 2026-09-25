@@ -473,7 +473,7 @@ async function _cwaBaseSubmitOfficialPageTurn(debuggee, timeoutMs) {
   }
 }
 
-async function executeOfficialPageTurn({
+async function _cwaBaseExecuteOfficialPageTurn({
   tabId,
   text,
   timeoutMs,
@@ -649,7 +649,7 @@ async function executeOfficialPageTurn({
   }
 }
 
-async function executeNativeTurn(message) {
+async function _cwaBaseExecuteNativeTurn(message) {
   const conversationId = typeof message.conversationId === "string" && message.conversationId.trim()
     ? message.conversationId.trim()
     : null;

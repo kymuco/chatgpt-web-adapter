@@ -53,7 +53,8 @@ def test_runtime_loads_single_page_turn_owner_before_native_turn_owner() -> None
     assert runtime.index(page) < runtime.index(native)
 
     owner = _source(OWNER)
-    assert owner.count("executeOfficialPageTurn =") == 1
+    assert owner.count("async function executeOfficialPageTurn(") == 1
+    assert "executeOfficialPageTurn =" not in owner
 
 
 def test_page_turn_graph_exposes_intentional_bypass_edges() -> None:
@@ -85,7 +86,6 @@ def test_page_turn_graph_preserves_normal_and_bypass_routes() -> None:
     owner = _source(OWNER)
     script = f"""
 const calls = [];
-let executeOfficialPageTurn = null;
 
 function linear(name) {{
   return async (args, next) => {{
