@@ -76,7 +76,9 @@ def test_schema_17_postwrite_reads_are_optional_bounded_and_reserve_rpc_return_b
     assert "const PR92_SCHEMA17_OPTIONAL_POSTWRITE_CAP_MS = 1_000;" in text
     assert "const PR92_SCHEMA17_RPC_RETURN_RESERVE_MS = 500;" in text
 
-    helper_start = text.index("async function _pr92Schema17BaseOptionalPostWrite")
+    helper_start = text.index(
+        "async function _pr92Schema17BaseOptionalPostWrite"
+    )
     helper_end = text.index("async function _pr92Schema17ExecuteOfficialPageTurn", helper_start)
     helper = text[helper_start:helper_end]
     assert "remaining - PR92_SCHEMA17_RPC_RETURN_RESERVE_MS" in helper
