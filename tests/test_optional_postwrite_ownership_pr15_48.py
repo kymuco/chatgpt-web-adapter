@@ -31,8 +31,7 @@ def test_optional_postwrite_has_one_public_owner_and_no_runtime_reassignment() -
     assert "async function _pr92Schema17OptionalPostWrite(" not in schema17
 
     assert (
-        "async function _pr92Schema18OptionalPostWriteWithIdentityReserve("
-        in schema18
+        "async function _pr92Schema18OptionalPostWriteWithIdentityReserve(" in schema18
     )
     assert "_pr92Schema17OptionalPostWrite =" not in schema18
 
