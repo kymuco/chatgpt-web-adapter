@@ -66,7 +66,9 @@ def test_runtime_tab_consumers_still_resolve_public_validated_owner() -> None:
     assert "_cwaBaseStoredRuntimeTabId()" not in ensure_block
 
     removed_start = ensure_end
-    removed_end = core.index("async function queryComposerReadiness", removed_start)
+    removed_end = core.index(
+        "async function _cwaBaseQueryComposerReadiness", removed_start
+    )
     removed_block = core[removed_start:removed_end]
     assert "const storedId = await storedRuntimeTabId();" in removed_block
     assert "_cwaBaseStoredRuntimeTabId()" not in removed_block
