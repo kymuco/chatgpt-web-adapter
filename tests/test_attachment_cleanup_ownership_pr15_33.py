@@ -65,8 +65,7 @@ def test_attachment_cleanup_has_one_public_owner_and_no_runtime_reassignments() 
         for public in PUBLIC_TO_FINAL:
             assert f"async function {public}(" not in source
             assert not any(
-                line.lstrip().startswith(f"{public} =")
-                for line in source.splitlines()
+                line.lstrip().startswith(f"{public} =") for line in source.splitlines()
             )
 
     deadline = _source("service_worker_rich_input_deadline_repair_pr9_2.js")
