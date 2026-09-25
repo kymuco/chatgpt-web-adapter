@@ -4,7 +4,6 @@ import json
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
@@ -41,8 +40,12 @@ def test_manifest_routes_through_runtime_tab_reconciliation_wrapper() -> None:
     )
 
 
-def test_reconciliation_wrapper_extends_observability_without_reimplementing_transport() -> None:
-    source = (EXT / "service_worker_runtime_tab_reconciliation.js").read_text(encoding="utf-8")
+def test_reconciliation_wrapper_extends_observability_without_reimplementing_transport() -> (
+    None
+):
+    source = (EXT / "service_worker_runtime_tab_reconciliation.js").read_text(
+        encoding="utf-8"
+    )
     assert 'importScripts("service_worker_observability.js")' in source
     assert "async function _pr824a3StoredRuntimeTabIdWithLiveValidation()" in source
     assert "storedRuntimeTabId =" not in source
@@ -71,7 +74,9 @@ def test_reconciliation_wrapper_extends_observability_without_reimplementing_tra
 
 
 def test_reconciliation_does_not_claim_hidden_or_browserless_write() -> None:
-    source = (EXT / "service_worker_runtime_tab_reconciliation.js").read_text(encoding="utf-8")
+    source = (EXT / "service_worker_runtime_tab_reconciliation.js").read_text(
+        encoding="utf-8"
+    )
     lowered = source.lower()
     assert "chrome.tabs.create" not in source
     assert "chrome.windows" not in source
