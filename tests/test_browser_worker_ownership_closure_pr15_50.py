@@ -29,10 +29,10 @@ def test_production_worker_surface_has_zero_ownership_debt() -> None:
 
 
 def test_gate_detects_top_level_rebinding_and_captured_historical_alias() -> None:
-    source = """const _examplePriorOwner = publicOwner;
+    source = """const _exampleHistoricalOwner = publicOwner;
 publicOwner =
   async function wrappedOwner() {
-    return _examplePriorOwner();
+    return _exampleHistoricalOwner();
   };
 
 function ordinaryHelper() {
@@ -41,7 +41,7 @@ function ordinaryHelper() {
 """
 
     assert source_ownership_debt("fixture.js", source) == (
-        "fixture.js:1:captured-historical-alias:_examplePriorOwner->publicOwner",
+        "fixture.js:1:captured-historical-alias:_exampleHistoricalOwner->publicOwner",
         "fixture.js:2:top-level-rebinding:publicOwner",
     )
 
