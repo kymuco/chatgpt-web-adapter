@@ -279,7 +279,7 @@ def _run_postdata_fallback_cases() -> dict[str, object]:
     return _run_node(
         f"""
 const PR92_SCHEMA19_RPC_RETURN_RESERVE_MS = 500;
-const _pr92Schema20PriorIsConversationWrite = () => true;
+const _cwaBaseIsConversationWrite = () => true;
 function _pr92Schema28DecodeResponseBody(body, base64Encoded) {{
   if (typeof body !== "string") return null;
   return base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body;

@@ -167,7 +167,8 @@ PR15 Architecture Reset
 → PR15.32 consolidate attachment-evidence ownership [merged]
 → PR15.33 consolidate attachment cleanup/fence ownership [merged]
 → PR15.34 consolidate message-inspection ownership [merged]
-→ PR15.35 consolidate protected-submit expression ownership [active]
+→ PR15.35 consolidate protected-submit expression ownership [merged]
+→ PR15.36 consolidate conversation-write predicate ownership [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```

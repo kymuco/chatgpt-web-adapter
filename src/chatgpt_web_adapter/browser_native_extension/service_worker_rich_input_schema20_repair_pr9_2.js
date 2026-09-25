@@ -16,7 +16,6 @@
 // post-arm traffic fails closed as known-write/readback-incomplete, with no retry.
 
 const _pr92Schema20PriorCreateTurnContext = _pr92CreateTurnContext;
-const _pr92Schema20PriorIsConversationWrite = isConversationWrite;
 const PR92_SCHEMA20_REPAIR_SCHEMA = 20;
 const PR92_SCHEMA20_REQUEST_CORRELATION =
   "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST";
@@ -74,12 +73,12 @@ function _pr92Schema20PageSideArmProtectedSubmit(
 // During a rich turn, conversation writes have no authority until the exact
 // page-side arm marker from the protected-submit task has been observed.
 // Text-only behavior remains exactly the prior predicate.
-isConversationWrite = function _pr92Schema20SubmitBoundConversationWrite(url, method) {
-  if (!_pr92Schema20PriorIsConversationWrite(url, method)) return false;
+function _pr92Schema20SubmitBoundConversationWrite(url, method) {
+  if (!_cwaBaseIsConversationWrite(url, method)) return false;
   const context = _pr92ActiveRichInputContext;
   if (context === null) return true;
   return context.schema20ProtectedSubmitArmed === true;
-};
+}
 
 function _pr92Schema20ObserveArmMarker(context, params) {
   if (context === null || context.schema20ProtectedSubmitArmed === true) return;
@@ -97,7 +96,7 @@ function _pr92Schema20RecordPostArmConversationRequest(context, params) {
   if (context === null || context.schema20ProtectedSubmitArmed !== true) return;
   const request = params?.request;
   if (
-    !_pr92Schema20PriorIsConversationWrite(
+    !_cwaBaseIsConversationWrite(
       request?.url || "",
       request?.method || ""
     )

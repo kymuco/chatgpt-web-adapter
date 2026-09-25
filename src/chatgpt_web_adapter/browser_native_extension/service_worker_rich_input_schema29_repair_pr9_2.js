@@ -338,7 +338,7 @@ function _pr92Schema29RecordPostArmConversationRequest(debuggee, context, params
   if (context === null || context.schema20ProtectedSubmitArmed !== true) return;
   const request = params?.request;
   if (
-    !_pr92Schema20PriorIsConversationWrite(
+    !_cwaBaseIsConversationWrite(
       request?.url || "",
       request?.method || ""
     )
