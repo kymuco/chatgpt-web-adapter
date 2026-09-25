@@ -65,7 +65,7 @@ def test_missing_base_turn_identity_can_be_filled_before_native_turn_returns() -
 def test_fresh_temporary_identity_flush_uses_extension_local_sentinel_only() -> None:
     source = _source("service_worker_temporary_product.js")
     start = source.index("const PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL")
-    end = source.index("\nconst _pr813SessionIdentityUpstreamProcessSseEvent", start)
+    end = source.index("\nfunction _pr813SessionIdentityDirect", start)
     fresh = source[start:end]
 
     assert "PR813_FRESH_TEMPORARY_IDENTITY_SENTINEL" in fresh
@@ -88,9 +88,12 @@ def test_fresh_identity_sentinel_resolves_only_from_live_temporary_context() -> 
     assert "conversationId: resolvedConversationId" in source
 
 
-def test_temporary_product_owner_has_single_identity_and_sse_install() -> None:
+def test_temporary_product_owner_exposes_explicit_session_identity_sse_layer() -> None:
     source = _source("service_worker_temporary_product.js")
     assert source.count("function _pr813ConversationId(value)") == 1
-    assert source.count("_pr89BrowserStreamProcessSseEvent =") == 1
+    assert "async function _pr813ProcessSseWithTemporarySessionIdentity(" in source
+    assert "return _pr812ProcessSseEventOwner(context, block);" in source
+    assert "_pr89BrowserStreamProcessSseEvent =" not in source
     assert "_pr813FreshIdentityPriorConversationId" not in source
     assert "_pr813SessionIdentityPriorProcessSseEvent" not in source
+    assert "_pr813SessionIdentityUpstreamProcessSseEvent" not in source
