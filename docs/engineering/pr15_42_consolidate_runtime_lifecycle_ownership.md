@@ -149,3 +149,10 @@ Final closure still requires consolidation of those names and a static
 no-reassignment gate over the shipping worker surface.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.43 later consolidates `storedRuntimeTabId` into an explicit owner while
+preserving the historical distinction between the initial raw persisted-id read
+used by native bootstrap and live-validated runtime reads after reconciliation.

@@ -189,7 +189,7 @@ async function waitForTabComplete(tabId, timeoutMs = 45_000) {
   });
 }
 
-async function storedRuntimeTabId() {
+async function _cwaBaseStoredRuntimeTabId() {
   const value = await chrome.storage.local.get(RUNTIME_TAB_KEY);
   return Number.isInteger(value?.[RUNTIME_TAB_KEY]) ? value[RUNTIME_TAB_KEY] : null;
 }
@@ -797,7 +797,7 @@ function _cwaBaseConnectNativeBridge() {
   });
   reconnectDelayMs = 1000;
 
-  storedRuntimeTabId().then((runtimeTabId) => {
+  _cwaBaseStoredRuntimeTabId().then((runtimeTabId) => {
     if (nativePort !== thisPort) return;
     postNative({
       protocol: BRIDGE_PROTOCOL_VERSION,

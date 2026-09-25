@@ -44,7 +44,9 @@ def test_manifest_routes_through_runtime_tab_reconciliation_wrapper() -> None:
 def test_reconciliation_wrapper_extends_observability_without_reimplementing_transport() -> None:
     source = (EXT / "service_worker_runtime_tab_reconciliation.js").read_text(encoding="utf-8")
     assert 'importScripts("service_worker_observability.js")' in source
-    assert "storedRuntimeTabId = async function" in source
+    assert "async function _pr824a3StoredRuntimeTabIdWithLiveValidation()" in source
+    assert "storedRuntimeTabId =" not in source
+    assert "_pr824a3RawStoredRuntimeTabId" not in source
     assert "chrome.tabs.get" in source
     assert "chrome.storage.local.remove(RUNTIME_TAB_KEY)" in source
     assert 'type: "runtime_state"' in source
