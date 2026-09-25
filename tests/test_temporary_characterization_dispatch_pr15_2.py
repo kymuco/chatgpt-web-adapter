@@ -7,6 +7,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 TEMPORARY_CHARACTERIZATION_FILES = (
     "service_worker_temporary_chat.js",
+    "service_worker_temporary_snapshot_expression.js",
     "service_worker_temporary_chat_state_semantics.js",
     "service_worker_temporary_chat_ax_semantics.js",
     "service_worker_temporary_chat_turn_probe.js",
@@ -45,7 +46,10 @@ def test_temporary_mode_composition_remains_snapshot_based() -> None:
     semantic = _source("service_worker_temporary_chat_semantic_notice.js")
 
     assert "async function _pr87HandleTemporaryModeProbe(message)" in base
-    assert "_pr87TemporaryControlSnapshotExpression =" in state
+    assert (
+        "function _pr87TemporaryControlSnapshotExpressionWithAriaActionState()" in state
+    )
+    assert "_pr87TemporaryControlSnapshotExpression =" not in state
     assert "executeNativeTurn" not in state
     assert "async function _pr87HandleTemporaryModeProbeWithAX(message)" in ax
     assert "await _pr87HandleTemporaryModeProbe(message)" in ax

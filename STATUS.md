@@ -180,8 +180,9 @@ PR15 Architecture Reset
 → PR15.45 consolidate attachment-readiness ownership [merged]
 → PR15.46 consolidate submit-readiness ownership [merged]
 → PR15.47 consolidate dirty-fence read ownership [merged]
-→ PR15.48 consolidate optional post-write ownership [active]
-→ continue confirmed remaining ownership consolidation
+→ PR15.48 consolidate optional post-write ownership [merged]
+→ PR15.49 consolidate Temporary snapshot-expression ownership [active]
+→ confirmed ownership inventory empty
 → add final static closure gate
 → then delete remaining displaced historical production composition
 → then prove a provider-neutral boundary with DeepSeek

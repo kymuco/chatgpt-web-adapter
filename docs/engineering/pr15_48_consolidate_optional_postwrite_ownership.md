@@ -95,3 +95,10 @@ Recommended order:
 2. final static no-reassignment closure gate.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.49 later consolidates `_pr87TemporaryControlSnapshotExpression` into one
+explicit owner inside the detached PR8.7 characterization chain without
+reconnecting that historical chain to production runtime assembly.

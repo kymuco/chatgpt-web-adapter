@@ -6,7 +6,7 @@ importScripts("service_worker_temporary_chat.js");
 // label unambiguously describes the action that would change the current mode.
 // Raw aria-label text still never leaves the browser context.
 
-_pr87TemporaryControlSnapshotExpression = function _pr87TemporaryControlSnapshotExpressionWithAriaActionState() {
+function _pr87TemporaryControlSnapshotExpressionWithAriaActionState() {
   return `(() => {
     const normalize = (value) => typeof value === 'string'
       ? value.trim().toLowerCase().replace(/\\s+/g, ' ')
@@ -122,4 +122,4 @@ _pr87TemporaryControlSnapshotExpression = function _pr87TemporaryControlSnapshot
       point: primary ? { x: primary.x, y: primary.y } : null
     };
   })()`;
-};
+}
