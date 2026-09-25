@@ -8,7 +8,7 @@ function _pr87ClampProbeTimeoutMs(value) {
   return Math.max(10_000, Math.min(Number(value), PR87_TEMPORARY_PROBE_MAX_TIMEOUT_MS));
 }
 
-function _pr87TemporaryControlSnapshotExpression() {
+function _pr87BaseTemporaryControlSnapshotExpression() {
   return `(() => {
     const normalize = (value) => typeof value === 'string'
       ? value.trim().toLowerCase().replace(/\\s+/g, ' ')
@@ -81,6 +81,8 @@ function _pr87TemporaryControlSnapshotExpression() {
     };
   })()`;
 }
+
+importScripts("service_worker_temporary_snapshot_expression.js");
 
 async function _pr87RawSendCommand(debuggee, method, params = undefined) {
   return chrome.debugger.sendCommand(debuggee, method, params);
