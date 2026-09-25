@@ -7,6 +7,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 TEMPORARY_CHARACTERIZATION_FILES = (
     "service_worker_temporary_chat.js",
+    "service_worker_temporary_snapshot_expression.js",
     "service_worker_temporary_chat_state_semantics.js",
     "service_worker_temporary_chat_ax_semantics.js",
     "service_worker_temporary_chat_turn_probe.js",
