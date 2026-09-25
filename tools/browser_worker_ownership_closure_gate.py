@@ -17,7 +17,7 @@ CAPTURED_HISTORICAL_ALIAS = re.compile(
     r"\s*=\s*(?P<target>[A-Za-z_$][A-Za-z0-9_$]*)\s*;$"
 )
 
-DETACHED_HISTORICAL_WORKERS = frozenset(
+RETIRED_HISTORICAL_WORKERS = frozenset(
     {
         "service_worker_temporary_chat.js",
         "service_worker_temporary_snapshot_expression.js",
@@ -123,7 +123,7 @@ def main() -> int:
     print(
         "browser worker ownership closure gate passed: "
         "zero top-level rebinding, zero captured composition aliases, "
-        "detached Temporary characterization remains unreachable"
+        "retired Temporary characterization source remains absent"
     )
     return 0
 
