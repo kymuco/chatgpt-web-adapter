@@ -21,8 +21,11 @@ def test_pr813_layer_loads_after_single_pr812_response_owner() -> None:
     source = OBSERVABILITY.read_text(encoding="utf-8")
     owner = 'importScripts("service_worker_response_activity.js");'
     temporary = 'importScripts("service_worker_temporary_product.js");'
-    assert owner in source and temporary in source
-    assert source.index(owner) < source.index(temporary)
+    stream_owner = 'importScripts("service_worker_response_stream_hooks.js");'
+    lifecycle = 'importScripts("service_worker_temporary_lifecycle.js");'
+    assert owner in source and temporary in source and stream_owner in source
+    assert source.index(owner) < source.index(temporary) < source.index(stream_owner)
+    assert source.index(stream_owner) < source.index(lifecycle)
     assert "service_worker_answer_channel_pr8_12.js" not in source
     assert "service_worker_normalized_activity_patch_protocol_pr8_12.js" not in source
 
