@@ -28,7 +28,9 @@ def test_dirty_fence_read_has_one_public_owner_and_no_runtime_reassignment() -> 
     assert "async function _pr92BaseReadDirtyAttachmentFence(" in base
     assert "async function _pr92ReadDirtyAttachmentFence(" not in base
 
-    assert "async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline(" in schema16
+    assert (
+        "async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline(" in schema16
+    )
     assert "_pr92ReadDirtyAttachmentFence =" not in schema16
 
     assert owner.count("async function _pr92ReadDirtyAttachmentFence(") == 1
