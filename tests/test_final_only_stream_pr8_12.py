@@ -141,8 +141,9 @@ def test_answer_channel_is_owned_by_single_pr812_response_worker() -> None:
     assert 'normalized === "final" || normalized === "commentary"' in owner
     assert "metadata.output_channel" in owner
     assert "metadata.message_channel" in owner
-    assert (
-        "_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;"
-        in owner
-    )
-    assert "_pr89BrowserStreamRecordAssistant = _pr812RecordAssistantOwner;" in owner
+    assert "function _pr812VisibleAssistantTextOwner(message)" in owner
+    assert "async function _pr812RecordAssistantOwner(context, candidate)" in owner
+    assert "_pr89BaseBrowserStreamVisibleAssistantText" in owner
+    assert "_pr811RecordAssistantOwner" in owner
+    assert "_pr89BrowserStreamVisibleAssistantText =" not in owner
+    assert "_pr89BrowserStreamRecordAssistant =" not in owner
