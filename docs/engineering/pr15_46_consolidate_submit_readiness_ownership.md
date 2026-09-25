@@ -96,3 +96,10 @@ Recommended order:
 4. final static no-reassignment closure gate.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.47 later consolidates `_pr92ReadDirtyAttachmentFence` into one explicit
+owner while preserving schema16's active-turn deadline race and fail-closed
+durable-fence semantics.

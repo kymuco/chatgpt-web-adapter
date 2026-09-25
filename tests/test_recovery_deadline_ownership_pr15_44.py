@@ -62,7 +62,7 @@ def test_rich_helpers_delegate_to_immutable_bases() -> None:
 
     reload_start = rich.index("async function _pr92ReloadRuntimeTabWithinTurn")
     dirty_start = rich.index(
-        "async function _pr92ReadDirtyAttachmentFence", reload_start
+        "async function _pr92BaseReadDirtyAttachmentFence", reload_start
     )
     reload_block = rich[reload_start:dirty_start]
     assert "_pr811BaseReloadRuntimeTabAndWait(" in reload_block
