@@ -179,7 +179,8 @@ PR15 Architecture Reset
 → PR15.44 consolidate recovery/deadline ownership [merged]
 → PR15.45 consolidate attachment-readiness ownership [merged]
 → PR15.46 consolidate submit-readiness ownership [merged]
-→ PR15.47 consolidate dirty-fence read ownership [active]
+→ PR15.47 consolidate dirty-fence read ownership [merged]
+→ PR15.48 consolidate optional post-write ownership [active]
 → continue confirmed remaining ownership consolidation
 → add final static closure gate
 → then delete remaining displaced historical production composition
