@@ -115,10 +115,16 @@ _pr92Schema20PriorIsConversationWrite aliases = 0
 
 PR15.36 does not consolidate:
 
-- `_pr92CreateTurnContext`, which still has later schema26/27/28 diagnostic
-  extensions;
+- `_pr92CreateTurnContext`, which still had schema19/schema20 source-order
+  ownership;
 - raw `clickSendButton` / `submitWithEnter` wrappers;
 - ordinary-text `sendCommand` ownership;
 - the smaller `connectNativeBridge` wrapper.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.37 later consolidates the rich-input turn-context factory. The schema26,
+schema27, and schema28 diagnostic paths consume the factory but do not replace it.
