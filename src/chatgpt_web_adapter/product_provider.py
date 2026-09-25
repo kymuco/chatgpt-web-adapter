@@ -156,7 +156,9 @@ def product_provider_boundary(runtime: Any) -> ProductProviderBoundary:
     if raw_governance.get("automatic_write_retry") is not False:
         raise RuntimeError("provider boundary requires raw automatic_write_retry=False")
     if "fallback_transport" not in raw_governance:
-        raise RuntimeError("provider boundary requires explicit raw fallback_transport=None")
+        raise RuntimeError(
+            "provider boundary requires explicit raw fallback_transport=None"
+        )
     if raw_governance.get("fallback_transport") is not None:
         raise RuntimeError("provider boundary requires raw fallback_transport=None")
 
