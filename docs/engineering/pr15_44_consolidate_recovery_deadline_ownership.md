@@ -206,3 +206,12 @@ Final closure still requires consolidation of those names plus a static
 no-reassignment gate over the shipping worker surface.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.45 classifies the six remaining rich-input schema hooks into independent
+semantic clusters and consolidates the attachment/composer-readiness cluster:
+`_pr92ClosureReadPageOwnedAttachmentEvidence`,
+`_pr92Schema10RequireOfficialCleanComposerBeforeStaging`, and
+`_pr92Schema12ObservePostStageAttachmentEvidence`.
