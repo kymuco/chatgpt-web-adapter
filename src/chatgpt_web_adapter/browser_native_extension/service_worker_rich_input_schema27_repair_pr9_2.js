@@ -202,10 +202,8 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// Every existing authority boundary resolves this shared expression dynamically:
-// pre-stage clean, post-stage stable evidence, pre-submit revalidation, and the
-// schema-7 synchronous atomic attachment-validation + protected click task.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema27AttachmentEvidenceExpression;
+// Final historical evidence generation. PR15.32 graduates this helper through the
+// explicit production owner in service_worker_attachment_evidence.js.
 
 function _pr92Schema27DiagnosticRemovalNormalization(result) {
   const groups = Array.isArray(result?.evidence?.groups)

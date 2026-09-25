@@ -172,10 +172,8 @@ function _pr92Schema23AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// Pre-stage clean polls, post-stage stable evidence, and schema-7's final atomic
-// validate+click all resolve this binding dynamically. The same conservative
-// classification therefore governs every attachment-authority boundary.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema23AttachmentEvidenceExpression;
+// Historical schema-23 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 function _pr92Schema23AugmentSupportResult(result) {
   return {

@@ -177,10 +177,8 @@ function _pr92Schema25AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// The same dynamically bound expression is consumed by pre-stage cleanliness,
-// post-stage stable evidence, revalidation after Send readiness, and schema-7's
-// synchronous atomic validate+click boundary.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema25AttachmentEvidenceExpression;
+// Historical schema-25 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 function _pr92Schema25DiagnosticRemovalNormalization(result) {
   const groups = Array.isArray(result?.evidence?.groups)

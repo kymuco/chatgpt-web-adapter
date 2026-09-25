@@ -30,10 +30,8 @@ def test_schema_9_requires_cross_channel_attachment_exactness():
     assert "const atLeastOneExpectedChannelExact = groups.exact || removals.exact;" in text
     assert "groupsCompatible && removalsCompatible && atLeastOneExpectedChannelExact" in text
     assert "crossEvidenceChannelExactness: true" in text
-    assert (
-        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema9AttachmentEvidenceExpression;"
-        in text
-    )
+    assert "function _pr92Schema9AttachmentEvidenceExpression" in text
+    assert "_pr92ClosureAttachmentEvidenceExpression =" not in text
 
 
 def test_schema_9_rejects_the_schema_8_cross_channel_counterexample():

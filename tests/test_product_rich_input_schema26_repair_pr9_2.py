@@ -94,10 +94,8 @@ def test_schema_26_keeps_existing_exact_set_cross_channel_authority():
     assert "exactAttachmentSet = crossEvidenceChannelExact" in text
     assert "unknownRoleGroupsFailClosed: true" in text
     assert "filenameGroupIndependentOfRemovalControl: true" in text
-    assert (
-        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema26AttachmentEvidenceExpression"
-        in text
-    )
+    assert "function _pr92Schema26AttachmentEvidenceExpression" in text
+    assert "_pr92ClosureAttachmentEvidenceExpression =" not in text
 
 
 def test_schema_26_diagnostic_exposes_literal_and_corroborated_interpretations():

@@ -106,10 +106,8 @@ function _pr92Schema8AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// Every later evidence read—including schema 7's atomic final validator—uses the
-// exact-set expression. An old same-name chip cannot satisfy the turn because the
-// schema-8 staging wrapper first proves the composer contains no attachment evidence.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema8AttachmentEvidenceExpression;
+// Historical schema-8 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 async function _pr92Schema8RequireAttachmentCleanComposerBeforeStaging(tabId, context) {
   const debuggee = { tabId };

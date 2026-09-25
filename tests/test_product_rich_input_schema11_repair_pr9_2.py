@@ -68,7 +68,5 @@ def test_schema_11_preserves_official_composer_and_cross_channel_exactness():
     assert "officialComposerMounted: true" in text
     assert "crossEvidenceChannelExact" in text
     assert "exactAttachmentSet" in text
-    assert (
-        "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema11AttachmentEvidenceExpression;"
-        in text
-    )
+    assert "function _pr92Schema11AttachmentEvidenceExpression" in text
+    assert "_pr92ClosureAttachmentEvidenceExpression =" not in text

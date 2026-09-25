@@ -128,9 +128,8 @@ function _pr92Schema11AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// Schema-7 atomic submit and every schema-8/9/10 evidence poll resolve this
-// binding at call time, so the structured association is authoritative everywhere.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema11AttachmentEvidenceExpression;
+// Historical schema-11 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 // Bound the shared evidence-read primitive itself. The historical implementation
 // performs the Runtime.evaluate and value-shape validation; schema 11 only adds the

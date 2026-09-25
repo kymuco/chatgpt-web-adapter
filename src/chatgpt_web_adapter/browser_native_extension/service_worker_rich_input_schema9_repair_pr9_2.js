@@ -109,9 +109,8 @@ function _pr92Schema9AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// This late override is consumed dynamically by schema 8 pre-stage checks,
-// post-stage stable evidence, and schema 7's synchronous atomic final validator.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema9AttachmentEvidenceExpression;
+// Historical schema-9 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 function _pr92Schema9AugmentSupportResult(result) {
   return {

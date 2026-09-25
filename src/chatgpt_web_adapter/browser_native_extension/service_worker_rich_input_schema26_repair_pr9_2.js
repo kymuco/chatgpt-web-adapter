@@ -191,9 +191,8 @@ function _pr92Schema26AttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-// All authority boundaries resolve this binding dynamically: pre-stage clean,
-// post-stage stable evidence, pre-submit revalidation, and the atomic click task.
-_pr92ClosureAttachmentEvidenceExpression = _pr92Schema26AttachmentEvidenceExpression;
+// Historical schema-26 evidence generation remains explicit. PR15.32 selects the
+// final production evidence generation in service_worker_attachment_evidence.js.
 
 function _pr92Schema26DiagnosticRemovalNormalization(result) {
   const groups = Array.isArray(result?.evidence?.groups)
