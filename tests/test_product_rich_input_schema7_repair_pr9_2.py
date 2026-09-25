@@ -29,7 +29,7 @@ def test_schema_7_final_attachment_validation_and_click_are_one_page_expression(
     text = SCHEMA7.read_text(encoding="utf-8")
 
     assert "const PR92_SCHEMA7_REPAIR_SCHEMA = 7;" in text
-    assert "_pr92Schema7AtomicAttachmentSubmitExpression" in text
+    assert "_pr92Schema7BaseAtomicAttachmentSubmitExpression" in text
     assert "const evidence = ${evidenceExpression};" in text
     assert "attachment-evidence-missing" in text
     assert "button.click();" in text
@@ -42,7 +42,7 @@ def test_schema_7_final_attachment_validation_and_click_are_one_page_expression(
 
     expression = text[
         text.index(
-            "function _pr92Schema7AtomicAttachmentSubmitExpression"
+            "function _pr92Schema7BaseAtomicAttachmentSubmitExpression"
         ) : text.index("async function _pr92Schema7AtomicAttachmentSubmit(")
     ]
     assert expression.index(
@@ -94,7 +94,7 @@ def test_schema_7_fenced_tab_cleanup_requires_browser_session_identity():
 
     cleanup = text[
         text.index("async function _pr92Schema7ClearFencedRuntimeTab") : text.index(
-            "function _pr92Schema7AtomicAttachmentSubmitExpression"
+            "function _pr92Schema7BaseAtomicAttachmentSubmitExpression"
         )
     ]
     current_id_branch = cleanup[

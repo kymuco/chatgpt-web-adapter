@@ -218,7 +218,7 @@ async function _pr92Schema7ClearFencedRuntimeTab(
   return _pr92DeadlineRepairProveTabAbsent(tabId, deadlineAt);
 };
 
-function _pr92Schema7AtomicAttachmentSubmitExpression(
+function _pr92Schema7BaseAtomicAttachmentSubmitExpression(
   selector,
   deadlineEpochMs,
   expectedNames
