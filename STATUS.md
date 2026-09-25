@@ -181,10 +181,11 @@ PR15 Architecture Reset
 → PR15.46 consolidate submit-readiness ownership [merged]
 → PR15.47 consolidate dirty-fence read ownership [merged]
 → PR15.48 consolidate optional post-write ownership [merged]
-→ PR15.49 consolidate Temporary snapshot-expression ownership [active]
+→ PR15.49 consolidate Temporary snapshot-expression ownership [merged]
 → confirmed ownership inventory empty
-→ add final static closure gate
-→ then delete remaining displaced historical production composition
+→ PR15.50 final browser-worker no-reassignment closure gate [active]
+→ closure audit removes hidden composer-focus/readiness rebindings
+→ then delete any remaining displaced historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```
 
