@@ -48,7 +48,10 @@ def test_owner_prefers_aria_action_helper_and_preserves_base_fallback() -> None:
         'typeof _pr87TemporaryControlSnapshotExpressionWithAriaActionState === "function"'
         in owner
     )
-    assert "return _pr87TemporaryControlSnapshotExpressionWithAriaActionState();" in owner
+    assert (
+        "return _pr87TemporaryControlSnapshotExpressionWithAriaActionState();"
+        in owner
+    )
     assert "return _pr87BaseTemporaryControlSnapshotExpression();" in owner
 
 
