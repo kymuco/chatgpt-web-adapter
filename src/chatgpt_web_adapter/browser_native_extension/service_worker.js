@@ -776,7 +776,7 @@ function scheduleReconnect() {
   reconnectDelayMs = Math.min(reconnectDelayMs * 2, 30_000);
 }
 
-function connectNativeBridge() {
+function _cwaBaseConnectNativeBridge() {
   if (nativePort !== null) return;
   let port;
   try {
@@ -811,4 +811,4 @@ function connectNativeBridge() {
 
 chrome.runtime.onInstalled.addListener(() => connectNativeBridge());
 chrome.runtime.onStartup.addListener(() => connectNativeBridge());
-connectNativeBridge();
+_cwaBaseConnectNativeBridge();

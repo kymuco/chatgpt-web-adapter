@@ -111,10 +111,14 @@ def test_service_worker_status_surface_is_local_sanitized_and_non_mutating() -> 
     assert "ensureRuntimeTab(" not in worker
     assert "chrome.tabs.create" not in worker
 
-    assert 'importScripts("service_worker_product_surface_pr11_0.js");' in observability
-    assert observability.index('importScripts("service_worker_product_surface_pr11_0.js");') > (
+    product_surface = 'importScripts("service_worker_product_surface_pr11_0.js");'
+    bridge_owner = 'importScripts("service_worker_native_bridge_connection.js");'
+    assert product_surface in observability
+    assert bridge_owner in observability
+    assert observability.index(product_surface) > (
         observability.index("_executeNativeTurnWithProvisioningObservability")
     )
+    assert observability.index(product_surface) < observability.index(bridge_owner)
 
 
 def test_popup_clipboard_contract_is_explicitly_sanitized() -> None:
