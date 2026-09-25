@@ -64,12 +64,6 @@ from .product_capabilities import (
     ProductCapability,
 )
 from .product_contract import ProductRuntimeContract, product_runtime_contract
-from .product_provider import (
-    CHATGPT_PRODUCT_PROVIDER_ID,
-    PRODUCT_PROVIDER_BOUNDARY_SCHEMA,
-    ProductProviderBoundary,
-    product_provider_boundary,
-)
 from .product_observations import (
     ProductActivityObservation,
     ProductCitationObservation,
@@ -78,6 +72,12 @@ from .product_observations import (
     ProductRequiredActionObservation,
     ProductSourceObservation,
     StructuredProductObservation,
+)
+from .product_provider import (
+    CHATGPT_PRODUCT_PROVIDER_ID,
+    PRODUCT_PROVIDER_BOUNDARY_SCHEMA,
+    ProductProviderBoundary,
+    product_provider_boundary,
 )
 from .product_provenance import (
     CompletionSource,
