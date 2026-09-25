@@ -61,7 +61,10 @@ def test_attachment_readiness_hooks_have_one_public_owner() -> None:
         "async function _pr92Schema12BaseObservePostStageAttachmentEvidence("
         in schema12
     )
-    assert "async function _pr92Schema12ObservePostStageAttachmentEvidence(" not in schema12
+    assert (
+        "async function _pr92Schema12ObservePostStageAttachmentEvidence("
+        not in schema12
+    )
 
     assert (
         "async function _pr92Schema15RequireOfficialCleanComposerBeforeStaging("
@@ -77,7 +80,9 @@ def test_attachment_readiness_hooks_have_one_public_owner() -> None:
     )
     assert "_pr92Schema10RequireOfficialCleanComposerBeforeStaging =" not in schema24
 
-    assert owner.count("async function _pr92ClosureReadPageOwnedAttachmentEvidence(") == 1
+    assert (
+        owner.count("async function _pr92ClosureReadPageOwnedAttachmentEvidence(") == 1
+    )
     assert (
         owner.count(
             "async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging("
