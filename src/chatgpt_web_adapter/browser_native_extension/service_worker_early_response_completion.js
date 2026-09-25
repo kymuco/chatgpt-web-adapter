@@ -843,9 +843,6 @@ async function _pr8111RepairExecuteNativeTurn(message, next) {
 
 // Explicit PR8.11 hook composition. Order matches the historical import chain:
 // repair -> early completion -> tail timing -> PR8.9.
-const _pr811UpstreamRecordAssistant = _pr89BrowserStreamRecordAssistant;
-const _pr811UpstreamProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
-
 async function _pr811RecordAssistantOwner(context, candidate) {
   return _pr8111RepairRecordAssistantLayer(
     context,
@@ -858,7 +855,7 @@ async function _pr811RecordAssistantOwner(context, candidate) {
           _pr811TailRecordAssistantLayer(
             earlyContext,
             earlyCandidate,
-            _pr811UpstreamRecordAssistant
+            _pr89BaseBrowserStreamRecordAssistant
           )
       )
   );
@@ -872,10 +869,8 @@ async function _pr811ProcessSseEventOwner(context, block) {
       _pr8111ProcessSseEventLayer(
         repairContext,
         repairBlock,
-        _pr811UpstreamProcessSseEvent
+        _pr89BaseBrowserStreamProcessSseEvent
       )
   );
 }
 
-_pr89BrowserStreamRecordAssistant = _pr811RecordAssistantOwner;
-_pr89BrowserStreamProcessSseEvent = _pr811ProcessSseEventOwner;
