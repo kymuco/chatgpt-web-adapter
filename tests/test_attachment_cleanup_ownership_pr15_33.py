@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 from pathlib import Path
 
@@ -64,10 +63,10 @@ def test_attachment_cleanup_has_one_public_owner_and_no_runtime_reassignments() 
         for helper in helpers:
             assert f"function {helper}(" in source, (name, helper)
         for public in PUBLIC_TO_FINAL:
-            assert re.search(rf"async function {re.escape(public)}\\(", source) is None
-            assert (
-                re.search(rf"^\\s*{re.escape(public)}\\s*=", source, re.MULTILINE)
-                is None
+            assert f"async function {public}(" not in source
+            assert not any(
+                line.lstrip().startswith(f"{public} =")
+                for line in source.splitlines()
             )
 
     deadline = _source("service_worker_rich_input_deadline_repair_pr9_2.js")
