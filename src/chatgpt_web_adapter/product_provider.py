@@ -6,7 +6,7 @@ from typing import Any
 
 from .product_capabilities import ProductCapabilities
 
-PRODUCT_PROVIDER_BOUNDARY_SCHEMA = 1
+PRODUCT_PROVIDER_BOUNDARY_SCHEMA = 2
 CHATGPT_PRODUCT_PROVIDER_ID = "chatgpt"
 
 _CANONICAL_INTERFACE = "CanonicalConversationClient"
@@ -32,7 +32,8 @@ class ProductProviderBoundary:
     provider_id: str
     product_semantics: str
     transport: str
-    canonical_interface: str
+    canonical_interface: str | None
+    canonical_readback_required: bool
     write_transport_interface: str
     capability_model: str
     provenance_model: str
@@ -58,10 +59,17 @@ class ProductProviderBoundary:
             "transport",
             _required_text(self.transport, name="transport"),
         )
-        if self.canonical_interface != _CANONICAL_INTERFACE:
+        if not isinstance(self.canonical_readback_required, bool):
+            raise TypeError("canonical_readback_required must be a bool")
+        if self.canonical_readback_required:
+            if self.canonical_interface != _CANONICAL_INTERFACE:
+                raise RuntimeError(
+                    "canonical readback requires canonical_interface="
+                    f"{_CANONICAL_INTERFACE!r}"
+                )
+        elif self.canonical_interface is not None:
             raise RuntimeError(
-                "provider boundary requires canonical_interface="
-                f"{_CANONICAL_INTERFACE!r}"
+                "providers without canonical readback must use canonical_interface=None"
             )
         if self.write_transport_interface != _WRITE_TRANSPORT_INTERFACE:
             raise RuntimeError(
@@ -162,11 +170,18 @@ def product_provider_boundary(runtime: Any) -> ProductProviderBoundary:
     if raw_governance.get("fallback_transport") is not None:
         raise RuntimeError("provider boundary requires raw fallback_transport=None")
 
+    canonical_required = governance.get("canonical_readback_required")
+    if not isinstance(canonical_required, bool):
+        raise RuntimeError(
+            "provider boundary requires explicit canonical_readback_required bool"
+        )
+
     return ProductProviderBoundary(
         provider_id=provider_id,
         product_semantics=product_semantics,
         transport=transport,
         canonical_interface=governance.get("canonical_interface"),
+        canonical_readback_required=canonical_required,
         write_transport_interface=governance.get("write_transport_interface"),
         capability_model=governance.get("capability_model"),
         provenance_model=governance.get("provenance_model"),
