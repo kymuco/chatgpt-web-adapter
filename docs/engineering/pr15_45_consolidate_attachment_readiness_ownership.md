@@ -175,3 +175,10 @@ Recommended bounded order:
 5. final static no-reassignment closure gate.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.46 later consolidates the remaining public submit-readiness seam
+`waitForSendButtonPoint` into one explicit owner while preserving the separate
+PR11.7 ordinary-text UI-compatibility helper.

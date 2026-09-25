@@ -177,7 +177,8 @@ PR15 Architecture Reset
 → PR15.42 consolidate runtime lifecycle ownership [merged]
 → PR15.43 consolidate runtime-tab-id ownership [merged]
 → PR15.44 consolidate recovery/deadline ownership [merged]
-→ PR15.45 consolidate attachment-readiness ownership [active]
+→ PR15.45 consolidate attachment-readiness ownership [merged]
+→ PR15.46 consolidate submit-readiness ownership [active]
 → continue confirmed remaining ownership consolidation
 → add final static closure gate
 → then delete remaining displaced historical production composition
