@@ -176,7 +176,7 @@ function _pr92Schema29RequestMessageAttachmentChannels(message) {
   };
 }
 
-function _pr92Schema29InspectRequestPostData(
+function _pr92Schema29BaseInspectRequestPostData(
   postData,
   expectedText,
   expectedAttachmentCount,

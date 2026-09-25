@@ -172,7 +172,8 @@ PR15 Architecture Reset
 → PR15.37 consolidate rich-input turn-context ownership [merged]
 → PR15.38 consolidate raw submit primitive ownership [merged]
 → PR15.39 consolidate sendCommand ownership [merged]
-→ PR15.40 consolidate native-bridge connection ownership + closure inventory [active]
+→ PR15.40 consolidate native-bridge connection ownership + closure inventory [merged]
+→ PR15.41 consolidate request-inspection ownership [active]
 → continue confirmed remaining ownership consolidation
 → add final static closure gate
 → then delete remaining displaced historical production composition

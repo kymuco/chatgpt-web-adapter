@@ -145,3 +145,10 @@ Prefer bounded slices by semantic domain rather than one large cleanup PR:
 6. final static no-reassignment closure gate.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.41 later consolidates the request-inspection chain
+`schema29 base → request-text-shape compatibility → browser-indent compatibility`
+into one explicit public owner.

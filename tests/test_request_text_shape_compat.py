@@ -47,7 +47,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, prompt, 0, null);
+const result = _cwaRequestTextShapeInspect(body, prompt, 0, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -73,7 +73,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, prompt, 0, null);
+const result = _cwaRequestTextShapeInspect(body, prompt, 0, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -100,7 +100,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, prompt, 1, null);
+const result = _cwaRequestTextShapeInspect(body, prompt, 1, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -124,7 +124,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, expected, 0, null);
+const result = _cwaRequestTextShapeInspect(body, expected, 0, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -157,7 +157,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-_pr92Schema29InspectRequestPostData(body, expected, 0, null);
+_cwaRequestTextShapeInspect(body, expected, 0, null);
 const fingerprint = persisted[CWA_REQUEST_TEXT_SHAPE_DIAGNOSTIC_KEY];
 console.log(JSON.stringify({{
   fingerprint,
