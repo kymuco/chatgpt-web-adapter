@@ -99,9 +99,7 @@ def production_ownership_debt(extension_dir: Path = EXT) -> tuple[str, ...]:
     debt: list[str] = []
 
     retired_present = sorted(
-        name
-        for name in RETIRED_HISTORICAL_WORKERS
-        if (extension_dir / name).exists()
+        name for name in RETIRED_HISTORICAL_WORKERS if (extension_dir / name).exists()
     )
     for name in retired_present:
         debt.append(f"{name}:retired-historical-worker-present")
