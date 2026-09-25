@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -25,7 +24,7 @@ def test_schema_13_replaces_captured_raw_staging_primitive():
     assert "const PR92_SCHEMA13_REPAIR_SCHEMA = 13;" in text
     assert "async function _pr92Schema13StageFileSelection" in text
     assert "_pr92ClosurePriorStageOfficialPageAttachments" not in text
-    assert "_pr92StageOfficialPageAttachments = async function _pr92Schema13FullyBoundedStage" in text
+    assert "async function _pr92Schema13FullyBoundedStage" in text
     assert "await _pr92Schema10RequireOfficialCleanComposerBeforeStaging(" in text
     assert "return _pr92Schema12ObservePostStageAttachmentEvidence(" in text
 
@@ -65,7 +64,10 @@ def test_schema_13_persists_durable_fence_before_file_selection_dispatch():
 def test_schema_13_uses_page_deadline_for_side_effecting_reveal():
     text = SCHEMA13.read_text(encoding="utf-8")
     assert "const pageDeadlineEpochMs = Date.now() + remaining;" in text
-    assert "if (!Number.isFinite(deadlineEpochMs) || Date.now() >= deadlineEpochMs)" in text
+    assert (
+        "if (!Number.isFinite(deadlineEpochMs) || Date.now() >= deadlineEpochMs)"
+        in text
+    )
     assert "if (Date.now() >= deadlineEpochMs) return null;" in text
     assert "button.click();" in text
 
@@ -101,7 +103,7 @@ def test_schema_13_gate_requires_complete_staging_deadline_contract():
     text = GATE13.read_text(encoding="utf-8")
     assert "SCHEMA = 13" in text
     assert "class ProductRichInputSchema13LiveProvider" in text
-    assert "legacy[\"schema\"] = _v12.SCHEMA" in text
+    assert 'legacy["schema"] = _v12.SCHEMA' in text
     required = [
         "attachment_staging_primitive_deadline_bounded",
         "staging_debugger_setup_deadline_bounded",

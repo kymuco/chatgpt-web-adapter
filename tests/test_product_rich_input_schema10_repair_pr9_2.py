@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
@@ -22,7 +21,7 @@ def test_schema_10_requires_the_official_composer_for_attachment_evidence():
     text = SCHEMA10.read_text(encoding="utf-8")
     assert "const PR92_SCHEMA10_REPAIR_SCHEMA = 10;" in text
     assert "document.querySelector('#prompt-textarea')" in text
-    assert 'document.querySelector(\'[data-testid="prompt-textarea"]\')' in text
+    assert "document.querySelector('[data-testid=\"prompt-textarea\"]')" in text
     assert "prompt instanceof Element ? prompt.closest('form') : null" in text
     assert "officialComposerMounted: false" in text
     assert "officialComposerMounted: true" in text
@@ -57,8 +56,9 @@ def test_schema_10_uses_whole_basename_association_not_substring_aliases():
 def test_schema_10_bounds_prestage_debugger_setup_and_detaches_late_attach():
     text = SCHEMA10.read_text(encoding="utf-8")
     prestage = text[
-        text.index("async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging") :
-        text.index("_pr92StageOfficialPageAttachments = async function _pr92Schema10StageFromOfficialCleanComposer")
+        text.index(
+            "async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging"
+        ) : text.index("async function _pr92Schema10StageFromOfficialCleanComposer")
     ]
     assert '"SCHEMA10_PRESTAGE_CLEAN_DEBUGGER_ATTACH"' in prestage
     assert '"SCHEMA10_PRESTAGE_CLEAN_RUNTIME_ENABLE"' in prestage
@@ -66,7 +66,9 @@ def test_schema_10_bounds_prestage_debugger_setup_and_detaches_late_attach():
     assert "attachPending.then(" in prestage
     assert "_pr92Schema10BestEffortDetach(debuggee)" in prestage
     assert "await chrome.debugger.attach" not in prestage
-    assert 'await chrome.debugger.sendCommand(debuggee, "Runtime.enable")' not in prestage
+    assert (
+        'await chrome.debugger.sendCommand(debuggee, "Runtime.enable")' not in prestage
+    )
     assert "preStageDebuggerSetupDeadlineBounded: true" in text
     assert "latePreStageDebuggerAttachAutoDetached: true" in text
 
@@ -74,7 +76,7 @@ def test_schema_10_bounds_prestage_debugger_setup_and_detaches_late_attach():
 def test_schema_10_bypasses_only_the_schema_8_unbounded_prestage_wrapper():
     text = SCHEMA10.read_text(encoding="utf-8")
     assert "await _pr92Schema10RequireOfficialCleanComposerBeforeStaging" in text
-    assert "return _pr92Schema8PriorStageOfficialPageAttachments(" in text
+    assert "return _pr92StageWithPageOwnedEvidence(" in text
     assert (
         "_pr92ClosureAttachmentEvidenceExpression = _pr92Schema10AttachmentEvidenceExpression;"
         in text

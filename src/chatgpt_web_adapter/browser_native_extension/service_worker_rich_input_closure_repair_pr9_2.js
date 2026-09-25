@@ -8,7 +8,6 @@
 //      for every requested basename, and that evidence is revalidated immediately
 //      before protected submission.
 
-const _pr92ClosurePriorStageOfficialPageAttachments = _pr92StageOfficialPageAttachments;
 const _pr92ClosurePriorClickSendButton = clickSendButton;
 const _pr92ClosurePriorSubmitWithEnter = submitWithEnter;
 const PR92_CLOSURE_REPAIR_SCHEMA = 6;
@@ -150,12 +149,12 @@ async function _pr92ClosureWaitForPageOwnedAttachmentEvidence(
 // The primary overlay stages with DOM.setFileInputFiles. Do not accept its path
 // count as confirmation. Reattach only to observe the official page's composer and
 // return a count derived from stable attachment chips/controls instead.
-_pr92StageOfficialPageAttachments = async function _pr92StageWithPageOwnedEvidence(
+async function _pr92StageWithPageOwnedEvidence(
   tabId,
   attachmentPaths,
   context
 ) {
-  const stagedCount = await _pr92ClosurePriorStageOfficialPageAttachments(
+  const stagedCount = await _pr92BaseStageOfficialPageAttachments(
     tabId,
     attachmentPaths,
     context
@@ -198,7 +197,7 @@ _pr92StageOfficialPageAttachments = async function _pr92StageWithPageOwnedEviden
       try { await chrome.debugger.detach(debuggee); } catch {}
     }
   }
-};
+}
 
 function _pr92ClosurePageGuardedSubmitExpression(selector, deadlineEpochMs) {
   const encodedSelector = JSON.stringify(selector);

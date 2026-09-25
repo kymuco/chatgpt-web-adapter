@@ -255,10 +255,10 @@ async function _pr92Schema13StageFileSelection(tabId, attachmentPaths, context) 
   }
 }
 
-// Replace schema 12's staging wrapper at the exact primitive that selects files.
-// Preserve schema-10 official-composer cleanliness before selection and schema-12
-// deadline-bounded post-stage page-owned evidence after selection.
-_pr92StageOfficialPageAttachments = async function _pr92Schema13FullyBoundedStage(
+// Final production staging generation. Preserve schema-10 official-composer
+// cleanliness before selection and schema-12 deadline-bounded post-stage
+// page-owned evidence after the fully bounded schema-13 file-selection primitive.
+async function _pr92Schema13FullyBoundedStage(
   tabId,
   attachmentPaths,
   context
@@ -280,7 +280,7 @@ _pr92StageOfficialPageAttachments = async function _pr92Schema13FullyBoundedStag
     attachmentPaths,
     context
   );
-};
+}
 
 function _pr92Schema13AugmentSupportResult(result) {
   return {
