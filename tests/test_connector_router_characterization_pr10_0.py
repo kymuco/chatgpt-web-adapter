@@ -130,12 +130,12 @@ def test_router_shape_event_is_known_diagnostic_not_dropped_public_observation()
     assert collector.dropped_event_count == 0
 
 
-def test_product_observation_owner_preserves_historical_observer_order() -> None:
+def test_product_observation_stage_preserves_internal_observer_order() -> None:
     source = ROUTER.read_text(encoding="utf-8")
-    owner_start = source.index("function _pr10ProductObservationInspectMessage")
-    owner = source[owner_start:]
-    upstream = owner.index("_pr10ProductObservationUpstreamInspectMessage")
-    connector = owner.index("_pr100InspectMessage(context, state, message)")
-    router = owner.index("_pr100RouterInspect(context, state, message)")
-    artifact = owner.index("_pr101InspectMessage(context, state, message)")
-    assert upstream < connector < router < artifact
+    stage_start = source.index("function _pr10ProductObservationInspectMessage")
+    stage = source[stage_start:]
+    connector = stage.index("_pr100InspectMessage(context, state, message)")
+    router = stage.index("_pr100RouterInspect(context, state, message)")
+    artifact = stage.index("_pr101InspectMessage(context, state, message)")
+    assert connector < router < artifact
+    assert "_pr10ProductObservationUpstreamInspectMessage" not in stage

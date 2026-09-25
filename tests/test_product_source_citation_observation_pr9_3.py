@@ -36,13 +36,12 @@ const events = [];
 const sandbox = { URL, WeakMap, Map, Set, console, __events: events, __ctx: {} };
 const context = vm.createContext(sandbox);
 vm.runInContext(`
-var _pr812InspectMessage = function(context, state, message) {};
 var _pr812Emit = function(context, event) { __events.push(event); };
 `, context);
 vm.runInContext(source, context);
 for (const message of messages) {
   context.__message = message;
-  vm.runInContext(`_pr812InspectMessage(__ctx, {}, __message);`, context);
+  vm.runInContext(`_pr93InspectMessage(__ctx, {}, __message);`, context);
 }
 process.stdout.write(JSON.stringify(events));
 '''

@@ -260,7 +260,7 @@ function _pr812RecordActivityText(context, state, activityId, kind, label, text)
   _pr812Emit(context, event);
 }
 
-function _pr812InspectMessage(context, state, message) {
+function _pr812BaseInspectMessage(context, state, message) {
   if (!message || typeof message !== "object") return;
   if (message?.metadata?.is_visually_hidden_from_conversation === true) return;
 

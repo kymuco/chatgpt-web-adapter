@@ -674,11 +674,7 @@ function _pr101InspectMessage(context, state, message) {
 
 
 
-const _pr10ProductObservationUpstreamInspectMessage = _pr812InspectMessage;
-
 function _pr10ProductObservationInspectMessage(context, state, message) {
-  _pr10ProductObservationUpstreamInspectMessage(context, state, message);
-
   try {
     _pr100InspectMessage(context, state, message);
   } catch {
@@ -697,5 +693,3 @@ function _pr10ProductObservationInspectMessage(context, state, message) {
     // Artifact observation is evidence-only and may never perturb the turn.
   }
 }
-
-_pr812InspectMessage = _pr10ProductObservationInspectMessage;
