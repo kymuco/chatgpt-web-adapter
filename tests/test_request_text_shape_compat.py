@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SCHEMA29 = EXT / "service_worker_rich_input_schema29_repair_pr9_2.js"
 COMPAT = EXT / "service_worker_request_text_shape_compat.js"
+OWNER = EXT / "service_worker_request_inspection.js"
 
 
 def _run_node(script: str) -> dict[str, object]:
@@ -26,7 +27,8 @@ def _inspector_source() -> str:
     start = schema29.index("function _pr92Schema29NonEmptyString")
     end = schema29.index("function _pr92Schema29ApplyRequestInspection", start)
     compat = COMPAT.read_text(encoding="utf-8")
-    return schema29[start:end] + "\n" + compat
+    owner = OWNER.read_text(encoding="utf-8")
+    return "\n".join((schema29[start:end], compat, owner))
 
 
 def test_long_object_text_part_matches_exactly() -> None:

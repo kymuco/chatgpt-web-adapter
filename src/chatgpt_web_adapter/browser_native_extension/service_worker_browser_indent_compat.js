@@ -18,8 +18,6 @@
 const CWA_BROWSER_INDENT_COMPAT_SCHEMA = 1;
 const CWA_BROWSER_INDENT_DIAGNOSTIC_KEY =
   "cwa_browser_indent_correlation_fingerprint";
-const _cwaBrowserIndentPriorSchema29Inspect = _pr92Schema29InspectRequestPostData;
-
 function _cwaBrowserIndentEquivalent(observedText, expectedText) {
   const result = {
     equivalent: false,
@@ -175,13 +173,13 @@ function _cwaBrowserIndentPersistSafeFingerprint(fingerprint) {
   }
 }
 
-_pr92Schema29InspectRequestPostData = function _cwaBrowserIndentInspect(
+function _cwaBrowserIndentInspect(
   postData,
   expectedText,
   expectedAttachmentCount,
   expectedConversationId
 ) {
-  const prior = _cwaBrowserIndentPriorSchema29Inspect(
+  const prior = _cwaRequestTextShapeInspect(
     postData,
     expectedText,
     expectedAttachmentCount,
@@ -207,7 +205,7 @@ _pr92Schema29InspectRequestPostData = function _cwaBrowserIndentInspect(
   );
   let result = prior;
   if (canonicalized.browserIndentEquivalent) {
-    result = _cwaBrowserIndentPriorSchema29Inspect(
+    result = _cwaRequestTextShapeInspect(
       canonicalized.postData,
       expectedText,
       expectedAttachmentCount,
@@ -226,4 +224,4 @@ _pr92Schema29InspectRequestPostData = function _cwaBrowserIndentInspect(
     normalizedMatch: result?.matched === true
   });
   return result;
-};
+}

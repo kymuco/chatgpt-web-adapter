@@ -99,6 +99,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
         "service_worker_rich_input_lifecycle.js",
         "service_worker_request_text_shape_compat.js",
         "service_worker_browser_indent_compat.js",
+        "service_worker_request_inspection.js",
         "service_worker_ui_compat_pr11_7.js",
         "service_worker_text_submit_commit_hardening_pr11_3.js",
         "service_worker_ordinary_text_identity_authority.js",

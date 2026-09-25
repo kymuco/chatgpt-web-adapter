@@ -513,7 +513,7 @@ def test_schema_29_request_body_fallback_is_exact_request_bound_and_bounded():
 
 def test_schema_29_request_matcher_has_no_route_or_response_identity_authority():
     text = SCHEMA29.read_text(encoding="utf-8")
-    start = text.index("function _pr92Schema29InspectRequestPostData")
+    start = text.index("function _pr92Schema29BaseInspectRequestPostData")
     end = text.index("function _pr92Schema29ApplyRequestInspection", start)
     block = text[start:end]
     assert 'payload.action === "next"' in block

@@ -9,6 +9,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SCHEMA29 = EXT / "service_worker_rich_input_schema29_repair_pr9_2.js"
 TEXT_SHAPE = EXT / "service_worker_request_text_shape_compat.js"
 INDENT = EXT / "service_worker_browser_indent_compat.js"
+OWNER = EXT / "service_worker_request_inspection.js"
 RUNTIME_WRITE = EXT / "service_worker_runtime_write.js"
 
 
@@ -32,6 +33,7 @@ def _inspector_source() -> str:
             schema29[start:end],
             TEXT_SHAPE.read_text(encoding="utf-8"),
             INDENT.read_text(encoding="utf-8"),
+            OWNER.read_text(encoding="utf-8"),
         )
     )
 
@@ -217,8 +219,9 @@ def test_write_domain_keeps_ordinary_identity_authority_last() -> None:
         'importScripts("service_worker_request_text_shape_compat.js")'
     )
     indent = source.index('importScripts("service_worker_browser_indent_compat.js")')
+    owner = source.index('importScripts("service_worker_request_inspection.js")')
     ui = source.index('importScripts("service_worker_ui_compat_pr11_7.js")')
     ordinary = source.index(
         'importScripts("service_worker_ordinary_text_identity_authority.js")'
     )
-    assert text_shape < indent < ui < ordinary
+    assert text_shape < indent < owner < ui < ordinary

@@ -17,9 +17,6 @@
 const CWA_REQUEST_TEXT_SHAPE_COMPAT_SCHEMA = 1;
 const CWA_REQUEST_TEXT_SHAPE_DIAGNOSTIC_KEY =
   "cwa_pr14_2_request_correlation_fingerprint";
-const _cwaRequestTextShapePriorSchema29Inspect =
-  _pr92Schema29InspectRequestPostData;
-
 function _cwaRequestTextShapeNormalizedPostData(postData) {
   if (typeof postData !== "string" || !postData) return postData;
 
@@ -245,14 +242,14 @@ function _cwaRequestTextShapePersistSafeFingerprint(fingerprint) {
   }
 }
 
-_pr92Schema29InspectRequestPostData = function _cwaRequestTextShapeInspect(
+function _cwaRequestTextShapeInspect(
   postData,
   expectedText,
   expectedAttachmentCount,
   expectedConversationId
 ) {
   const normalizedPostData = _cwaRequestTextShapeNormalizedPostData(postData);
-  const result = _cwaRequestTextShapePriorSchema29Inspect(
+  const result = _pr92Schema29BaseInspectRequestPostData(
     normalizedPostData,
     expectedText,
     expectedAttachmentCount,
@@ -267,4 +264,4 @@ _pr92Schema29InspectRequestPostData = function _cwaRequestTextShapeInspect(
     )
   );
   return result;
-};
+}
