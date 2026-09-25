@@ -37,8 +37,6 @@ const CWA_ORDINARY_IDENTITY_RPC_RETURN_RESERVE_MS = 750;
 const CWA_ORDINARY_IDENTITY_MAX_REQUESTS = 8;
 const CWA_ORDINARY_IDENTITY_MAX_SSE_BUFFER_CHARS = 262_144;
 
-const _cwaOrdinaryIdentityPriorSendCommand = sendCommand;
-
 let _cwaOrdinaryIdentityActive = null;
 
 function _cwaOrdinaryIdentityText(value) {
@@ -626,7 +624,7 @@ async function _cwaOrdinaryIdentityResolve(context, matchingEntries) {
   };
 }
 
-sendCommand = function _cwaOrdinaryIdentitySendCommand(debuggee, method, params) {
+function _cwaOrdinaryIdentitySendCommand(debuggee, method, params) {
   const context = _cwaOrdinaryIdentityActive;
   if (context !== null && context.officialActive === true) {
     const boundary = _cwaOrdinaryIdentityCommitBoundary(method, params);
@@ -635,8 +633,8 @@ sendCommand = function _cwaOrdinaryIdentitySendCommand(debuggee, method, params)
       context.commitBoundary = boundary;
     }
   }
-  return _cwaOrdinaryIdentityPriorSendCommand(debuggee, method, params);
-};
+  return _cwaHotfixSendCommand(debuggee, method, params);
+}
 
 async function _cwaOrdinaryIdentityExecuteOfficialPageTurn(args, next) {
   const context = _cwaOrdinaryIdentityActive;

@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 AUTHORITY = EXT / "service_worker_ordinary_text_identity_authority.js"
+SEND_OWNER = EXT / "service_worker_send_command.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 
 
@@ -29,16 +30,17 @@ def _run_node(source: str) -> dict[str, object]:
         path.unlink(missing_ok=True)
 
 
-def test_authority_remains_final_write_domain_layer() -> None:
+def test_authority_precedes_explicit_send_command_owner() -> None:
     source = WRITE.read_text(encoding="utf-8")
     imports = [
         line.strip()
         for line in source.splitlines()
         if line.strip().startswith("importScripts(")
     ]
-    assert imports[-1] == (
-        'importScripts("service_worker_ordinary_text_identity_authority.js");'
-    )
+    assert imports[-2:] == [
+        'importScripts("service_worker_ordinary_text_identity_authority.js");',
+        'importScripts("service_worker_send_command.js");',
+    ]
     assert "ordinary_text_identity_error_boundary" not in source
 
 

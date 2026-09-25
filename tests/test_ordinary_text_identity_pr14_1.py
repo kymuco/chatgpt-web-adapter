@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 BASE = EXT / "service_worker.js"
 AUTHORITY = EXT / "service_worker_ordinary_text_identity_authority.js"
+SEND_OWNER = EXT / "service_worker_send_command.js"
 WRITE = EXT / "service_worker_runtime_write.js"
 
 
@@ -44,6 +45,7 @@ def _sse(*conversation_ids: str) -> str:
 
 def _run_harness(scenario: dict) -> dict:
     authority = _source(AUTHORITY)
+    send_owner = _source(SEND_OWNER)
     scenario_json = json.dumps(scenario)
     prelude = r"""
 const scenario = __SCENARIO__;
@@ -218,7 +220,7 @@ globalThis._pr92Schema29ExtractRequestBoundConversationMetadata = (
   };
 };
 
-globalThis.sendCommand = async (debuggee, method, params) => {
+globalThis._cwaHotfixSendCommand = async (debuggee, method, params) => {
   events.push(`SEND:${method}:${params?.type || ""}`);
   return {};
 };
@@ -351,6 +353,8 @@ executeNativeTurn = (message) =>
         handle.write(prelude)
         handle.write("\n")
         handle.write(authority)
+        handle.write("\n")
+        handle.write(send_owner)
         handle.write("\n")
         handle.write(epilogue)
         path = handle.name

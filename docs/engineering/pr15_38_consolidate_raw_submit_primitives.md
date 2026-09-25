@@ -140,3 +140,10 @@ Still open after this slice:
 - the smaller `connectNativeBridge` product-state wrapper.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.39 later consolidates the shared `sendCommand` chain that remained
+cross-cutting across base transport, submit fallback hotfix, and ordinary-text
+identity observation.

@@ -170,7 +170,8 @@ PR15 Architecture Reset
 → PR15.35 consolidate protected-submit expression ownership [merged]
 → PR15.36 consolidate conversation-write predicate ownership [merged]
 → PR15.37 consolidate rich-input turn-context ownership [merged]
-→ PR15.38 consolidate raw submit primitive ownership [active]
+→ PR15.38 consolidate raw submit primitive ownership [merged]
+→ PR15.39 consolidate sendCommand ownership [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```
