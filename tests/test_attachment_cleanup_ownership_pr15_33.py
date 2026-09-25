@@ -65,7 +65,10 @@ def test_attachment_cleanup_has_one_public_owner_and_no_runtime_reassignments() 
             assert f"function {helper}(" in source, (name, helper)
         for public in PUBLIC_TO_FINAL:
             assert re.search(rf"async function {re.escape(public)}\\(", source) is None
-            assert re.search(rf"^\\s*{re.escape(public)}\\s*=", source, re.MULTILINE) is None
+            assert (
+                re.search(rf"^\\s*{re.escape(public)}\\s*=", source, re.MULTILINE)
+                is None
+            )
 
     deadline = _source("service_worker_rich_input_deadline_repair_pr9_2.js")
     schema7 = _source("service_worker_rich_input_schema7_core_pr9_2.js")
