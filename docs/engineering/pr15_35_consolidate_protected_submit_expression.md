@@ -87,8 +87,9 @@ _pr92Schema20PriorAtomicAttachmentSubmitExpression aliases = 0
 
 PR15.35 does not consolidate:
 
-- `_pr92CreateTurnContext`, which has later schema26/27/28 diagnostic owners;
-- `isConversationWrite`, whose base predicate is still used explicitly by
+- `_pr92CreateTurnContext`, which still had schema19/schema20 source-order
+  ownership at the time of PR15.35;
+- `isConversationWrite`, whose base predicate was still used explicitly by
   schema29 request-body correlation;
 - raw mouse/Enter submission primitives;
 - ordinary-text `sendCommand` identity observation.
@@ -96,3 +97,10 @@ PR15.35 does not consolidate:
 Those remain separate ownership problems.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.37 later consolidates `_pr92CreateTurnContext` into an explicit owner.
+Schema26/27/28 diagnostic paths were consumers of the final context factory,
+not additional owners.

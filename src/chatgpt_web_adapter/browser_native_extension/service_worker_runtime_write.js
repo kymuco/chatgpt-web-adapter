@@ -15,6 +15,7 @@ importScripts("service_worker_rich_input_pr9_2.js");
 importScripts("service_worker_rich_input_deadline_repair_pr9_2.js");
 importScripts("service_worker_rich_input_closure_repair_pr9_2.js");
 importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");
+importScripts("service_worker_turn_context.js");
 importScripts("service_worker_protected_submit_expression.js");
 importScripts("service_worker_conversation_write_predicate.js");
 importScripts("service_worker_attachment_evidence.js");

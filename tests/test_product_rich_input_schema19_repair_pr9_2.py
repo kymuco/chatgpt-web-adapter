@@ -22,7 +22,7 @@ def test_schema_19_overlay_is_loaded_after_schema_18():
 
 def test_schema_19_turn_context_records_new_chat_vs_continuation_identity():
     text = SCHEMA19.read_text(encoding="utf-8")
-    start = text.index("_pr92CreateTurnContext = function")
+    start = text.index("function _pr92Schema19CreateTurnContext")
     end = text.index("function _pr92Schema19ExtractRequestBoundStreamMetadata", start)
     block = text[start:end]
     assert 'typeof message?.conversationId === "string"' in block

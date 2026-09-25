@@ -14,15 +14,14 @@
 // the outer deadline, the existing committed/readback-incomplete marker is
 // returned and automatic write retry remains forbidden.
 
-const _pr92Schema19PriorCreateTurnContext = _pr92CreateTurnContext;
 const _pr92Schema19PriorOptionalPostWrite = _pr92Schema17OptionalPostWrite;
 const PR92_SCHEMA19_REPAIR_SCHEMA = 19;
 const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;
 const PR92_SCHEMA19_RPC_RETURN_RESERVE_MS = 500;
 const PR92_SCHEMA19_IDENTITY_AUTHORITY = "NETWORK_REQUEST_BOUND_STREAM_HANDOFF";
 
-_pr92CreateTurnContext = function _pr92Schema19CreateTurnContext(message) {
-  const context = _pr92Schema19PriorCreateTurnContext(message);
+function _pr92Schema19CreateTurnContext(message) {
+  const context = _pr92BaseCreateTurnContext(message);
   const requestedConversationId =
     typeof message?.conversationId === "string" && message.conversationId.trim()
       ? message.conversationId.trim()
@@ -31,7 +30,7 @@ _pr92CreateTurnContext = function _pr92Schema19CreateTurnContext(message) {
   context.schema19CausalConversationId = null;
   context.schema19CausalTurnExchangeId = null;
   return context;
-};
+}
 
 function _pr92Schema19ExtractRequestBoundStreamMetadata(
   body,

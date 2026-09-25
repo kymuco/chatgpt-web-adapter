@@ -15,7 +15,6 @@
 // exactly one such POST and it must not carry CDP's user-gesture bit. Ambiguous
 // post-arm traffic fails closed as known-write/readback-incomplete, with no retry.
 
-const _pr92Schema20PriorCreateTurnContext = _pr92CreateTurnContext;
 const PR92_SCHEMA20_REPAIR_SCHEMA = 20;
 const PR92_SCHEMA20_REQUEST_CORRELATION =
   "PAGE_SIDE_ARMED_SINGLE_CONVERSATION_POST";
@@ -35,15 +34,15 @@ function _pr92Schema20RandomMarker() {
   return `${PR92_SCHEMA20_ARM_MARKER_PREFIX}${nonce}`;
 }
 
-_pr92CreateTurnContext = function _pr92Schema20CreateTurnContext(message) {
-  const context = _pr92Schema20PriorCreateTurnContext(message);
+function _pr92Schema20CreateTurnContext(message) {
+  const context = _pr92Schema19CreateTurnContext(message);
   context.schema20ProtectedSubmitArmed = false;
   context.schema20ProtectedSubmitArmedAt = null;
   context.schema20ProtectedSubmitMarker = _pr92Schema20RandomMarker();
   context.schema20ProtectedSubmitMarkerObserved = false;
   context.schema20PostArmConversationRequests = [];
   return context;
-};
+}
 
 // Schema 7 calls this expression builder immediately before dispatching the only
 // Runtime.evaluate command that may click. Wrap that immutable expression so the

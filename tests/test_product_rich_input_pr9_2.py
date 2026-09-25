@@ -511,7 +511,7 @@ def test_pr9_2_rich_turn_uses_one_total_deadline_across_all_browser_phases():
         encoding="utf-8"
     )
 
-    assert "_pr92CreateTurnContext" in overlay
+    assert "_pr92BaseCreateTurnContext" in overlay
     assert "deadlineAt: startedAt + timeoutMs" in overlay
     assert "_pr92RemainingTurnMs" in overlay
     assert "_pr92WaitForTabCompleteWithinTurn" in overlay
