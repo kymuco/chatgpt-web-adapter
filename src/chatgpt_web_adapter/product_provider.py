@@ -161,6 +161,15 @@ def product_provider_boundary(runtime: Any) -> ProductProviderBoundary:
             "provider boundary raw transport semantics mismatch: "
             f"{raw_governance.get('product_semantics')!r} != {product_semantics!r}"
         )
+    raw_canonical_required = raw_governance.get("canonical_readback_required")
+    if not isinstance(raw_canonical_required, bool):
+        raise RuntimeError(
+            "provider boundary requires explicit raw canonical_readback_required bool"
+        )
+    if raw_canonical_required is not canonical_required:
+        raise RuntimeError(
+            "provider boundary canonical readback mismatch between runtime and transport"
+        )
     if raw_governance.get("automatic_write_retry") is not False:
         raise RuntimeError("provider boundary requires raw automatic_write_retry=False")
     if "fallback_transport" not in raw_governance:
