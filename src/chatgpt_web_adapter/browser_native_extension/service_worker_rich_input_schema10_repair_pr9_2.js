@@ -135,7 +135,7 @@ function _pr92Schema10BestEffortDetach(debuggee) {
   } catch {}
 }
 
-async function _pr92Schema10RequireOfficialCleanComposerBeforeStaging(tabId, context) {
+async function _pr92Schema10BaseRequireOfficialCleanComposerBeforeStaging(tabId, context) {
   const debuggee = { tabId };
   let attached = false;
   let attachPending = null;
