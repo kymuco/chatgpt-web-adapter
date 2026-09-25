@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tools.browser_worker_ownership_closure_gate import (
-    DETACHED_HISTORICAL_WORKERS,
+    RETIRED_HISTORICAL_WORKERS,
     production_ownership_debt,
     production_worker_graph,
     source_ownership_debt,
