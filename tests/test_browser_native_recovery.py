@@ -43,7 +43,6 @@ def test_pr811_recovery_worker_is_packaged() -> None:
     assert "runtimeReloadMs" in recovery
 
 
-
 def test_recovery_exports_base_helpers_and_keeps_final_owner_handoff_dynamic() -> None:
     root = browser_native_extension_dir()
     recovery = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
@@ -54,8 +53,9 @@ def test_recovery_exports_base_helpers_and_keeps_final_owner_handoff_dynamic() -
     assert "async function _pr811MaybeRecoverStaleRuntimeUi(" not in recovery
 
     base_recovery = recovery[
-        recovery.index("async function _pr811BaseMaybeRecoverStaleRuntimeUi(") :
         recovery.index(
+            "async function _pr811BaseMaybeRecoverStaleRuntimeUi("
+        ) : recovery.index(
             "async function _executeOfficialPageTurnWithEarlyTerminalBoundary",
             recovery.index("async function _pr811BaseMaybeRecoverStaleRuntimeUi("),
         )
