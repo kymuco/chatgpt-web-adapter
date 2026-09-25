@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import uuid
 from typing import Any
 
 from .browser_native_provider import BrowserNativeTurnProvider
@@ -123,7 +124,7 @@ class DeepSeekBrowserTurnProvider(BrowserNativeTurnProvider):
         response = self._rpc(
             {
                 "type": "turn",
-                "request_id": __import__("uuid").uuid4().hex,
+                "request_id": uuid.uuid4().hex,
                 "providerId": DEEPSEEK_PROVIDER_ID,
                 "conversationId": conversation_id,
                 "text": text,
