@@ -27,13 +27,10 @@ def test_temporary_snapshot_expression_has_one_public_owner() -> None:
 
     assert "function _pr87BaseTemporaryControlSnapshotExpression()" in base
     assert "function _pr87TemporaryControlSnapshotExpression()" not in base
-    assert (
-        'importScripts("service_worker_temporary_snapshot_expression.js");' in base
-    )
+    assert 'importScripts("service_worker_temporary_snapshot_expression.js");' in base
 
     assert (
-        "function _pr87TemporaryControlSnapshotExpressionWithAriaActionState()"
-        in state
+        "function _pr87TemporaryControlSnapshotExpressionWithAriaActionState()" in state
     )
     assert "_pr87TemporaryControlSnapshotExpression =" not in state
 
@@ -49,8 +46,7 @@ def test_owner_prefers_aria_action_helper_and_preserves_base_fallback() -> None:
         in owner
     )
     assert (
-        "return _pr87TemporaryControlSnapshotExpressionWithAriaActionState();"
-        in owner
+        "return _pr87TemporaryControlSnapshotExpressionWithAriaActionState();" in owner
     )
     assert "return _pr87BaseTemporaryControlSnapshotExpression();" in owner
 
