@@ -542,7 +542,6 @@ async function _pr813ExecuteNativeTurnWithFreshIdentityFlush(message, next) {
 };
 
 
-const _pr813SessionIdentityUpstreamProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
 
 function _pr813SessionIdentityDirect(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -610,7 +609,7 @@ async function _pr813ProcessSseWithTemporarySessionIdentity(context, block) {
     }
   }
 
-  return _pr813SessionIdentityUpstreamProcessSseEvent(context, block);
+  return _pr812ProcessSseEventOwner(context, block);
 }
 
 async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next) {
@@ -636,4 +635,3 @@ async function _pr813ExecuteOfficialPageTurnWithSessionIdentity(args, next) {
   };
 };
 
-_pr89BrowserStreamProcessSseEvent = _pr813ProcessSseWithTemporarySessionIdentity;
