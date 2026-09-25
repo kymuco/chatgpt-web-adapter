@@ -371,14 +371,16 @@ executeNativeTurn = (message) =>
         os.unlink(path)
 
 
-def test_authority_is_last_write_domain_layer_without_diagnostic_dependency() -> None:
+def test_authority_precedes_send_command_owner_without_diagnostic_dependency() -> None:
     source = _source(WRITE)
     authority = 'importScripts("service_worker_ordinary_text_identity_authority.js");'
+    owner = 'importScripts("service_worker_send_command.js");'
     commit = 'importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");'
 
     assert authority in source
-    assert source.index(commit) < source.index(authority)
-    assert source.rstrip().endswith(authority)
+    assert owner in source
+    assert source.index(commit) < source.index(authority) < source.index(owner)
+    assert source.rstrip().endswith(owner)
     assert "identity_capture_diag" not in source
 
 
