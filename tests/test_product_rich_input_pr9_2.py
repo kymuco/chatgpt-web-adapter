@@ -474,7 +474,7 @@ def test_pr9_2_stages_only_after_stale_ui_recovery_and_persists_failure_fence():
         encoding="utf-8"
     )
 
-    recovery = "const recovery = await _pr92PriorMaybeRecoverStaleRuntimeUi(message);"
+    recovery = "const recovery = await _pr811BaseMaybeRecoverStaleRuntimeUi(message);"
     staging = "const count = await _pr92StageOfficialPageAttachments("
     persist = "await _pr92PersistDirtyAttachmentFence(tabId);"
     file_selection = (

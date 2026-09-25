@@ -121,3 +121,12 @@ Final closure still requires consolidation of those names and a static
 no-reassignment gate over the shipping worker surface.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.44 later consolidates the remaining recovery/deadline hook trio:
+`waitForTabComplete`, `_pr811ReloadRuntimeTabAndWait`, and
+`_pr811MaybeRecoverStaleRuntimeUi`. The explicit composition preserves
+PR9.2's single rich-turn deadline and post-recovery attachment staging without
+captured-prior aliases.

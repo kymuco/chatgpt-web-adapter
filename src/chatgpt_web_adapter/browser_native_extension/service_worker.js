@@ -165,7 +165,7 @@ async function _cwaBaseSendCommand(debuggee, method, params = undefined) {
   return chrome.debugger.sendCommand(debuggee, method, params);
 }
 
-async function waitForTabComplete(tabId, timeoutMs = 45_000) {
+async function _cwaBaseWaitForTabComplete(tabId, timeoutMs = 45_000) {
   const current = await chrome.tabs.get(tabId);
   if (current.status === "complete") return current;
   return new Promise((resolve, reject) => {

@@ -29,7 +29,7 @@ function _pr811FreshCanonicalCompletionEvidence(message) {
   return ageMs >= 0 && ageMs <= STALE_UI_COMPLETION_EVIDENCE_MAX_AGE_MS;
 }
 
-async function _pr811ReloadRuntimeTabAndWait(tabId, expectedConversationId) {
+async function _pr811BaseReloadRuntimeTabAndWait(tabId, expectedConversationId) {
   const startedAt = performance.now();
   await new Promise((resolve, reject) => {
     let settled = false;
@@ -60,7 +60,7 @@ async function _pr811ReloadRuntimeTabAndWait(tabId, expectedConversationId) {
   return Math.round(performance.now() - startedAt);
 }
 
-async function _pr811MaybeRecoverStaleRuntimeUi(message) {
+async function _pr811BaseMaybeRecoverStaleRuntimeUi(message) {
   const conversationId = typeof message?.conversationId === "string"
     ? message.conversationId.trim()
     : "";
