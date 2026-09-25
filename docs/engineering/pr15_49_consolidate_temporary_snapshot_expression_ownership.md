@@ -92,3 +92,12 @@ Tracking: #107
 PR15.50 replaces the hand-maintained ownership inventory with a recursive
 manifest-rooted production worker graph gate. The detached PR8.7 chain remains
 outside that graph and becomes a hard failure if it is ever reintroduced.
+
+
+## PR15.51 retirement follow-up
+
+PR15.49 closed the final ownership seam inside a chain that was already detached
+from production. PR15.51 now physically removes that PR8.7 characterization
+chain from the extension package. The snapshot-expression implementation remains
+available through Git history only; production startup readiness continues to
+use `_cwaTemporaryControlSnapshot`.
