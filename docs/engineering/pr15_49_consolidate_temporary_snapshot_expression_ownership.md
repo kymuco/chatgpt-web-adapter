@@ -85,3 +85,10 @@ Next step:
    the closure audit identifies.
 
 Tracking: #107
+
+
+## PR15.50 closure follow-up
+
+PR15.50 replaces the hand-maintained ownership inventory with a recursive
+manifest-rooted production worker graph gate. The detached PR8.7 chain remains
+outside that graph and becomes a hard failure if it is ever reintroduced.
