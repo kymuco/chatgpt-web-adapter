@@ -73,17 +73,17 @@ from .product_observations import (
     ProductSourceObservation,
     StructuredProductObservation,
 )
-from .product_provider import (
-    CHATGPT_PRODUCT_PROVIDER_ID,
-    PRODUCT_PROVIDER_BOUNDARY_SCHEMA,
-    ProductProviderBoundary,
-    product_provider_boundary,
-)
 from .product_provenance import (
     CompletionSource,
     ProductCompletionProvenance,
     ProductExecutionProvenance,
     ProductIdentityProvenance,
+)
+from .product_provider import (
+    CHATGPT_PRODUCT_PROVIDER_ID,
+    PRODUCT_PROVIDER_BOUNDARY_SCHEMA,
+    ProductProviderBoundary,
+    product_provider_boundary,
 )
 from .product_runtime import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
