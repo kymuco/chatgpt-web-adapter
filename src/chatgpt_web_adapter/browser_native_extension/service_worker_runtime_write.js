@@ -23,6 +23,7 @@ importScripts("service_worker_protected_submit_expression.js");
 importScripts("service_worker_conversation_write_predicate.js");
 importScripts("service_worker_attachment_evidence.js");
 importScripts("service_worker_attachment_readiness.js");
+importScripts("service_worker_attachment_fence_read.js");
 importScripts("service_worker_attachment_cleanup.js");
 importScripts("service_worker_attachment_staging.js");
 importScripts("service_worker_rich_input_lifecycle.js");
