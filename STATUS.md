@@ -164,7 +164,8 @@ PR15 Architecture Reset
 → PR15.29 consolidate submit authority ownership [merged]
 → PR15.30 consolidate Native Messaging routing ownership [merged]
 → PR15.31 consolidate attachment-staging ownership [merged]
-→ PR15.32 consolidate attachment-evidence ownership [active]
+→ PR15.32 consolidate attachment-evidence ownership [merged]
+→ PR15.33 consolidate attachment cleanup/fence ownership [active]
 → delete remaining historical production composition
 → then prove a provider-neutral boundary with DeepSeek
 ```

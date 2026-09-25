@@ -94,7 +94,7 @@ def test_schema_7_fenced_tab_cleanup_requires_browser_session_identity():
 
     cleanup = text[
         text.index(
-            "_pr92ClearOfficialPageAttachments = async function _pr92Schema7ClearFencedRuntimeTab"
+            "async function _pr92Schema7ClearFencedRuntimeTab"
         ) : text.index("function _pr92Schema7AtomicAttachmentSubmitExpression")
     ]
     current_id_branch = cleanup[

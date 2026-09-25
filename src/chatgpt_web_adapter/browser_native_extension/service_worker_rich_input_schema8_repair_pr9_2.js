@@ -173,7 +173,7 @@ function _pr92Schema8FenceIdentityMatches(records, tabId) {
   );
 }
 
-_pr92ClearOfficialPageAttachments = async function _pr92Schema8ClearFencedRuntimeTab(
+async function _pr92Schema8ClearFencedRuntimeTab(
   tabId,
   timeoutMs
 ) {

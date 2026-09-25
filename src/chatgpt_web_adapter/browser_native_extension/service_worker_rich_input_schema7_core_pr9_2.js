@@ -12,10 +12,6 @@
 //      identity proves that the numeric tab id still belongs to the fenced
 //      extension-managed ChatGPT runtime.
 
-const _pr92Schema7PriorPersistDirtyAttachmentFence = _pr92PersistDirtyAttachmentFence;
-const _pr92Schema7PriorTryClearDirtyAttachmentFence = _pr92TryClearDirtyAttachmentFence;
-const _pr92Schema7PriorClearOfficialPageAttachments = _pr92ClearOfficialPageAttachments;
-
 const PR92_SCHEMA7_REPAIR_SCHEMA = 7;
 const PR92_SCHEMA7_SESSION_IDENTITY_KEY = "pr92DirtyAttachmentSessionIdentityV1";
 const PR92_SCHEMA7_SUBMIT_OBSERVATION_RESERVE_MS = DEFAULT_SUBMIT_ACK_TIMEOUT_MS + 500;
@@ -54,7 +50,7 @@ async function _pr92Schema7ReadFenceRecords(deadlineAt) {
   };
 }
 
-_pr92PersistDirtyAttachmentFence = async function _pr92PersistFenceWithSessionIdentity(tabId) {
+async function _pr92Schema7PersistDirtyAttachmentFence(tabId) {
   if (!Number.isInteger(tabId)) {
     throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_TAB_REQUIRED");
   }
@@ -112,7 +108,7 @@ async function _pr92Schema7ClearFenceStorage() {
   }
 }
 
-_pr92TryClearDirtyAttachmentFence = async function _pr92Schema7TryClearDirtyAttachmentFence() {
+async function _pr92Schema7TryClearDirtyAttachmentFence() {
   const richContext = _pr92ActiveRichInputContext;
   if (richContext !== null && richContext.staged === true) return false;
 
@@ -129,7 +125,7 @@ _pr92TryClearDirtyAttachmentFence = async function _pr92Schema7TryClearDirtyAtta
   }
 };
 
-_pr92ClearOfficialPageAttachments = async function _pr92Schema7ClearFencedRuntimeTab(
+async function _pr92Schema7ClearFencedRuntimeTab(
   tabId,
   timeoutMs
 ) {

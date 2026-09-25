@@ -197,7 +197,7 @@ async function _pr92ReadDirtyAttachmentFence() {
   }
 }
 
-async function _pr92PersistDirtyAttachmentFence(tabId) {
+async function _pr92BasePersistDirtyAttachmentFence(tabId) {
   if (!Number.isInteger(tabId)) {
     throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_TAB_REQUIRED");
   }
@@ -216,7 +216,7 @@ async function _pr92PersistDirtyAttachmentFence(tabId) {
   _pr92DirtyAttachmentTabId = tabId;
 }
 
-async function _pr92TryClearDirtyAttachmentFence() {
+async function _pr92BaseTryClearDirtyAttachmentFence() {
   try {
     await chrome.storage.local.remove(PR92_DIRTY_ATTACHMENT_STORAGE_KEY);
     _pr92DirtyAttachmentTabId = null;
@@ -363,7 +363,7 @@ async function _pr92BaseStageOfficialPageAttachments(tabId, attachmentPaths, con
   }
 }
 
-async function _pr92ClearOfficialPageAttachments(tabId, timeoutMs) {
+async function _pr92BaseClearOfficialPageAttachments(tabId, timeoutMs) {
   if (!Number.isInteger(tabId) || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return false;
   }

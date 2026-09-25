@@ -48,7 +48,7 @@ def test_schema_8_revalidates_destructive_authority_at_close_boundary():
     text = SCHEMA8.read_text(encoding="utf-8")
     cleanup = text[
         text.index(
-            "_pr92ClearOfficialPageAttachments = async function _pr92Schema8ClearFencedRuntimeTab"
+            "async function _pr92Schema8ClearFencedRuntimeTab"
         ) : text.index("function _pr92Schema8AugmentSupportResult")
     ]
 

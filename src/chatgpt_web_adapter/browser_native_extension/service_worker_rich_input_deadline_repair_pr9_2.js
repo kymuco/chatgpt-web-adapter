@@ -7,9 +7,6 @@
 
 const _pr92DeadlineRepairPriorClickSendButton = clickSendButton;
 const _pr92DeadlineRepairPriorSubmitWithEnter = submitWithEnter;
-const _pr92DeadlineRepairPriorTryClearDirtyAttachmentFence = (
-  _pr92TryClearDirtyAttachmentFence
-);
 const PR92_DEADLINE_REPAIR_SCHEMA = 4;
 
 function _pr92DeadlineRepairTimeoutError(stage) {
@@ -269,7 +266,7 @@ async function _pr92DeadlineRepairProveTabAbsent(tabId, deadlineAt) {
 // The same rich turn never performs that destructive cleanup; it returns/throws
 // with the fence intact. The next prewrite closes the dirty tab under its own outer
 // deadline, proves it no longer exists, and only then may clear the durable fence.
-_pr92ClearOfficialPageAttachments = async function _pr92ClearAttachmentsWithinDeadline(
+async function _pr92DeadlineClearOfficialPageAttachments(
   tabId,
   timeoutMs
 ) {
@@ -313,7 +310,7 @@ _pr92ClearOfficialPageAttachments = async function _pr92ClearAttachmentsWithinDe
 // Even after cleanup succeeds, returning the completed write takes priority over
 // a late storage mutation. The next turn re-proves cleanup before clearing the
 // fence and before any subsequent write authority is available.
-_pr92TryClearDirtyAttachmentFence = async function _pr92ClearFenceWithinDeadline() {
+async function _pr92DeadlineTryClearDirtyAttachmentFence() {
   const richContext = _pr92ActiveRichInputContext;
   if (richContext !== null && richContext.staged === true) {
     return false;
@@ -321,7 +318,7 @@ _pr92TryClearDirtyAttachmentFence = async function _pr92ClearFenceWithinDeadline
 
   const context = _pr92ActiveTurnContext;
   if (context === null) {
-    return _pr92DeadlineRepairPriorTryClearDirtyAttachmentFence();
+    return _pr92BaseTryClearDirtyAttachmentFence();
   }
 
   try {
