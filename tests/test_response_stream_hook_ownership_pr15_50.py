@@ -59,8 +59,7 @@ def test_explicit_stream_helper_chain_matches_historical_nesting() -> None:
     assert "return _pr812ProcessSseEventOwner(context, block);" in temporary
 
     assert (
-        "return _pr813ProcessSseWithTemporarySessionIdentity(context, block);"
-        in owner
+        "return _pr813ProcessSseWithTemporarySessionIdentity(context, block);" in owner
     )
     assert "return _pr812VisibleAssistantTextOwner(message);" in owner
     assert "return _pr812RecordAssistantOwner(context, candidate);" in owner
