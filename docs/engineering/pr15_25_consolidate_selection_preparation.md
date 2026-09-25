@@ -77,3 +77,12 @@ locateAndFocusComposer
 - release build and installed-wheel smoke pass.
 
 Tracking: #107
+
+
+## PR15.50 closure follow-up
+
+The final graph-wide ownership audit found that PR15.25 had consolidated the
+three historical wrappers into one owner but still implemented that owner through
+a captured prior alias plus top-level reassignment. PR15.50 removes that final
+mutable binding: `_cwaBaseLocateAndFocusComposer` is immutable and
+`locateAndFocusComposer` is now a normal function declaration.
