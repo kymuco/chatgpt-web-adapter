@@ -12,16 +12,18 @@
 
 const PR92_SCHEMA16_REPAIR_SCHEMA = 16;
 
-_pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline() {
+async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline() {
   const context = _pr92ActiveTurnContext;
+  if (context === null) {
+    return _pr92BaseReadDirtyAttachmentFence();
+  }
+
   try {
-    const stored = context === null
-      ? await chrome.storage.local.get(PR92_DIRTY_ATTACHMENT_STORAGE_KEY)
-      : await _pr92Schema7RunUntil(
-          context.deadlineAt,
-          "SCHEMA16_STALE_ATTACHMENT_FENCE_READ",
-          () => chrome.storage.local.get(PR92_DIRTY_ATTACHMENT_STORAGE_KEY)
-        );
+    const stored = await _pr92Schema7RunUntil(
+      context.deadlineAt,
+      "SCHEMA16_STALE_ATTACHMENT_FENCE_READ",
+      () => chrome.storage.local.get(PR92_DIRTY_ATTACHMENT_STORAGE_KEY)
+    );
     const record = stored?.[PR92_DIRTY_ATTACHMENT_STORAGE_KEY];
     const tabId = Number.isInteger(record?.tabId) ? record.tabId : null;
     _pr92DirtyAttachmentTabId = tabId;
@@ -31,7 +33,7 @@ _pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentF
     // A non-timeout storage failure still means we cannot prove clean state.
     throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_READ_FAILED");
   }
-};
+}
 
 async function _pr92Schema16ResolveRuntimeTabWithinRichDeadline(
   conversationId,
