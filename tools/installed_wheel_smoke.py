@@ -34,7 +34,6 @@ REQUIRED_PRODUCT_MODULES = (
     "chatgpt_web_adapter.product_runtime",
     "chatgpt_web_adapter.product_transport",
     "chatgpt_web_adapter.product_contract",
-    "chatgpt_web_adapter.product_provider",
     "chatgpt_web_adapter.product_support",
     "chatgpt_web_adapter.product_capabilities",
     "chatgpt_web_adapter.product_provenance",
@@ -47,8 +46,6 @@ REQUIRED_PRODUCT_MODULES = (
 )
 REQUIRED_PRIMARY_ROOT_EXPORTS = (
     "ChatGPTProductRuntime",
-    "ProductProviderBoundary",
-    "product_provider_boundary",
     "ProductRuntimeExecution",
     "ProductCapabilities",
     "ProductExecutionProvenance",
