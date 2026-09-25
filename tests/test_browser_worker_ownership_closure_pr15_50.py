@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from tools.browser_worker_ownership_closure_gate import (
     RETIRED_HISTORICAL_WORKERS,
     production_ownership_debt,
