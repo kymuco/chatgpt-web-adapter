@@ -46,7 +46,10 @@ def test_temporary_mode_composition_remains_snapshot_based() -> None:
     semantic = _source("service_worker_temporary_chat_semantic_notice.js")
 
     assert "async function _pr87HandleTemporaryModeProbe(message)" in base
-    assert "function _pr87TemporaryControlSnapshotExpressionWithAriaActionState()" in state
+    assert (
+        "function _pr87TemporaryControlSnapshotExpressionWithAriaActionState()"
+        in state
+    )
     assert "_pr87TemporaryControlSnapshotExpression =" not in state
     assert "executeNativeTurn" not in state
     assert "async function _pr87HandleTemporaryModeProbeWithAX(message)" in ax
