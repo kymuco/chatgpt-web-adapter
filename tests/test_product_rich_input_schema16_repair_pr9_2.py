@@ -22,12 +22,15 @@ def test_schema_16_overlay_is_loaded_after_schema_15():
 def test_schema_16_durable_fence_read_is_raced_against_outer_deadline():
     text = SCHEMA16.read_text(encoding="utf-8")
     start = text.index(
-        "_pr92ReadDirtyAttachmentFence = async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline"
+        "async function _pr92Schema16ReadDirtyAttachmentFenceWithinDeadline"
     )
     end = text.index(
         "async function _pr92Schema16ResolveRuntimeTabWithinRichDeadline", start
     )
     block = text[start:end]
+    assert "_pr92ReadDirtyAttachmentFence =" not in block
+    assert "if (context === null)" in block
+    assert "return _pr92BaseReadDirtyAttachmentFence();" in block
     assert '"SCHEMA16_STALE_ATTACHMENT_FENCE_READ"' in block
     assert "context.deadlineAt" in block
     assert "_pr92Schema7RunUntil(" in block
