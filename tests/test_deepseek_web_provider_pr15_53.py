@@ -18,8 +18,8 @@ from chatgpt_web_adapter.product_capabilities import (
     TEXT_TURNS,
     CapabilityState,
 )
-from chatgpt_web_adapter.product_provider import product_provider_boundary
 from chatgpt_web_adapter.product_provenance import CompletionSource
+from chatgpt_web_adapter.product_provider import product_provider_boundary
 from chatgpt_web_adapter.product_support import ProductTransportSupportTier
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,7 +80,9 @@ def test_deepseek_runtime_passes_provider_boundary_without_canonical_claim() -> 
 def test_deepseek_capability_surface_is_minimal_and_experimental() -> None:
     capabilities = DeepSeekWebTransport(_FakeDeepSeekProvider()).capabilities()
 
-    assert capabilities.transport_support_tier is ProductTransportSupportTier.EXPERIMENTAL
+    assert (
+        capabilities.transport_support_tier is ProductTransportSupportTier.EXPERIMENTAL
+    )
     assert capabilities.state(TEXT_TURNS) is CapabilityState.AVAILABLE
     assert capabilities.state(NEW_CHAT) is CapabilityState.AVAILABLE
     assert capabilities.state(CONTINUATION) is CapabilityState.AVAILABLE
@@ -110,7 +112,9 @@ def test_deepseek_execution_keeps_page_finality_noncanonical() -> None:
     assert execution.provenance is not None
     assert execution.provenance.completion.source is CompletionSource.TRANSPORT_RETURN
     assert execution.provenance.completion.canonical_completion_proven is False
-    assert execution.provenance.completion.finality_detail == "PAGE_DOM_STABLE_COMPLETION"
+    assert (
+        execution.provenance.completion.finality_detail == "PAGE_DOM_STABLE_COMPLETION"
+    )
     assert execution.observation["automatic_write_retry"] is False
     assert execution.observation["route_identity_proven"] is True
 
@@ -135,9 +139,9 @@ def test_extension_assembles_deepseek_handler_outside_chatgpt_turn_layers() -> N
     assert runtime.index("service_worker_deepseek_provider.js") < runtime.index(
         "service_worker_native_message_router.js"
     )
-    assert 'registerNativeTurnDiagnosticHandler(' in worker
+    assert "registerNativeTurnDiagnosticHandler(" in worker
     assert '"deepseek-provider"' in worker
-    assert 'message?.providerId === CWA_DEEPSEEK_PROVIDER_ID' in worker
+    assert "message?.providerId === CWA_DEEPSEEK_PROVIDER_ID" in worker
 
 
 def test_deepseek_worker_uses_page_dom_not_private_http_payloads() -> None:
