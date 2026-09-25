@@ -8,8 +8,6 @@
 //      for every requested basename, and that evidence is revalidated immediately
 //      before protected submission.
 
-const _pr92ClosurePriorClickSendButton = clickSendButton;
-const _pr92ClosurePriorSubmitWithEnter = submitWithEnter;
 const PR92_CLOSURE_REPAIR_SCHEMA = 6;
 const PR92_PAGE_ATTACHMENT_EVIDENCE_SOURCE = "PAGE_OWNED_COMPOSER_ATTACHMENT_STATE";
 const PR92_PAGE_ATTACHMENT_STABLE_POLLS = 2;
@@ -232,19 +230,19 @@ function _pr92ClosurePageGuardedSubmitExpression(selector, deadlineEpochMs) {
 // report failure while the queued mouse/key command later reaches the page. Keep
 // historical behavior only for text-only turns and fail closed if an older rich
 // path somehow tries to invoke these primitives.
-clickSendButton = async function _pr92ClosureRejectRawMouseSubmit(debuggee, point) {
+async function _pr92ClosureRejectRawMouseSubmit(debuggee, point) {
   if (_pr92ActiveRichInputContext !== null) {
     throw new Error("PR9_2_RICH_INPUT_RAW_MOUSE_SUBMIT_FORBIDDEN");
   }
-  return _pr92ClosurePriorClickSendButton(debuggee, point);
-};
+  return _pr92ClickSendButtonWithinDeadline(debuggee, point);
+}
 
-submitWithEnter = async function _pr92ClosureRejectRawEnterSubmit(debuggee) {
+async function _pr92ClosureRejectRawEnterSubmit(debuggee) {
   if (_pr92ActiveRichInputContext !== null) {
     throw new Error("PR9_2_RICH_INPUT_RAW_ENTER_SUBMIT_FORBIDDEN");
   }
-  return _pr92ClosurePriorSubmitWithEnter(debuggee);
-};
+  return _pr92SubmitWithEnterWithinDeadline(debuggee);
+}
 
 async function _pr92ClosurePageDeadlineGuardedSubmit(
   debuggee,
