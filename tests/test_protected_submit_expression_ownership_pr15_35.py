@@ -38,9 +38,7 @@ def test_protected_submit_expression_has_one_public_owner() -> None:
     assert "_pr92Schema7AtomicAttachmentSubmitExpression =" not in schema21
     assert "_pr92Schema20PriorAtomicAttachmentSubmitExpression" not in schema21
 
-    assert owner.count(
-        "function _pr92Schema7AtomicAttachmentSubmitExpression("
-    ) == 1
+    assert owner.count("function _pr92Schema7AtomicAttachmentSubmitExpression(") == 1
     assert "_pr92Schema7AtomicAttachmentSubmitExpression =" not in owner
 
 
@@ -108,7 +106,4 @@ console.log(JSON.stringify({{
 
 def test_schema7_runtime_consumer_keeps_dynamic_public_resolution() -> None:
     base = _source(BASE)
-    assert (
-        "const expression = _pr92Schema7AtomicAttachmentSubmitExpression("
-        in base
-    )
+    assert "const expression = _pr92Schema7AtomicAttachmentSubmitExpression(" in base
