@@ -69,7 +69,8 @@ def test_lower_level_selection_and_timing_hooks_remain_local() -> None:
         assert "locateAndFocusComposer =" not in _source(name), name
 
     preparation = _source("service_worker_selection_preparation.js")
-    assert preparation.count("locateAndFocusComposer =") == 1
+    assert preparation.count("async function locateAndFocusComposer(") == 1
+    assert "locateAndFocusComposer =" not in preparation
 
 
 def test_selection_lifecycle_is_pure_layer_at_historical_boundary() -> None:

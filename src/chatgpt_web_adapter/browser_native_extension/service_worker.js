@@ -250,7 +250,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
   }
 });
 
-async function queryComposerReadiness(debuggee) {
+async function _cwaBaseQueryComposerReadiness(debuggee) {
   const result = await sendCommand(debuggee, "Runtime.evaluate", {
     expression: `(() => {
       const selectors = [
@@ -316,7 +316,7 @@ async function waitForComposerReady(debuggee, timeoutMs = DEFAULT_READY_TIMEOUT_
   throw new Error(`CHATGPT_COMPOSER_NOT_READY:${lastReason}`);
 }
 
-async function locateAndFocusComposer(debuggee) {
+async function _cwaBaseLocateAndFocusComposer(debuggee) {
   await sendCommand(debuggee, "DOM.enable");
   await sendCommand(debuggee, "Accessibility.enable");
 

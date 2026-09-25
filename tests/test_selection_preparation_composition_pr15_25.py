@@ -25,8 +25,12 @@ def _run_node(script: str) -> dict[str, object]:
 
 
 def test_selection_preparation_is_single_composer_owner() -> None:
+    base = _source("service_worker.js")
     owner = _source(OWNER)
-    assert owner.count("locateAndFocusComposer =") == 1
+    assert "async function _cwaBaseLocateAndFocusComposer(" in base
+    assert owner.count("async function locateAndFocusComposer(") == 1
+    assert "locateAndFocusComposer =" not in owner
+    assert "_cwaSelectionPreparationPriorLocateAndFocusComposer" not in owner
 
     retired_aliases = {
         "service_worker_instant_mode_pr8_8.js": "_pr88InstantPriorLocateAndFocusComposer",
@@ -49,7 +53,7 @@ def test_selection_preparation_preserves_historical_outer_to_inner_order() -> No
         "await _pr810PrepareComposer(debuggee);",
         "await _pr88SelectionPrepareComposer(debuggee);",
         "await _pr88InstantObserveComposerBeforeWrite(debuggee);",
-        "return _cwaSelectionPreparationPriorLocateAndFocusComposer(debuggee);",
+        "return _cwaBaseLocateAndFocusComposer(debuggee);",
     )
     positions = [owner.index(marker) for marker in markers]
     assert positions == sorted(positions)
@@ -60,10 +64,10 @@ def test_selection_preparation_runtime_handoff_matches_historical_chain() -> Non
     script = f"""
 const events = [];
 
-let locateAndFocusComposer = async () => {{
+async function _cwaBaseLocateAndFocusComposer() {{
   events.push("base");
   return {{ focused: true }};
-}};
+}}
 
 async function _pr810PrepareComposer() {{
   events.push("model");

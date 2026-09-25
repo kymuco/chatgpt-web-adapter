@@ -18,6 +18,7 @@ importScripts("service_worker_product_observation.js");
 
 importScripts("service_worker_temporary_startup_readiness.js");
 importScripts("service_worker_temporary_product.js");
+importScripts("service_worker_response_stream_hooks.js");
 importScripts("service_worker_temporary_lifecycle.js");
 
 async function _pr824aExistingRuntimeTabSnapshot() {

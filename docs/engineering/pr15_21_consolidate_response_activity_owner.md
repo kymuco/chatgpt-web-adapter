@@ -110,3 +110,14 @@ This slice intentionally does not absorb later overlays.
 - release build and installed-wheel smoke pass.
 
 Tracking: #107
+
+
+## PR15.50 closure follow-up
+
+The graph-wide closure gate found that the PR15.21 consolidated module still
+installed its three public PR8.9 stream hooks through captured `Upstream`
+aliases and top-level reassignment. PR15.50 converts these to explicit helpers:
+`_pr812ProcessSseEventOwner`, `_pr812VisibleAssistantTextOwner`, and
+`_pr812RecordAssistantOwner`. Final public hook ownership now lives in
+`service_worker_response_stream_hooks.js` after all historical helper layers
+have loaded.

@@ -166,6 +166,15 @@ def _new_import_time_mutations(base_ref: str) -> list[str]:
     return violations
 
 
+def _run_browser_worker_ownership_closure_gate() -> bool:
+    completed = subprocess.run(
+        [sys.executable, "tools/browser_worker_ownership_closure_gate.py"],
+        cwd=ROOT,
+        check=False,
+    )
+    return completed.returncode == 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -182,6 +191,7 @@ def main() -> int:
     base_ref = _resolve_base_ref(args.base_ref)
 
     python_quality_passed = _run_python_quality(_python_quality_targets(base_ref))
+    browser_ownership_passed = _run_browser_worker_ownership_closure_gate()
 
     violations: list[str] = []
     for path in _added_production_files(base_ref):
@@ -203,12 +213,13 @@ def main() -> int:
             "Refactor through explicit composition instead."
         )
 
-    if not python_quality_passed or violations:
+    if not python_quality_passed or not browser_ownership_passed or violations:
         return 1
 
     print(
-        "engineering quality gate passed: changed Python is Ruff-clean and no new "
-        "PR/repair-named production modules or module-level runtime mutation debt"
+        "engineering quality gate passed: changed Python is Ruff-clean, browser "
+        "worker ownership is closed, and no new PR/repair-named production modules "
+        "or module-level runtime mutation debt exists"
     )
     return 0
 
