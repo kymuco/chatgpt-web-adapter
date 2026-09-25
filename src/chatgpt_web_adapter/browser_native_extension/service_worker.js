@@ -414,7 +414,7 @@ async function querySendButtonPoint(debuggee) {
   return result?.result?.value || null;
 }
 
-async function waitForSendButtonPoint(debuggee, timeoutMs = DEFAULT_SUBMIT_READY_TIMEOUT_MS) {
+async function _cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs = DEFAULT_SUBMIT_READY_TIMEOUT_MS) {
   const startedAt = performance.now();
   while (elapsedMs(startedAt) < timeoutMs) {
     const point = await querySendButtonPoint(debuggee);
