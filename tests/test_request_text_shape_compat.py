@@ -8,7 +8,6 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 SCHEMA29 = EXT / "service_worker_rich_input_schema29_repair_pr9_2.js"
 COMPAT = EXT / "service_worker_request_text_shape_compat.js"
-OWNER = EXT / "service_worker_request_inspection.js"
 
 
 def _run_node(script: str) -> dict[str, object]:
@@ -27,8 +26,7 @@ def _inspector_source() -> str:
     start = schema29.index("function _pr92Schema29NonEmptyString")
     end = schema29.index("function _pr92Schema29ApplyRequestInspection", start)
     compat = COMPAT.read_text(encoding="utf-8")
-    owner = OWNER.read_text(encoding="utf-8")
-    return "\n".join((schema29[start:end], compat, owner))
+    return schema29[start:end] + "\n" + compat
 
 
 def test_long_object_text_part_matches_exactly() -> None:
@@ -49,7 +47,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, prompt, 0, null);
+const result = _cwaRequestTextShapeInspect(body, prompt, 0, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -75,7 +73,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, prompt, 0, null);
+const result = _cwaRequestTextShapeInspect(body, prompt, 0, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -102,7 +100,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, prompt, 1, null);
+const result = _cwaRequestTextShapeInspect(body, prompt, 1, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -126,7 +124,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-const result = _pr92Schema29InspectRequestPostData(body, expected, 0, null);
+const result = _cwaRequestTextShapeInspect(body, expected, 0, null);
 console.log(JSON.stringify(result));
 """
     )
@@ -159,7 +157,7 @@ const body = JSON.stringify({{
     metadata: {{}}
   }}]
 }});
-_pr92Schema29InspectRequestPostData(body, expected, 0, null);
+_cwaRequestTextShapeInspect(body, expected, 0, null);
 const fingerprint = persisted[CWA_REQUEST_TEXT_SHAPE_DIAGNOSTIC_KEY];
 console.log(JSON.stringify({{
   fingerprint,
