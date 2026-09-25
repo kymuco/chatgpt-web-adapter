@@ -166,7 +166,17 @@ def _new_import_time_mutations(base_ref: str) -> list[str]:
     return violations
 
 
-def _run_browser_worker_ownership_closure_gate() -> bool:\n    completed = subprocess.run(\n        [sys.executable, "tools/browser_worker_ownership_closure_gate.py"],\n        cwd=ROOT,\n        check=False,\n    )\n    return completed.returncode == 0\n\n\ndef main() -> int:\n    parser = argparse.ArgumentParser(
+def _run_browser_worker_ownership_closure_gate() -> bool:
+    completed = subprocess.run(
+        [sys.executable, "tools/browser_worker_ownership_closure_gate.py"],
+        cwd=ROOT,
+        check=False,
+    )
+    return completed.returncode == 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
         description=(
             "Require changed Python files to be Ruff-clean and prevent new "
             "research-era production topology or import-time mutation debt."
