@@ -98,7 +98,7 @@ def test_closure_rejects_rich_raw_submit_before_deadline_delegation() -> None:
 def test_base_submit_path_keeps_dynamic_public_primitive_resolution() -> None:
     core = _source(CORE)
     start = core.index("async function _cwaBaseSubmitOfficialPageTurn")
-    end = core.index("async function executeOfficialPageTurn", start)
+    end = core.index("async function _cwaBaseExecuteOfficialPageTurn", start)
     block = core[start:end]
 
     assert "await clickSendButton(debuggee, point);" in block
