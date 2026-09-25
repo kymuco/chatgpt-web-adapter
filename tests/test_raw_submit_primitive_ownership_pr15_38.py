@@ -54,7 +54,9 @@ def test_deadline_text_only_fallback_is_explicit_base_delegation() -> None:
     deadline = _source(DEADLINE)
 
     click_start = deadline.index("async function _pr92ClickSendButtonWithinDeadline")
-    click_end = deadline.index("async function _pr92SubmitWithEnterWithinDeadline", click_start)
+    click_end = deadline.index(
+        "async function _pr92SubmitWithEnterWithinDeadline", click_start
+    )
     click_block = deadline[click_start:click_end]
     assert "return _cwaBaseClickSendButton(debuggee, point);" in click_block
 
@@ -71,13 +73,15 @@ def test_closure_rejects_rich_raw_submit_before_deadline_delegation() -> None:
     closure = _source(CLOSURE)
 
     mouse_start = closure.index("async function _pr92ClosureRejectRawMouseSubmit")
-    enter_start = closure.index("async function _pr92ClosureRejectRawEnterSubmit", mouse_start)
+    enter_start = closure.index(
+        "async function _pr92ClosureRejectRawEnterSubmit", mouse_start
+    )
     mouse_block = closure[mouse_start:enter_start]
     assert "PR9_2_RICH_INPUT_RAW_MOUSE_SUBMIT_FORBIDDEN" in mouse_block
     assert "_pr92ClickSendButtonWithinDeadline(debuggee, point)" in mouse_block
-    assert mouse_block.index("PR9_2_RICH_INPUT_RAW_MOUSE_SUBMIT_FORBIDDEN") < mouse_block.index(
-        "_pr92ClickSendButtonWithinDeadline"
-    )
+    assert mouse_block.index(
+        "PR9_2_RICH_INPUT_RAW_MOUSE_SUBMIT_FORBIDDEN"
+    ) < mouse_block.index("_pr92ClickSendButtonWithinDeadline")
 
     enter_end = closure.index(
         "async function _pr92ClosurePageDeadlineGuardedSubmit",
@@ -86,9 +90,9 @@ def test_closure_rejects_rich_raw_submit_before_deadline_delegation() -> None:
     enter_block = closure[enter_start:enter_end]
     assert "PR9_2_RICH_INPUT_RAW_ENTER_SUBMIT_FORBIDDEN" in enter_block
     assert "_pr92SubmitWithEnterWithinDeadline(debuggee)" in enter_block
-    assert enter_block.index("PR9_2_RICH_INPUT_RAW_ENTER_SUBMIT_FORBIDDEN") < enter_block.index(
-        "_pr92SubmitWithEnterWithinDeadline"
-    )
+    assert enter_block.index(
+        "PR9_2_RICH_INPUT_RAW_ENTER_SUBMIT_FORBIDDEN"
+    ) < enter_block.index("_pr92SubmitWithEnterWithinDeadline")
 
 
 def test_base_submit_path_keeps_dynamic_public_primitive_resolution() -> None:
