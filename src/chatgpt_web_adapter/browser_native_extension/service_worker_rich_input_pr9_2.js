@@ -166,7 +166,7 @@ async function _pr92ReloadRuntimeTabWithinTurn(
   return Math.round(performance.now() - startedAt);
 }
 
-async function _pr92ReadDirtyAttachmentFence() {
+async function _pr92BaseReadDirtyAttachmentFence() {
   try {
     const stored = await chrome.storage.local.get(PR92_DIRTY_ATTACHMENT_STORAGE_KEY);
     const record = stored?.[PR92_DIRTY_ATTACHMENT_STORAGE_KEY];
