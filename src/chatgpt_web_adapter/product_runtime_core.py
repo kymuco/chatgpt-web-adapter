@@ -20,6 +20,7 @@ from .product_provenance import (
     TemporaryLifecycleState,
     build_product_execution_provenance,
 )
+from .product_provider import CHATGPT_PRODUCT_PROVIDER_ID
 from .product_submission import ProductSubmissionAck
 from .product_transport import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
@@ -360,6 +361,8 @@ def _assemble_default_write_transport(
 class ChatGPTProductRuntime:
     """Implementation-independent ordinary ChatGPT product runtime."""
 
+    provider_id = CHATGPT_PRODUCT_PROVIDER_ID
+
     def __init__(
         self,
         client: Any,
@@ -385,6 +388,7 @@ class ChatGPTProductRuntime:
 
         if write_transport is None:
             assembly_kwargs: dict[str, Any] = {
+                "provider_id": self.provider_id,
                 "transport": self.transport,
                 "provider": provider,
             }
@@ -715,6 +719,7 @@ class ChatGPTProductRuntime:
         )
         transport_governance.update(
             {
+                "provider_id": self.provider_id,
                 "transport": self.transport,
                 "transport_selection_explicit": True,
                 "supported_product_transports": list(SUPPORTED_PRODUCT_TRANSPORTS),

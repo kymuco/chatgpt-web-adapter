@@ -79,6 +79,12 @@ from .product_provenance import (
     ProductExecutionProvenance,
     ProductIdentityProvenance,
 )
+from .product_provider import (
+    CHATGPT_PRODUCT_PROVIDER_ID,
+    PRODUCT_PROVIDER_BOUNDARY_SCHEMA,
+    ProductProviderBoundary,
+    product_provider_boundary,
+)
 from .product_runtime import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
     DEFAULT_PRODUCT_TRANSPORT,
@@ -277,6 +283,10 @@ __all__ = [
     "product_transport_support_tier",
     "ProductRuntimeContract",
     "product_runtime_contract",
+    "PRODUCT_PROVIDER_BOUNDARY_SCHEMA",
+    "CHATGPT_PRODUCT_PROVIDER_ID",
+    "ProductProviderBoundary",
+    "product_provider_boundary",
     "ORDINARY_CHATGPT_PRODUCT_SEMANTICS",
     "PRODUCT_CAPABILITY_NAMES",
     "CapabilityState",

@@ -169,10 +169,12 @@ old owner
 → delete old owner
 ```
 
-Only after ChatGPT is consolidated should provider-neutral contracts be extracted.
-ChatGPT becomes provider #1; DeepSeek is the second proof because it provides a
-materially different web-session/API shape. Gemini is deferred until the abstraction
-survives two providers.
+ChatGPT consolidation is now complete through PR15.51. PR15.52 freezes the first
+provider-neutral contract around provider identity/semantics, canonical/write
+interfaces, capabilities/provenance, no fallback, no automatic retry, reconciliation,
+and non-canonical incremental observation. ChatGPT remains provider #1; DeepSeek is
+the second proof because it provides a materially different web-session/API shape.
+Gemini remains deferred until the abstraction survives two providers.
 
 Consumer-driven runtime hardening remains the rule for what enters the resulting
 public contract. A provider or web capability does not become production scope merely

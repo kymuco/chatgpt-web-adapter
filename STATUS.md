@@ -185,8 +185,9 @@ PR15 Architecture Reset
 → confirmed ownership inventory empty
 → PR15.50 final browser-worker no-reassignment closure gate [merged]
 → closure audit removes hidden composer-focus/readiness + response-stream rebindings
-→ PR15.51 retire detached PR8.7 Temporary characterization source [active]
-→ then prove a provider-neutral boundary with DeepSeek
+→ PR15.51 retire detached PR8.7 Temporary characterization source [merged]
+→ PR15.52 freeze provider-neutral runtime boundary [active]
+→ then prove the boundary with minimal DeepSeek text/continuation support
 ```
 
 PR14.9 showed that the next highest-leverage work is structural rather than another
