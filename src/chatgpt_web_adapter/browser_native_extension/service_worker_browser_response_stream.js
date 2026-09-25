@@ -59,7 +59,7 @@ function _pr89BrowserStreamFinishReason(message) {
     : null;
 }
 
-function _pr89BrowserStreamVisibleAssistantText(message) {
+function _pr89BaseBrowserStreamVisibleAssistantText(message) {
   if (!message || typeof message !== "object") return null;
   if (message?.author?.role !== "assistant") return null;
   if (message?.metadata?.is_visually_hidden_from_conversation === true) return null;
@@ -627,7 +627,7 @@ async function _pr89PatchApplyPayload(context, payload) {
   return true;
 }
 
-async function _pr89BrowserStreamProcessSseEvent(context, block) {
+async function _pr89BaseBrowserStreamProcessSseEvent(context, block) {
     const lines = String(block || "").split(/\r?\n/);
     const dataLines = [];
     for (const line of lines) {
@@ -681,7 +681,7 @@ function _pr89DeliveryEventType(kind) {
   return "assistant_text_revision";
 }
 
-async function _pr89BrowserStreamRecordAssistant(context, candidate) {
+async function _pr89BaseBrowserStreamRecordAssistant(context, candidate) {
   const text = candidate?.text;
   const key = candidate?.messageKey;
   if (typeof text !== "string" || typeof key !== "string" || !key) {
