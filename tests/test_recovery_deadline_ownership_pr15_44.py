@@ -61,12 +61,16 @@ def test_rich_helpers_delegate_to_immutable_bases() -> None:
     assert wait_block.count("_cwaBaseWaitForTabComplete(") == 2
 
     reload_start = rich.index("async function _pr92ReloadRuntimeTabWithinTurn")
-    dirty_start = rich.index("async function _pr92ReadDirtyAttachmentFence", reload_start)
+    dirty_start = rich.index(
+        "async function _pr92ReadDirtyAttachmentFence", reload_start
+    )
     reload_block = rich[reload_start:dirty_start]
     assert "_pr811BaseReloadRuntimeTabAndWait(" in reload_block
 
     recover_start = rich.index("async function _pr92RecoverThenStage")
-    support_start = rich.index("function _pr92RichInputBaseSupportResult", recover_start)
+    support_start = rich.index(
+        "function _pr92RichInputBaseSupportResult", recover_start
+    )
     recover_block = rich[recover_start:support_start]
     assert "_pr811BaseMaybeRecoverStaleRuntimeUi(message)" in recover_block
 
