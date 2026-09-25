@@ -569,22 +569,18 @@ async function _pr812RecordAssistantLayer(context, candidate, next) {
 // Explicit PR8.12 hook installation. At this boundary the upstream response
 // hooks are the PR8.11/PR8.9 owners. Later PR8.13 Temporary identity may wrap
 // the SSE hook outside this owner, preserving historical nesting.
-const _pr812UpstreamProcessSseEvent = _pr89BrowserStreamProcessSseEvent;
-const _pr812UpstreamVisibleAssistantText = _pr89BrowserStreamVisibleAssistantText;
-const _pr812UpstreamRecordAssistant = _pr89BrowserStreamRecordAssistant;
-
 async function _pr812ProcessSseEventOwner(context, block) {
   return _pr812ProcessSseEventLayer(
     context,
     block,
-    _pr812UpstreamProcessSseEvent
+    _pr811ProcessSseEventOwner
   );
 }
 
 function _pr812VisibleAssistantTextOwner(message) {
   return _pr812VisibleAssistantTextLayer(
     message,
-    _pr812UpstreamVisibleAssistantText
+    _pr89BaseBrowserStreamVisibleAssistantText
   );
 }
 
@@ -592,10 +588,7 @@ async function _pr812RecordAssistantOwner(context, candidate) {
   return _pr812RecordAssistantLayer(
     context,
     candidate,
-    _pr812UpstreamRecordAssistant
+    _pr811RecordAssistantOwner
   );
 }
 
-_pr89BrowserStreamProcessSseEvent = _pr812ProcessSseEventOwner;
-_pr89BrowserStreamVisibleAssistantText = _pr812VisibleAssistantTextOwner;
-_pr89BrowserStreamRecordAssistant = _pr812RecordAssistantOwner;
