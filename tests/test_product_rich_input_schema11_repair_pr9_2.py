@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -63,7 +62,7 @@ def test_schema_11_bounds_the_shared_attachment_evidence_read():
 def test_schema_11_preserves_official_composer_and_cross_channel_exactness():
     text = SCHEMA11.read_text(encoding="utf-8")
     assert "document.querySelector('#prompt-textarea')" in text
-    assert 'document.querySelector(\'[data-testid="prompt-textarea"]\')' in text
+    assert "document.querySelector('[data-testid=\"prompt-textarea\"]')" in text
     assert "officialComposerMounted: false" in text
     assert "officialComposerMounted: true" in text
     assert "crossEvidenceChannelExact" in text

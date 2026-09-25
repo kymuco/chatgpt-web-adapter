@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
@@ -32,9 +31,8 @@ def _matches(label: str, expected: str, group_labels: list[str]) -> bool:
     candidate = _indexed_candidate(payload)
     if not candidate:
         return payload == expected
-    return (
-        (payload == expected and payload in group_labels)
-        or (candidate == expected and candidate in group_labels)
+    return (payload == expected and payload in group_labels) or (
+        candidate == expected and candidate in group_labels
     )
 
 
@@ -77,7 +75,9 @@ def test_schema_27_independent_group_can_select_literal_indexed_filename_exactly
 
 def test_schema_27_mismatched_or_malformed_groups_do_not_disambiguate():
     assert not _matches("Remove file 1: report.txt", "report.txt", ["old-report.txt"])
-    assert not _matches("Remove file 1: report.txt", "file 1: report.txt", ["report.txt"])
+    assert not _matches(
+        "Remove file 1: report.txt", "file 1: report.txt", ["report.txt"]
+    )
     assert not _matches("Remove file x: report.txt", "report.txt", ["report.txt"])
     assert not _matches("Remove file 1 report.txt", "report.txt", ["report.txt"])
     assert not _matches("Remove unknown 1: report.txt", "report.txt", ["report.txt"])
@@ -137,15 +137,24 @@ def test_schema_27_support_explicitly_supersedes_schema25_and_schema26_parser_cl
     assert "_v26._validate_support" not in text
     assert "Schemas 25 and 26 are superseded parser experiments" in text
     assert "indexed_removal_ambiguity_bidirectional_fail_closed" in text
-    assert "indexed_removal_literal_interpretation_requires_independent_filename_group" in text
-    assert "indexed_removal_stripped_interpretation_requires_independent_filename_group" in text
+    assert (
+        "indexed_removal_literal_interpretation_requires_independent_filename_group"
+        in text
+    )
+    assert (
+        "indexed_removal_stripped_interpretation_requires_independent_filename_group"
+        in text
+    )
     assert "indexed_removal_removal_only_authority_allowed" in text
     assert "unindexed_removal_literal_semantics_preserved" in text
 
 
 def test_schema_27_support_probe_is_twenty_first_no_write_characterization_rpc():
     text = GATE27.read_text(encoding="utf-8")
-    assert "Twenty-first characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Twenty-first characterization-only RPC: no text and no attachment paths."
+        in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     block = text[start:end]

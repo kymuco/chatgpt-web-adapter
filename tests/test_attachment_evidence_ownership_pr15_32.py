@@ -126,4 +126,6 @@ console.log(JSON.stringify({{
 
 def test_existing_evidence_read_resolves_the_public_owner_at_call_time() -> None:
     closure = _source("service_worker_rich_input_closure_repair_pr9_2.js")
-    assert "expression: _pr92ClosureAttachmentEvidenceExpression(expectedNames)" in closure
+    assert (
+        "expression: _pr92ClosureAttachmentEvidenceExpression(expectedNames)" in closure
+    )
