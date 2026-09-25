@@ -47,8 +47,7 @@ def test_temporary_mode_composition_remains_snapshot_based() -> None:
 
     assert "async function _pr87HandleTemporaryModeProbe(message)" in base
     assert (
-        "function _pr87TemporaryControlSnapshotExpressionWithAriaActionState()"
-        in state
+        "function _pr87TemporaryControlSnapshotExpressionWithAriaActionState()" in state
     )
     assert "_pr87TemporaryControlSnapshotExpression =" not in state
     assert "executeNativeTurn" not in state
