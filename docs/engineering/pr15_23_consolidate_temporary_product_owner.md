@@ -64,3 +64,12 @@ _pr89BrowserStreamProcessSseEvent = _pr813ProcessSseWithTemporarySessionIdentity
 - release build + installed-wheel smoke green.
 
 Tracking: #107
+
+
+## PR15.50 closure follow-up
+
+PR15.50 removes the remaining Temporary SSE captured-upstream alias and public
+`_pr89BrowserStreamProcessSseEvent` reassignment. The Temporary product now
+exposes `_pr813ProcessSseWithTemporarySessionIdentity(...)` as an explicit
+layer delegating directly to `_pr812ProcessSseEventOwner(...)`. The final public
+stream-hook owner is assembled immediately after the Temporary product.
