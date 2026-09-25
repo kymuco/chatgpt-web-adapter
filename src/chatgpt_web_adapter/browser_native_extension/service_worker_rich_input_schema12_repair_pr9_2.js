@@ -8,7 +8,6 @@
 //   2. the complete Send-readiness wait is bounded by that same outer deadline,
 //      including any stalled Runtime.evaluate inside querySendButtonPoint.
 
-const _pr92Schema12PriorWaitForSendButtonPoint = waitForSendButtonPoint;
 const PR92_SCHEMA12_REPAIR_SCHEMA = 12;
 
 function _pr92Schema12BestEffortDetach(debuggee) {
@@ -123,20 +122,20 @@ async function _pr92Schema12StageWithBoundedPostStageEvidence(
 // its readiness helper can internally await Runtime.evaluate beyond readyBudget.
 // Bound the complete helper invocation by the authoritative outer rich-turn deadline.
 // A late readiness read has no write authority and cannot trigger submission.
-waitForSendButtonPoint = async function _pr92Schema12DeadlineBoundedSendReadiness(
+async function _pr92Schema12DeadlineBoundedSendReadiness(
   debuggee,
   timeoutMs
 ) {
   const context = _pr92ActiveRichInputContext;
   if (context === null) {
-    return _pr92Schema12PriorWaitForSendButtonPoint(debuggee, timeoutMs);
+    return _cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs);
   }
   return _pr92Schema7RunUntil(
     context.deadlineAt,
     "SCHEMA12_SEND_READINESS_WAIT",
-    () => _pr92Schema12PriorWaitForSendButtonPoint(debuggee, timeoutMs)
+    () => _cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs)
   );
-};
+}
 
 function _pr92Schema12AugmentSupportResult(result) {
   return {
