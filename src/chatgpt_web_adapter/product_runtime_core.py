@@ -719,6 +719,7 @@ class ChatGPTProductRuntime:
         )
         transport_governance.update(
             {
+                "provider_id": self.provider_id,
                 "transport": self.transport,
                 "transport_selection_explicit": True,
                 "supported_product_transports": list(SUPPORTED_PRODUCT_TRANSPORTS),
