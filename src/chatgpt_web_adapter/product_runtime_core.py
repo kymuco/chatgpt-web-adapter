@@ -9,6 +9,7 @@ from .auth import DEFAULT_AUTH_FILE
 from .client import DEFAULT_TIMEOUT_SECONDS, ChatGPTWebClient
 from .product_capabilities import ProductCapabilities
 from .product_media import browser_owned_media_scope
+from .product_provider import CHATGPT_PRODUCT_PROVIDER_ID
 from .product_provenance import (
     CompletionSource,
     ConversationMode,
@@ -360,6 +361,8 @@ def _assemble_default_write_transport(
 class ChatGPTProductRuntime:
     """Implementation-independent ordinary ChatGPT product runtime."""
 
+    provider_id = CHATGPT_PRODUCT_PROVIDER_ID
+
     def __init__(
         self,
         client: Any,
@@ -385,6 +388,7 @@ class ChatGPTProductRuntime:
 
         if write_transport is None:
             assembly_kwargs: dict[str, Any] = {
+                "provider_id": self.provider_id,
                 "transport": self.transport,
                 "provider": provider,
             }
