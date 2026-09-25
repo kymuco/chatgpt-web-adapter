@@ -108,9 +108,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
 
     assert positions == sorted(positions)
     assert len(_active_imports(source)) == len(ordered)
-    assert source.rstrip().endswith(
-        'importScripts("service_worker_send_command.js");'
-    )
+    assert source.rstrip().endswith('importScripts("service_worker_send_command.js");')
     assert "service_worker_cwa_identity_capture_diag.js" not in source
     assert "service_worker_canonical_read.js" not in source
     assert "service_worker_canonical_read_v2.js" not in source
