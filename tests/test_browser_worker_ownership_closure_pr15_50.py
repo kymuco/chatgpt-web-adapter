@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tools.browser_worker_ownership_closure_gate import (
-    DETACHED_HISTORICAL_WORKERS,
+    RETIRED_HISTORICAL_WORKERS,
     production_ownership_debt,
     production_worker_graph,
     source_ownership_debt,
@@ -18,10 +18,10 @@ def test_production_worker_graph_reaches_reviewed_shipping_owners() -> None:
     assert "service_worker_ui_compat_pr11_7.js" in graph
 
 
-def test_detached_temporary_characterization_stays_out_of_production_graph() -> None:
+def test_retired_temporary_characterization_stays_out_of_production_graph() -> None:
     graph = set(production_worker_graph())
 
-    assert graph.isdisjoint(DETACHED_HISTORICAL_WORKERS)
+    assert graph.isdisjoint(RETIRED_HISTORICAL_WORKERS)
 
 
 def test_production_worker_surface_has_zero_ownership_debt() -> None:

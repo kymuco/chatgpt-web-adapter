@@ -168,3 +168,11 @@ After this gate is green, PR15 ownership closure is mechanically enforced rather
 than maintained as a prose inventory.
 
 Tracking: #107
+
+
+## PR15.51 retirement follow-up
+
+PR15.51 uses the manifest-rooted proof from this gate to delete the eight
+detached PR8.7 Temporary characterization workers from the extension tree.
+The gate is strengthened at the same time: those retired filenames now fail
+closure if they are present at all, not only if they become production-reachable.

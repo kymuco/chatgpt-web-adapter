@@ -17,7 +17,7 @@ CAPTURED_HISTORICAL_ALIAS = re.compile(
     r"\s*=\s*(?P<target>[A-Za-z_$][A-Za-z0-9_$]*)\s*;$"
 )
 
-DETACHED_HISTORICAL_WORKERS = frozenset(
+RETIRED_HISTORICAL_WORKERS = frozenset(
     {
         "service_worker_temporary_chat.js",
         "service_worker_temporary_snapshot_expression.js",
@@ -98,9 +98,11 @@ def production_ownership_debt(extension_dir: Path = EXT) -> tuple[str, ...]:
     graph = production_worker_graph(extension_dir)
     debt: list[str] = []
 
-    detached = sorted(set(graph) & DETACHED_HISTORICAL_WORKERS)
-    for name in detached:
-        debt.append(f"{name}:detached-historical-worker-became-production-reachable")
+    retired_present = sorted(
+        name for name in RETIRED_HISTORICAL_WORKERS if (extension_dir / name).exists()
+    )
+    for name in retired_present:
+        debt.append(f"{name}:retired-historical-worker-present")
 
     for name in graph:
         source = (extension_dir / name).read_text(encoding="utf-8")
@@ -123,7 +125,7 @@ def main() -> int:
     print(
         "browser worker ownership closure gate passed: "
         "zero top-level rebinding, zero captured composition aliases, "
-        "detached Temporary characterization remains unreachable"
+        "retired Temporary characterization source remains absent"
     )
     return 0
 
