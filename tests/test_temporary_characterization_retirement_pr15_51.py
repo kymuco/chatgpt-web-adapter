@@ -44,10 +44,10 @@ def test_production_temporary_runtime_keeps_copied_readiness_semantics() -> None
 
 
 def test_production_temporary_product_and_startup_readiness_remain_loaded() -> None:
-    observation = (
-        EXT / "service_worker_observability.js"
-    ).read_text(encoding="utf-8")
+    observation = (EXT / "service_worker_observability.js").read_text(encoding="utf-8")
 
-    assert 'importScripts("service_worker_temporary_startup_readiness.js");' in observation
+    assert (
+        'importScripts("service_worker_temporary_startup_readiness.js");' in observation
+    )
     assert 'importScripts("service_worker_temporary_product.js");' in observation
     assert 'importScripts("service_worker_temporary_lifecycle.js");' in observation
