@@ -14,7 +14,6 @@
 // the outer deadline, the existing committed/readback-incomplete marker is
 // returned and automatic write retry remains forbidden.
 
-const _pr92Schema19PriorOptionalPostWrite = _pr92Schema17OptionalPostWrite;
 const PR92_SCHEMA19_REPAIR_SCHEMA = 19;
 const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;
 const PR92_SCHEMA19_RPC_RETURN_RESERVE_MS = 500;
@@ -55,7 +54,7 @@ function _pr92Schema19ExtractRequestBoundStreamMetadata(
 // read the schema-18 identity reserve while preserving the final 500 ms for the
 // Native Messaging RPC return. Other post-write diagnostics keep schema-18's
 // stricter optional/non-authoritative budget.
-_pr92Schema17OptionalPostWrite = async function _pr92Schema19OptionalPostWrite(
+async function _pr92Schema19OptionalPostWrite(
   context,
   stage,
   operation,
@@ -65,7 +64,12 @@ _pr92Schema17OptionalPostWrite = async function _pr92Schema19OptionalPostWrite(
     stage === "SCHEMA17_POSTWRITE_RESPONSE_BODY" &&
     context?.schema19RequestedConversationId == null;
   if (!isNewChatCausalIdentityRead) {
-    return _pr92Schema19PriorOptionalPostWrite(context, stage, operation, capMs);
+    return _pr92Schema18OptionalPostWriteWithIdentityReserve(
+      context,
+      stage,
+      operation,
+      capMs
+    );
   }
 
   const remaining = _pr92RemainingTurnMsOrZero(context);
@@ -88,7 +92,7 @@ _pr92Schema17OptionalPostWrite = async function _pr92Schema19OptionalPostWrite(
   } catch {
     return { ok: false, value: null };
   }
-};
+}
 
 async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity(
   args,
