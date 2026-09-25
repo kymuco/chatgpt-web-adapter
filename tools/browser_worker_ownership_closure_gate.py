@@ -98,9 +98,13 @@ def production_ownership_debt(extension_dir: Path = EXT) -> tuple[str, ...]:
     graph = production_worker_graph(extension_dir)
     debt: list[str] = []
 
-    detached = sorted(set(graph) & DETACHED_HISTORICAL_WORKERS)
-    for name in detached:
-        debt.append(f"{name}:detached-historical-worker-became-production-reachable")
+    retired_present = sorted(
+        name
+        for name in RETIRED_HISTORICAL_WORKERS
+        if (extension_dir / name).exists()
+    )
+    for name in retired_present:
+        debt.append(f"{name}:retired-historical-worker-present")
 
     for name in graph:
         source = (extension_dir / name).read_text(encoding="utf-8")
