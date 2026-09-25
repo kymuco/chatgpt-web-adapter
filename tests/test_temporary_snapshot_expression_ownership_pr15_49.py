@@ -69,17 +69,17 @@ def test_owner_selects_base_then_loaded_state_helper_without_rebinding() -> None
         pytest.skip("Node.js is required for browser-extension ownership fixtures")
 
     owner = _source(OWNER)
-    script = f"""
+    script = """
 const vm = require("vm");
-const context = {{
+const context = {
   calls: [],
-  _pr87BaseTemporaryControlSnapshotExpression() {{
+  _pr87BaseTemporaryControlSnapshotExpression() {
     context.calls.push("base");
     return "BASE";
-  }}
-}};
+  }
+};
 vm.createContext(context);
-vm.runInContext({json.dumps(owner)}, context);
+vm.runInContext(__OWNER_SOURCE__, context);
 
 const before = vm.runInContext(
   "_pr87TemporaryControlSnapshotExpression()",
@@ -95,8 +95,8 @@ const after = vm.runInContext(
   context
 );
 
-console.log(JSON.stringify({{ before, after, calls: context.calls }}));
-"""
+console.log(JSON.stringify({ before, after, calls: context.calls }));
+""".replace("__OWNER_SOURCE__", json.dumps(owner))
     completed = subprocess.run(
         [node, "-e", script],
         check=True,
