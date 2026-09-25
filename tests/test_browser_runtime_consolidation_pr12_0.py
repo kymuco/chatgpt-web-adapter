@@ -42,6 +42,7 @@ def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> Non
     source = _source(RUNTIME)
     expected = [
         'importScripts("service_worker_runtime_tab_reconciliation.js");',
+        'importScripts("service_worker_runtime_tab_id.js");',
         'importScripts("service_worker_runtime_write.js");',
         'importScripts("service_worker_submit_authority.js");',
         'importScripts("service_worker_stream_metadata.js");',

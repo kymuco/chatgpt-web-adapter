@@ -1,10 +1,9 @@
 importScripts("service_worker_observability.js");
 
-const _pr824a3RawStoredRuntimeTabId = storedRuntimeTabId;
 let _pr824a3ValidationInFlight = null;
 
 async function _pr824a3ClearStoredRuntimeTabIdIfMatches(expectedTabId) {
-  const current = await _pr824a3RawStoredRuntimeTabId();
+  const current = await _cwaBaseStoredRuntimeTabId();
   if (current !== expectedTabId) return false;
   await chrome.storage.local.remove(RUNTIME_TAB_KEY);
   postNative({
@@ -19,7 +18,7 @@ async function _pr824a3ValidateStoredRuntimeTab() {
   if (_pr824a3ValidationInFlight !== null) return _pr824a3ValidationInFlight;
 
   _pr824a3ValidationInFlight = (async () => {
-    const storedId = await _pr824a3RawStoredRuntimeTabId();
+    const storedId = await _cwaBaseStoredRuntimeTabId();
     if (!Number.isInteger(storedId)) {
       return { tabId: null, valid: false, stale: false };
     }
@@ -35,7 +34,7 @@ async function _pr824a3ValidateStoredRuntimeTab() {
 
     const cleared = await _pr824a3ClearStoredRuntimeTabIdIfMatches(storedId);
     if (!cleared) {
-      const replacementId = await _pr824a3RawStoredRuntimeTabId();
+      const replacementId = await _cwaBaseStoredRuntimeTabId();
       if (Number.isInteger(replacementId)) {
         try {
           const replacement = await chrome.tabs.get(replacementId);
@@ -57,10 +56,10 @@ async function _pr824a3ValidateStoredRuntimeTab() {
   }
 }
 
-storedRuntimeTabId = async function _storedRuntimeTabIdWithLiveValidation() {
+async function _pr824a3StoredRuntimeTabIdWithLiveValidation() {
   const state = await _pr824a3ValidateStoredRuntimeTab();
   return state.tabId;
-};
+}
 
 async function _pr824a3PublishValidatedRuntimeState() {
   const state = await _pr824a3ValidateStoredRuntimeTab();
@@ -76,7 +75,7 @@ async function _pr824a3PublishValidatedRuntimeState() {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (typeof changeInfo?.url !== "string") return;
-  _pr824a3RawStoredRuntimeTabId().then(async (storedId) => {
+  _cwaBaseStoredRuntimeTabId().then(async (storedId) => {
     if (storedId !== tabId) return;
     const nextUrl = changeInfo.url || tab?.url || "";
     if (isChatGPTUrl(nextUrl)) return;
@@ -85,7 +84,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
-  _pr824a3RawStoredRuntimeTabId().then(async (storedId) => {
+  _cwaBaseStoredRuntimeTabId().then(async (storedId) => {
     if (storedId !== removedTabId) return;
     try {
       const replacement = await chrome.tabs.get(addedTabId);
