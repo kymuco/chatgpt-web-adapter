@@ -88,6 +88,7 @@ def test_write_domain_owns_rich_and_text_write_assembly_only() -> None:
         "service_worker_rich_input_pr9_2.js",
         "service_worker_rich_input_deadline_repair_pr9_2.js",
         "service_worker_rich_input_closure_repair_pr9_2.js",
+        "service_worker_raw_submit_primitives.js",
         "service_worker_rich_input_schema7_repair_pr9_2.js",
         "service_worker_turn_context.js",
         "service_worker_protected_submit_expression.js",

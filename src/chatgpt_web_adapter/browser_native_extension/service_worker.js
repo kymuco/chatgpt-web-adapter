@@ -424,7 +424,7 @@ async function waitForSendButtonPoint(debuggee, timeoutMs = DEFAULT_SUBMIT_READY
   throw new Error("CHATGPT_SEND_BUTTON_NOT_READY");
 }
 
-async function clickSendButton(debuggee, point) {
+async function _cwaBaseClickSendButton(debuggee, point) {
   await sendCommand(debuggee, "Input.dispatchMouseEvent", {
     type: "mouseMoved",
     x: point.x,
@@ -446,7 +446,7 @@ async function clickSendButton(debuggee, point) {
   });
 }
 
-async function submitWithEnter(debuggee) {
+async function _cwaBaseSubmitWithEnter(debuggee) {
   await sendCommand(debuggee, "Input.dispatchKeyEvent", {
     type: "keyDown", key: "Enter", code: "Enter", text: "\r", unmodifiedText: "\r",
     windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13

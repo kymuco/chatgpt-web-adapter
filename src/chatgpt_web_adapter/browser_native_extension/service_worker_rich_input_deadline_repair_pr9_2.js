@@ -5,8 +5,6 @@
 // final layer closes the remaining authority gaps at the exact protected-submit
 // boundary and across post-write cleanup without changing text-only behavior.
 
-const _pr92DeadlineRepairPriorClickSendButton = clickSendButton;
-const _pr92DeadlineRepairPriorSubmitWithEnter = submitWithEnter;
 const PR92_DEADLINE_REPAIR_SCHEMA = 4;
 
 function _pr92DeadlineRepairTimeoutError(stage) {
@@ -69,10 +67,10 @@ function _pr92DeadlineRepairIsMissingTabError(error) {
 // Guard those exact CDP input events, rather than trusting nested timeoutMs
 // values in the older page-turn chain whose prewrite waits can floor an expired
 // budget back to one second.
-clickSendButton = async function _pr92ClickSendButtonWithinDeadline(debuggee, point) {
+async function _pr92ClickSendButtonWithinDeadline(debuggee, point) {
   const context = _pr92DeadlineRepairRichContext();
   if (context === null) {
-    return _pr92DeadlineRepairPriorClickSendButton(debuggee, point);
+    return _cwaBaseClickSendButton(debuggee, point);
   }
 
   const x = Number(point?.x);
@@ -113,12 +111,12 @@ clickSendButton = async function _pr92ClickSendButtonWithinDeadline(debuggee, po
       clickCount: 1
     })
   );
-};
+}
 
-submitWithEnter = async function _pr92SubmitWithEnterWithinDeadline(debuggee) {
+async function _pr92SubmitWithEnterWithinDeadline(debuggee) {
   const context = _pr92DeadlineRepairRichContext();
   if (context === null) {
-    return _pr92DeadlineRepairPriorSubmitWithEnter(debuggee);
+    return _cwaBaseSubmitWithEnter(debuggee);
   }
 
   // keyDown is the protected write boundary. If it succeeds, the conversation may
@@ -145,7 +143,7 @@ submitWithEnter = async function _pr92SubmitWithEnterWithinDeadline(debuggee) {
       nativeVirtualKeyCode: 13
     }).catch(() => {});
   } catch {}
-};
+}
 
 // The historical submit helper treats any mouse-click failure as permission to
 // fall back to Enter. That is safe only before the mouse release is attempted.

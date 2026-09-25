@@ -118,3 +118,9 @@ Still open after this slice:
 - the smaller `connectNativeBridge` product-state wrapper.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.38 later consolidates the raw mouse/Enter submit primitives that remained
+outside the turn-context ownership slice.
