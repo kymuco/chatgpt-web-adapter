@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from .browser_native_provider import BrowserNativeTurnProvider
@@ -187,7 +187,9 @@ class DeepSeekBrowserTurnProvider(BrowserNativeTurnProvider):
             conversation_id=resolved_id.strip(),
             response_text=response_text.strip(),
             final_url=final_url,
-            tab_id=response.get("tabId") if isinstance(response.get("tabId"), int) else None,
+            tab_id=response.get("tabId")
+            if isinstance(response.get("tabId"), int)
+            else None,
             elapsed_ms=(
                 response.get("elapsedMs")
                 if isinstance(response.get("elapsedMs"), int)
@@ -304,7 +306,9 @@ class DeepSeekWebTransport:
         if poll_interval <= 0:
             raise ValueError("poll_interval must be positive")
         if on_token is not None or on_event is not None:
-            raise ValueError("DeepSeek Web streaming callbacks are outside PR15.53 scope")
+            raise ValueError(
+                "DeepSeek Web streaming callbacks are outside PR15.53 scope"
+            )
 
         continuation = conversation is not None
         turn = self.provider.send_text(
@@ -318,7 +322,9 @@ class DeepSeekWebTransport:
                 conversation_id=turn.conversation_id,
             ),
             metrics=ChatMetrics(
-                total=(turn.elapsed_ms / 1000.0) if turn.elapsed_ms is not None else None
+                total=(turn.elapsed_ms / 1000.0)
+                if turn.elapsed_ms is not None
+                else None
             ),
             request=ChatRequestDiagnostics(
                 conversation_id=turn.conversation_id,
