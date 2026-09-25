@@ -32,10 +32,11 @@ def test_schema_20_turn_context_has_unique_page_side_arm_state():
 
 def test_schema_20_arm_marker_and_atomic_click_share_one_page_expression():
     text = SCHEMA20.read_text(encoding="utf-8")
-    start = text.index("_pr92Schema7AtomicAttachmentSubmitExpression = function")
+    start = text.index("function _pr92Schema20PageSideArmProtectedSubmit")
     end = text.index("isConversationWrite = function", start)
     block = text[start:end]
-    assert "_pr92Schema20PriorAtomicAttachmentSubmitExpression" in block
+    assert "_pr92Schema7BaseAtomicAttachmentSubmitExpression" in block
+    assert "_pr92Schema20PriorAtomicAttachmentSubmitExpression" not in text
     assert "console.debug(${encodedMarker})" in block
     assert "return (${expression});" in block
     assert "await " not in block

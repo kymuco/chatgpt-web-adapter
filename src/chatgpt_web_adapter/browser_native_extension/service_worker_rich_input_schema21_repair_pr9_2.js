@@ -17,14 +17,14 @@ const PR92_SCHEMA21_ARM_BOUNDARY =
   "AFTER_ALL_VALIDATION_IMMEDIATELY_BEFORE_BUTTON_CLICK";
 const PR92_SCHEMA21_CLICK_NEEDLE = "    button.click();";
 
-_pr92Schema7AtomicAttachmentSubmitExpression = function _pr92Schema21ValidatedClickBoundaryArm(
+function _pr92Schema21ValidatedClickBoundaryArm(
   selector,
   deadlineEpochMs,
   expectedNames
 ) {
-  // Deliberately bypass schema 20's expression wrapper. Its captured prior binding
-  // is the immutable schema-7 builder and therefore contains no early marker.
-  const expression = _pr92Schema20PriorAtomicAttachmentSubmitExpression(
+  // Deliberately bypass schema 20's early-marker helper and start from the
+  // immutable schema-7 builder, which contains no pre-validation marker.
+  const expression = _pr92Schema7BaseAtomicAttachmentSubmitExpression(
     selector,
     deadlineEpochMs,
     expectedNames
@@ -49,7 +49,7 @@ _pr92Schema7AtomicAttachmentSubmitExpression = function _pr92Schema21ValidatedCl
     markerStatement +
     expression.slice(firstClick)
   );
-};
+}
 
 function _pr92Schema21AugmentSupportResult(result) {
   return {

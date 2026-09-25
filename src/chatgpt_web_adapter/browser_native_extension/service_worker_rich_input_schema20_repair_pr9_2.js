@@ -16,8 +16,6 @@
 // post-arm traffic fails closed as known-write/readback-incomplete, with no retry.
 
 const _pr92Schema20PriorCreateTurnContext = _pr92CreateTurnContext;
-const _pr92Schema20PriorAtomicAttachmentSubmitExpression =
-  _pr92Schema7AtomicAttachmentSubmitExpression;
 const _pr92Schema20PriorIsConversationWrite = isConversationWrite;
 const PR92_SCHEMA20_REPAIR_SCHEMA = 20;
 const PR92_SCHEMA20_REQUEST_CORRELATION =
@@ -53,12 +51,12 @@ _pr92CreateTurnContext = function _pr92Schema20CreateTurnContext(message) {
 // unique marker is emitted in the renderer in the same synchronous page task as
 // final attachment validation and button.click(). No page/user task can execute
 // between the marker and the protected click.
-_pr92Schema7AtomicAttachmentSubmitExpression = function _pr92Schema20PageSideArmProtectedSubmit(
+function _pr92Schema20PageSideArmProtectedSubmit(
   selector,
   deadlineEpochMs,
   expectedNames
 ) {
-  const expression = _pr92Schema20PriorAtomicAttachmentSubmitExpression(
+  const expression = _pr92Schema7BaseAtomicAttachmentSubmitExpression(
     selector,
     deadlineEpochMs,
     expectedNames
@@ -70,7 +68,7 @@ _pr92Schema7AtomicAttachmentSubmitExpression = function _pr92Schema20PageSideArm
     try { console.debug(${encodedMarker}); } catch {}
     return (${expression});
   })()`;
-};
+}
 
 // Schema 17 calls this predicate from its Network.requestWillBeSent listener.
 // During a rich turn, conversation writes have no authority until the exact

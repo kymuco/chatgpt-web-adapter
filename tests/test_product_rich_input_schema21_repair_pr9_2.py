@@ -23,10 +23,10 @@ def test_schema_21_overlay_is_loaded_after_schema_20():
 
 def test_schema_21_bypasses_schema_20_early_marker_wrapper():
     text = SCHEMA21.read_text(encoding="utf-8")
-    start = text.index("_pr92Schema7AtomicAttachmentSubmitExpression = function")
+    start = text.index("function _pr92Schema21ValidatedClickBoundaryArm")
     end = text.index("function _pr92Schema21AugmentSupportResult", start)
     block = text[start:end]
-    assert "_pr92Schema20PriorAtomicAttachmentSubmitExpression(" in block
+    assert "_pr92Schema7BaseAtomicAttachmentSubmitExpression(" in block
     assert "_pr92Schema20PageSideArmProtectedSubmit" not in block
     assert "PR92_SCHEMA21_CLICK_NEEDLE" in block
     assert "firstClick < 0 || secondClick >= 0" in block
@@ -34,7 +34,7 @@ def test_schema_21_bypasses_schema_20_early_marker_wrapper():
 
 def test_schema_21_marker_is_inserted_immediately_before_atomic_click():
     text = SCHEMA21.read_text(encoding="utf-8")
-    start = text.index("_pr92Schema7AtomicAttachmentSubmitExpression = function")
+    start = text.index("function _pr92Schema21ValidatedClickBoundaryArm")
     end = text.index("function _pr92Schema21AugmentSupportResult", start)
     block = text[start:end]
     marker = "try { console.debug(${encodedMarker}); } catch {}"
@@ -48,7 +48,7 @@ def test_schema_21_marker_is_inserted_immediately_before_atomic_click():
     click = "button.click();"
     assert schema7.index(
         validation,
-        schema7.index("function _pr92Schema7AtomicAttachmentSubmitExpression"),
+        schema7.index("function _pr92Schema7BaseAtomicAttachmentSubmitExpression"),
     ) < schema7.index(click)
 
 
@@ -59,7 +59,8 @@ def test_schema_21_has_no_prevalidation_marker_path():
     assert '"AFTER_ALL_VALIDATION_IMMEDIATELY_BEFORE_BUTTON_CLICK"' in text
 
     schema20 = SCHEMA20.read_text(encoding="utf-8")
-    assert "const _pr92Schema20PriorAtomicAttachmentSubmitExpression" in schema20
+    assert "function _pr92Schema20PageSideArmProtectedSubmit" in schema20
+    assert "_pr92Schema20PriorAtomicAttachmentSubmitExpression" not in schema20
 
 
 def test_schema_21_gate_preserves_schema_20_and_requires_boundary_fields():
