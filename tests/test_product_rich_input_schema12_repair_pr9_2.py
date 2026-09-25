@@ -45,16 +45,11 @@ def test_schema_12_preserves_clean_staging_and_latest_page_owned_evidence():
 
 def test_schema_12_bounds_the_complete_send_readiness_helper():
     text = SCHEMA12.read_text(encoding="utf-8")
-    assert (
-        "const _pr92Schema12PriorWaitForSendButtonPoint = waitForSendButtonPoint;"
-        in text
-    )
-    assert (
-        "waitForSendButtonPoint = async function _pr92Schema12DeadlineBoundedSendReadiness("
-        in text
-    )
+    assert "_pr92Schema12PriorWaitForSendButtonPoint" not in text
+    assert "async function _pr92Schema12DeadlineBoundedSendReadiness(" in text
+    assert "waitForSendButtonPoint =" not in text
     assert '"SCHEMA12_SEND_READINESS_WAIT"' in text
-    assert "() => _pr92Schema12PriorWaitForSendButtonPoint(debuggee, timeoutMs)" in text
+    assert text.count("_cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs)") == 2
     assert "sendReadinessWaitDeadlineBounded: true" in text
 
 
