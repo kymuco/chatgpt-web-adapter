@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -27,7 +27,7 @@ def _run_node_fixture(message_expressions: list[str]) -> list[dict[str, object]]
     if node is None:
         pytest.skip("Node.js is required for browser-extension behavior fixtures")
 
-    harness = r'''
+    harness = r"""
 const fs = require("fs");
 const vm = require("vm");
 const source = fs.readFileSync(process.argv[1], "utf8");
@@ -44,7 +44,7 @@ for (const message of messages) {
   vm.runInContext(`_pr93InspectMessage(__ctx, {}, __message);`, context);
 }
 process.stdout.write(JSON.stringify(events));
-'''
+"""
     messages = [json.loads(expression) for expression in message_expressions]
     completed = subprocess.run(
         [node, "-e", harness, str(SOURCE_JS), json.dumps(messages)],
@@ -55,7 +55,9 @@ process.stdout.write(JSON.stringify(events));
     return json.loads(completed.stdout)
 
 
-def test_pr93_overlay_is_loaded_after_schema29_without_changing_manifest_entrypoint() -> None:
+def test_pr93_overlay_is_loaded_after_schema29_without_changing_manifest_entrypoint() -> (
+    None
+):
     schema_loader = SCHEMA7_LOADER.read_text(encoding="utf-8")
     read = READ.read_text(encoding="utf-8")
     runtime = RUNTIME.read_text(encoding="utf-8")
@@ -65,9 +67,9 @@ def test_pr93_overlay_is_loaded_after_schema29_without_changing_manifest_entrypo
 
     assert schema29 in schema_loader
     assert pr93 in read
-    assert runtime.index('importScripts("service_worker_runtime_write.js");') < runtime.index(
-        'importScripts("service_worker_runtime_read.js");'
-    )
+    assert runtime.index(
+        'importScripts("service_worker_runtime_write.js");'
+    ) < runtime.index('importScripts("service_worker_runtime_read.js");')
     assert manifest["version"] == "0.1.13"
     assert manifest["background"]["service_worker"] == (
         "service_worker_temporary_chat_route_reopen_probe.js"
@@ -103,7 +105,9 @@ def test_pr93_source_citation_overlay_exports_only_bounded_provenance_fields() -
         assert forbidden not in source
 
 
-def test_current_content_references_emit_sources_and_inline_relations_but_not_footnote_citations() -> None:
+def test_current_content_references_emit_sources_and_inline_relations_but_not_footnote_citations() -> (
+    None
+):
     events = _run_node_fixture(
         [
             json.dumps(
@@ -146,7 +150,9 @@ def test_current_content_references_emit_sources_and_inline_relations_but_not_fo
         ]
     )
     sources = [event for event in events if event["type"] == "product_source_observed"]
-    citations = [event for event in events if event["type"] == "product_citation_observed"]
+    citations = [
+        event for event in events if event["type"] == "product_citation_observed"
+    ]
 
     assert [event["url"] for event in sources] == [
         "https://example.com/a",
@@ -166,7 +172,9 @@ def test_current_content_references_emit_sources_and_inline_relations_but_not_fo
     assert "private-fragment" not in serialized
 
 
-def test_incomplete_stream_reference_is_source_only_until_complete_range_arrives_once() -> None:
+def test_incomplete_stream_reference_is_source_only_until_complete_range_arrives_once() -> (
+    None
+):
     incomplete = json.dumps(
         {
             "id": "assistant-stream",
@@ -232,7 +240,9 @@ def test_reversed_reference_range_never_enters_raw_turn_event_stream() -> None:
     assert [event["type"] for event in events] == ["product_source_observed"]
 
 
-def test_legacy_citation_emits_relation_without_exporting_evidence_or_metadata_text() -> None:
+def test_legacy_citation_emits_relation_without_exporting_evidence_or_metadata_text() -> (
+    None
+):
     events = _run_node_fixture(
         [
             json.dumps(
@@ -272,14 +282,18 @@ def test_legacy_citation_emits_relation_without_exporting_evidence_or_metadata_t
     assert "RAW_SOURCE_TEXT" not in serialized
     assert "RAW_METADATA_TEXT" not in serialized
 
-    citations = [event for event in events if event["type"] == "product_citation_observed"]
+    citations = [
+        event for event in events if event["type"] == "product_citation_observed"
+    ]
     assert len(citations) == 1
     assert citations[0]["start_index"] == 30
     assert citations[0]["end_index"] == 35
     assert citations[0]["reference_type"] == "tether_og"
 
 
-def test_tether_quote_is_source_evidence_only_and_credential_urls_are_not_exported() -> None:
+def test_tether_quote_is_source_evidence_only_and_credential_urls_are_not_exported() -> (
+    None
+):
     events = _run_node_fixture(
         [
             json.dumps(
@@ -306,7 +320,10 @@ def test_tether_quote_is_source_evidence_only_and_credential_urls_are_not_export
                                 "start_idx": 1,
                                 "end_idx": 2,
                                 "items": [
-                                    {"title": "Hidden", "url": "https://hidden.example/"}
+                                    {
+                                        "title": "Hidden",
+                                        "url": "https://hidden.example/",
+                                    }
                                 ],
                             }
                         ],
@@ -356,7 +373,9 @@ def test_tether_quote_is_source_evidence_only_and_credential_urls_are_not_export
     assert "secret" not in serialized
 
 
-def test_repeated_complete_stream_message_processing_deduplicates_source_and_citation_events() -> None:
+def test_repeated_complete_stream_message_processing_deduplicates_source_and_citation_events() -> (
+    None
+):
     message = json.dumps(
         {
             "id": "assistant-repeat",
@@ -420,16 +439,21 @@ def test_collector_preserves_safe_source_and_citation_relationship_fields() -> N
     assert citation.reference_type == "webpage"
 
 
-def test_collector_drops_missing_or_malformed_citation_ranges_without_affecting_source_evidence() -> None:
+def test_collector_drops_missing_or_malformed_citation_ranges_without_affecting_source_evidence() -> (
+    None
+):
     collector = ProductObservationCollector()
-    assert collector.consume(
-        {
-            "type": "product_source_observed",
-            "observation_id": "source-observation:s1",
-            "source_id": "s1",
-            "url": "https://example.com/a",
-        }
-    ) is not None
+    assert (
+        collector.consume(
+            {
+                "type": "product_source_observed",
+                "observation_id": "source-observation:s1",
+                "source_id": "s1",
+                "url": "https://example.com/a",
+            }
+        )
+        is not None
+    )
 
     for citation in (
         {

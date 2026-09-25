@@ -53,7 +53,9 @@ def test_message_inspection_has_one_public_owner() -> None:
 def test_public_owner_preserves_historical_side_effect_order() -> None:
     owner = _source(OWNER)
     base = owner.index("_pr812BaseInspectMessage(context, state, message)")
-    product = owner.index("_pr10ProductObservationInspectMessage(context, state, message)")
+    product = owner.index(
+        "_pr10ProductObservationInspectMessage(context, state, message)"
+    )
     sources = owner.index("_pr93InspectMessage(context, state, message)")
     assert base < product < sources
 
