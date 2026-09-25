@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -22,7 +22,7 @@ def _observe_message(message: dict[str, object]) -> list[dict[str, object]]:
     if node is None:
         pytest.skip("Node.js is required for browser-extension source fixtures")
 
-    harness = r'''
+    harness = r"""
 const fs = require("fs");
 const vm = require("vm");
 const source = fs.readFileSync(process.argv[1], "utf8");
@@ -31,13 +31,12 @@ const events = [];
 const sandbox = { URL, WeakMap, Map, Set, console, __events: events, __ctx: {}, __message: message };
 const context = vm.createContext(sandbox);
 vm.runInContext(`
-var _pr812InspectMessage = function(context, state, message) {};
 var _pr812Emit = function(context, event) { __events.push(event); };
 `, context);
 vm.runInContext(source, context);
-vm.runInContext(`_pr812InspectMessage(__ctx, {}, __message);`, context);
+vm.runInContext(`_pr93InspectMessage(__ctx, {}, __message);`, context);
 process.stdout.write(JSON.stringify(events));
-'''
+"""
     completed = subprocess.run(
         [node, "-e", harness, str(SOURCE_JS), json.dumps(message)],
         check=True,

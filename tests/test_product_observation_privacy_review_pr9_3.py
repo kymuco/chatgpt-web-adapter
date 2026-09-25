@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -24,7 +24,7 @@ def _observe_message(message: dict[str, object]) -> list[dict[str, object]]:
     if node is None:
         pytest.skip("Node.js is required for browser-extension privacy fixtures")
 
-    harness = r'''
+    harness = r"""
 const fs = require("fs");
 const vm = require("vm");
 const source = fs.readFileSync(process.argv[1], "utf8");
@@ -33,13 +33,12 @@ const events = [];
 const sandbox = { URL, WeakMap, Map, Set, console, __events: events, __ctx: {}, __message: message };
 const context = vm.createContext(sandbox);
 vm.runInContext(`
-var _pr812InspectMessage = function(context, state, message) {};
 var _pr812Emit = function(context, event) { __events.push(event); };
 `, context);
 vm.runInContext(source, context);
-vm.runInContext(`_pr812InspectMessage(__ctx, {}, __message);`, context);
+vm.runInContext(`_pr93InspectMessage(__ctx, {}, __message);`, context);
 process.stdout.write(JSON.stringify(events));
-'''
+"""
     completed = subprocess.run(
         [node, "-e", harness, str(SOURCE_JS), json.dumps(message)],
         check=True,
@@ -76,7 +75,13 @@ def test_browser_overlay_trims_private_content_type_before_source_scan() -> None
 
 
 def test_browser_overlay_rejects_compound_oauth_credential_query_keys() -> None:
-    for key in ("client_secret", "refresh_token", "id_token", "client_assertion", "code_verifier"):
+    for key in (
+        "client_secret",
+        "refresh_token",
+        "id_token",
+        "client_assertion",
+        "code_verifier",
+    ):
         events = _observe_message(
             {
                 "id": f"credential-{key}",
@@ -93,16 +98,25 @@ def test_browser_overlay_rejects_compound_oauth_credential_query_keys() -> None:
 
 def test_python_collector_rejects_compound_oauth_credential_query_keys() -> None:
     collector = ProductObservationCollector()
-    keys = ("client_secret", "refresh_token", "id_token", "client_assertion", "code_verifier")
+    keys = (
+        "client_secret",
+        "refresh_token",
+        "id_token",
+        "client_assertion",
+        "code_verifier",
+    )
     for index, key in enumerate(keys):
-        assert collector.consume(
-            {
-                "type": "product_source_observed",
-                "observation_id": f"source-observation:{index}",
-                "source_id": f"source:{index}",
-                "url": f"https://example.test/source?{key}=PRIVATE",
-            }
-        ) is None
+        assert (
+            collector.consume(
+                {
+                    "type": "product_source_observed",
+                    "observation_id": f"source-observation:{index}",
+                    "source_id": f"source:{index}",
+                    "url": f"https://example.test/source?{key}=PRIVATE",
+                }
+            )
+            is None
+        )
     assert collector.observations == ()
     assert collector.dropped_event_count == len(keys)
 
@@ -110,14 +124,17 @@ def test_python_collector_rejects_compound_oauth_credential_query_keys() -> None
 def test_python_activity_privacy_check_trims_and_casefolds_content_type() -> None:
     collector = ProductObservationCollector()
     for index, content_type in enumerate((" thoughts ", "Thoughts", " THOUGHTS ")):
-        assert collector.consume(
-            {
-                "type": "activity_text_snapshot",
-                "activity_id": f"thinking:private:{index}",
-                "activity_kind": "reasoning",
-                "source_content_type": content_type,
-                "text": "private text",
-            }
-        ) is None
+        assert (
+            collector.consume(
+                {
+                    "type": "activity_text_snapshot",
+                    "activity_id": f"thinking:private:{index}",
+                    "activity_kind": "reasoning",
+                    "source_content_type": content_type,
+                    "text": "private text",
+                }
+            )
+            is None
+        )
     assert collector.observations == ()
     assert collector.dropped_event_count == 3

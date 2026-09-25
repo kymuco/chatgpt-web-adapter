@@ -229,7 +229,8 @@ def test_canonical_session_auth_is_one_evaluation_and_never_exports_token() -> N
     assert "currentAccessToken = null;" in source
     assert "globalThis.fetch =" not in source
 
-    assert _source(READ_DOMAIN).count("importScripts(") == 2
+    assert _source(READ_DOMAIN).count("importScripts(") == 3
+    assert "service_worker_message_inspection.js" in read_domain
     assert "service_worker_canonical_read_session_auth.js" not in read_domain
     assert not SESSION_AUTH_OVERLAY.exists()
 

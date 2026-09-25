@@ -77,3 +77,11 @@ Each optional observation remains isolated by its own fail-open `try/catch`.
 - release build and installed-wheel smoke pass.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.34 later lifts the final public `_pr812InspectMessage` installation into the
+explicit cross-layer message-inspection owner. PR15.22 remains the owner of the
+connector/router/artifact observation stage itself, but no longer installs the
+shared public inspector name.

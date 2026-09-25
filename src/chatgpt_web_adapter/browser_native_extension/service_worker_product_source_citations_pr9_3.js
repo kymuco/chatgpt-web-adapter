@@ -21,7 +21,6 @@ const PR93_SENSITIVE_QUERY_KEYS = new Set([
   "session", "session_id", "sessionid", "code"
 ]);
 
-const _pr93PriorInspectMessage = _pr812InspectMessage;
 const _pr93StateByStreamContext = new WeakMap();
 
 function _pr93State(context) {
@@ -272,9 +271,7 @@ function _pr93InspectTetherQuote(context, state, content) {
   _pr93EnsureSource(context, state, candidate, "tether_quote");
 }
 
-_pr812InspectMessage = function _pr812InspectMessageWithStructuredSources(context, priorState, message) {
-  _pr93PriorInspectMessage(context, priorState, message);
-
+function _pr93InspectMessage(context, priorState, message) {
   if (!message || typeof message !== "object") return;
   if (message?.metadata?.is_visually_hidden_from_conversation === true) return;
 
@@ -289,4 +286,4 @@ _pr812InspectMessage = function _pr812InspectMessageWithStructuredSources(contex
   _pr93InspectContentReferences(context, state, messageId, metadata);
   _pr93InspectLegacyCitations(context, state, messageId, metadata);
   _pr93InspectTetherQuote(context, state, content);
-};
+}

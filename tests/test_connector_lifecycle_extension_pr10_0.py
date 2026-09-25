@@ -94,9 +94,10 @@ def test_overlay_loads_after_single_pr812_response_owner() -> None:
     assert "function _pr812PatchApplyItem(" in owner_source
 
 
-def test_product_observation_owner_installs_pr812_inspection_once() -> None:
+def test_product_observation_stage_no_longer_installs_shared_pr812_owner() -> None:
     source = CONNECTOR_JS.read_text(encoding="utf-8")
-    assert source.count("_pr812InspectMessage =") == 1
+    assert "_pr812InspectMessage =" not in source
+    assert "_pr10ProductObservationUpstreamInspectMessage" not in source
     assert "_pr100PriorInspectMessage" not in source
     assert "_pr100RouterPriorInspectMessage" not in source
     assert "_pr101PriorInspectMessage" not in source
