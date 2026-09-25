@@ -2,7 +2,6 @@ importScripts("service_worker.js");
 
 const HOTFIX_SUBMIT_ACK_MS = 1_500;
 const HOTFIX_FINAL_ACK_MS = 2_500;
-const _originalCoreSendCommand = sendCommand;
 const _submitStateByTabId = new Map();
 
 function _isConversationWrite(url, method) {
@@ -89,7 +88,7 @@ function _sendButtonExpression(action) {
 }
 
 async function _focusSendButton(debuggee) {
-  const result = await _originalCoreSendCommand(debuggee, "Runtime.evaluate", {
+  const result = await _cwaBaseSendCommand(debuggee, "Runtime.evaluate", {
     expression: _sendButtonExpression("focus"),
     returnByValue: true,
     awaitPromise: true
@@ -98,7 +97,7 @@ async function _focusSendButton(debuggee) {
 }
 
 async function _pageActivateSendButton(debuggee) {
-  const result = await _originalCoreSendCommand(debuggee, "Runtime.evaluate", {
+  const result = await _cwaBaseSendCommand(debuggee, "Runtime.evaluate", {
     expression: _sendButtonExpression("click"),
     returnByValue: true,
     awaitPromise: true
@@ -113,12 +112,12 @@ async function _pressFocusedButton(debuggee, key, code, virtualKeyCode, text = u
     windowsVirtualKeyCode: virtualKeyCode,
     nativeVirtualKeyCode: virtualKeyCode
   };
-  await _originalCoreSendCommand(debuggee, "Input.dispatchKeyEvent", {
+  await _cwaBaseSendCommand(debuggee, "Input.dispatchKeyEvent", {
     type: "keyDown",
     ...base,
     ...(text ? { text, unmodifiedText: text } : {})
   });
-  await _originalCoreSendCommand(debuggee, "Input.dispatchKeyEvent", {
+  await _cwaBaseSendCommand(debuggee, "Input.dispatchKeyEvent", {
     type: "keyUp",
     ...base
   });
@@ -162,21 +161,21 @@ async function _runSubmitFallbackLadder(debuggee) {
   return null;
 }
 
-async function _patchedCoreSendCommand(debuggee, method, params = undefined) {
+async function _cwaHotfixSendCommand(debuggee, method, params = undefined) {
   if (method !== "Input.dispatchMouseEvent" || !Number.isInteger(debuggee?.tabId)) {
-    return _originalCoreSendCommand(debuggee, method, params);
+    return _cwaBaseSendCommand(debuggee, method, params);
   }
 
   if (params?.type === "mousePressed" && params?.button === "left") {
     _newSubmitState(debuggee.tabId);
-    return _originalCoreSendCommand(debuggee, method, {
+    return _cwaBaseSendCommand(debuggee, method, {
       ...params,
       buttons: 1
     });
   }
 
   if (params?.type === "mouseReleased" && params?.button === "left") {
-    const result = await _originalCoreSendCommand(debuggee, method, {
+    const result = await _cwaBaseSendCommand(debuggee, method, {
       ...params,
       buttons: 0
     });
@@ -188,7 +187,6 @@ async function _patchedCoreSendCommand(debuggee, method, params = undefined) {
     return result;
   }
 
-  return _originalCoreSendCommand(debuggee, method, params);
+  return _cwaBaseSendCommand(debuggee, method, params);
 }
 
-sendCommand = _patchedCoreSendCommand;

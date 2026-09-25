@@ -161,7 +161,7 @@ function _cwaBaseExtractSafeStreamMetadata(body, base64Encoded) {
   return result;
 }
 
-async function sendCommand(debuggee, method, params = undefined) {
+async function _cwaBaseSendCommand(debuggee, method, params = undefined) {
   return chrome.debugger.sendCommand(debuggee, method, params);
 }
 
