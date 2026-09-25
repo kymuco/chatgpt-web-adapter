@@ -88,3 +88,10 @@ Recommended order:
 3. final static no-reassignment closure gate.
 
 Tracking: #107
+
+
+## Follow-up ownership note
+
+PR15.48 later consolidates `_pr92Schema17OptionalPostWrite` into one explicit
+owner while preserving schema18's identity reserve and schema19's request-bound
+causal response-body specialization.

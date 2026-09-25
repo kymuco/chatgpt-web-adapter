@@ -23,7 +23,9 @@ def test_schema_18_overlay_is_loaded_after_schema_17():
 def test_schema_18_optional_postwrite_work_preserves_dedicated_identity_reserve():
     text = SCHEMA18.read_text(encoding="utf-8")
     assert "const PR92_SCHEMA18_IDENTITY_RESERVE_MS = 2_500;" in text
-    start = text.index("_pr92Schema17OptionalPostWrite = async function")
+    start = text.index(
+        "async function _pr92Schema18OptionalPostWriteWithIdentityReserve"
+    )
     end = text.index("function _pr92Schema18ConversationIdentityFromUrl", start)
     block = text[start:end]
     assert "remaining - PR92_SCHEMA18_IDENTITY_RESERVE_MS" in block

@@ -34,7 +34,7 @@ def test_schema_19_turn_context_records_new_chat_vs_continuation_identity():
 def test_schema_19_causal_identity_is_captured_only_from_safe_stream_metadata():
     text = SCHEMA19.read_text(encoding="utf-8")
     start = text.index("function _pr92Schema19ExtractRequestBoundStreamMetadata")
-    end = text.index("_pr92Schema17OptionalPostWrite = async function", start)
+    end = text.index("async function _pr92Schema19OptionalPostWrite", start)
     block = text[start:end]
     assert "const metadata = next(body, base64Encoded);" in block
     assert "PriorExtractSafeStreamMetadata" not in block
@@ -64,7 +64,7 @@ def test_schema_19_causal_stream_metadata_is_bound_to_exact_completed_request_id
         "function _pr92Schema19ExtractRequestBoundStreamMetadata"
     )
     capture_end = schema19.index(
-        "_pr92Schema17OptionalPostWrite = async function", capture_start
+        "async function _pr92Schema19OptionalPostWrite", capture_start
     )
     capture_block = schema19[capture_start:capture_end]
     assert (
@@ -77,7 +77,7 @@ def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
     text = SCHEMA19.read_text(encoding="utf-8")
     assert "const PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS = 2_000;" in text
     assert "const PR92_SCHEMA19_RPC_RETURN_RESERVE_MS = 500;" in text
-    start = text.index("_pr92Schema17OptionalPostWrite = async function")
+    start = text.index("async function _pr92Schema19OptionalPostWrite")
     end = text.index(
         "async function _pr92Schema19ExecuteOfficialPageTurnWithRequestBoundIdentity",
         start,
@@ -88,9 +88,7 @@ def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
     assert "remaining - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS" in block
     assert "context.deadlineAt - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS" in block
     assert "PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS" in block
-    assert (
-        "_pr92Schema19PriorOptionalPostWrite(context, stage, operation, capMs)" in block
-    )
+    assert "_pr92Schema18OptionalPostWriteWithIdentityReserve(" in block
 
 
 def test_schema_19_new_chat_bypasses_schema_18_route_identity_fallback():

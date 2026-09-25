@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -68,7 +67,10 @@ def test_schema_17_composer_mutation_setup_is_outer_deadline_bounded_before_subm
         assert f'"{stage}"' in block
     assert "() => locateAndFocusComposer(debuggee)" in block
     assert "() => clearComposer(debuggee)" in block
-    assert '() => chrome.debugger.sendCommand(debuggee, "Input.insertText", { text })' in block
+    assert (
+        '() => chrome.debugger.sendCommand(debuggee, "Input.insertText", { text })'
+        in block
+    )
 
 
 def test_schema_17_postwrite_reads_are_optional_bounded_and_reserve_rpc_return_budget():
@@ -76,8 +78,10 @@ def test_schema_17_postwrite_reads_are_optional_bounded_and_reserve_rpc_return_b
     assert "const PR92_SCHEMA17_OPTIONAL_POSTWRITE_CAP_MS = 1_000;" in text
     assert "const PR92_SCHEMA17_RPC_RETURN_RESERVE_MS = 500;" in text
 
-    helper_start = text.index("async function _pr92Schema17OptionalPostWrite")
-    helper_end = text.index("async function _pr92Schema17ExecuteOfficialPageTurn", helper_start)
+    helper_start = text.index("async function _pr92Schema17BaseOptionalPostWrite")
+    helper_end = text.index(
+        "async function _pr92Schema17ExecuteOfficialPageTurn", helper_start
+    )
     helper = text[helper_start:helper_end]
     assert "remaining - PR92_SCHEMA17_RPC_RETURN_RESERVE_MS" in helper
     assert "context.deadlineAt - PR92_SCHEMA17_RPC_RETURN_RESERVE_MS" in helper
@@ -85,7 +89,9 @@ def test_schema_17_postwrite_reads_are_optional_bounded_and_reserve_rpc_return_b
     assert "return { ok: false, value: null };" in helper
 
     start = text.index("const requestId = await _pr92Schema17RunUntil")
-    end = text.index("const urlConversationId = conversationIdFromUrl(latestUrl);", start)
+    end = text.index(
+        "const urlConversationId = conversationIdFromUrl(latestUrl);", start
+    )
     block = text[start:end]
     required_stages = [
         "SCHEMA17_POSTWRITE_RESPONSE_BODY",
@@ -96,10 +102,16 @@ def test_schema_17_postwrite_reads_are_optional_bounded_and_reserve_rpc_return_b
         assert f'"{stage}"' in block
     assert "_pr92Schema17OptionalPostWrite(" in block
     assert "await Promise.all([" in block
-    assert '() => chrome.debugger.sendCommand(debuggee, "Network.getResponseBody", { requestId })' in block
+    assert (
+        '() => chrome.debugger.sendCommand(debuggee, "Network.getResponseBody", { requestId })'
+        in block
+    )
     assert "() => chrome.tabs.get(tabId)" in block
     assert "() => waitForComposerReady(debuggee, readinessBudget)" in block
-    assert 'await chrome.debugger.sendCommand(debuggee, "Network.getResponseBody"' not in block
+    assert (
+        'await chrome.debugger.sendCommand(debuggee, "Network.getResponseBody"'
+        not in block
+    )
     assert "await chrome.tabs.get(tabId)" not in block
     assert "await waitForComposerReady(" not in block
 
@@ -158,7 +170,10 @@ def test_schema_17_gate_preserves_schema_16_and_requires_new_closure_fields():
 
 def test_schema_17_support_probe_is_eleventh_no_write_characterization_rpc():
     text = GATE17.read_text(encoding="utf-8")
-    assert "This eleventh characterization-only RPC carries neither text nor paths." in text
+    assert (
+        "This eleventh characterization-only RPC carries neither text nor paths."
+        in text
+    )
     marker = '"characterizeRichInputSupport": True'
     assert marker in text
     start = text.index("request_id = str(uuid.uuid4())")
