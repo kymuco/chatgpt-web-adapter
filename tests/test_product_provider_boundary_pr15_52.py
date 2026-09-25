@@ -131,8 +131,7 @@ def test_chatgpt_runtime_declares_provider_identity() -> None:
     assert boundary.provider_id == "chatgpt"
     assert boundary.product_semantics == "ordinary-chatgpt"
     assert boundary.transport == "browser-owned"
-    assert boundary.canonical_interface is None
-    assert boundary.canonical_readback_required is False
+    assert boundary.canonical_interface == "CanonicalConversationClient"
     assert boundary.canonical_readback_required is True
 
 
@@ -142,7 +141,8 @@ def test_provider_boundary_accepts_non_chatgpt_semantics_without_special_case() 
     assert boundary.provider_id == "deepseek"
     assert boundary.product_semantics == "ordinary-deepseek"
     assert boundary.transport == "deepseek-web"
-    assert boundary.canonical_interface == "CanonicalConversationClient"
+    assert boundary.canonical_interface is None
+    assert boundary.canonical_readback_required is False
     assert boundary.write_transport_interface == "ProductWriteTransport"
     assert boundary.automatic_write_retry is False
     assert boundary.fallback_transport is None
