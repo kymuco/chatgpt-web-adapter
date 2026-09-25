@@ -75,9 +75,11 @@ def test_existing_consumers_use_shared_compatibility_without_changing_ownership(
     hardening = TEXT_HARDENING.read_text(encoding="utf-8")
     liveness = LIVENESS.read_text(encoding="utf-8")
 
-    assert "const state = await queryComposerReadiness(debuggee);" in base
-    assert "_pr117HistoricalQueryComposerReadiness = queryComposerReadiness" in compat
-    assert "queryComposerReadiness = _pr117QueryComposerReadiness;" in compat
+    assert "async function _cwaBaseQueryComposerReadiness(" in base
+    assert "_pr117HistoricalQueryComposerReadiness" not in compat
+    assert "await _cwaBaseQueryComposerReadiness(debuggee)" in compat
+    assert "async function queryComposerReadiness(debuggee)" in compat
+    assert "queryComposerReadiness =" not in compat
     assert "_pr117LocateAndFocusComposer" in hardening
     assert "_pr117WaitForSendButtonPoint" in hardening
     assert "_pr92ActiveRichInputContext" in hardening
@@ -110,7 +112,7 @@ const context = {
   DEFAULT_SUBMIT_READY_TIMEOUT_MS: 1000,
   elapsedMs: (startedAt) => now - startedAt,
   sleep: async (ms) => { now += ms; },
-  queryComposerReadiness: async () => {
+  _cwaBaseQueryComposerReadiness: async () => {
     log.push("historical_readiness");
     if (scenario === "historical_ready") return { ready: true, reason: "ready" };
     return { ready: false, reason: "composer_missing" };
