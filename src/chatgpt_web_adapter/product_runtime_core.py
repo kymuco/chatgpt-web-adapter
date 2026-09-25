@@ -9,7 +9,6 @@ from .auth import DEFAULT_AUTH_FILE
 from .client import DEFAULT_TIMEOUT_SECONDS, ChatGPTWebClient
 from .product_capabilities import ProductCapabilities
 from .product_media import browser_owned_media_scope
-from .product_provider import CHATGPT_PRODUCT_PROVIDER_ID
 from .product_provenance import (
     CompletionSource,
     ConversationMode,
@@ -21,6 +20,7 @@ from .product_provenance import (
     TemporaryLifecycleState,
     build_product_execution_provenance,
 )
+from .product_provider import CHATGPT_PRODUCT_PROVIDER_ID
 from .product_submission import ProductSubmissionAck
 from .product_transport import (
     BROWSER_OWNED_PRODUCT_TRANSPORT,
