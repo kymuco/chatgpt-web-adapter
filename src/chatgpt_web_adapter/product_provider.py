@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .product_capabilities import ProductCapabilities
@@ -40,7 +40,7 @@ class ProductProviderBoundary:
     fallback_transport: str | None
     ambiguous_write_requires_reconciliation: bool
     incremental_observation_is_canonical_finality: bool
-    schema: int = PRODUCT_PROVIDER_BOUNDARY_SCHEMA
+    schema: int = field(init=False, default=PRODUCT_PROVIDER_BOUNDARY_SCHEMA)
 
     def __post_init__(self) -> None:
         object.__setattr__(
