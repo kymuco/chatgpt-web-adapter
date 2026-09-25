@@ -12,6 +12,7 @@ from .artifact_manifest import (
     artifact_file_entry,
     build_artifact_manifest,
     write_artifact_manifest,
+    write_artifact_text,
 )
 from .types import ChatConversation, ChatMessage, ConversationRef
 
@@ -54,7 +55,9 @@ def _normalize_export_format(format: str) -> str:
     export_format = EXPORT_FORMAT_ALIASES.get(normalized)
     if export_format is None:
         supported = ", ".join(sorted(set(EXPORT_FORMAT_ALIASES.values())))
-        raise ValueError(f"unsupported export format: {format!r}; supported: {supported}")
+        raise ValueError(
+            f"unsupported export format: {format!r}; supported: {supported}"
+        )
     return export_format
 
 
@@ -66,8 +69,13 @@ def _normalize_export_name(name: str) -> str:
         raise ValueError("export name is required")
     if normalized in {".", ".."}:
         raise ValueError("export name must be a file-name component")
-    if any(character in _SAFE_NAME_FORBIDDEN or ord(character) < 32 for character in normalized):
-        raise ValueError("export name contains characters that are invalid in file names")
+    if any(
+        character in _SAFE_NAME_FORBIDDEN or ord(character) < 32
+        for character in normalized
+    ):
+        raise ValueError(
+            "export name contains characters that are invalid in file names"
+        )
     return normalized
 
 
@@ -129,7 +137,9 @@ def _format_jsonl(messages: list[ChatMessage]) -> str:
     )
 
 
-def render_conversation_export(messages: list[ChatMessage], *, format: str = "markdown") -> str:
+def render_conversation_export(
+    messages: list[ChatMessage], *, format: str = "markdown"
+) -> str:
     export_format = _normalize_export_format(format)
     if export_format == "markdown":
         return _format_markdown(messages)
@@ -173,18 +183,24 @@ def write_conversation_export(
         normalized_index = _next_export_index(directory, normalized_name)
 
     extension = EXPORT_EXTENSIONS[export_format]
-    export_path = directory / f"{normalized_name}_chat_export_{normalized_index}.{extension}"
-    manifest_path = directory / f"{normalized_name}_chat_export_{normalized_index}.manifest.json"
+    export_path = (
+        directory / f"{normalized_name}_chat_export_{normalized_index}.{extension}"
+    )
+    manifest_path = (
+        directory / f"{normalized_name}_chat_export_{normalized_index}.manifest.json"
+    )
 
     if export_path.exists():
         raise FileExistsError(f"conversation export already exists: {export_path}")
     if manifest_path.exists():
-        raise FileExistsError(f"conversation export manifest already exists: {manifest_path}")
+        raise FileExistsError(
+            f"conversation export manifest already exists: {manifest_path}"
+        )
 
     ref = ConversationRef.from_any(conversation)
     messages = list(client.get_messages(ref, limit=None, include_empty=True))
     export_text = render_conversation_export(messages, format=export_format)
-    export_path.write_text(export_text, encoding="utf-8", newline="\n")
+    write_artifact_text(export_path, export_text, encoding="utf-8", newline="\n")
 
     manifest = build_artifact_manifest(
         artifact_kind=EXPORT_ARTIFACT_KIND,
