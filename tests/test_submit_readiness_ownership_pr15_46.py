@@ -50,7 +50,9 @@ def test_schema12_readiness_delegates_to_immutable_base() -> None:
     assert "_pr92Schema7RunUntil(" in block
 
 
-def test_write_domain_installs_owner_after_schema_helpers_before_context_owner() -> None:
+def test_write_domain_installs_owner_after_schema_helpers_before_context_owner() -> (
+    None
+):
     write = _source(WRITE)
     schemas = 'importScripts("service_worker_rich_input_schema7_repair_pr9_2.js");'
     owner = 'importScripts("service_worker_submit_readiness.js");'
