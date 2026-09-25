@@ -91,7 +91,7 @@ function _pr92BaseAttachmentEvidenceExpression(expectedNames) {
   })()`;
 }
 
-async function _pr92ClosureReadPageOwnedAttachmentEvidence(
+async function _pr92ClosureBaseReadPageOwnedAttachmentEvidence(
   debuggee,
   expectedNames,
   context
