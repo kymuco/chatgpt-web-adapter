@@ -58,7 +58,7 @@ async function _pr92Schema17RunUntil(context, stage, operation) {
   return _pr92Schema7RunUntil(context.deadlineAt, stage, operation);
 }
 
-async function _pr92Schema17OptionalPostWrite(
+async function _pr92Schema17BaseOptionalPostWrite(
   context,
   stage,
   operation,
