@@ -41,3 +41,28 @@ def test_pr811_recovery_worker_is_packaged() -> None:
     assert "canonicalCompletedAtMs" in recovery
     assert "runtimeReloaded" in recovery
     assert "runtimeReloadMs" in recovery
+
+
+def test_recovery_exports_base_helpers_and_keeps_final_owner_handoff_dynamic() -> None:
+    root = browser_native_extension_dir()
+    recovery = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
+
+    assert "async function _pr811BaseReloadRuntimeTabAndWait(" in recovery
+    assert "async function _pr811BaseMaybeRecoverStaleRuntimeUi(" in recovery
+    assert "async function _pr811ReloadRuntimeTabAndWait(" not in recovery
+    assert "async function _pr811MaybeRecoverStaleRuntimeUi(" not in recovery
+
+    base_recovery = recovery[
+        recovery.index(
+            "async function _pr811BaseMaybeRecoverStaleRuntimeUi("
+        ) : recovery.index(
+            "async function _executeOfficialPageTurnWithEarlyTerminalBoundary",
+            recovery.index("async function _pr811BaseMaybeRecoverStaleRuntimeUi("),
+        )
+    ]
+    assert "_pr811ReloadRuntimeTabAndWait(tab.id, conversationId)" in base_recovery
+
+    native_layer = recovery[
+        recovery.index("async function _executeNativeTurnWithStaleUiRecovery(") :
+    ]
+    assert "await _pr811MaybeRecoverStaleRuntimeUi(message)" in native_layer

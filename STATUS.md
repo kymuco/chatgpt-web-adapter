@@ -175,7 +175,8 @@ PR15 Architecture Reset
 → PR15.40 consolidate native-bridge connection ownership + closure inventory [merged]
 → PR15.41 consolidate request-inspection ownership [merged]
 → PR15.42 consolidate runtime lifecycle ownership [merged]
-→ PR15.43 consolidate runtime-tab-id ownership [active]
+→ PR15.43 consolidate runtime-tab-id ownership [merged]
+→ PR15.44 consolidate recovery/deadline ownership [active]
 → continue confirmed remaining ownership consolidation
 → add final static closure gate
 → then delete remaining displaced historical production composition

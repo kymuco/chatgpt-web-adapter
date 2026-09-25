@@ -8,19 +8,6 @@
 // chain. The official page therefore remains responsible for upload semantics,
 // Sentinel/proof handling, request construction, and the protected write.
 
-const _pr92PriorMaybeRecoverStaleRuntimeUi = (
-  typeof _pr811MaybeRecoverStaleRuntimeUi === "function"
-    ? _pr811MaybeRecoverStaleRuntimeUi
-    : null
-);
-const _pr92PriorReloadRuntimeTabAndWait = (
-  typeof _pr811ReloadRuntimeTabAndWait === "function"
-    ? _pr811ReloadRuntimeTabAndWait
-    : null
-);
-const _pr92PriorWaitForTabComplete = (
-  typeof waitForTabComplete === "function" ? waitForTabComplete : null
-);
 const PR92_PAGE_TURN_BASE_AVAILABLE =
   typeof _pr813ExecuteOfficialPageTurnWithSessionIdentity === "function";
 const PR92_RICH_INPUT_SCHEMA = 1;
@@ -28,9 +15,9 @@ const PR92_MAX_ATTACHMENT_COUNT = 32;
 const PR92_DIRTY_ATTACHMENT_STORAGE_KEY = "pr92DirtyAttachmentFenceV1";
 const PR92_STALE_UI_RELOAD_TIMEOUT_CAP_MS = 45_000;
 const PR92_TOTAL_DEADLINE_HOOKS_AVAILABLE = Boolean(
-  _pr92PriorMaybeRecoverStaleRuntimeUi &&
-  _pr92PriorReloadRuntimeTabAndWait &&
-  _pr92PriorWaitForTabComplete &&
+  typeof _pr811BaseMaybeRecoverStaleRuntimeUi === "function" &&
+  typeof _pr811BaseReloadRuntimeTabAndWait === "function" &&
+  typeof _cwaBaseWaitForTabComplete === "function" &&
   PR92_PAGE_TURN_BASE_AVAILABLE
 );
 
@@ -102,20 +89,18 @@ async function _pr92BoundedSleep(context, requestedMs, stage) {
 // their own local timeouts. While a PR9.2 turn is active, cap those waits to the
 // single outer RPC deadline. Text-only turns outside this overlay context retain
 // the exact prior behavior.
-if (_pr92PriorWaitForTabComplete) {
-  waitForTabComplete = async function _pr92WaitForTabCompleteWithinTurn(
+async function _pr92WaitForTabCompleteWithinTurn(
+  tabId,
+  timeoutMs = 45_000
+) {
+  const context = _pr92ActiveTurnContext;
+  if (context === null) {
+    return _cwaBaseWaitForTabComplete(tabId, timeoutMs);
+  }
+  return _cwaBaseWaitForTabComplete(
     tabId,
-    timeoutMs = 45_000
-  ) {
-    const context = _pr92ActiveTurnContext;
-    if (context === null) {
-      return _pr92PriorWaitForTabComplete(tabId, timeoutMs);
-    }
-    return _pr92PriorWaitForTabComplete(
-      tabId,
-      _pr92CapTimeoutToTurn(context, timeoutMs, "TAB_LOAD")
-    );
-  };
+    _pr92CapTimeoutToTurn(context, timeoutMs, "TAB_LOAD")
+  );
 }
 
 async function _pr92ExecuteOfficialPageTurnWithinTurn(args, next) {
@@ -135,52 +120,50 @@ async function _pr92ExecuteOfficialPageTurnWithinTurn(args, next) {
 // reload under an active PR9.2 turn so recovery cannot consume a fresh timeout
 // before attachment staging. No retry is introduced and a timeout occurs before
 // attachment selection/write authority.
-if (_pr92PriorReloadRuntimeTabAndWait) {
-  _pr811ReloadRuntimeTabAndWait = async function _pr92ReloadRuntimeTabWithinTurn(
-    tabId,
-    expectedConversationId
-  ) {
-    const context = _pr92ActiveTurnContext;
-    if (context === null) {
-      return _pr92PriorReloadRuntimeTabAndWait(tabId, expectedConversationId);
-    }
+async function _pr92ReloadRuntimeTabWithinTurn(
+  tabId,
+  expectedConversationId
+) {
+  const context = _pr92ActiveTurnContext;
+  if (context === null) {
+    return _pr811BaseReloadRuntimeTabAndWait(tabId, expectedConversationId);
+  }
 
-    const startedAt = performance.now();
-    const reloadTimeoutMs = _pr92CapTimeoutToTurn(
-      context,
-      PR92_STALE_UI_RELOAD_TIMEOUT_CAP_MS,
-      "STALE_UI_RELOAD"
+  const startedAt = performance.now();
+  const reloadTimeoutMs = _pr92CapTimeoutToTurn(
+    context,
+    PR92_STALE_UI_RELOAD_TIMEOUT_CAP_MS,
+    "STALE_UI_RELOAD"
+  );
+  await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error = null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      if (error) reject(error);
+      else resolve();
+    };
+    const timer = setTimeout(
+      () => finish(new Error("CHATGPT_STALE_UI_RELOAD_TIMEOUT")),
+      reloadTimeoutMs
     );
-    await new Promise((resolve, reject) => {
-      let settled = false;
-      const finish = (error = null) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        chrome.tabs.onUpdated.removeListener(onUpdated);
-        if (error) reject(error);
-        else resolve();
-      };
-      const timer = setTimeout(
-        () => finish(new Error("CHATGPT_STALE_UI_RELOAD_TIMEOUT")),
-        reloadTimeoutMs
-      );
-      function onUpdated(updatedTabId, changeInfo) {
-        if (updatedTabId === tabId && changeInfo.status === "complete") finish();
-      }
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      chrome.tabs.reload(tabId).catch((error) => finish(error));
-    });
-
-    _pr92RemainingTurnMs(context, "STALE_UI_RELOAD_VERIFY");
-    const reloadedTab = await chrome.tabs.get(tabId);
-    _pr92RemainingTurnMs(context, "STALE_UI_RELOAD_VERIFY");
-    const conversationId = conversationIdFromUrl(reloadedTab.url || "");
-    if (conversationId !== expectedConversationId) {
-      throw new Error("CHATGPT_STALE_UI_RELOAD_CONVERSATION_MISMATCH");
+    function onUpdated(updatedTabId, changeInfo) {
+      if (updatedTabId === tabId && changeInfo.status === "complete") finish();
     }
-    return Math.round(performance.now() - startedAt);
-  };
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.reload(tabId).catch((error) => finish(error));
+  });
+
+  _pr92RemainingTurnMs(context, "STALE_UI_RELOAD_VERIFY");
+  const reloadedTab = await chrome.tabs.get(tabId);
+  _pr92RemainingTurnMs(context, "STALE_UI_RELOAD_VERIFY");
+  const conversationId = conversationIdFromUrl(reloadedTab.url || "");
+  if (conversationId !== expectedConversationId) {
+    throw new Error("CHATGPT_STALE_UI_RELOAD_CONVERSATION_MISMATCH");
+  }
+  return Math.round(performance.now() - startedAt);
 }
 
 async function _pr92ReadDirtyAttachmentFence() {
@@ -431,37 +414,35 @@ async function _pr92RequireCleanAttachmentState(context) {
 // the core page turn. Hook immediately after it rather than staging in the outer
 // executeNativeTurn wrapper. This preserves PR8.11 recovery semantics while the
 // active PR9.2 context makes recovery + staging + dispatch share one deadline.
-if (_pr92PriorMaybeRecoverStaleRuntimeUi) {
-  _pr811MaybeRecoverStaleRuntimeUi = async function _pr92RecoverThenStage(message) {
-    const recovery = await _pr92PriorMaybeRecoverStaleRuntimeUi(message);
-    const context = _pr92ActiveRichInputContext;
-    if (context === null) return recovery;
-    if (context.staged === true) {
-      throw new Error("PR9_2_ATTACHMENT_STAGE_REENTRANCY");
-    }
+async function _pr92RecoverThenStage(message) {
+  const recovery = await _pr811BaseMaybeRecoverStaleRuntimeUi(message);
+  const context = _pr92ActiveRichInputContext;
+  if (context === null) return recovery;
+  if (context.staged === true) {
+    throw new Error("PR9_2_ATTACHMENT_STAGE_REENTRANCY");
+  }
 
-    _pr92RemainingTurnMs(context, "POST_RECOVERY");
-    const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
-      ? message.conversationId.trim()
-      : null;
-    const tab = await ensureRuntimeTab(conversationId);
-    _pr92RemainingTurnMs(context, "POST_RECOVERY_TAB");
-    if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
+  _pr92RemainingTurnMs(context, "POST_RECOVERY");
+  const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
+    ? message.conversationId.trim()
+    : null;
+  const tab = await ensureRuntimeTab(conversationId);
+  _pr92RemainingTurnMs(context, "POST_RECOVERY_TAB");
+  if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
 
-    const count = await _pr92StageOfficialPageAttachments(
-      tab.id,
-      context.attachmentPaths,
-      context
-    );
-    context.staged = true;
-    context.stagedTabId = tab.id;
-    context.attachmentCount = count;
+  const count = await _pr92StageOfficialPageAttachments(
+    tab.id,
+    context.attachmentPaths,
+    context
+  );
+  context.staged = true;
+  context.stagedTabId = tab.id;
+  context.attachmentCount = count;
 
-    // The prior core worker snapshots message.timeoutMs only after this recovery
-    // hook returns. Hand it the remaining outer budget, not a fresh full turn.
-    message.timeoutMs = _pr92RemainingTurnMs(context, "PRE_DISPATCH");
-    return recovery;
-  };
+  // The prior core worker snapshots message.timeoutMs only after this recovery
+  // hook returns. Hand it the remaining outer budget, not a fresh full turn.
+  message.timeoutMs = _pr92RemainingTurnMs(context, "PRE_DISPATCH");
+  return recovery;
 }
 
 function _pr92RichInputBaseSupportResult(message) {
