@@ -88,9 +88,7 @@ def test_schema_19_new_chat_response_body_gets_causal_identity_budget():
     assert "remaining - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS" in block
     assert "context.deadlineAt - PR92_SCHEMA19_RPC_RETURN_RESERVE_MS" in block
     assert "PR92_SCHEMA19_CAUSAL_RESPONSE_BODY_CAP_MS" in block
-    assert (
-        "_pr92Schema18OptionalPostWriteWithIdentityReserve(" in block
-    )
+    assert "_pr92Schema18OptionalPostWriteWithIdentityReserve(" in block
 
 
 def test_schema_19_new_chat_bypasses_schema_18_route_identity_fallback():
