@@ -177,41 +177,28 @@ OpenAI API / Gemini API / DeepSeek API
 They may be useful integrations in another context, but should not be described as a
 drop-in replacement for CWA's ordinary-product semantics.
 
-## 6. CWA name direction
+## 6. Naming deliberately deferred
 
-The short name `CWA` has accumulated useful continuity:
+PR16.0 does **not** choose, propose or rank a future full project name.
 
-- CLI: `cwa`;
-- documentation shorthand;
-- repository history;
-- user familiarity;
-- extension/product identity.
+The existing shorthand `CWA` may continue to appear in current documentation because
+it is already used by the CLI, extension, repository history and existing users. That
+does not require deciding what those letters should mean after a future rename.
 
-The strongest candidate expansion after PR15 is:
+Naming is a separate product decision and should happen later, after the new
+positioning and documentation have had time to settle.
 
-> **CWA — Conversational Web Adapter**
+This pass therefore avoids:
 
-Why it fits:
+- inventing a new expansion for `CWA`;
+- renaming the repository;
+- renaming the PyPI distribution;
+- renaming the Python import package;
+- renaming the long-form CLI;
+- choosing between brand candidates.
 
-- keeps the existing short identity;
-- no longer names one provider;
-- still describes the web-product boundary rather than pretending to be a model/API
-  abstraction;
-- remains compatible with ChatGPT being the mature/default provider;
-- leaves room for DeepSeek, Gemini and future evidence-backed products;
-- does not imply agent orchestration or downstream authority.
+The immediate problem is documentation accuracy, not branding.
 
-This is a positioning candidate, not yet a package rename.
-
-Alternative directions considered:
-
-- **AI Product Runtime** — accurately names an architectural layer, but is too generic
-  and sounds more like a framework category than this project.
-- **AI Product Bridge** — understandable but less specific about the web-product
-  boundary and loses CWA continuity.
-- **Multi-AI Web Adapter** — over-emphasizes provider count and ages poorly.
-- **Web Product Runtime** — technically reasonable but weak as a recognizable project
-  identity.
 
 ## 7. No hard rename in PR16.0
 
@@ -235,28 +222,26 @@ Reasons:
 
 The project can change its narrative before changing its package identity.
 
-## 8. Rename trigger
+## 8. Future naming / rename decision
 
-A hard repository/distribution rename should be reconsidered only when at least one of
-the following is true:
+A future naming decision should be treated as a separate design pass after the
+provider-neutral public narrative is established.
 
-1. a non-ChatGPT provider is promoted beyond experimental support;
-2. a stable public provider selection/construction API exists because a real consumer
-   needs it;
-3. a new release is intentionally positioned as a multi-provider product-runtime
-   generation rather than a ChatGPT-first runtime with experimental providers;
-4. the old package name materially misleads external users more than migration would
-   cost.
+At that time, evaluate:
 
-Before a hard rename, separately verify:
-
-- GitHub repository-name collisions;
+- whether the project still needs a different full name at all;
+- whether `CWA` should remain the short identity;
+- GitHub repository-name availability;
 - PyPI distribution availability;
 - CLI collision risk;
 - documentation/search discoverability;
-- migration plan for existing `chatgpt_web_adapter` imports;
+- migration strategy for existing `chatgpt_web_adapter` imports;
 - whether the old PyPI project becomes a compatibility shim, deprecation package or
   frozen historical distribution.
+
+PR16.0 intentionally does not set a trigger, candidate or preferred outcome for that
+future decision.
+
 
 ## 9. Recommended public narrative
 
@@ -406,8 +391,8 @@ now
 → freeze technical architecture
 → adopt provider-neutral public narrative
 → keep current repository/package/import names
-→ use CWA as the primary short identity
-→ treat "Conversational Web Adapter" as the leading future expansion
+→ keep current naming unchanged
+→ defer all future naming decisions
 
 next
 → rewrite current README/docs around the frozen architecture
