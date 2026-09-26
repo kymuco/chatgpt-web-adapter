@@ -24,6 +24,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 class _FakeBridge:
     def __init__(self) -> None:
         self.requests: list[dict[str, object]] = []
+        self.rpc_options: list[dict[str, object]] = []
 
     def status(self) -> BrowserNativeBridgeStatus:
         return BrowserNativeBridgeStatus(
@@ -31,8 +32,9 @@ class _FakeBridge:
             extension_connected=True,
         )
 
-    def _rpc(self, payload, *, timeout, on_event=None):
+    def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
         self.requests.append(dict(payload))
+        self.rpc_options.append({"timeout": timeout, **kwargs})
         return {
             "protocol": 1,
             "type": "translate_text_result",
@@ -82,7 +84,11 @@ def test_google_translate_text_contract_has_no_conversation_identity() -> None:
     assert request["text"] == "hello"
     assert request["sourceLanguage"] == "en"
     assert request["targetLanguage"] == "es"
-    assert 0 < int(request["timeoutMs"]) < 30_000
+    assert request["timeoutMs"] == 1
+    [rpc_options] = bridge.rpc_options
+    assert rpc_options["delegated_timeout_ms_key"] == "timeoutMs"
+    assert rpc_options["delegated_response_margin"] == 1.0
+    assert rpc_options["timeout"] == 30.0
     assert "conversationId" not in request
     assert "providerId" not in request
 
@@ -110,7 +116,7 @@ def test_google_translate_language_validation_fails_before_bridge_write() -> Non
 
 def test_google_translate_bridge_response_loss_requires_reconciliation() -> None:
     class _LostBridge(_FakeBridge):
-        def _rpc(self, payload, *, timeout, on_event=None):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
             raise RequestError(
                 "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION: socket closed",
                 request_stage="browser_native_bridge",
@@ -131,7 +137,7 @@ def test_google_translate_bridge_response_loss_requires_reconciliation() -> None
 
 def test_google_translate_predelegation_bridge_failure_remains_ordinary() -> None:
     class _UnavailableBridge(_FakeBridge):
-        def _rpc(self, payload, *, timeout, on_event=None):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
             raise RequestError(
                 "BROWSER_NATIVE_BRIDGE_UNAVAILABLE: no running bridge",
                 request_stage="browser_native_bridge",
@@ -151,7 +157,7 @@ def test_google_translate_predelegation_bridge_failure_remains_ordinary() -> Non
 
 def test_google_translate_extension_timeout_after_forwarding_is_ambiguous() -> None:
     class _TimeoutBridge(_FakeBridge):
-        def _rpc(self, payload, *, timeout, on_event=None):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
             return {
                 "protocol": 1,
                 "type": "translate_text_result",
@@ -175,7 +181,7 @@ def test_google_translate_extension_timeout_after_forwarding_is_ambiguous() -> N
 
 def test_google_translate_page_outcome_ambiguity_requires_reconciliation() -> None:
     class _AmbiguousBridge(_FakeBridge):
-        def _rpc(self, payload, *, timeout, on_event=None):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
             return {
                 "protocol": 1,
                 "type": "translate_text_result",
@@ -295,6 +301,8 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert "RESULT_IDENTITY_UNRESOLVED" in worker
     assert "InputEvent('input'" in worker
     assert "_cwaGoogleTranslateWaitForClearedResult" in worker
+    assert "sourceMatchesRequested === true" in worker
+    assert "SOURCE_INPUT_MISMATCH" in worker
     assert "GOOGLE_TRANSLATE_PREWRITE_RESULT_NOT_CLEARED" in worker
     assert "GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_PAGE_READY" in worker
     assert "GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_INPUT" in worker
@@ -319,7 +327,7 @@ def test_google_translate_result_identity_collapses_only_containment_wrappers() 
         encoding="utf-8"
     )
     result_expression = worker.split(
-        "function _cwaGoogleTranslateResultExpression()", 1
+        "function _cwaGoogleTranslateResultExpression(requestedText)", 1
     )[1].split("function _cwaGoogleTranslateCharacterizationExpression()", 1)[0]
 
     assert "const leaves=primary.filter" in result_expression
@@ -383,6 +391,7 @@ def test_google_translate_characterization_is_read_only_and_temporary() -> None:
     assert "_cwaGoogleTranslateWriteSource(" not in characterization
     assert '"type": "characterize_translate_ping"' in script
     assert '"type": "characterize_translate_result"' in script
+    assert '"diagnostic_candidates"' in script
     assert "translate_text(" not in script
 
 
