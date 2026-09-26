@@ -153,6 +153,64 @@ function _cwaGoogleTranslateResultExpression() {
   "})()";
 }
 
+function _cwaGoogleTranslateCharacterizationExpression() {
+  return "(() => {" +
+    "const normalize=(value)=>String(value||'').replace(/\\s+/g,' ').trim();" +
+    "const visible=(element)=>{" +
+      "if(!(element instanceof Element))return false;" +
+      "const rect=element.getBoundingClientRect();" +
+      "const style=getComputedStyle(element);" +
+      "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
+    "};" +
+    "const nodes=Array.from(document.querySelectorAll('[jsname=\"W297wb\"],[jsname=\"jqKxS\"]')).filter((element)=>visible(element)&&!element.closest('textarea,[contenteditable=\"true\"]'));" +
+    "const index=new Map(nodes.map((node,i)=>[node,i]));" +
+    "const candidates=nodes.map((element,i)=>{" +
+      "const parent=element.parentElement;" +
+      "return {" +
+        "index:i," +
+        "tag:String(element.tagName||'').toLowerCase()," +
+        "jsname:element.getAttribute('jsname')," +
+        "lang:element.getAttribute('lang')," +
+        "role:element.getAttribute('role')," +
+        "text:normalize(element.innerText||element.textContent)," +
+        "childElementCount:element.childElementCount," +
+        "parentTag:parent?String(parent.tagName||'').toLowerCase():null," +
+        "parentJsname:parent?parent.getAttribute('jsname'):null," +
+        "parentClass:parent?String(parent.className||'').slice(0,160):null," +
+        "contains:nodes.filter((other)=>other!==element&&element.contains(other)).map((other)=>index.get(other))," +
+        "containedBy:nodes.filter((other)=>other!==element&&other.contains(element)).map((other)=>index.get(other))" +
+      "};" +
+    "});" +
+    "return {url:location.href,candidateCount:candidates.length,candidates};" +
+  "})()";
+}
+
+async function _cwaGoogleTranslateCharacterizeCurrentResult() {
+  const tab = await _cwaGoogleTranslateExistingTab();
+  if (tab === null) {
+    throw new Error("GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_MISSING");
+  }
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+    return await _cwaGoogleTranslateEvaluate(
+      debuggee,
+      _cwaGoogleTranslateCharacterizationExpression()
+    );
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Read-only characterization cleanup only.
+      }
+    }
+  }
+}
+
 async function _cwaGoogleTranslateEvaluate(debuggee, expression) {
   const result = await _cwaBaseSendCommand(debuggee, "Runtime.evaluate", {
     expression,
@@ -368,19 +426,25 @@ async function _cwaGoogleTranslateText(message) {
 let _cwaGoogleTranslateActiveRequestId = null;
 
 async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
+  if (message?.protocol !== BRIDGE_PROTOCOL_VERSION) {
+    return next(message, port);
+  }
   if (
-    message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
-    message?.type !== "translate_text"
+    message?.type !== "translate_text" &&
+    message?.type !== "characterize_translate_result"
   ) {
     return next(message, port);
   }
 
   const requestId = message.request_id;
   if (typeof requestId !== "string" || !requestId) return;
+  const isCharacterization = message.type === "characterize_translate_result";
   if (_cwaGoogleTranslateActiveRequestId !== null) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "translate_text_result",
+      type: isCharacterization
+        ? "characterize_translate_result_result"
+        : "translate_text_result",
       request_id: requestId,
       ok: false,
       error: "GOOGLE_TRANSLATE_CAPABILITY_BUSY"
@@ -390,10 +454,14 @@ async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
 
   _cwaGoogleTranslateActiveRequestId = requestId;
   try {
-    const result = await _cwaGoogleTranslateText(message);
+    const result = isCharacterization
+      ? await _cwaGoogleTranslateCharacterizeCurrentResult()
+      : await _cwaGoogleTranslateText(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "translate_text_result",
+      type: isCharacterization
+        ? "characterize_translate_result_result"
+        : "translate_text_result",
       request_id: requestId,
       ok: true,
       ...result
@@ -401,7 +469,9 @@ async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
   } catch (error) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "translate_text_result",
+      type: isCharacterization
+        ? "characterize_translate_result_result"
+        : "translate_text_result",
       request_id: requestId,
       ok: false,
       error: error instanceof Error ? error.message : String(error)
