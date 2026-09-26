@@ -136,7 +136,11 @@ class BrowserNativeTurnProvider:
         *,
         timeout: float,
         on_event: Callable[[dict[str, Any]], None] | None = None,
+        delegated_timeout_ms_key: str | None = None,
+        delegated_response_margin: float = 0.0,
     ) -> dict[str, Any]:
+        if delegated_response_margin < 0:
+            raise ValueError("delegated_response_margin must be non-negative")
         deadline = time.monotonic() + timeout
         last_error: BaseException | None = None
         while time.monotonic() < deadline:
@@ -153,7 +157,21 @@ class BrowserNativeTurnProvider:
                     (descriptor["host"], descriptor["port"]),
                     timeout=min(self.connect_timeout, remaining),
                 ) as sock:
-                    sock.settimeout(remaining)
+                    remaining_after_connect = max(0.0, deadline - time.monotonic())
+                    if delegated_timeout_ms_key is not None:
+                        delegated_budget = (
+                            remaining_after_connect - delegated_response_margin
+                        )
+                        if delegated_budget <= 0:
+                            raise RequestError(
+                                "BROWSER_NATIVE_DELEGATED_TIMEOUT_BUDGET_EXHAUSTED",
+                                request_stage="browser_native_bridge",
+                            )
+                        request[delegated_timeout_ms_key] = max(
+                            1,
+                            int(delegated_budget * 1000),
+                        )
+                    sock.settimeout(max(0.1, remaining_after_connect))
                     send_local_message(sock, request)
                     request_sent = True
                     while True:

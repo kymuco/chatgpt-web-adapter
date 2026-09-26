@@ -376,6 +376,7 @@ class BrowserNativeBroker:
 
         if operation not in {
             "turn",
+            "translate_text",
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
@@ -407,6 +408,7 @@ class BrowserNativeBroker:
             timeout_ms = request.get("timeoutMs")
             default_timeout_ms = {
                 "turn": 120_000,
+                "translate_text": 30_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,
             }[operation]

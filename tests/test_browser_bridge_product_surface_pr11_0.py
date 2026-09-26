@@ -41,6 +41,7 @@ def test_manifest_presents_a_product_popup_without_expanding_permissions() -> No
         "https://chatgpt.com/*",
         "https://chat.deepseek.com/*",
         "https://gemini.google.com/*",
+        "https://translate.google.com/*",
     ]
     assert manifest["action"]["default_popup"] == "popup.html"
     assert manifest["action"]["default_title"] == "ChatGPT Web Adapter"
