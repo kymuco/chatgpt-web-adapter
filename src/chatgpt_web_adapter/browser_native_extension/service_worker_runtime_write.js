@@ -35,3 +35,5 @@ importScripts("service_worker_ui_compat_pr11_7.js");
 importScripts("service_worker_text_submit_commit_hardening_pr11_3.js");
 importScripts("service_worker_ordinary_text_identity_authority.js");
 importScripts("service_worker_send_command.js");
+
+importScripts("service_worker_deepseek_web_provider.js");
