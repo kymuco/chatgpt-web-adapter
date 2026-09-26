@@ -224,6 +224,20 @@ async function _cwaDeepSeekReattachForObservation(debuggee, deadlineAt) {
   );
 }
 
+function _cwaDeepSeekPostSubmitAmbiguousError(error) {
+  const message = String(error?.message || error || "UNKNOWN");
+  if (message.startsWith(
+    "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:"
+  )) {
+    return error;
+  }
+  return new Error(
+    "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+    "POST_SUBMIT_OBSERVATION_FAILED:" +
+    message
+  );
+}
+
 async function _cwaDeepSeekSubmitOnce(debuggee, text, deadlineAt) {
   const written = await _cwaDeepSeekEvaluate(debuggee, _cwaDeepSeekComposerExpression(text));
   if (written?.written !== true) throw new Error("DEEPSEEK_COMPOSER_WRITE_FAILED");
@@ -237,7 +251,9 @@ async function _cwaDeepSeekSubmitOnce(debuggee, text, deadlineAt) {
         // A navigation may detach CDP after the single click. Never replay the write.
         return;
       }
-      throw error;
+      // This Runtime.evaluate can execute control.click() before its result is
+      // lost. Any non-detach failure here is therefore post-submit ambiguous.
+      throw _cwaDeepSeekPostSubmitAmbiguousError(error);
     }
     await sleep(150);
   }
@@ -316,30 +332,41 @@ async function _cwaDeepSeekHandleTurn(message) {
     const baseline = new Set(Array.isArray(before?.texts) ? before.texts : []);
 
     await _cwaDeepSeekSubmitOnce(debuggee, message.text, deadlineAt);
-    const final = await _cwaDeepSeekWaitForFinalText(debuggee, message.text, baseline, deadlineAt);
-    const finalTab = await chrome.tabs.get(tab.id);
-    const finalUrl = typeof finalTab?.url === "string" ? finalTab.url : final.url;
-    if (!_cwaDeepSeekIsUrl(finalUrl)) throw new Error("DEEPSEEK_FINAL_ROUTE_INVALID");
+    try {
+      const final = await _cwaDeepSeekWaitForFinalText(
+        debuggee,
+        message.text,
+        baseline,
+        deadlineAt
+      );
+      const finalTab = await chrome.tabs.get(tab.id);
+      const finalUrl = typeof finalTab?.url === "string" ? finalTab.url : final.url;
+      if (!_cwaDeepSeekIsUrl(finalUrl)) throw new Error("DEEPSEEK_FINAL_ROUTE_INVALID");
 
-    let resolvedConversationId = conversationId;
-    if (resolvedConversationId === null) {
-      if (finalUrl === initialUrl) throw new Error("DEEPSEEK_NEW_CHAT_ROUTE_IDENTITY_UNPROVEN");
-      resolvedConversationId = crypto.randomUUID();
+      let resolvedConversationId = conversationId;
+      if (resolvedConversationId === null) {
+        if (finalUrl === initialUrl) {
+          throw new Error("DEEPSEEK_NEW_CHAT_ROUTE_IDENTITY_UNPROVEN");
+        }
+        resolvedConversationId = crypto.randomUUID();
+      }
+      await _cwaDeepSeekStoreRoute(resolvedConversationId, finalUrl);
+
+      return {
+        providerId: CWA_DEEPSEEK_PROVIDER_ID,
+        conversationId: resolvedConversationId,
+        responseText: final.text,
+        finalUrl,
+        tabId: tab.id,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        finalityEvidence: "PAGE_DOM_STABLE_COMPLETION",
+        canonicalCompletionProven: false,
+        routeIdentityProven: true,
+        automaticWriteRetry: false
+      };
+    } catch (error) {
+      throw _cwaDeepSeekPostSubmitAmbiguousError(error);
     }
-    await _cwaDeepSeekStoreRoute(resolvedConversationId, finalUrl);
-
-    return {
-      providerId: CWA_DEEPSEEK_PROVIDER_ID,
-      conversationId: resolvedConversationId,
-      responseText: final.text,
-      finalUrl,
-      tabId: tab.id,
-      elapsedMs: Math.round(performance.now() - startedAt),
-      finalityEvidence: "PAGE_DOM_STABLE_COMPLETION",
-      canonicalCompletionProven: false,
-      routeIdentityProven: true,
-      automaticWriteRetry: false
-    };
   } finally {
     if (attached) {
       try { await chrome.debugger.detach(debuggee); } catch {}

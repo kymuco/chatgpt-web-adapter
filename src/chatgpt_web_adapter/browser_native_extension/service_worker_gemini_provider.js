@@ -258,7 +258,9 @@ async function _cwaGeminiSubmitOnce(debuggee, text, deadlineAt) {
         // A navigation may detach CDP after the single click. Never replay the write.
         return;
       }
-      throw error;
+      // This Runtime.evaluate can execute control.click() before its result is
+      // lost. Any non-detach failure here is therefore post-submit ambiguous.
+      throw _cwaGeminiPostSubmitAmbiguousError(error);
     }
     await sleep(150);
   }

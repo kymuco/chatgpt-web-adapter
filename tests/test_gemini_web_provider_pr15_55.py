@@ -183,6 +183,15 @@ def test_gemini_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "_cwaGeminiReattachForObservation" in worker
     assert "_cwaGeminiPostSubmitAmbiguousError" in worker
     assert "POST_SUBMIT_OBSERVATION_FAILED" in worker
+    submit_helper_start = worker.index("async function _cwaGeminiSubmitOnce(")
+    submit_helper_end = worker.index(
+        "\nfunction _cwaGeminiLatestNewText",
+        submit_helper_start,
+    )
+    submit_helper = worker[submit_helper_start:submit_helper_end]
+    assert "DebuggerDetached(error)" in submit_helper
+    assert "throw _cwaGeminiPostSubmitAmbiguousError(error);" in submit_helper
+    assert "throw error;" not in submit_helper
     submit_index = worker.index("await _cwaGeminiSubmitOnce(")
     ambiguity_index = worker.index(
         "throw _cwaGeminiPostSubmitAmbiguousError(error);",
