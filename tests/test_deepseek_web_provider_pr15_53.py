@@ -11,6 +11,7 @@ from chatgpt_web_adapter.deepseek_web import (
     DeepSeekBrowserTurnProvider,
     DeepSeekWebRuntime,
     DeepSeekWebTransport,
+    DeepSeekWebWriteOutcomeAmbiguousError,
 )
 from chatgpt_web_adapter.product_capabilities import (
     CONTINUATION,
@@ -131,6 +132,7 @@ def test_deepseek_streaming_callbacks_fail_before_write() -> None:
 
 def test_extension_assembles_deepseek_handler_outside_chatgpt_turn_layers() -> None:
     manifest = (EXT / "manifest.json").read_text(encoding="utf-8")
+    base = (EXT / "service_worker.js").read_text(encoding="utf-8")
     runtime = (EXT / "service_worker_runtime.js").read_text(encoding="utf-8")
     worker = (EXT / "service_worker_deepseek_provider.js").read_text(encoding="utf-8")
 
@@ -139,15 +141,27 @@ def test_extension_assembles_deepseek_handler_outside_chatgpt_turn_layers() -> N
     assert runtime.index("service_worker_deepseek_provider.js") < runtime.index(
         "service_worker_native_message_router.js"
     )
-    assert "registerNativeTurnDiagnosticHandler(" in worker
-    assert '"deepseek-provider"' in worker
-    assert "message?.providerId === CWA_DEEPSEEK_PROVIDER_ID" in worker
+    assert "registerProductProviderTurnHandler(" in worker
+    assert "registerNativeTurnDiagnosticHandler(" not in worker
+    assert "CWA_NATIVE_TURN_LAYERS" not in worker
+    assert "productProviderTurnHandlers = new Map()" in base
+
+    start = base.index("async function dispatchNativeTurn(message)")
+    end = base.index("\nfunction sleep(", start)
+    dispatch = base[start:end]
+    assert "await dispatchProductProviderTurn(message)" in dispatch
+    assert dispatch.index("await dispatchProductProviderTurn(message)") < dispatch.index(
+        "const matching = []"
+    )
 
 
 def test_deepseek_worker_uses_page_dom_not_private_http_payloads() -> None:
     worker = (EXT / "service_worker_deepseek_provider.js").read_text(encoding="utf-8")
 
     assert "https://chat.deepseek.com" in worker
+    assert ".ds-markdown.ds-assistant-message-main-content" in worker
+    assert ".ds-markdown.ds-markdown--block" in worker
+    assert "CWA_DEEPSEEK_STABLE_MS = 9000" in worker
     assert "fetch(" not in worker
     assert "XMLHttpRequest" not in worker
     assert "/api/" not in worker
@@ -156,3 +170,28 @@ def test_deepseek_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "automaticWriteRetry: false" in worker
     assert 'finalityEvidence: "PAGE_DOM_STABLE_COMPLETION"' in worker
     assert "canonicalCompletionProven: false" in worker
+    assert "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED" in worker
+
+
+def test_deepseek_ambiguous_post_submit_outcome_requires_reconciliation() -> None:
+    provider = DeepSeekBrowserTurnProvider(connect_timeout=0.1, turn_timeout=5.0)
+
+    def rpc(payload, *, timeout, on_event=None):
+        return {
+            "protocol": 1,
+            "type": "turn_result",
+            "request_id": payload["request_id"],
+            "ok": False,
+            "error": (
+                "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:"
+                "PAGE_FINALITY_TIMEOUT"
+            ),
+        }
+
+    provider._rpc = rpc
+
+    with pytest.raises(DeepSeekWebWriteOutcomeAmbiguousError) as caught:
+        provider.send_text("one delegated turn")
+
+    assert caught.value.reconciliation_required is True
+    assert caught.value.automatic_retry_allowed is False
