@@ -109,7 +109,7 @@ function _cwaGoogleTranslateSnapshotExpression() {
     "for(const selector of ['[jsname=\\\"jqKxS\\\"]','[data-language-for-alternatives]']){" +
       "const candidates=Array.from(document.querySelectorAll(selector)).filter((element)=>visible(element));" +
       "const texts=candidates.map((element)=>normalize(element.innerText||element.textContent)).filter(Boolean);" +
-      "if(texts.length){translated=texts[texts.length-1];break;}" +
+      "if(texts.length){translated=texts.join(' ');break;}" +
     "}" +
     "if(!translated){" +
       "const leaves=Array.from(document.querySelectorAll('span[jsname=\\\"W297wb\\\"],span.ryNqvb')).filter((element)=>visible(element));" +
