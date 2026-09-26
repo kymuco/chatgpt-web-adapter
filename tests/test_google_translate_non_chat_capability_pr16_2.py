@@ -261,8 +261,10 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert "textarea" in worker
     assert 'jsname=\\"W297wb\\"' in worker
     assert "querySelectorAll('[lang]')" not in worker
+    assert "const leaves=primary.filter" in worker
+    assert "element.contains(other)" in worker
+    assert "leafCandidateCount:texts.length" in worker
     assert "identityResolved=texts.length<=1" in worker
-    assert "const seen=new Set()" not in worker
     assert "RESULT_IDENTITY_UNRESOLVED" in worker
     assert "InputEvent('input'" in worker
     assert "_cwaGoogleTranslateWaitForClearedResult" in worker
@@ -283,6 +285,23 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert "Network.enable" not in worker
     assert "Network.request" not in worker
     assert ".click()" not in worker
+
+
+def test_google_translate_result_identity_collapses_only_containment_wrappers() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    result_expression = worker.split(
+        "function _cwaGoogleTranslateResultExpression()", 1
+    )[1].split(
+        "function _cwaGoogleTranslateCharacterizationExpression()", 1
+    )[0]
+
+    assert "const leaves=primary.filter" in result_expression
+    assert "element.contains(other)" in result_expression
+    assert "leafCandidateCount:texts.length" in result_expression
+    assert "new Set(" not in result_expression
+    assert "texts[0]" in result_expression
 
 
 def test_google_translate_post_write_finality_uses_observed_route_without_tab_lookup() -> (
