@@ -58,6 +58,8 @@ def test_deepseek_runtime_passes_frozen_provider_boundary() -> None:
     assert boundary.provider_id == "deepseek"
     assert boundary.product_semantics == "ordinary-deepseek"
     assert boundary.transport == "deepseek-web"
+    assert boundary.schema == adapter.PRODUCT_PROVIDER_BOUNDARY_SCHEMA == 2
+    assert boundary.canonical_interface is None
     assert boundary.automatic_write_retry is False
     assert boundary.fallback_transport is None
     assert boundary.ambiguous_write_requires_reconciliation is True
