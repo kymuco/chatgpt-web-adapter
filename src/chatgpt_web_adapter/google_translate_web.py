@@ -151,7 +151,10 @@ class GoogleTranslateWebCapability:
             error = str(response.get("error") or "unknown error")
             if error.startswith(
                 "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:"
-            ):
+            ) or error in {
+                "BROWSER_NATIVE_EXTENSION_TIMEOUT",
+                "BROWSER_NATIVE_HOST_SHUTDOWN",
+            }:
                 raise GoogleTranslateOutcomeAmbiguousError(
                     f"GOOGLE_TRANSLATE_TEXT_FAILED: {error}",
                     request_stage="google_translate_text",
