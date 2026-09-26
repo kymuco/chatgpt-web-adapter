@@ -140,16 +140,11 @@ function _cwaGoogleTranslateResultExpression() {
       "const style=getComputedStyle(element);" +
       "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
     "};" +
-    "const primary=Array.from(document.querySelectorAll('[jsname=\"W297wb\"],[jsname=\"jqKxS\"]')).filter(visible);" +
-    "const texts=[];" +
-    "for(const element of primary){" +
-      "if(element.closest('textarea,[contenteditable=\"true\"]'))continue;" +
-      "const text=normalize(element.innerText||element.textContent);" +
-      "if(!text)continue;" +
-      "texts.push(text);" +
-    "}" +
+    "const primary=Array.from(document.querySelectorAll('[jsname=\"W297wb\"],[jsname=\"jqKxS\"]')).filter((element)=>visible(element)&&!element.closest('textarea,[contenteditable=\"true\"]'));" +
+    "const leaves=primary.filter((element)=>!primary.some((other)=>other!==element&&element.contains(other)));" +
+    "const texts=leaves.map((element)=>normalize(element.innerText||element.textContent)).filter(Boolean);" +
     "const identityResolved=texts.length<=1;" +
-    "return {url:location.href,text:identityResolved?(texts[0]||null):null,candidateCount:texts.length,identityResolved};" +
+    "return {url:location.href,text:identityResolved?(texts[0]||null):null,candidateCount:primary.length,leafCandidateCount:texts.length,identityResolved};" +
   "})()";
 }
 
