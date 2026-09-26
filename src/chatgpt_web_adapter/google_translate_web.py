@@ -117,8 +117,9 @@ class GoogleTranslateWebCapability:
         source = self._source_language(source_language)
         target = self._target_language(target_language)
         total_timeout = self.operation_timeout if timeout is None else float(timeout)
-        if total_timeout <= 0:
-            raise ValueError("timeout must be positive")
+        if total_timeout < 3.0:
+            raise ValueError("timeout must be at least 3 seconds")
+        worker_timeout_ms = max(1000, int(total_timeout * 1000) - 1000)
 
         payload = {
             "type": GOOGLE_TRANSLATE_TEXT_CAPABILITY_ID,
@@ -127,7 +128,7 @@ class GoogleTranslateWebCapability:
             "text": text,
             "sourceLanguage": source,
             "targetLanguage": target,
-            "timeoutMs": int(total_timeout * 1000),
+            "timeoutMs": worker_timeout_ms,
         }
 
         try:
