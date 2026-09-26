@@ -292,9 +292,12 @@ def test_google_translate_authority_lane_is_shared_without_canonical_reservation
     assert '"translate_text",' in host
     assert '"translate_text": 30_000' in host
     assert "_claim_authority_lane(operation, lease_id)" in host
-    assert 'operation == "translate_text"' not in host.split(
-        "if lease_id is not None and (", 1
-    )[1].split("return message", 1)[0]
+    assert (
+        'operation == "translate_text"'
+        not in host.split("if lease_id is not None and (", 1)[1].split(
+            "return message", 1
+        )[0]
+    )
 
 
 def test_google_translate_live_gate_is_acceptance_only() -> None:
