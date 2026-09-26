@@ -67,6 +67,8 @@ def main() -> int:
         "url": response.get("url"),
         "candidate_count": response.get("candidateCount"),
         "candidates": response.get("candidates"),
+        "diagnostic_count": response.get("diagnosticCount"),
+        "diagnostic_candidates": response.get("diagnosticCandidates"),
     }
     print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
     return 0
