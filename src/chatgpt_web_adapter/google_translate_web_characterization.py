@@ -67,6 +67,7 @@ def main() -> int:
         "url": response.get("url"),
         "candidate_count": response.get("candidateCount"),
         "candidates": response.get("candidates"),
+        "output_region": response.get("outputRegion"),
         "diagnostic_count": response.get("diagnosticCount"),
         "diagnostic_candidates": response.get("diagnosticCandidates"),
     }
