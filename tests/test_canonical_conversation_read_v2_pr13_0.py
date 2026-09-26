@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -227,6 +228,148 @@ def test_current_endpoint_paginates_with_before_cursor() -> None:
         "num_turns": ["20"],
     }
     assert parse_qs(second.query)["before"] == ["cursor-2"]
+
+
+def test_current_endpoint_retries_initial_429_without_changing_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    latest = {
+        "conversation_id": "conversation-1",
+        "messages": [
+            _message("u1", "user", "hello"),
+            _message("a2", "assistant", "done", finish=True),
+        ],
+        "page_info": {
+            "has_previous_page": False,
+            "has_next_page": False,
+        },
+    }
+
+    client = _RequestClient(
+        [
+            (429, {"detail": "rate limited"}),
+            (200, latest),
+        ]
+    )
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleep_calls.append)
+
+    payload = read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+        include_all_pages=False,
+    )
+
+    assert payload["conversation_id"] == "conversation-1"
+    assert len(client.urls) == 2
+    assert client.urls[0] == client.urls[1]
+    assert parse_qs(urlparse(client.urls[0]).query)["num_turns"] == ["20"]
+    assert sleep_calls == [0.25]
+
+
+def test_current_endpoint_retries_pagination_429_without_restarting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    latest = {
+        "conversation_id": "conversation-1",
+        "messages": [
+            _message("u1", "user", "hello"),
+            _message("a2", "assistant", "first page", finish=True),
+        ],
+        "page_info": {
+            "has_previous_page": True,
+            "has_next_page": False,
+            "start_cursor": "cursor-2",
+        },
+    }
+
+    older = {
+        "conversation_id": "conversation-1",
+        "messages": [
+            _message("u3", "user", "older"),
+            _message("a4", "assistant", "older reply", finish=True),
+        ],
+        "page_info": {
+            "has_previous_page": False,
+            "has_next_page": False,
+        },
+    }
+
+    client = _RequestClient(
+        [
+            (200, latest),
+            (429, {"detail": "rate limited"}),
+            (200, older),
+        ]
+    )
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleep_calls.append)
+
+    payload = read_conversation_payload_v2(
+        client,
+        "conversation-1",
+        current_base_url="https://chatgpt.com/backend-api/conversations",
+        legacy_url_template=(
+            "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+        ),
+        include_all_pages=True,
+    )
+
+    assert payload["conversation_id"] == "conversation-1"
+    assert len(payload["messages"]) == 4
+
+    assert len(client.urls) == 3
+    assert client.urls[1] == client.urls[2]
+    assert client.urls[0] != client.urls[1]
+
+    first_query = parse_qs(urlparse(client.urls[0]).query)
+    retry_query = parse_qs(urlparse(client.urls[1]).query)
+
+    assert first_query["num_turns"] == ["20"]
+    assert retry_query["num_turns"] == ["20"]
+    assert retry_query["before"] == ["cursor-2"]
+
+    assert sleep_calls == [0.25]
+
+
+def test_current_endpoint_persistent_429_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _RequestClient(
+        [
+            (429, {"detail": "rate limited"}),
+            (429, {"detail": "rate limited"}),
+            (429, {"detail": "rate limited"}),
+            (429, {"detail": "rate limited"}),
+        ]
+    )
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleep_calls.append)
+
+    with pytest.raises(RequestError) as captured:
+        read_conversation_payload_v2(
+            client,
+            "conversation-1",
+            current_base_url="https://chatgpt.com/backend-api/conversations",
+            legacy_url_template=(
+                "https://chatgpt.com/backend-api/conversation/{conversation_id}"
+            ),
+            include_all_pages=False,
+        )
+
+    assert captured.value.status_code == 429
+    assert len(client.urls) == 4
+    assert len(set(client.urls)) == 1
+
+    query = parse_qs(urlparse(client.urls[0]).query)
+    assert query["num_turns"] == ["20"]
+    assert "before" not in query
+
+    assert sleep_calls == [0.25, 0.5, 1.0]
 
 
 def test_only_current_404_authorizes_legacy_endpoint_fallback() -> None:
