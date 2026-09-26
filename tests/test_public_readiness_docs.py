@@ -104,7 +104,8 @@ def test_architecture_covers_provider_boundary_planes_and_artifact_boundary() ->
     assert "browser-owned" in text
     assert "browserless-request" in text
     assert "ProductProviderBoundary" in text
-    assert "not a request router" in text
+    normalized = " ".join(text.split())
+    assert "It is not a request router" in normalized
     assert (
         "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY" in text
     )
