@@ -262,6 +262,7 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert 'jsname=\\"W297wb\\"' in worker
     assert "querySelectorAll('[lang]')" not in worker
     assert "identityResolved=texts.length<=1" in worker
+    assert "const seen=new Set()" not in worker
     assert "RESULT_IDENTITY_UNRESOLVED" in worker
     assert "InputEvent('input'" in worker
     assert "_cwaGoogleTranslateWaitForClearedResult" in worker
@@ -272,6 +273,8 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert "PAGE_DOM_STABLE_TRANSLATION" in worker
     assert "canonicalCompletionProven: false" in worker
     assert "automaticRetry: false" in worker
+    assert "_cwaGoogleTranslateRouteMatchesLanguages" in worker
+    assert "GOOGLE_TRANSLATE_FINAL_ROUTE_LANGUAGE_IDENTITY_INVALID" in worker
     assert "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED" in worker
 
     assert "fetch(" not in worker
@@ -280,6 +283,18 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert "Network.enable" not in worker
     assert "Network.request" not in worker
     assert ".click()" not in worker
+
+
+def test_google_translate_post_write_finality_uses_observed_route_without_tab_lookup() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    post_write = worker.split("let final;", 1)[1].split("return {", 1)[0]
+
+    assert "_cwaGoogleTranslateRouteMatchesLanguages(" in post_write
+    assert "sourceLanguage" in post_write
+    assert "targetLanguage" in post_write
+    assert "chrome.tabs.get" not in post_write
 
 
 def test_google_translate_authority_lane_is_shared_without_canonical_reservation() -> (
