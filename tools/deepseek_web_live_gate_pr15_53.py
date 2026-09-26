@@ -5,13 +5,11 @@ import json
 import uuid
 
 from chatgpt_web_adapter import (
-    CONTINUATION,
-    NEW_CHAT,
-    TEXT_TURNS,
     CapabilityState,
     DeepSeekWebRuntime,
     product_provider_boundary,
 )
+from chatgpt_web_adapter.product_capabilities import CONTINUATION, NEW_CHAT, TEXT_TURNS
 
 
 def _marker(prefix: str) -> str:
