@@ -293,9 +293,7 @@ def test_google_translate_result_identity_collapses_only_containment_wrappers() 
     )
     result_expression = worker.split(
         "function _cwaGoogleTranslateResultExpression()", 1
-    )[1].split(
-        "function _cwaGoogleTranslateCharacterizationExpression()", 1
-    )[0]
+    )[1].split("function _cwaGoogleTranslateCharacterizationExpression()", 1)[0]
 
     assert "const leaves=primary.filter" in result_expression
     assert "element.contains(other)" in result_expression
@@ -342,9 +340,7 @@ def test_google_translate_characterization_is_read_only_and_temporary() -> None:
     )
     characterization = worker.split(
         "function _cwaGoogleTranslateCharacterizationExpression()", 1
-    )[1].split(
-        "async function _cwaGoogleTranslateEvaluate", 1
-    )[0]
+    )[1].split("async function _cwaGoogleTranslateEvaluate", 1)[0]
     script = (
         ROOT
         / "src"
