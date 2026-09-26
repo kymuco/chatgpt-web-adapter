@@ -240,7 +240,7 @@ It fails closed instead of clearing/reusing an uncertain stale result.
 During acceptance only:
 
 ```powershell
-python -m chatgpt_web_adapter.google_translate_web_live_gate_pr17_0
+python -m chatgpt_web_adapter.google_translate_web_live_gate
 ```
 
 The gate performs two independent operations:
