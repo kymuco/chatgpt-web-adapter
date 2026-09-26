@@ -63,6 +63,9 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
         "`v0.3.0` tag" in normalized
     )
     assert "PR16  public positioning/documentation alignment" in text
+    assert "PR17  hosted-capability falsification" in text
+    assert "PR17.0 Google Translate Web text translation [active research]" in text
+    assert "HDE is not used as a validation target" in text
 
 
 def test_roadmap_is_current_and_post_pr15_consumer_driven() -> None:
@@ -72,6 +75,10 @@ def test_roadmap_is_current_and_post_pr15_consumer_driven() -> None:
     assert "### PR15 — architecture reset and provider proof" in text
     assert "ProductProviderBoundary schema 2" in text
     assert "### PR16.1 — current documentation refresh" in text
+    assert "## PR17 — hosted capability falsification" in text
+    assert "### PR17.0 — Google Translate Web text translation" in text
+    assert "no `ProductProviderBoundary schema 2` claim" in text
+    assert "no HDE integration" in text
     assert "consumer-driven" in text.lower()
     assert "drift-driven" in text.lower()
     assert "Future naming is a separate product decision" in text
