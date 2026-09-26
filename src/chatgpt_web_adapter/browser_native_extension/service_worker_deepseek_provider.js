@@ -154,18 +154,94 @@ async function _cwaDeepSeekWaitForComposer(debuggee, deadlineAt) {
   throw new Error("DEEPSEEK_COMPOSER_NOT_READY");
 }
 
-async function _cwaDeepSeekSubmitOnce(debuggee, text) {
+function _cwaDeepSeekSubmitExpression() {
+  return "(() => {" +
+    "const visible=(element)=>{" +
+      "if(!(element instanceof Element))return false;" +
+      "const rect=element.getBoundingClientRect();" +
+      "const style=getComputedStyle(element);" +
+      "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
+    "};" +
+    "const disabled=(element)=>element.getAttribute('aria-disabled')==='true'||element.disabled===true;" +
+    "const composers=Array.from(document.querySelectorAll(" +
+      "'textarea,[contenteditable=\\\"true\\\"][role=\\\"textbox\\\"],[contenteditable=\\\"true\\\"]'" +
+    ")).filter((element)=>visible(element)&&!disabled(element));" +
+    "composers.sort((left,right)=>right.getBoundingClientRect().top-left.getBoundingClientRect().top);" +
+    "const composer=composers[0]||null;" +
+    "if(!composer)return {found:false,submitted:false};" +
+    "const composerRect=composer.getBoundingClientRect();" +
+    "let scope=composer.closest('form');" +
+    "if(!scope){" +
+      "let node=composer.parentElement;" +
+      "while(node&&node!==document.body){" +
+        "const rect=node.getBoundingClientRect();" +
+        "if(rect.height>0&&rect.height<=360&&node.querySelector('button,[role=button]')){scope=node;break;}" +
+        "node=node.parentElement;" +
+      "}" +
+    "}" +
+    "if(!scope)return {found:true,submitted:false,reason:'submit_scope_missing'};" +
+    "const controls=Array.from(scope.querySelectorAll('button,[role=button]')).filter((element)=>visible(element)&&!disabled(element));" +
+    "const normalize=(value)=>String(value||'').replace(/\\s+/g,' ').trim().toLowerCase();" +
+    "const semantic=controls.find((element)=>{" +
+      "const label=normalize(element.getAttribute('aria-label')||element.getAttribute('title')||element.textContent);" +
+      "return label==='send'||label.includes('send message')||label.includes('submit')||label.includes('发送');" +
+    "});" +
+    "const typed=controls.find((element)=>element.matches('button[type=submit]'));" +
+    "let control=semantic||typed||null;" +
+    "if(!control){" +
+      "const nearby=controls.filter((element)=>{" +
+        "const rect=element.getBoundingClientRect();" +
+        "const verticalOverlap=Math.min(rect.bottom,composerRect.bottom)-Math.max(rect.top,composerRect.top);" +
+        "const nearBottom=Math.abs(rect.bottom-composerRect.bottom)<=96;" +
+        "return verticalOverlap>0||nearBottom;" +
+      "}).sort((left,right)=>right.getBoundingClientRect().right-left.getBoundingClientRect().right);" +
+      "control=nearby[0]||null;" +
+    "}" +
+    "if(!control)return {found:true,submitted:false,reason:'submit_control_missing'};" +
+    "control.click();" +
+    "return {found:true,submitted:true};" +
+  "})()";
+}
+
+function _cwaDeepSeekDebuggerDetached(error) {
+  const message = String(error?.message || error || "");
+  return message.includes("Debugger is not attached to the tab");
+}
+
+async function _cwaDeepSeekReattachForObservation(debuggee, deadlineAt) {
+  while (performance.now() < deadlineAt) {
+    try {
+      await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+      await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+      return;
+    } catch {
+      await sleep(150);
+    }
+  }
+  throw new Error(
+    "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+    "POST_SUBMIT_DEBUGGER_REATTACH_FAILED"
+  );
+}
+
+async function _cwaDeepSeekSubmitOnce(debuggee, text, deadlineAt) {
   const written = await _cwaDeepSeekEvaluate(debuggee, _cwaDeepSeekComposerExpression(text));
   if (written?.written !== true) throw new Error("DEEPSEEK_COMPOSER_WRITE_FAILED");
 
-  await _cwaBaseSendCommand(debuggee, "Input.dispatchKeyEvent", {
-    type: "rawKeyDown", key: "Enter", code: "Enter",
-    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13
-  });
-  await _cwaBaseSendCommand(debuggee, "Input.dispatchKeyEvent", {
-    type: "keyUp", key: "Enter", code: "Enter",
-    windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13
-  });
+  while (performance.now() < deadlineAt) {
+    try {
+      const submit = await _cwaDeepSeekEvaluate(debuggee, _cwaDeepSeekSubmitExpression());
+      if (submit?.submitted === true) return;
+    } catch (error) {
+      if (_cwaDeepSeekDebuggerDetached(error)) {
+        // A navigation may detach CDP after the single click. Never replay the write.
+        return;
+      }
+      throw error;
+    }
+    await sleep(150);
+  }
+  throw new Error("DEEPSEEK_SUBMIT_CONTROL_NOT_READY");
 }
 
 function _cwaDeepSeekLatestNewText(snapshot, baseline) {
@@ -181,7 +257,15 @@ async function _cwaDeepSeekWaitForFinalText(debuggee, text, baseline, deadlineAt
   let lastText = null;
   let stableSince = null;
   while (performance.now() < deadlineAt) {
-    const snapshot = await _cwaDeepSeekEvaluate(debuggee, _cwaDeepSeekSnapshotExpression(text));
+    let snapshot;
+    try {
+      snapshot = await _cwaDeepSeekEvaluate(debuggee, _cwaDeepSeekSnapshotExpression(text));
+    } catch (error) {
+      if (!_cwaDeepSeekDebuggerDetached(error)) throw error;
+      await _cwaDeepSeekReattachForObservation(debuggee, deadlineAt);
+      await sleep(250);
+      continue;
+    }
     const candidate = _cwaDeepSeekLatestNewText(snapshot, baseline);
     if (candidate !== null && candidate === lastText) {
       if (stableSince === null) stableSince = performance.now();
@@ -231,7 +315,7 @@ async function _cwaDeepSeekHandleTurn(message) {
     const before = await _cwaDeepSeekEvaluate(debuggee, _cwaDeepSeekSnapshotExpression(message.text));
     const baseline = new Set(Array.isArray(before?.texts) ? before.texts : []);
 
-    await _cwaDeepSeekSubmitOnce(debuggee, message.text);
+    await _cwaDeepSeekSubmitOnce(debuggee, message.text, deadlineAt);
     const final = await _cwaDeepSeekWaitForFinalText(debuggee, message.text, baseline, deadlineAt);
     const finalTab = await chrome.tabs.get(tab.id);
     const finalUrl = typeof finalTab?.url === "string" ? finalTab.url : final.url;
