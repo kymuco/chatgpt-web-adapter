@@ -11,11 +11,11 @@
 
 **Local product-runtime bridge for authenticated consumer AI web products.**
 
-CWA lets local software use ordinary hosted AI products through typed runtime contracts
-without turning browser details, product observations or partial output into implicit
-authority.
+CWA lets local software, assistants and agents use ordinary hosted AI products through
+typed runtime contracts without turning browser details, product observations or
+partial output into implicit authority.
 
-[Documentation](docs/README.md) · [Architecture](docs/architecture.md) · [Providers](docs/providers.md) · [Status](STATUS.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md)
+[Quickstart](docs/quickstart.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
 
 > [!WARNING]
 > CWA is not an official API client for OpenAI, Google or DeepSeek. It works with
@@ -23,6 +23,26 @@ authority.
 
 > **Product observation is not authority. Incremental output is not canonical finality.
 > Ambiguous writes are never automatically retried.**
+
+## Start here
+
+| You are... | Best first step |
+| --- | --- |
+| Trying CWA for the first time | [Quickstart](docs/quickstart.md) |
+| Building a Python application | [Production Python example](#production-python-example) |
+| Connecting a local assistant or coding agent | [Agent integration](docs/agent_integration.md) |
+| Checking what is actually supported | [Capability map](docs/capabilities.md) |
+| Adding a new hosted product capability | [Capability contribution guide](docs/adding_capability.md) |
+
+Current proven product surfaces include:
+
+- **ChatGPT** — production/default conversational runtime;
+- **DeepSeek Web** — experimental text new-chat + continuation;
+- **Gemini Web** — experimental text new-chat + continuation;
+- **Google Translate Web** — experimental non-chat `translate_text` capability.
+
+The Google Translate proof is intentionally separate from the conversation-shaped
+provider contract. See [docs/capabilities.md](docs/capabilities.md).
 
 ## What CWA is
 
@@ -485,6 +505,7 @@ Compatibility examples:
 
 Experimental examples:
 
+- [examples/google_translate.py](examples/google_translate.py) — module-only non-chat translation capability;
 - [examples/approve_tools.py](examples/approve_tools.py)
 - [examples/raw_payload.py](examples/raw_payload.py)
 - [examples/github_auto_approve.py](examples/github_auto_approve.py)
@@ -503,6 +524,9 @@ path.
 
 Start with:
 
+- [docs/quickstart.md](docs/quickstart.md) — shortest path from install to first result;
+- [docs/capabilities.md](docs/capabilities.md) — discovery map across chat and non-chat surfaces;
+- [docs/agent_integration.md](docs/agent_integration.md) — local assistants, coding agents and tool wrappers;
 - [STATUS.md](STATUS.md) — current release/main checkpoint;
 - [ROADMAP.md](ROADMAP.md) — current direction;
 - [USAGE.md](USAGE.md) — usage guide;
