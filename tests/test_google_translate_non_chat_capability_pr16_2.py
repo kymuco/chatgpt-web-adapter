@@ -375,9 +375,9 @@ def test_google_translate_temporary_acceptance_surfaces_are_absent_after_closure
     worker = (EXT / "service_worker_google_translate_capability.js").read_text(
         encoding="utf-8"
     )
-    host = (
-        ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py"
-    ).read_text(encoding="utf-8")
+    host = (ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py").read_text(
+        encoding="utf-8"
+    )
     package = ROOT / "src" / "chatgpt_web_adapter"
 
     assert "characterize_translate_" not in worker
