@@ -60,8 +60,7 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
     normalized = " ".join(text.split())
     assert (
         "Current `main` contains substantial product/runtime work newer than the "
-        "`v0.3.0` tag"
-        in normalized
+        "`v0.3.0` tag" in normalized
     )
     assert "PR16  public positioning/documentation alignment" in text
 
