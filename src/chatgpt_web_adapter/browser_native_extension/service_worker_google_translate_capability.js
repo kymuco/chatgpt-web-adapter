@@ -37,6 +37,24 @@ function _cwaGoogleTranslateTargetUrl(sourceLanguage, targetLanguage) {
   return url.toString();
 }
 
+function _cwaGoogleTranslateRouteMatchesLanguages(
+  url,
+  sourceLanguage,
+  targetLanguage
+) {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.origin === CWA_GOOGLE_TRANSLATE_ORIGIN &&
+      parsed.searchParams.get("sl") === sourceLanguage &&
+      parsed.searchParams.get("tl") === targetLanguage
+    );
+  } catch {
+    return false;
+  }
+}
+
+
 async function _cwaGoogleTranslateExistingTab() {
   const stored = await _cwaGoogleTranslateStorageGet(
     CWA_GOOGLE_TRANSLATE_RUNTIME_TAB_KEY
@@ -123,12 +141,12 @@ function _cwaGoogleTranslateResultExpression() {
       "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
     "};" +
     "const primary=Array.from(document.querySelectorAll('[jsname=\"W297wb\"],[jsname=\"jqKxS\"]')).filter(visible);" +
-    "const texts=[];const seen=new Set();" +
+    "const texts=[];" +
     "for(const element of primary){" +
       "if(element.closest('textarea,[contenteditable=\"true\"]'))continue;" +
       "const text=normalize(element.innerText||element.textContent);" +
-      "if(!text||seen.has(text))continue;" +
-      "seen.add(text);texts.push(text);" +
+      "if(!text)continue;" +
+      "texts.push(text);" +
     "}" +
     "const identityResolved=texts.length<=1;" +
     "return {url:location.href,text:identityResolved?(texts[0]||null):null,candidateCount:texts.length,identityResolved};" +
@@ -310,12 +328,16 @@ async function _cwaGoogleTranslateText(message) {
       throw _cwaGoogleTranslateAmbiguousError(error);
     }
 
-    const finalTab = await chrome.tabs.get(tab.id);
-    const finalUrl =
-      typeof finalTab?.url === "string" ? finalTab.url : final.url;
-    if (!_cwaGoogleTranslateIsUrl(finalUrl)) {
+    const finalUrl = typeof final?.url === "string" ? final.url : "";
+    if (
+      !_cwaGoogleTranslateRouteMatchesLanguages(
+        finalUrl,
+        sourceLanguage,
+        targetLanguage
+      )
+    ) {
       throw _cwaGoogleTranslateAmbiguousError(
-        new Error("GOOGLE_TRANSLATE_FINAL_ROUTE_INVALID")
+        new Error("GOOGLE_TRANSLATE_FINAL_ROUTE_LANGUAGE_IDENTITY_INVALID")
       );
     }
 
