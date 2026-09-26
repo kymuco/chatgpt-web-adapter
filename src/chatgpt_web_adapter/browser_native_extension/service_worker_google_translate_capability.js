@@ -68,25 +68,6 @@ async function _cwaGoogleTranslateExistingTab() {
   }
 }
 
-async function _cwaGoogleTranslateFindOpenTabForCharacterization() {
-  const stored = await _cwaGoogleTranslateExistingTab();
-  if (stored !== null) return stored;
-
-  const tabs = (await chrome.tabs.query({
-    url: "https://translate.google.com/*"
-  })).filter((tab) => Number.isInteger(tab?.id));
-
-  if (tabs.length === 1) return tabs[0];
-  if (tabs.length === 0) {
-    throw new Error("GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_MISSING");
-  }
-  throw new Error(
-    "GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_AMBIGUOUS:" +
-    String(tabs.length)
-  );
-}
-
-
 async function _cwaGoogleTranslateEnsureTab(
   sourceLanguage,
   targetLanguage,
@@ -179,131 +160,6 @@ function _cwaGoogleTranslateResultExpression(requestedText) {
     "const identityResolved=texts.length<=1;" +
     "return {url:location.href,text:identityResolved?(texts[0]||null):null,candidateCount:primary.length,leafCandidateCount:texts.length,identityResolved,sourceMatchesRequested};" +
   "})()";
-}
-
-function _cwaGoogleTranslateCharacterizationExpression() {
-  return "(() => {" +
-    "const normalize=(value)=>String(value||'').replace(/\\s+/g,' ').trim();" +
-    "const visible=(element)=>{" +
-      "if(!(element instanceof Element))return false;" +
-      "const rect=element.getBoundingClientRect();" +
-      "const style=getComputedStyle(element);" +
-      "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
-    "};" +
-    "const nodes=Array.from(document.querySelectorAll('[jsname=\"W297wb\"],[jsname=\"jqKxS\"]')).filter((element)=>visible(element)&&!element.closest('textarea,[contenteditable=\"true\"]'));" +
-    "const index=new Map(nodes.map((node,i)=>[node,i]));" +
-    "const candidates=nodes.map((element,i)=>{" +
-      "const parent=element.parentElement;" +
-      "return {" +
-        "index:i," +
-        "tag:String(element.tagName||'').toLowerCase()," +
-        "jsname:element.getAttribute('jsname')," +
-        "lang:element.getAttribute('lang')," +
-        "role:element.getAttribute('role')," +
-        "text:normalize(element.innerText||element.textContent)," +
-        "childElementCount:element.childElementCount," +
-        "parentTag:parent?String(parent.tagName||'').toLowerCase():null," +
-        "parentJsname:parent?parent.getAttribute('jsname'):null," +
-        "parentClass:parent?String(parent.className||'').slice(0,160):null," +
-        "contains:nodes.filter((other)=>other!==element&&element.contains(other)).map((other)=>index.get(other))," +
-        "containedBy:nodes.filter((other)=>other!==element&&other.contains(element)).map((other)=>index.get(other))" +
-      "};" +
-    "});" +
-    "const targetLanguage=new URL(location.href).searchParams.get('tl');" +
-    "const outputRegion=document.querySelector('c-wiz[jsname=\"e79Xi\"][role=\"region\"]');" +
-    "const outputRegionNodes=outputRegion?Array.from(outputRegion.querySelectorAll('*')).filter((element)=>visible(element)):[];" +
-    "const outputRegionDescendants=[];" +
-    "for(const element of outputRegionNodes){" +
-      "if(outputRegionDescendants.length>=80)break;" +
-      "const rect=element.getBoundingClientRect();" +
-      "const text=normalize(element.innerText||element.textContent);" +
-      "if(!text||text.length>320)continue;" +
-      "outputRegionDescendants.push({" +
-        "tag:String(element.tagName||'').toLowerCase()," +
-        "id:String(element.id||'').slice(0,120)," +
-        "className:String(element.className||'').slice(0,180)," +
-        "jsname:element.getAttribute('jsname')," +
-        "lang:element.getAttribute('lang')," +
-        "role:element.getAttribute('role')," +
-        "ariaLive:element.getAttribute('aria-live')," +
-        "ariaLabel:String(element.getAttribute('aria-label')||'').slice(0,160)," +
-        "text:text.slice(0,320)," +
-        "childElementCount:element.childElementCount," +
-        "left:Math.round(rect.left)," +
-        "top:Math.round(rect.top)," +
-        "width:Math.round(rect.width)," +
-        "height:Math.round(rect.height)" +
-      "});" +
-    "}" +
-    "const outputRegionSnapshot=outputRegion?{" +
-      "tag:String(outputRegion.tagName||'').toLowerCase()," +
-      "jsname:outputRegion.getAttribute('jsname')," +
-      "role:outputRegion.getAttribute('role')," +
-      "className:String(outputRegion.className||'').slice(0,180)," +
-      "text:normalize(outputRegion.innerText||outputRegion.textContent).slice(0,1200)," +
-      "descendantCount:outputRegionDescendants.length," +
-      "descendants:outputRegionDescendants" +
-    "}:null;" +
-    "const all=Array.from(document.querySelectorAll('body *')).filter((element)=>visible(element)&&!element.closest('textarea,[contenteditable=\"true\"]'));" +
-    "const diagnostic=[];" +
-    "for(const element of all){" +
-      "if(diagnostic.length>=60)break;" +
-      "const rect=element.getBoundingClientRect();" +
-      "const text=normalize(element.innerText||element.textContent);" +
-      "if(!text||text.length>240)continue;" +
-      "const lang=element.getAttribute('lang');" +
-      "const jsname=element.getAttribute('jsname');" +
-      "const ariaLive=element.getAttribute('aria-live');" +
-      "const role=element.getAttribute('role');" +
-      "const onRight=rect.left>=window.innerWidth*0.45;" +
-      "const targetLang=targetLanguage&&lang&&lang.toLowerCase()===targetLanguage.toLowerCase();" +
-      "if(!(targetLang||onRight||jsname||ariaLive||role==='status'))continue;" +
-      "const parent=element.parentElement;" +
-      "diagnostic.push({" +
-        "tag:String(element.tagName||'').toLowerCase()," +
-        "id:String(element.id||'').slice(0,120)," +
-        "className:String(element.className||'').slice(0,180)," +
-        "jsname," +
-        "lang," +
-        "role," +
-        "ariaLive," +
-        "ariaLabel:String(element.getAttribute('aria-label')||'').slice(0,160)," +
-        "text:text.slice(0,240)," +
-        "childElementCount:element.childElementCount," +
-        "left:Math.round(rect.left)," +
-        "top:Math.round(rect.top)," +
-        "width:Math.round(rect.width)," +
-        "height:Math.round(rect.height)," +
-        "parentTag:parent?String(parent.tagName||'').toLowerCase():null," +
-        "parentJsname:parent?parent.getAttribute('jsname'):null," +
-        "parentClass:parent?String(parent.className||'').slice(0,180):null" +
-      "});" +
-    "}" +
-    "return {url:location.href,candidateCount:candidates.length,candidates,outputRegion:outputRegionSnapshot,diagnosticCount:diagnostic.length,diagnosticCandidates:diagnostic};" +
-  "})()";
-}
-
-async function _cwaGoogleTranslateCharacterizeCurrentResult() {
-  const tab = await _cwaGoogleTranslateFindOpenTabForCharacterization();
-  const debuggee = { tabId: tab.id };
-  let attached = false;
-  try {
-    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
-    attached = true;
-    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-    return await _cwaGoogleTranslateEvaluate(
-      debuggee,
-      _cwaGoogleTranslateCharacterizationExpression()
-    );
-  } finally {
-    if (attached) {
-      try {
-        await chrome.debugger.detach(debuggee);
-      } catch {
-        // Read-only characterization cleanup only.
-      }
-    }
-  }
 }
 
 async function _cwaGoogleTranslateEvaluate(debuggee, expression) {
@@ -546,13 +402,9 @@ async function _cwaGoogleTranslateText(message) {
 let _cwaGoogleTranslateActiveRequestId = null;
 
 async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
-  if (message?.protocol !== BRIDGE_PROTOCOL_VERSION) {
-    return next(message, port);
-  }
   if (
-    message?.type !== "translate_text" &&
-    message?.type !== "characterize_translate_result" &&
-    message?.type !== "characterize_translate_ping"
+    message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
+    message?.type !== "translate_text"
   ) {
     return next(message, port);
   }
@@ -560,25 +412,10 @@ async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
   const requestId = message.request_id;
   if (typeof requestId !== "string" || !requestId) return;
 
-  if (message.type === "characterize_translate_ping") {
-    safePortPost(port, {
-      protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "characterize_translate_ping_result",
-      request_id: requestId,
-      ok: true,
-      worker: "google-translate-capability",
-      characterizationVersion: 1
-    });
-    return;
-  }
-
-  const isCharacterization = message.type === "characterize_translate_result";
   if (_cwaGoogleTranslateActiveRequestId !== null) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: isCharacterization
-        ? "characterize_translate_result_result"
-        : "translate_text_result",
+      type: "translate_text_result",
       request_id: requestId,
       ok: false,
       error: "GOOGLE_TRANSLATE_CAPABILITY_BUSY"
@@ -588,14 +425,10 @@ async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
 
   _cwaGoogleTranslateActiveRequestId = requestId;
   try {
-    const result = isCharacterization
-      ? await _cwaGoogleTranslateCharacterizeCurrentResult()
-      : await _cwaGoogleTranslateText(message);
+    const result = await _cwaGoogleTranslateText(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: isCharacterization
-        ? "characterize_translate_result_result"
-        : "translate_text_result",
+      type: "translate_text_result",
       request_id: requestId,
       ok: true,
       ...result
@@ -603,9 +436,7 @@ async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
   } catch (error) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: isCharacterization
-        ? "characterize_translate_result_result"
-        : "translate_text_result",
+      type: "translate_text_result",
       request_id: requestId,
       ok: false,
       error: error instanceof Error ? error.message : String(error)
