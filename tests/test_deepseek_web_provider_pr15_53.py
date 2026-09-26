@@ -150,9 +150,9 @@ def test_extension_assembles_deepseek_handler_outside_chatgpt_turn_layers() -> N
     end = base.index("\nfunction sleep(", start)
     dispatch = base[start:end]
     assert "await dispatchProductProviderTurn(message)" in dispatch
-    assert dispatch.index("await dispatchProductProviderTurn(message)") < dispatch.index(
-        "const matching = []"
-    )
+    assert dispatch.index(
+        "await dispatchProductProviderTurn(message)"
+    ) < dispatch.index("const matching = []")
 
 
 def test_deepseek_worker_uses_page_dom_not_private_http_payloads() -> None:
