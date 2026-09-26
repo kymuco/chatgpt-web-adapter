@@ -178,11 +178,11 @@ finality/reconciliation, while canonical readback is conditional. The DeepSeek l
 
 PR15 provider architecture is now frozen. The immediate next step is PR16.0: align
 the project's public identity and documentation with the architecture that now exists.
-This is a design/docs pass, not a runtime expansion. The leading direction is to keep
-the short identity `CWA`, position the project as a local runtime bridge for consumer
-AI web products, keep ChatGPT as the mature/default provider, keep DeepSeek/Gemini
-experimental, and defer any hard repository/distribution/import rename until a real
-public multi-provider consumer surface justifies the migration cost.
+This is a design/docs pass, not a runtime expansion. The direction is to position the
+project as a local runtime bridge for consumer AI web products, keep ChatGPT as the
+mature/default provider, keep DeepSeek/Gemini experimental, preserve all current
+repository/distribution/import names for now, and deliberately defer any future naming
+decision to a separate later pass.
 
 Consumer-driven runtime hardening remains the rule for what enters the resulting
 public contract. A provider or web capability does not become production scope merely
