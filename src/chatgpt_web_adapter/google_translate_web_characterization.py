@@ -15,14 +15,20 @@ def main() -> int:
             "GOOGLE_TRANSLATE_CHARACTERIZATION_BROWSER_BRIDGE_UNAVAILABLE"
         )
 
-    ping = bridge._rpc(  # noqa: SLF001
-        {
-            "type": "characterize_translate_ping",
-            "request_id": uuid.uuid4().hex,
-            "timeoutMs": 5_000,
-        },
-        timeout=5.0,
-    )
+    try:
+        ping = bridge._rpc(  # noqa: SLF001
+            {
+                "type": "characterize_translate_ping",
+                "request_id": uuid.uuid4().hex,
+                "timeoutMs": 5_000,
+            },
+            timeout=5.0,
+        )
+    except RequestError as error:
+        raise RequestError(
+            f"GOOGLE_TRANSLATE_CHARACTERIZATION_WORKER_PING_TRANSPORT_FAILED:{error}",
+            request_stage="google_translate_characterization_ping",
+        ) from error
     if ping.get("ok") is not True:
         raise RequestError(
             "GOOGLE_TRANSLATE_CHARACTERIZATION_WORKER_PING_FAILED:"
@@ -30,14 +36,20 @@ def main() -> int:
             request_stage="google_translate_characterization",
         )
 
-    response = bridge._rpc(  # noqa: SLF001
-        {
-            "type": "characterize_translate_result",
-            "request_id": uuid.uuid4().hex,
-            "timeoutMs": 10_000,
-        },
-        timeout=10.0,
-    )
+    try:
+        response = bridge._rpc(  # noqa: SLF001
+            {
+                "type": "characterize_translate_result",
+                "request_id": uuid.uuid4().hex,
+                "timeoutMs": 10_000,
+            },
+            timeout=10.0,
+        )
+    except RequestError as error:
+        raise RequestError(
+            f"GOOGLE_TRANSLATE_CHARACTERIZATION_DOM_SNAPSHOT_TRANSPORT_FAILED:{error}",
+            request_stage="google_translate_characterization_dom_snapshot",
+        ) from error
     if response.get("ok") is not True:
         raise RequestError(
             "GOOGLE_TRANSLATE_CHARACTERIZATION_FAILED:"
