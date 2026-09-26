@@ -1,102 +1,218 @@
-# Building On Top of the SDK
+# Building on top of CWA
 
-This package is the reusable SDK boundary for tools that use a live ChatGPT web
-session. A higher-level product such as `gptty` should consume the SDK without
-moving product-specific behavior into this repository.
+CWA is the reusable product-runtime boundary for local applications that need ordinary
+consumer AI web-product semantics.
 
-For a write-capable service, initialize the client once and reuse it:
+Higher-level products should consume CWA without moving application cognition, policy
+or workflow authority into this repository.
+
+## Start from the runtime contract
+
+For the mature/default ChatGPT path:
 
 ```python
-from chatgpt_web_adapter import ChatGPTWebClient
+from chatgpt_web_adapter import assemble_product_runtime
 
-client = ChatGPTWebClient(
+runtime = assemble_product_runtime(
+    transport="browser-owned",
     auth_file="auth_data.json",
-    auto_login=True,
-    auto_sentinel=True,
-    sentinel_headless=True,
 )
 ```
 
-See [authentication.md](authentication.md) for the first-login and refresh
-lifecycle, and [troubleshooting.md](troubleshooting.md) for operational failures.
+For new integrations, prefer the runtime/capability/provenance surface over the
+historical `ChatGPTWebClient`.
 
-## Recommended Foundation for a Product Layer
+Useful application primitives include:
 
-Use these as the core primitives:
+- `runtime.health()`;
+- `runtime.capabilities()`;
+- `runtime.send()`;
+- `runtime.send_text_observed()`;
+- `runtime.get_status()`;
+- `runtime.get_messages()`;
+- `runtime.attach_conversation()`;
+- `product_provider_boundary(runtime)` for provider-neutral metadata validation.
 
-- `ChatGPTWebClient.send()`
-- `send_to_conversation()`
-- `attach_conversation()`
-- `get_messages()`
-- `get_status()`
-- `wait_until_completed()`
-- image upload support
-- sanitized debug traces for diagnostics
-- persistent login and session refresh
-- official-page Sentinel capture for protected writes
+## Provider-aware integration
 
-These are the most natural building blocks for a terminal UI, CLI, or orchestration app.
+Do not write application logic that assumes every provider has ChatGPT's complete
+surface.
 
-## Treat These as Optional or Experimental
+Instead:
 
-- `approve_pending_action()`
-- `wait_and_approve_pending_actions()`
-- `send_and_auto_approve()`
-- `PayloadBuilder`
-- `validate_payload()`
-- `send_payload()`
+```text
+runtime
+→ inspect capabilities
+→ inspect provider boundary when needed
+→ use only evidence-backed surfaces
+```
 
-They are useful, but they should not be the foundation of a product architecture.
-They depend more directly on unstable web behavior and should be isolated behind
-product-specific feature flags or adapter layers. In particular, raw
-`send_payload()` still uses the legacy requirements path and is not covered by
-the current prepared-write Sentinel transaction.
+Current `main` has:
 
-## Suggested Product Boundary for gptty
+```text
+ChatGPT       production/default
+DeepSeek Web  experimental
+Gemini Web    experimental
+```
 
-`chatgpt-web-adapter` should remain responsible for:
+DeepSeek/Gemini currently expose live-proven text new-chat and continuation through
+module-only runtimes. They do not inherit canonical readback, rich input, streaming or
+model-profile capabilities from ChatGPT.
 
-- auth consumption
-- transport
-- payload shaping
-- stream parsing
-- conversation parsing
-- reusable client-side status helpers
+See [providers.md](providers.md).
 
-`gptty` should be responsible for:
+## What CWA should own
 
-- terminal UX
-- conversation/session presentation
-- command routing
-- local config and user preferences
-- retry policy
-- product-specific approval UX
-- app-specific workflow automation
-- logging/presentation decisions beyond the SDK event model
+CWA owns reusable, application-agnostic product mechanics such as:
 
-## Do Not Push App Logic Down Into the SDK
+- authenticated product/session integration;
+- explicit write transports;
+- conversation identity mechanics;
+- provider capability declarations;
+- execution provenance;
+- product-level completion/finality evidence;
+- structured product observations;
+- browser bridge mechanics;
+- ambiguity/reconciliation boundaries;
+- sanitized diagnostics.
 
-Examples of app-layer behavior that should stay outside this repository:
+## What the application should own
 
-- slash commands
-- prompt templates tied to a UX
-- terminal rendering decisions
-- persistent local chat history policy
-- connector-specific product rules
-- repository-specific or workspace-specific allowlists
+A downstream application should keep authority for:
 
-If a feature only exists because `gptty` needs it, that is a strong sign it belongs in `gptty`, not here.
+- prompt/workflow policy;
+- memory and project state;
+- task planning;
+- local filesystem/Git mutations;
+- approval policy for external actions;
+- retry decisions after reconciliation;
+- provider-selection policy;
+- user-facing presentation;
+- app-specific persistence/logging.
 
-## How to Integrate Safely
+CWA reporting that a product exposed an action or source does not authorize the
+application to act on it.
 
-Recommended approach:
+## Provider selection belongs downstream for now
 
-1. Treat the SDK as a library boundary.
-2. Wrap it in a small product-side service layer.
-3. Consume structured events instead of scraping exceptions or token text.
-4. Keep experimental SDK features behind explicit product-side opt-in behavior.
-5. Use live smoke checks after any change that touches transport, parsing, uploads, or approvals.
+CWA intentionally does not expose a public generic provider factory or registry.
 
-## Practical Recommendation
+That means a higher-level application that experiments with multiple providers should
+own the selection policy and instantiate the appropriate runtime explicitly.
 
-If `gptty` needs richer workflows, prefer adding product-side orchestration first. Only promote logic into `chatgpt-web-adapter` when it is clearly reusable, application-agnostic, and justified for the stable core.
+This is deliberate while DeepSeek/Gemini remain experimental.
+
+Do not push a generic provider router into CWA merely because an application wants
+fallback behavior.
+
+In particular:
+
+```text
+provider A failed ambiguously
+!= permission to resend through provider B
+```
+
+## Browser-owned integration
+
+A higher-level application should treat the browser bridge as runtime infrastructure,
+not as UI or workflow authority.
+
+The application should not depend on:
+
+- Chrome tab ids;
+- CDP target ids;
+- extension worker names;
+- provider DOM selectors;
+- exact page routes;
+- Native Messaging framing.
+
+Those remain below CWA's runtime boundary.
+
+See [browser_owned.md](browser_owned.md).
+
+## Experimental provider example
+
+An application may explicitly opt into an experimental runtime:
+
+```python
+from chatgpt_web_adapter.gemini_web import GeminiWebRuntime
+
+runtime = GeminiWebRuntime()
+
+if not runtime.health().ready:
+    raise RuntimeError("Gemini Web runtime unavailable")
+
+if runtime.capabilities().state("text_turns").value != "AVAILABLE":
+    raise RuntimeError("text turns unavailable")
+
+response = runtime.send_text("Summarize this in one sentence.")
+```
+
+This is an explicit experimental dependency. Do not silently substitute it for the
+production ChatGPT runtime.
+
+## Historical compatibility surface
+
+`ChatGPTWebClient` / `WebChatClient` remain available for existing callers and
+regression work.
+
+They are no longer the recommended architecture foundation for a new product.
+
+Do not silently route:
+
+```text
+ChatGPTWebClient.send()
+→ ChatGPTProductRuntime
+```
+
+or the reverse.
+
+Migration should remain explicit.
+
+## Promotion rule
+
+Move logic downward into CWA only when it is:
+
+1. reusable across applications;
+2. owned by the product/runtime boundary rather than app policy;
+3. evidence-backed;
+4. compatible with authority/finality invariants;
+5. regression-testable without relying on one consumer's workflow.
+
+If a feature exists only because one app needs a specific workflow, keep it in that
+app first.
+
+## Failure handling
+
+Applications should distinguish:
+
+```text
+known pre-write failure
+→ caller may decide whether a new invocation is appropriate
+
+ambiguous write
+→ reconcile
+→ never automatically replay
+```
+
+A provider-specific ambiguous error is not an ordinary transient retry signal.
+
+## Recommended layering
+
+```text
+application / HDE / Codexia / TUI
+        |
+        |  cognition, policy, workflow, UX
+        v
+small application service layer
+        |
+        |  explicit runtime invocation
+        v
+CWA provider runtime
+        |
+        |  product/session/write/finality mechanics
+        v
+consumer AI web product
+```
+
+This keeps CWA reusable without turning it into an agent framework.
