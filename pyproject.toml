@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "chatgpt-web-adapter"
 version = "0.3.0"
-description = "Local Python SDK and CLI bridge for an existing ordinary ChatGPT web session."
+description = "Local Python SDK and CLI bridge for authenticated consumer AI web products and hosted capabilities."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -16,6 +16,11 @@ authors = [
 keywords = [
   "chatgpt",
   "chatgpt-web",
+  "gemini",
+  "deepseek",
+  "ai-agents",
+  "local-ai",
+  "browser-automation",
   "product-runtime",
   "python-sdk",
   "cli",

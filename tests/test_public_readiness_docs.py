@@ -26,6 +26,11 @@ def test_current_repository_entrypoints_exist() -> None:
         "docs/architecture.md",
         "docs/providers.md",
         "docs/browser_owned.md",
+        "docs/quickstart.md",
+        "docs/capabilities.md",
+        "docs/agent_integration.md",
+        "docs/adding_capability.md",
+        "llms.txt",
     ):
         assert (ROOT / path).is_file(), path
 
@@ -54,9 +59,12 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
     assert "latest public release   v0.3.0" in text
     assert "current main            post-0.3 development" in text
     assert "PR15 provider architecture frozen" in text
-    assert "ChatGPT       PRODUCTION / default" in text
-    assert "DeepSeek Web  EXPERIMENTAL" in text
-    assert "Gemini Web    EXPERIMENTAL" in text
+    assert "ChatGPT               PRODUCTION / default conversational runtime" in text
+    assert "DeepSeek Web          EXPERIMENTAL conversational runtime" in text
+    assert "Gemini Web            EXPERIMENTAL conversational runtime" in text
+    assert (
+        "Google Translate Web  EXPERIMENTAL non-chat translate_text capability" in text
+    )
     normalized = " ".join(text.split())
     assert (
         "Current `main` contains substantial product/runtime work newer than the "
@@ -142,7 +150,8 @@ def test_project_metadata_points_to_current_repository_docs() -> None:
 
     assert project["version"] == "0.3.0"
     assert project["description"] == (
-        "Local Python SDK and CLI bridge for an existing ordinary ChatGPT web session."
+        "Local Python SDK and CLI bridge for authenticated consumer AI web products "
+        "and hosted capabilities."
     )
     assert urls["Documentation"].endswith("/blob/main/docs/README.md")
     assert urls["Roadmap"].endswith("/blob/main/ROADMAP.md")
@@ -155,6 +164,7 @@ def test_github_community_templates_exist() -> None:
         ".github/pull_request_template.md",
         ".github/ISSUE_TEMPLATE/bug_report.yml",
         ".github/ISSUE_TEMPLATE/feature_request.yml",
+        ".github/ISSUE_TEMPLATE/capability_proposal.yml",
         ".github/ISSUE_TEMPLATE/config.yml",
     ):
         assert (ROOT / path).is_file(), path

@@ -187,9 +187,27 @@ public capability registry, or schema-2 expansion.
 
 Google Translate remains an experimental module-only non-chat capability.
 
+### PR16.3 — adoption and discoverability foundation
+
+Active.
+
+No runtime semantics change.
+
+Goals:
+
+- reduce the first-use path for newcomers;
+- make the current chat + non-chat capability surface easy to discover;
+- give local assistants/agents an explicit integration entrypoint;
+- add machine-oriented discovery without turning static docs into runtime authority;
+- add a capability-proposal workflow for external contributors;
+- align README/PyPI metadata with the post-PR16.2 project role.
+
+This slice deliberately does **not** add MCP, a generic hosted-capability registry,
+or a second non-chat product.
+
 ## Current direction after PR16
 
-After the documentation catches up, stop architecture-driven expansion.
+After the documentation/discovery surface catches up, stop architecture-driven expansion.
 
 The next runtime work should be **consumer-driven** or **drift-driven**.
 

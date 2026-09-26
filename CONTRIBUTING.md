@@ -13,7 +13,8 @@ For new work, read:
 - [`ROADMAP.md`](ROADMAP.md) — current direction;
 - [`docs/architecture.md`](docs/architecture.md) — runtime/transport/observation boundaries;
 - [`docs/README.md`](docs/README.md) — current vs historical documentation map;
-- [`SECURITY.md`](SECURITY.md) — sensitive-data rules.
+- [`SECURITY.md`](SECURITY.md) — sensitive-data rules;
+- [`docs/adding_capability.md`](docs/adding_capability.md) — required workflow for new hosted capabilities.
 
 Historical PR-specific documents are evidence and lineage. Do not assume an older milestone document is the current public contract when a later status/architecture/contract document supersedes its framing.
 
@@ -163,6 +164,16 @@ Never commit or paste into issues/PRs:
 - capability-bearing artifact locator values such as signed download URLs.
 
 See [`SECURITY.md`](SECURITY.md).
+
+## Hosted capability proposals
+
+Before implementing a new hosted product capability, open the dedicated
+[Hosted capability proposal](.github/ISSUE_TEMPLATE/capability_proposal.yml) and keep
+the first slice bounded to one product operation.
+
+The capability guide in [docs/adding_capability.md](docs/adding_capability.md) defines
+the expected commitment-boundary, ambiguity, finality, deterministic-regression and
+temporary-live-gate discipline.
 
 ## Pull requests
 

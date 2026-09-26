@@ -11,6 +11,9 @@ Do not treat every PR-numbered document as current getting-started guidance.
 
 ## Start here
 
+- [`quickstart.md`](quickstart.md) — shortest path for first-time users;
+- [`capabilities.md`](capabilities.md) — current proven chat and non-chat capability map;
+- [`agent_integration.md`](agent_integration.md) — local assistants, coding agents and tool wrappers;
 - [`../README.md`](../README.md) — project overview, provider status and production
   quick start;
 - [`../STATUS.md`](../STATUS.md) — current release vs `main` checkpoint;
@@ -21,7 +24,9 @@ Do not treat every PR-numbered document as current getting-started guidance.
 - [`browser_owned.md`](browser_owned.md) — why browser-owned execution is the
   reference/default web-product strategy;
 - [`../SECURITY.md`](../SECURITY.md) — security and sensitive-data boundary;
-- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution/evidence expectations.
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution/evidence expectations;
+- [`adding_capability.md`](adding_capability.md) — evidence-driven hosted capability contribution workflow;
+- [`../llms.txt`](../llms.txt) — compact machine-oriented project discovery map.
 
 ## Current architecture and public surface
 
