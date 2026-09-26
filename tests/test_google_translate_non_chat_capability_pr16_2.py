@@ -334,8 +334,12 @@ def test_google_translate_characterization_is_read_only_and_temporary() -> None:
     ).read_text(encoding="utf-8")
 
     assert "characterize_translate_result" in worker
+    assert "characterize_translate_ping" in worker
+    assert 'worker: "google-translate-capability"' in worker
+    assert "characterizationVersion: 1" in worker
     assert "InputEvent(" not in characterization
     assert "_cwaGoogleTranslateWriteSource(" not in characterization
+    assert '"type": "characterize_translate_ping"' in script
     assert '"type": "characterize_translate_result"' in script
     assert "translate_text(" not in script
 
