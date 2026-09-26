@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.deepseek_web import (
     DEEPSEEK_PROVIDER_ID,
     DEEPSEEK_WEB_TRANSPORT,
@@ -14,6 +13,7 @@ from chatgpt_web_adapter.deepseek_web import (
     DeepSeekWebTransport,
     DeepSeekWebWriteOutcomeAmbiguousError,
 )
+from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.product_capabilities import (
     CONTINUATION,
     NEW_CHAT,
@@ -187,7 +187,9 @@ def test_deepseek_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert worker.count("await _cwaDeepSeekSubmitOnce(") == 1
 
 
-def test_deepseek_bridge_response_loss_after_delegation_requires_reconciliation() -> None:
+def test_deepseek_bridge_response_loss_after_delegation_requires_reconciliation() -> (
+    None
+):
     provider = DeepSeekBrowserTurnProvider(connect_timeout=0.1, turn_timeout=5.0)
 
     def rpc(payload, *, timeout, on_event=None):
@@ -205,7 +207,9 @@ def test_deepseek_bridge_response_loss_after_delegation_requires_reconciliation(
     assert caught.value.automatic_retry_allowed is False
 
 
-def test_deepseek_predelegation_bridge_failure_remains_ordinary_request_error() -> None:
+def test_deepseek_predelegation_bridge_failure_remains_ordinary_request_error() -> (
+    None
+):
     provider = DeepSeekBrowserTurnProvider(connect_timeout=0.1, turn_timeout=5.0)
 
     def rpc(payload, *, timeout, on_event=None):
