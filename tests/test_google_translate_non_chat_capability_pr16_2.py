@@ -285,7 +285,9 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert ".click()" not in worker
 
 
-def test_google_translate_post_write_finality_uses_observed_route_without_tab_lookup() -> None:
+def test_google_translate_post_write_finality_uses_observed_route_without_tab_lookup() -> (
+    None
+):
     worker = (EXT / "service_worker_google_translate_capability.js").read_text(
         encoding="utf-8"
     )
