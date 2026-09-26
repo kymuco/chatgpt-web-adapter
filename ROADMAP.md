@@ -184,6 +184,12 @@ mature/default provider, keep DeepSeek/Gemini experimental, preserve all current
 repository/distribution/import names for now, and deliberately defer any future naming
 decision to a separate later pass.
 
+PR16.1 refreshes the current public documentation around that accepted positioning:
+provider-neutral architecture first, ChatGPT as the mature/default provider,
+DeepSeek/Gemini as experimental providers, and browser-owned execution as the
+reference/default web-product mutation strategy. This remains documentation-only;
+future naming is still deliberately deferred.
+
 Consumer-driven runtime hardening remains the rule for what enters the resulting
 public contract. A provider or web capability does not become production scope merely
 because its UI exposes it.
