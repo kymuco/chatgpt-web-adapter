@@ -57,10 +57,11 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
     assert "ChatGPT       PRODUCTION / default" in text
     assert "DeepSeek Web  EXPERIMENTAL" in text
     assert "Gemini Web    EXPERIMENTAL" in text
+    normalized = " ".join(text.split())
     assert (
         "Current `main` contains substantial product/runtime work newer than the "
         "`v0.3.0` tag"
-        in text
+        in normalized
     )
     assert "PR16  public positioning/documentation alignment" in text
 
