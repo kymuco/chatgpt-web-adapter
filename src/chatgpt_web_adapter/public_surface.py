@@ -106,6 +106,14 @@ COMPATIBILITY_WEB_CLIENT_EXPORTS: tuple[str, ...] = (
 )
 
 EXPERIMENTAL_WEB_BACKEND_EXPORTS: tuple[str, ...] = (
+    "DEEPSEEK_WEB_PROVIDER_ID",
+    "DEEPSEEK_WEB_PRODUCT_TRANSPORT",
+    "ORDINARY_DEEPSEEK_PRODUCT_SEMANTICS",
+    "DeepSeekWebTurnProvider",
+    "DeepSeekWebTurnResult",
+    "DeepSeekWebWriteOutcomeAmbiguousError",
+    "DeepSeekWebProductTransport",
+    "DeepSeekWebRuntime",
     "ApprovalDecision",
     "ApprovalDeniedError",
     "ApprovalEvent",
