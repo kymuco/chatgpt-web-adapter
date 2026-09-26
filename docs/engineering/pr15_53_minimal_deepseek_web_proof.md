@@ -17,7 +17,9 @@ DeepSeek Web
 ```
 
 It does not add images, files, tools/connectors, account pools, model-profile
-abstraction, a generic provider registry, or a generic ProductRuntime.
+abstraction, a public generic provider registry, or a generic ProductRuntime. The
+extension-only provider-turn map is a private dispatch seam whose sole purpose is to
+keep provider branching out of ChatGPT domain layers.
 
 ## Evidence-driven boundary correction
 
@@ -54,9 +56,10 @@ DeepSeek turns use the existing `type="turn"` request with:
 providerId = deepseek
 ```
 
-`service_worker_deepseek_provider.js` registers a dedicated diagnostic handler. The
-base dispatcher selects diagnostic handlers before entering ChatGPT observers and the
-ChatGPT native-turn lifecycle, so DeepSeek does not pass through:
+`service_worker_deepseek_provider.js` registers exactly one handler in the private
+provider-turn registry owned by `service_worker.js`. Provider dispatch happens before
+diagnostic handlers, observers, and the ChatGPT native-turn lifecycle, so DeepSeek does
+not pass through:
 
 - Browser Authority;
 - Temporary lifecycle;
@@ -115,7 +118,10 @@ performs exactly one Enter submission and waits until:
 
 - new response text is visible;
 - an obvious stop-generation control is absent;
-- the same response text remains stable for two seconds.
+- the current DeepSeek assistant surface is preferred when present
+  (`.ds-markdown.ds-assistant-message-main-content`, then the older
+  `.ds-markdown.ds-markdown--block`, then bounded structural fallbacks);
+- the same response text remains stable for at least nine seconds.
 
 Successful evidence is recorded as:
 
@@ -125,8 +131,16 @@ canonical_completion_proven = false
 automatic_write_retry = false
 ```
 
-If the page does not provide that evidence before deadline, the attempt fails. No
-second submit is authorized.
+If the single submit has already occurred but the page does not provide that evidence
+before deadline, the attempt fails as:
+
+```text
+DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED
+```
+
+The Python provider maps that result to `DeepSeekWebWriteOutcomeAmbiguousError` with
+`reconciliation_required=true` and `automatic_retry_allowed=false`. No second
+submit or fallback transport is authorized.
 
 ## Python surface
 
