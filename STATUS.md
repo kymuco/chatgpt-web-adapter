@@ -16,7 +16,7 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           PR16.2 non-chat hosted-capability falsification spike
+current phase           post-PR16.2 consumer/drift-driven validation
 license                 MIT
 python                  3.10-3.14
 ```
@@ -199,24 +199,23 @@ The detailed PR15 lineage remains preserved in `docs/engineering/`.
 
 The technical chat-provider architecture remains frozen.
 
-PR16.2 is a deliberately narrow falsification spike asking a different question:
-
-```text
-can the proven browser bridge / authority / ambiguity layer
-support a hosted capability that is not a conversation?
-```
-
-Current experiment:
+PR16.2 is closed with the first live-proven non-chat capability:
 
 ```text
 Google Translate Web
 → translate_text
+→ EXPERIMENTAL / module-only
 → no conversation id
 → no ProductWriteTransport
 → no ProductProviderBoundary claim
+→ PAGE_DOM_STABLE_TRANSLATION
 ```
 
-This is not yet a new stable public architecture.
+The experiment proved that CWA's lower browser bridge, authority lane and ambiguity
+discipline can support at least one hosted capability outside conversation semantics.
+
+It did **not** establish a generic hosted-capability runtime or registry. Future
+generalization remains evidence-driven.
 
 ## Release policy
 
