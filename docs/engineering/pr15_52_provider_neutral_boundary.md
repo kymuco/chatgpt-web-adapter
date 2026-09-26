@@ -140,3 +140,8 @@ PR15.53 exercises this boundary with an experimental `DeepSeekWebRuntime`.
 The second provider keeps ChatGPT-specific Temporary/Browser Authority/rich-input
 surfaces out of shared core and uses only the frozen identity/semantics,
 capabilities/provenance, no-retry/no-fallback and reconciliation invariants.
+
+PR15.53 also falsifies one schema-1 assumption: `CanonicalConversationClient`
+is not universal for a bounded provider proof. Boundary schema 2 makes that
+interface conditional on `canonical_readback=AVAILABLE`; DeepSeek declares no
+canonical interface while ChatGPT retains its existing one.
