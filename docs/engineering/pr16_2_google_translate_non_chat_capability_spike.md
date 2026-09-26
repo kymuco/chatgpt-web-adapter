@@ -341,6 +341,57 @@ equal.
 The temporary characterization path is diagnostic only and must be removed with the
 live gate before merge.
 
+## Route-reuse falsification
+
+A later live rerun showed a second important issue:
+
+```text
+the site visibly translated hello → Hola
+but CWA timed out waiting for PAGE_DOM_STABLE_TRANSLATION
+```
+
+The cause was not Google Translate failing.
+
+After a successful translation, the product enriches the route:
+
+```text
+?sl=en&tl=es&text=hello&op=translate
+```
+
+The spike previously compared that URL with the exact setup route:
+
+```text
+?sl=en&tl=es&op=translate
+```
+
+and therefore reloaded the product before every repeated invocation solely because the
+product-owned `text=` query was present.
+
+That consumed the same bounded operation deadline used for result observation.
+
+The corrected rule is semantic rather than exact-string route equality:
+
+```text
+same Google Translate origin
++ same requested sl
++ same requested tl
+→ existing runtime tab is reusable
+```
+
+Product-owned query enrichment such as `text=` is not route drift.
+
+The result observer also now includes bounded, non-content timeout telemetry:
+
+```text
+candidate count
+leaf candidate count
+text present?
+identity resolved?
+```
+
+so a future timeout can distinguish missing output from timing/finality failure without
+exporting translated content in the error.
+
 ## What success would prove
 
 A successful spike would prove only:
