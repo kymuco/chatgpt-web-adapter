@@ -283,12 +283,14 @@ async function _cwaGoogleTranslateWaitForResult(
 ) {
   let lastText = null;
   let stableSince = null;
+  let lastSnapshot = null;
 
   while (performance.now() < deadlineAt) {
     const snapshot = await _cwaGoogleTranslateEvaluate(
       debuggee,
       _cwaGoogleTranslateResultExpression()
     );
+    lastSnapshot = snapshot;
     if (snapshot?.identityResolved === false) {
       throw new Error(
         "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
@@ -309,9 +311,24 @@ async function _cwaGoogleTranslateWaitForResult(
     }
     await sleep(200);
   }
+
+  const candidateCount = Number.isInteger(lastSnapshot?.candidateCount)
+    ? lastSnapshot.candidateCount
+    : -1;
+  const leafCandidateCount = Number.isInteger(lastSnapshot?.leafCandidateCount)
+    ? lastSnapshot.leafCandidateCount
+    : -1;
+  const textPresent =
+    typeof lastSnapshot?.text === "string" && lastSnapshot.text.trim().length > 0;
+  const identityResolved = lastSnapshot?.identityResolved === true;
+
   throw new Error(
     "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
-    "PAGE_RESULT_TIMEOUT"
+    "PAGE_RESULT_TIMEOUT:" +
+    "candidates=" + candidateCount + ":" +
+    "leaves=" + leafCandidateCount + ":" +
+    "text_present=" + String(textPresent) + ":" +
+    "identity_resolved=" + String(identityResolved)
   );
 }
 
