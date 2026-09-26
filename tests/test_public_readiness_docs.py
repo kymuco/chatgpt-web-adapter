@@ -30,7 +30,9 @@ def test_current_repository_entrypoints_exist() -> None:
         assert (ROOT / path).is_file(), path
 
 
-def test_readme_points_to_current_status_providers_and_conservative_boundaries() -> None:
+def test_readme_points_to_current_status_providers_and_conservative_boundaries() -> (
+    None
+):
     text = _read("README.md")
 
     assert "[Documentation](docs/README.md)" in text
