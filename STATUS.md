@@ -190,8 +190,9 @@ PR15 Architecture Reset
 → PR15.53 minimal DeepSeek Web new-chat/continuation proof [live acceptance PASS]
 → real DeepSeek Web new-chat + continuation accepted; shipping acceptance harness removed before merge
 → PR15.54 post-DeepSeek provider-boundary audit [merged]
-→ PR15.55 minimal Gemini Web new-chat/continuation proof [live acceptance PASS]
+→ PR15.55 minimal Gemini Web new-chat/continuation proof [merged; live acceptance PASS]
 → real Gemini Web new-chat + continuation accepted; post-submit ambiguity hardening applied; shipping live gate removed
+→ PR15.56 provider architecture closure/freeze [active]
 ```
 
 PR14.9 showed that the next highest-leverage work is structural rather than another
