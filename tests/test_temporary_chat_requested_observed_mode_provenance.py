@@ -105,7 +105,10 @@ def test_legacy_transport_provenance_without_mode_is_upgraded_by_runtime() -> No
         transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
         response=_response(),
         observation={"source": "legacy-transport"},
-        governance={"canonical_readback_required": True},
+        governance={
+            "product_semantics": "ordinary-chatgpt",
+            "canonical_readback_required": True,
+        },
     )
     assert supplied.conversation_mode is None
     runtime = ChatGPTProductRuntime(_Client(), write_transport=_Transport(provenance=supplied))
@@ -132,7 +135,10 @@ def test_matching_transport_supplied_mode_provenance_is_preserved() -> None:
         transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
         response=_response(),
         observation={"source": "transport"},
-        governance={"canonical_readback_required": True},
+        governance={
+            "product_semantics": "ordinary-chatgpt",
+            "canonical_readback_required": True,
+        },
         conversation_mode=supplied_mode,
     )
     runtime = ChatGPTProductRuntime(_Client(), write_transport=_Transport(provenance=supplied))
@@ -153,7 +159,7 @@ def test_contradictory_transport_mode_provenance_is_rejected() -> None:
         transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
         response=_response(),
         observation=None,
-        governance={},
+        governance={"product_semantics": "ordinary-chatgpt"},
         conversation_mode=contradictory_mode,
     )
     runtime = ChatGPTProductRuntime(_Client(), write_transport=_Transport(provenance=supplied))
