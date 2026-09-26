@@ -59,7 +59,7 @@ def test_status_distinguishes_release_from_unreleased_main() -> None:
 def test_roadmap_is_current_and_architecture_reset_driven() -> None:
     text = _read("ROADMAP.md")
 
-    assert "_Last updated: 2026-09-02_" in text
+    assert "_Last updated: 2026-09-26_" in text
     assert "PR10.0" in text
     assert "PR10.1" in text
     assert "PR15 Architecture Reset" in text
