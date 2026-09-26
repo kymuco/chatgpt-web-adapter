@@ -261,12 +261,13 @@ Then explain:
 ```text
 application / HDE / Codexia / terminal
                  ↓
-       ProductProviderBoundary
-                 ↓
        provider-specific runtime
        ├─ ChatGPT
        ├─ DeepSeek
        └─ Gemini
+                 │
+                 └── inspected / validated as
+                     ProductProviderBoundary schema 2
 ```
 
 Only after that should the README enter the mature ChatGPT quick start.
