@@ -113,9 +113,14 @@ function _cwaDeepSeekSnapshotExpression(promptText) {
       "const style=getComputedStyle(element);" +
       "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
     "};" +
-    "const selectors=[\".ds-markdown.ds-assistant-message-main-content\",\".ds-markdown.ds-markdown--block\",\"main [class*='markdown']\",\"main [class*='message']\",\"main [class*='prose']\",'main p','main pre'];" +
+    "const selectorGroups=[[\".ds-markdown.ds-assistant-message-main-content\"],[\".ds-markdown.ds-markdown--block\"],[\"main [class*='markdown']\",\"main [class*='message']\",\"main [class*='prose']\",'main p','main pre']];" +
+    "let responseElements=[];" +
+    "for(const selectors of selectorGroups){" +
+      "const candidates=Array.from(document.querySelectorAll(selectors.join(','))).filter((element)=>visible(element));" +
+      "if(candidates.length){responseElements=candidates;break;}" +
+    "}" +
     "const texts=[];const seen=new Set();" +
-    "for(const element of document.querySelectorAll(selectors.join(','))){" +
+    "for(const element of responseElements){" +
       "if(!visible(element)||element.closest(\"textarea,[contenteditable='true']\"))continue;" +
       "const text=normalize(element.innerText||element.textContent);" +
       "if(!text||text===prompt||text.length<2||seen.has(text))continue;" +
