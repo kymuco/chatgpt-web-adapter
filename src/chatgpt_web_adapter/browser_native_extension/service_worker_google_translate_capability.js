@@ -431,13 +431,27 @@ async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
   }
   if (
     message?.type !== "translate_text" &&
-    message?.type !== "characterize_translate_result"
+    message?.type !== "characterize_translate_result" &&
+    message?.type !== "characterize_translate_ping"
   ) {
     return next(message, port);
   }
 
   const requestId = message.request_id;
   if (typeof requestId !== "string" || !requestId) return;
+
+  if (message.type === "characterize_translate_ping") {
+    safePortPost(port, {
+      protocol: BRIDGE_PROTOCOL_VERSION,
+      type: "characterize_translate_ping_result",
+      request_id: requestId,
+      ok: true,
+      worker: "google-translate-capability",
+      characterizationVersion: 1
+    });
+    return;
+  }
+
   const isCharacterization = message.type === "characterize_translate_result";
   if (_cwaGoogleTranslateActiveRequestId !== null) {
     safePortPost(port, {
