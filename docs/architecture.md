@@ -1,55 +1,148 @@
 # Architecture
 
-_Last updated: 2026-09-02_
+_Last updated: 2026-09-26_
 
-`chatgpt-web-adapter` (CWA) is a layered product-runtime bridge around an existing ordinary ChatGPT web session. The current architecture is no longer a monolithic web-backend client and should not be understood primarily through historical Sentinel or direct-request internals.
+CWA is a local product-runtime bridge for authenticated consumer AI web products.
 
-The application-facing model is:
+The architecture is provider-aware but not provider-flattening: shared contracts express
+what survived real product evidence, while provider-specific mechanics remain below the
+public boundary.
+
+## 1. Runtime first, provider boundary second
+
+Execution happens through a concrete runtime:
 
 ```text
-application / HDE / CMA / terminal
-                |
-                v
-        ChatGPTProductRuntime
-      /            |            \
-     /             |             \
-canonical       product       structured
-read/session     mutation      observations
-    |               |              |
-    |        ProductWriteTransport  |
-    |               |              |
-    |      browser-owned PRODUCTION|
-    |      browserless EXPERIMENTAL|
-    +---------------+--------------+
-                    |
-                    v
-              ChatGPT product
+application / HDE / Codexia / terminal
+                  |
+                  v
+        provider-specific runtime
+          /          |          \
+         /           |           \
+   ChatGPT      DeepSeek Web    Gemini Web
+ production     experimental    experimental
 ```
 
-The stable abstraction is the runtime and its contracts. Browser tabs, Native Messaging, extension worker composition, CDP targets, request correlation, Sentinel details, and research probes are implementation details below that boundary.
+An existing runtime can then be inspected/validated as:
 
-## 1. Product Runtime
+```text
+ProductProviderBoundary schema 2
+```
 
-Primary files:
+`ProductProviderBoundary` is metadata and invariant validation. It is not a request
+router and does not execute turns.
 
-- `src/chatgpt_web_adapter/product_runtime.py`
-- `src/chatgpt_web_adapter/product_runtime_assembly.py`
-- `src/chatgpt_web_adapter/product_transport.py`
-- `src/chatgpt_web_adapter/product_capabilities.py`
-- `src/chatgpt_web_adapter/product_provenance.py`
-- `src/chatgpt_web_adapter/product_contract.py`
-- `src/chatgpt_web_adapter/public_surface.py`
+## 2. Frozen provider-neutral contract
 
-Responsibilities:
+PR15.56 froze the provider-neutral boundary after ChatGPT, DeepSeek and Gemini proofs.
 
-- expose the forward-looking application object `ChatGPTProductRuntime`;
-- assemble an explicit product transport;
-- keep canonical reads/finality separate from product mutation;
-- expose provider-aware capability state;
-- expose support-tier and runtime-contract metadata;
-- preserve execution provenance;
-- expose structured product observations without granting authority;
-- fail closed rather than silently falling back to a legacy writer.
+Schema 2 records:
+
+```text
+provider_id
+product_semantics
+transport
+
+canonical_readback_required
+canonical_interface
+
+write_transport_interface
+capability_model
+provenance_model
+
+automatic_write_retry
+fallback_transport
+ambiguous_write_requires_reconciliation
+incremental_observation_is_canonical_finality
+```
+
+Current shared safety invariants include:
+
+```text
+automatic_write_retry = false
+fallback_transport = none
+ambiguous_write_requires_reconciliation = true
+incremental_observation_is_canonical_finality = false
+```
+
+These are architectural guarantees, not assumptions inferred from a provider name.
+
+## 3. Provider differences remain explicit
+
+### ChatGPT
+
+```text
+provider_id = chatgpt
+product_semantics = ordinary-chatgpt
+canonical_readback_required = true
+canonical_interface = CanonicalConversationClient
+```
+
+The mature application runtime is:
+
+```text
+ChatGPTProductRuntime
+```
+
+ChatGPT has a separate canonical read/session plane and production browser-owned write
+transport.
+
+### DeepSeek Web
+
+```text
+provider_id = deepseek
+product_semantics = ordinary-deepseek
+canonical_readback_required = false
+canonical_interface = none
+support = EXPERIMENTAL
+```
+
+Current scope is text new chat and continuation.
+
+### Gemini Web
+
+```text
+provider_id = gemini
+product_semantics = ordinary-gemini
+canonical_readback_required = false
+canonical_interface = none
+support = EXPERIMENTAL
+```
+
+Current scope is text new chat and continuation.
+
+See [providers.md](providers.md).
+
+## 4. ChatGPT production runtime
+
+The mature/default path remains:
+
+```text
+application
+    |
+    v
+ChatGPTProductRuntime
+   /             \
+  /               \
+canonical        mutation
+read/session     ProductWriteTransport
+  |                 |
+  |          browser-owned PRODUCTION
+  |          browserless-request EXPERIMENTAL
+  |
+  +------ completion / identity reconciliation
+```
+
+Primary modules include:
+
+- `product_runtime.py`;
+- `product_runtime_core.py`;
+- `product_transport.py`;
+- `product_capabilities.py`;
+- `product_provenance.py`;
+- `product_provider.py`;
+- `product_contract.py`;
+- `public_surface.py`.
 
 The intended application contract remains narrow:
 
@@ -63,72 +156,138 @@ runtime.get_messages(...)
 runtime.attach_conversation(...)
 ```
 
-Downstream callers should not need Chrome tab ids, extension worker names, Native Messaging details, debugger targets, minified React component names, or Sentinel internals.
+## 5. Canonical observation is conditional, not universal
 
-## 2. Canonical Observation and Session Plane
+ChatGPT currently has a canonical conversation/session interface.
 
-The canonical plane is represented by the public `CanonicalConversationClient` contract used by `ChatGPTProductRuntime` for canonical conversation/session observation.
+It can answer:
 
-Primary areas:
-
-- conversation attach/read/status;
-- auth/session loading and refresh;
-- canonical conversation/message identity;
-- final assistant readback.
-
-The canonical plane answers what durable conversation state exists and whether the exact submitted turn reached a canonical completed assistant message.
+- which durable conversation exists;
+- current durable status;
+- durable message history;
+- whether the submitted turn reached a canonical completed assistant message.
 
 Core rule:
 
 ```text
 incremental stream
 != structured observation
+!= DOM stability
 != canonical finality
 ```
 
-A successful protected turn ultimately requires canonical product evidence, not merely a DOM change, provisional SSE text, tool completion, or structured activity event.
+DeepSeek/Gemini currently do not claim this canonical interface. Their runtime boundary
+sets `canonical_readback_required=false`.
 
-Where supported, canonical reads and session renewal remain browserless even though production protected writes are browser-owned.
+The architecture therefore does not pretend every provider has the same read plane.
 
-## 3. Product Mutation Plane
+## 6. Product mutation
 
-All product mutation flows through an explicit `ProductWriteTransport` selected by the runtime.
+All writes happen through an explicit provider-specific transport.
 
-There is no automatic browser-owned ↔ browserless ↔ compatibility fallback.
+There is no silent:
 
-### Browser-owned transport — `PRODUCTION`
+```text
+browser-owned
+↔ browserless
+↔ compatibility client
+↔ another provider
+```
 
-Primary areas:
+fallback.
 
-- `browser_owned_product_transport.py`;
-- `browser_owned_write_runtime.py`;
-- browser-native client/provider;
-- packaged MV3 extension;
-- Native Messaging host.
+### ChatGPT browser-owned
 
-The official ChatGPT page owns protected product-write semantics. CWA delegates a bounded write through the page and then returns to canonical observation for finality.
+The official page owns protected write semantics.
 
-Important invariants:
+CWA delegates a bounded write through the signed-in product page and then returns to
+the appropriate observation/finality plane.
 
-- exactly one delegated write attempt for one runtime invocation unless the caller explicitly starts another invocation;
-- no automatic retry after an ambiguous write;
-- no hidden legacy direct-write fallback;
-- page-owned protection/challenge behavior is not reconstructed by the SDK;
-- canonical assistant readback remains final authority.
+### DeepSeek / Gemini page-owned writes
 
-A reusable runtime tab is an implementation resource, not public continuation authority. The extension does not intentionally request foreground activation, though Chrome may foreground a newly created cold-path tab.
+The provider worker performs one bounded page-owned submit and observes the resulting
+page state.
 
-### Browserless request transport — `EXPERIMENTAL`
+Current completion evidence is:
 
-`browserless-request` implements a direct-request transport behind the same runtime boundary but remains explicitly experimental because it depends more directly on changing undocumented web protocol behavior.
+```text
+PAGE_DOM_STABLE_COMPLETION
+canonical_completion_proven = false
+```
 
-Its contract is fail-closed around current Sentinel/challenge requirements. CWA does not solve Turnstile, synthesize proof tokens, replay protected credentials, or fall back to browser-owned writes merely because direct admission fails.
+This is valid transport evidence but not canonical readback.
 
-Transport support tier and individual capability state remain separate contracts.
+See [browser_owned.md](browser_owned.md).
 
-## 4. Rich Input Plane
+## 7. Write ambiguity and retry authority
 
-PR9.2 graduates rich input on the live-proven default browser-owned provider path.
+The strongest cross-provider safety rule is:
+
+```text
+write known not to have happened
+→ ordinary failure where appropriate
+
+write may have happened
+→ reconciliation required
+→ automatic retry forbidden
+```
+
+For DeepSeek/Gemini, the ambiguous boundary begins when the click-capable submit
+`Runtime.evaluate` may have executed.
+
+A debugger/bridge failure after that point never authorizes a second write.
+
+## 8. Conversation identity
+
+Identity semantics are provider-specific.
+
+ChatGPT uses its proven product conversation/session identity.
+
+DeepSeek/Gemini currently use:
+
+```text
+local opaque conversation id
+→ exact observed provider page route
+```
+
+CWA does not guess or freeze undocumented provider-internal route-id schemas when the
+product does not expose a stronger public identity contract.
+
+## 9. Capabilities
+
+Capabilities are evidence-backed for a concrete runtime/provider.
+
+States:
+
+- `AVAILABLE`;
+- `UNSUPPORTED`;
+- `UNKNOWN`;
+- `UNIMPLEMENTED`.
+
+Support tier is separate from capability state.
+
+This permits an experimental provider to have a live-proven `AVAILABLE` text-turn
+capability without claiming production support for the provider as a whole.
+
+## 10. Provenance
+
+`ProductExecutionProvenance` describes what one execution actually observed.
+
+It can record:
+
+- provider/product semantics;
+- transport;
+- completion source;
+- canonical-completion claim;
+- conversation/request identity;
+- provider-specific finality detail.
+
+Neutral provenance requires explicit product semantics. It does not silently synthesize
+ChatGPT semantics for another provider.
+
+## 11. Rich input
+
+Rich input is currently a mature ChatGPT capability on the proven browser-owned path.
 
 Supported evidence-backed paths include:
 
@@ -136,27 +295,23 @@ Supported evidence-backed paths include:
 - general file new chat;
 - multimodal continuation.
 
-The same protected-write and finality rules apply to rich input.
+Native Messaging carries validated local paths rather than raw attachment bytes. The
+official page owns upload and submit.
 
-Native Messaging carries validated local paths rather than attachment bytes. The official ChatGPT page owns upload and submit. The runtime validates the requested attachment set and correlates the protected request to the intended user message/conversation before treating the write as valid.
+DeepSeek/Gemini do not inherit rich-input availability merely because their web UIs may
+visibly expose upload controls.
 
-Capability graduation is provider-aware: an arbitrary custom provider does not inherit rich-input `AVAILABLE` state from the transport name alone.
+## 12. Structured product observation
 
-## 5. Structured Product Observation Plane
-
-PR9.3 and PR10.0 add a bounded observation layer alongside, not inside, mutation/finality authority.
-
-Root production observation values can represent:
+The mature ChatGPT runtime can expose bounded typed observations for:
 
 - search activity;
 - generic tool/activity points;
 - source identity;
-- citation-to-source relationships;
+- citation relationships;
 - required-action evidence.
 
-Post-0.3 typed models additionally support stronger connector and required-action lifecycle representation when stable product identifiers are explicitly present.
-
-Core rule:
+Observation is intentionally separated from authority:
 
 ```text
 product observation
@@ -165,150 +320,128 @@ product observation
 != product write authority
 != retry authority
 != canonical finality
-!= downstream filesystem/Git/workspace authority
+!= filesystem/Git/workspace authority
 ```
 
-The collector consumes only bounded standardized events. Raw tool arguments/results, raw connector payloads, arbitrary DOM text, private reasoning, credentials, cookies, authorization headers, signed URLs, and retrieved private connector content remain outside this typed observation boundary.
+Raw private tool arguments/results, credentials, arbitrary DOM state and capability
+locators remain outside the public observation boundary.
 
-`tools_connectors` remains conservative (`UNKNOWN`) because current authenticated evidence does not prove a general stable connector execution contract.
+## 13. Generated artifacts
 
-## 6. Generated-Artifact Boundary
+The generated-artifact boundary remains conservative.
 
-PR10.1 adds a narrow artifact observation model and characterizes current product surfaces.
-
-The milestone deliberately stops before download authority.
-
-```text
-artifact observed
-!= artifact locator exposed
-!= download requested
-!= destination authorized
-!= overwrite authorized
-!= canonical finality
-```
-
-Current frozen status:
+Current frozen result:
 
 ```text
 ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
 ```
 
-The current product characterization did not prove both a stable product-owned artifact identity and a safe browser-owned resolution path. CWA therefore does not synthesize identity from filename, message order, DOM position, assistant prose, URL similarity, or minified React/update-queue internals.
+Observation does not imply download authority. CWA does not synthesize stable artifact
+identity from filename, prose, DOM order, message order, URL similarity or minified
+frontend internals.
 
-Historical PR10.1 characterization overlays remain in-tree as reproducible research evidence but are disabled from ordinary runtime startup by default.
+## 14. Browserless transport
 
-## 7. Capability and Provenance Ownership
+`browserless-request` remains an experimental ChatGPT transport.
 
-Capabilities answer whether a feature is implemented and evidence-backed for the selected runtime/provider path.
+It exists behind the same high-level runtime boundary but depends more directly on
+undocumented web request behavior and product protection state.
 
-Canonical states:
+CWA does not solve Turnstile, synthesize proof tokens or weaken ambiguity/finality
+rules merely to make browserless writes succeed.
 
-- `AVAILABLE`;
-- `UNSUPPORTED`;
-- `UNKNOWN`;
-- `UNIMPLEMENTED`.
+Avoiding Chrome is not, by itself, a promotion criterion.
 
-Provenance describes what one execution actually observed: transport, completion source, canonical proof, request/conversation identity, and transport-specific metadata.
+## 15. Public surface tiers
 
-CWA does not fabricate provenance to make heterogeneous transports look identical.
-
-## 8. Public Surface Tiers
-
-The root package exposes machine-readable support classification through `PublicSurfaceTier`, `PUBLIC_SURFACE_CLASSIFICATION`, and `public_surface_tier()`.
+The root package exposes machine-readable tiers.
 
 ### `PRIMARY_PRODUCTION`
 
-Forward-looking runtime, product transport contract, canonical client contract, capabilities/provenance/contracts, and immutable structured observation value types.
+Includes:
+
+- `ChatGPTProductRuntime`;
+- `assemble_product_runtime()`;
+- `ProductProviderBoundary`;
+- `product_provider_boundary()`;
+- product transport/capability/provenance/contracts;
+- canonical client interfaces;
+- immutable structured observation values.
 
 ### `SHARED_SUPPORT`
 
-Auth/session helpers, common conversation/response/error types, and `MediaItem` / `MediaSource` rich-input types used by the primary runtime.
+Auth/session helpers, common types, errors and media values.
 
 ### `COMPATIBILITY`
 
-`ChatGPTWebClient` / `WebChatClient` and historical workflows retained for existing callers without silent redirection into the product runtime.
+`ChatGPTWebClient` / `WebChatClient` and historical workflows.
 
 ### `EXPERIMENTAL`
 
-Approval helpers, raw/prepared backend surfaces, payload helpers, and `browserless-request` where contracts depend more directly on undocumented product behavior.
+Raw/backend helpers and unstable transport/product surfaces.
+
+DeepSeek/Gemini concrete runtimes remain module-only rather than root production
+exports.
 
 ### `RESEARCH_DIAGNOSTIC`
 
-Direct browser-native provider/install APIs, Sentinel internals, feasibility probes, and product-characterization tooling used to investigate or repair boundaries.
+Direct browser-native/Sentinel/characterization tooling.
 
-Research artifacts are intentionally retained when they provide useful evidence, but their presence does not make them application APIs.
+## 16. Extension composition
 
-The historical tier decision remains documented in `docs/public_surface_pr8_6.md`.
+The browser extension keeps provider dispatch private.
 
-## 9. Compatibility Boundary
+The internal provider handler registry is composition machinery, not:
 
-`ChatGPTWebClient` remains import-compatible and useful for historical workflows. It is no longer the architecture reference for new product-turn integrations.
+- a public plugin registry;
+- a caller-controlled routing table;
+- a generic provider factory.
 
-Do not silently route:
+Shared abstraction should reopen only when a real provider or consumer falsifies the
+current contract.
 
-```text
-ChatGPTWebClient.send()
--> ChatGPTProductRuntime
-```
+## 17. Downstream authority
 
-and do not silently fall back:
+CWA can provide product evidence to HDE, Codexia, terminal tools or arbitrary Python
+applications.
 
-```text
-ChatGPTProductRuntime
--> ChatGPTWebClient.send()
-```
+It does not own:
 
-Migration remains explicit.
+- project memory;
+- autonomous continuation policy;
+- task planning;
+- Git/workspace authority;
+- filesystem mutation policy;
+- external approval policy.
 
-`USAGE.md` now documents the current runtime first and keeps compatibility/research paths separately discoverable.
+Those remain downstream concerns.
 
-## 10. Downstream Authority Boundary
+## 18. Architectural decision rule
 
-CWA may provide product evidence to CMA, HDE, terminal tools, or arbitrary Python applications.
-
-It does not own the meaning or authority those applications assign to that evidence.
-
-Examples:
-
-```text
-CWA: "ChatGPT exposed a required authorization action"
-caller: decides whether approval is allowed
-
-CWA: "ChatGPT cited source X"
-caller: decides how to use that source
-
-CWA: "generated artifact observation exists"
-caller: still has no download/filesystem authority unless a separate future handoff contract provides it
-```
-
-Project state, memory, task orchestration, Git policy, workspace mutation, and autonomous continuation remain outside this repository.
-
-## 11. What Stays Out of CWA
-
-The package should not become:
-
-- a full chat application/TUI;
-- HDE/CMA project memory or cognition;
-- a generic project agent;
-- a Git/filesystem authority layer;
-- a browser-challenge circumvention toolkit;
-- a caller-controlled abstraction over every internal ChatGPT tool;
-- a stable SDK built on minified React/DOM internals;
-- a generic multi-provider model abstraction before a real second product backend exists.
-
-## 12. Architectural decision rule
-
-When product behavior changes or a new capability is considered:
+For product drift or a new capability:
 
 ```text
 observe narrowly
--> identify the decision-relevant product contract
--> preserve authority separation
--> add deterministic regression
--> perform bounded live validation when product-facing behavior changed
--> document the resulting capability/support boundary
+→ identify decision-relevant contract
+→ preserve authority separation
+→ add deterministic regression
+→ perform bounded live validation when needed
+→ document resulting support/capability boundary
 ```
 
-Stop characterization when the architectural decision is already supported. Do not continue reverse engineering merely because deeper internal state is reachable.
+Do not continue reverse engineering after the architectural decision is already
+supported.
 
-See [`../ROADMAP.md`](../ROADMAP.md) for current development direction and [`README.md`](README.md) for the documentation map.
+## 19. Reopen conditions for provider architecture
+
+Do not add another abstraction layer merely because another provider exists.
+
+Reopen the frozen provider architecture only if:
+
+1. a real provider cannot fit schema 2 without misrepresenting semantics;
+2. a real consumer needs stable provider construction/selection;
+3. a new canonical interface shape cannot be represented;
+4. production promotion of an experimental provider requires a stronger contract;
+5. a concrete safety failure disproves the current reconciliation model.
+
+See [engineering/pr15_56_provider_architecture_closure.md](engineering/pr15_56_provider_architecture_closure.md).
