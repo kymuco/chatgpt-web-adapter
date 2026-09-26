@@ -386,6 +386,20 @@ def test_google_translate_characterization_discovers_only_existing_translate_tab
     assert "GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_AMBIGUOUS" in helper
 
 
+def test_google_translate_characterization_captures_dedicated_output_region() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    characterization = worker.split(
+        "function _cwaGoogleTranslateCharacterizationExpression()", 1
+    )[1].split("async function _cwaGoogleTranslateEvaluate", 1)[0]
+
+    assert 'c-wiz[jsname=\\"e79Xi\\"][role=\\"region\\"]' in characterization
+    assert "outputRegionSnapshot" in characterization
+    assert "outputRegionDescendants" in characterization
+    assert "descendantCount" in characterization
+
+
 def test_google_translate_characterization_is_read_only_and_temporary() -> None:
     worker = (EXT / "service_worker_google_translate_capability.js").read_text(
         encoding="utf-8"
@@ -409,6 +423,7 @@ def test_google_translate_characterization_is_read_only_and_temporary() -> None:
     assert '"type": "characterize_translate_ping"' in script
     assert '"type": "characterize_translate_result"' in script
     assert '"diagnostic_candidates"' in script
+    assert '"output_region"' in script
     assert "translate_text(" not in script
 
 
@@ -421,3 +436,7 @@ def test_google_translate_live_gate_is_acceptance_only() -> None:
     assert 'target_language="es"' in gate
     assert '"hola"' in gate
     assert '"conversation_semantics": False' in gate
+    assert "GoogleTranslateOutcomeAmbiguousError" in gate
+    assert '"type": "characterize_translate_result"' in gate
+    assert '"output_region"' in gate
+    assert "AMBIGUOUS_WITH_IMMEDIATE_READ_ONLY_CHARACTERIZATION" in gate
