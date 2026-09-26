@@ -218,6 +218,17 @@ PUBLIC_SURFACE_METADATA_EXPORTS = [
     "public_surface_tier",
 ]
 
+EXPERIMENTAL_DEEPSEEK_EXPORTS = [
+    "DEEPSEEK_WEB_PROVIDER_ID",
+    "DEEPSEEK_WEB_PRODUCT_TRANSPORT",
+    "ORDINARY_DEEPSEEK_PRODUCT_SEMANTICS",
+    "DeepSeekWebTurnProvider",
+    "DeepSeekWebTurnResult",
+    "DeepSeekWebWriteOutcomeAmbiguousError",
+    "DeepSeekWebProductTransport",
+    "DeepSeekWebRuntime",
+]
+
 EXPERIMENTAL_APPROVAL_EXPORTS = [
     "ApprovalDecision",
     "ApprovalDeniedError",
@@ -358,6 +369,15 @@ __all__ = [
     "PUBLIC_SURFACE_TIERS",
     "PUBLIC_SURFACE_CLASSIFICATION",
     "public_surface_tier",
+    # Experimental provider #2 proof.
+    "DEEPSEEK_WEB_PROVIDER_ID",
+    "DEEPSEEK_WEB_PRODUCT_TRANSPORT",
+    "ORDINARY_DEEPSEEK_PRODUCT_SEMANTICS",
+    "DeepSeekWebTurnProvider",
+    "DeepSeekWebTurnResult",
+    "DeepSeekWebWriteOutcomeAmbiguousError",
+    "DeepSeekWebProductTransport",
+    "DeepSeekWebRuntime",
     # Lower-support-level compatibility exports remain available.
     "ApprovalDecision",
     "ApprovalDeniedError",
