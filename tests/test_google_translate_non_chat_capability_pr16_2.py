@@ -42,9 +42,7 @@ class _FakeBridge:
             "translatedText": "Hola",
             "sourceLanguage": payload["sourceLanguage"],
             "targetLanguage": payload["targetLanguage"],
-            "finalUrl": (
-                "https://translate.google.com/?sl=en&tl=es&op=translate"
-            ),
+            "finalUrl": ("https://translate.google.com/?sl=en&tl=es&op=translate"),
             "tabId": 17,
             "elapsedMs": 321,
             "finalityEvidence": GOOGLE_TRANSLATE_WEB_FINALITY,
@@ -182,15 +180,12 @@ def test_google_translate_extension_is_explicit_non_chat_route() -> None:
     router = (EXT / "service_worker_native_message_router.js").read_text(
         encoding="utf-8"
     )
-    worker = (
-        EXT / "service_worker_google_translate_capability.js"
-    ).read_text(encoding="utf-8")
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
 
     assert "https://translate.google.com/*" in manifest
-    assert (
-        'importScripts("service_worker_google_translate_capability.js");'
-        in runtime
-    )
+    assert 'importScripts("service_worker_google_translate_capability.js");' in runtime
     assert runtime.index("service_worker_gemini_provider.js") < runtime.index(
         "service_worker_google_translate_capability.js"
     )
@@ -212,7 +207,7 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
 
     assert "https://translate.google.com" in worker
     assert "textarea" in worker
-    assert 'jsname=\\\"W297wb\\\"' in worker
+    assert 'jsname=\\"W297wb\\"' in worker
     assert "InputEvent('input'" in worker
     assert "PAGE_DOM_STABLE_TRANSLATION" in worker
     assert "canonicalCompletionProven: false" in worker
@@ -227,10 +222,12 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert ".click()" not in worker
 
 
-def test_google_translate_authority_lane_is_shared_without_canonical_reservation() -> None:
-    host = (
-        ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py"
-    ).read_text(encoding="utf-8")
+def test_google_translate_authority_lane_is_shared_without_canonical_reservation() -> (
+    None
+):
+    host = (ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py").read_text(
+        encoding="utf-8"
+    )
 
     assert '"translate_text",' in host
     assert '"translate_text": 30_000' in host
