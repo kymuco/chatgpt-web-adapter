@@ -128,17 +128,27 @@ class GeminiBrowserTurnProvider(BrowserNativeTurnProvider):
         if total_timeout <= 0:
             raise ValueError("timeout must be positive")
 
-        response = self._rpc(
-            {
-                "type": "turn",
-                "request_id": uuid.uuid4().hex,
-                "providerId": GEMINI_PROVIDER_ID,
-                "conversationId": conversation_id,
-                "text": text,
-                "timeoutMs": int(total_timeout * 1000),
-            },
-            timeout=total_timeout,
-        )
+        try:
+            response = self._rpc(
+                {
+                    "type": "turn",
+                    "request_id": uuid.uuid4().hex,
+                    "providerId": GEMINI_PROVIDER_ID,
+                    "conversationId": conversation_id,
+                    "text": text,
+                    "timeoutMs": int(total_timeout * 1000),
+                },
+                timeout=total_timeout,
+            )
+        except RequestError as error:
+            if str(error).startswith(
+                "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION:"
+            ):
+                raise GeminiWebWriteOutcomeAmbiguousError(
+                    f"GEMINI_WEB_TURN_FAILED: {error}",
+                    request_stage="gemini_web_turn",
+                ) from error
+            raise
         if response.get("ok") is not True:
             error = str(response.get("error") or "unknown error")
             if error.startswith(
