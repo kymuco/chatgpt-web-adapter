@@ -26,22 +26,30 @@ def test_authentication_and_troubleshooting_guides_preserve_session_and_diagnost
     assert "can still contain secrets" in troubleshooting
 
 
-def test_primary_usage_positioning_is_product_runtime_first() -> None:
+def test_primary_usage_positioning_is_provider_aware_and_runtime_first() -> None:
     readme = _read("README.md")
     usage = _read("USAGE.md")
     architecture = _read("docs/architecture.md")
+    providers = _read("docs/providers.md")
     classification = _read("docs/public_surface_pr8_6.md")
 
     assert "ChatGPTProductRuntime" in readme
     assert "assemble_product_runtime" in readme
-    assert "PRIMARY_PRODUCTION" in readme
-    assert "current runtime-first user guide" in readme
+    assert "ProductProviderBoundary" in readme
+    assert "DeepSeek Web" in readme
+    assert "Gemini Web" in readme
+    assert "docs/providers.md" in readme
     assert "ChatGPTProductRuntime" in usage
-    assert "Compatibility: `ChatGPTWebClient`" in usage
+    assert "Compatibility:" in usage
+    assert "ChatGPTWebClient" in usage
     assert "ProductWriteTransport" in architecture
     assert "CanonicalConversationClient" in architecture
+    assert "metadata and invariant validation" in architecture
+    assert "ChatGPT" in providers
+    assert "DeepSeek Web" in providers
+    assert "Gemini Web" in providers
     assert "ChatGPTWebClient" in classification
-    assert "does **not** deprecate `ChatGPTWebClient`" in classification
+    assert "does **not** deprecate" in classification
     assert "RESEARCH_DIAGNOSTIC" in classification
 
 
@@ -50,7 +58,10 @@ def test_current_usage_guide_keeps_compatibility_without_stale_model_defaults() 
 
     assert "ChatGPTProductRuntime" in usage
     assert "browser-owned" in usage
-    assert "Compatibility: `ChatGPTWebClient`" in usage
+    assert "DeepSeekWebRuntime" in usage
+    assert "GeminiWebRuntime" in usage
+    assert "Compatibility:" in usage
+    assert "ChatGPTWebClient" in usage
     assert "Historical compatibility features" in usage
     assert "gpt-5-3-mini" not in usage
     assert "gpt-4o-mini" not in usage
@@ -83,6 +94,8 @@ def test_compatibility_write_examples_are_retained_not_rebranded_as_primary() ->
     readme = _read("README.md")
     assert "Primary production example:" in readme
     assert "examples/product_runtime.py" in readme
+    assert "Compatibility examples:" in readme
+    assert "Research/diagnostic examples:" in readme
 
 
 def test_raw_payload_docs_do_not_claim_current_product_runtime_support() -> None:
