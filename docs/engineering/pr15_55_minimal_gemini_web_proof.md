@@ -179,22 +179,65 @@ continuation = AVAILABLE
 
 Everything else remains UNKNOWN or UNIMPLEMENTED.
 
-## Temporary live gate
+## Live acceptance
 
-During branch validation only:
+Real logged-in Gemini Web acceptance passed on PR15.55 at production head
+`0a7acadcb36b93383c7277820c14795c45d79c75`.
 
-```powershell
-python -m chatgpt_web_adapter.gemini_web_live_gate
+Observed acceptance:
+
+```text
+provider boundary schema 2 passes
+provider_id = gemini
+product_semantics = ordinary-gemini
+transport = gemini-web
+new-chat marker observed
+opaque conversation id established
+continuation marker observed
+continuation preserves the same opaque conversation id
+automatic write retry = false
+fallback transport = none
+canonical completion proven = false
+result = PASS
 ```
 
-The gate performs one new chat and one continuation with independent random markers.
-It is acceptance instrumentation, not shipping product surface. After real-product
-acceptance it must be deleted before merge, while the accepted behavior remains frozen
-through deterministic regression tests and this engineering record.
+The executable live gate was acceptance-only instrumentation and is removed before
+merge. The repository keeps the production runtime, deterministic regressions and this
+evidence record.
+
+## Post-live review hardening
+
+Review after the successful live run identified two ambiguity-classification gaps
+without changing the successful write path.
+
+First, once the single page-owned submit returns, every later observation/route/storage
+failure is now classified as:
+
+```text
+GEMINI_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED
+```
+
+rather than escaping as an ordinary retryable-looking error.
+
+Second, Native Messaging response loss after the turn has already been delegated is
+mapped to `GeminiWebWriteOutcomeAmbiguousError`. Bridge failures before delegation
+remain ordinary request failures.
+
+The invariant is therefore:
+
+```text
+before delegation / before submit uncertainty
+→ ordinary failure where appropriate
+
+after delegation / after submit uncertainty
+→ reconciliation required
+→ automatic retry forbidden
+```
+
 
 ## Acceptance
 
-PR15.55 is not ready to merge until all of the following hold:
+PR15.55 acceptance requires all of the following:
 
 ```text
 provider boundary passes
