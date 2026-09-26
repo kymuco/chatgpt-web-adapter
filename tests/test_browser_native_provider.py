@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import socket
 import threading
+import time
 
 import pytest
 
@@ -81,6 +82,36 @@ def test_provider_round_trip_uses_loopback_token_and_safe_result(tmp_path) -> No
     assert result.tab_was_active is False
     assert result.runtime_reloaded is True
     assert result.runtime_reload_ms == 321
+
+
+def test_provider_derives_delegated_timeout_after_connection(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    real_create_connection = socket.create_connection
+
+    def delayed_create_connection(*args, **kwargs):
+        time.sleep(0.2)
+        return real_create_connection(*args, **kwargs)
+
+    monkeypatch.setattr(socket, "create_connection", delayed_create_connection)
+
+    _, captured, result = _round_trip(
+        tmp_path,
+        lambda provider: provider._rpc(
+            {
+                "type": "probe",
+                "request_id": "probe-1",
+                "timeoutMs": 1,
+            },
+            timeout=2.0,
+            delegated_timeout_ms_key="timeoutMs",
+            delegated_response_margin=0.5,
+        ),
+    )
+
+    assert result["ok"] is True
+    assert 1 <= captured["timeoutMs"] < 1_600
 
 
 def test_provider_serializes_fresh_canonical_completion_recovery_evidence(
