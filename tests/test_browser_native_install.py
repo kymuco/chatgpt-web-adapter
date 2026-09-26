@@ -33,7 +33,10 @@ def test_packaged_extension_identity_and_manifest() -> None:
         "storage",
         "nativeMessaging",
     }
-    assert manifest["host_permissions"] == ["https://chatgpt.com/*"]
+    assert manifest["host_permissions"] == [
+        "https://chatgpt.com/*",
+        "https://chat.deepseek.com/*",
+    ]
 
 
 def test_materialize_extension_copies_exact_tree_to_stable_target(

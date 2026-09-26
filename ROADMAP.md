@@ -169,12 +169,12 @@ old owner
 → delete old owner
 ```
 
-ChatGPT consolidation is now complete through PR15.51. PR15.52 freezes the first
-provider-neutral contract around provider identity/semantics, canonical/write
-interfaces, capabilities/provenance, no fallback, no automatic retry, reconciliation,
-and non-canonical incremental observation. ChatGPT remains provider #1; DeepSeek is
-the second proof because it provides a materially different web-session/API shape.
-Gemini remains deferred until the abstraction survives two providers.
+ChatGPT consolidation is now complete through PR15.51. PR15.52 froze the first
+provider-neutral contract. PR15.53 uses DeepSeek Web as provider #2 and is allowed to
+falsify that first abstraction: page-owned finality does not imply a canonical
+conversation-read interface. Shared core therefore keeps provider identity/semantics,
+write transport, capabilities/provenance, no fallback, no automatic retry and explicit
+finality/reconciliation, while canonical readback is conditional. The DeepSeek live proof is green. Gemini remains deferred until a separate evidence-driven slice is started.
 
 Consumer-driven runtime hardening remains the rule for what enters the resulting
 public contract. A provider or web capability does not become production scope merely
