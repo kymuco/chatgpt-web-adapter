@@ -55,15 +55,13 @@ def test_gemini_notebook_characterization_is_explicit_extension_layer() -> None:
 
     assert "https://notebook.google/*" in manifest
     assert "https://notebooklm.google.com/*" in manifest
-    assert (
-        'importScripts("service_worker_gemini_notebook_capability.js");' in runtime
-    )
+    assert 'importScripts("service_worker_gemini_notebook_capability.js");' in runtime
     assert runtime.index("service_worker_gemini_provider.js") < runtime.index(
         "service_worker_gemini_notebook_capability.js"
     )
-    assert runtime.index("service_worker_gemini_notebook_capability.js") < runtime.index(
-        "service_worker_google_translate_capability.js"
-    )
+    assert runtime.index(
+        "service_worker_gemini_notebook_capability.js"
+    ) < runtime.index("service_worker_google_translate_capability.js")
     assert "_cwaOnNativeMessageWithGeminiNotebook(" in router
     assert "_cwaOnNativeMessageWithGoogleTranslate(" in router
 
@@ -80,10 +78,7 @@ def test_gemini_notebook_characterization_uses_shared_authority_lane() -> None:
 
 def test_gemini_notebook_characterization_cli_does_not_mutate_product() -> None:
     script = (
-        ROOT
-        / "src"
-        / "chatgpt_web_adapter"
-        / "gemini_notebook_web_characterization.py"
+        ROOT / "src" / "chatgpt_web_adapter" / "gemini_notebook_web_characterization.py"
     ).read_text(encoding="utf-8")
 
     assert '"type": "characterize_gemini_notebook"' in script
