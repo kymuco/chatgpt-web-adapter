@@ -16,7 +16,7 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           PR16.3 adoption/discoverability foundation
+current phase           PR16.4 Gemini Notebook source-admission spike
 license                 MIT
 python                  3.10-3.14
 ```
@@ -236,6 +236,23 @@ New discovery surfaces include `docs/quickstart.md`, `docs/capabilities.md`,
 
 A dedicated MCP adapter remains a future integration layer, not a current support
 claim.
+
+## Active product experiment
+
+PR16.4 asks whether the lower CWA browser bridge can support a persistent consumer
+research workspace without forcing it into the chat-provider contract.
+
+Target:
+
+```text
+existing owned consumer Gemini Notebook
++ exact web URL source
+→ durable source admission
+```
+
+The current branch is characterization-first and read-only. No Gemini Notebook
+capability is claimed on `main` until product identity, commitment boundary and
+admission finality are live-proven.
 
 ## Release policy
 
