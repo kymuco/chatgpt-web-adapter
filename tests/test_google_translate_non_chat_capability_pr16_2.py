@@ -328,7 +328,7 @@ def test_google_translate_result_identity_collapses_only_containment_wrappers() 
     )
     result_expression = worker.split(
         "function _cwaGoogleTranslateResultExpression(requestedText)", 1
-    )[1].split("function _cwaGoogleTranslateCharacterizationExpression()", 1)[0]
+    )[1].split("async function _cwaGoogleTranslateEvaluate", 1)[0]
 
     assert "const leaves=primary.filter" in result_expression
     assert "element.contains(other)" in result_expression
@@ -369,74 +369,19 @@ def test_google_translate_authority_lane_is_shared_without_canonical_reservation
     )
 
 
-def test_google_translate_characterization_discovers_only_existing_translate_tab() -> (
+def test_google_translate_temporary_acceptance_surfaces_are_absent_after_closure() -> (
     None
 ):
     worker = (EXT / "service_worker_google_translate_capability.js").read_text(
         encoding="utf-8"
     )
-    helper = worker.split(
-        "async function _cwaGoogleTranslateFindOpenTabForCharacterization()", 1
-    )[1].split("async function _cwaGoogleTranslateEnsureTab", 1)[0]
-
-    assert "chrome.tabs.query({" in helper
-    assert '"https://translate.google.com/*"' in helper
-    assert "chrome.tabs.create" not in helper
-    assert "chrome.tabs.update" not in helper
-    assert "GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_AMBIGUOUS" in helper
-
-
-def test_google_translate_characterization_captures_dedicated_output_region() -> None:
-    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
-        encoding="utf-8"
-    )
-    characterization = worker.split(
-        "function _cwaGoogleTranslateCharacterizationExpression()", 1
-    )[1].split("async function _cwaGoogleTranslateEvaluate", 1)[0]
-
-    assert 'c-wiz[jsname=\\"e79Xi\\"][role=\\"region\\"]' in characterization
-    assert "outputRegionSnapshot" in characterization
-    assert "outputRegionDescendants" in characterization
-    assert "descendantCount" in characterization
-
-
-def test_google_translate_characterization_is_read_only_and_temporary() -> None:
-    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
-        encoding="utf-8"
-    )
-    characterization = worker.split(
-        "function _cwaGoogleTranslateCharacterizationExpression()", 1
-    )[1].split("async function _cwaGoogleTranslateEvaluate", 1)[0]
-    script = (
-        ROOT
-        / "src"
-        / "chatgpt_web_adapter"
-        / "google_translate_web_characterization.py"
+    host = (
+        ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py"
     ).read_text(encoding="utf-8")
+    package = ROOT / "src" / "chatgpt_web_adapter"
 
-    assert "characterize_translate_result" in worker
-    assert "characterize_translate_ping" in worker
-    assert 'worker: "google-translate-capability"' in worker
-    assert "characterizationVersion: 1" in worker
-    assert "InputEvent(" not in characterization
-    assert "_cwaGoogleTranslateWriteSource(" not in characterization
-    assert '"type": "characterize_translate_ping"' in script
-    assert '"type": "characterize_translate_result"' in script
-    assert '"diagnostic_candidates"' in script
-    assert '"output_region"' in script
-    assert "translate_text(" not in script
-
-
-def test_google_translate_live_gate_is_acceptance_only() -> None:
-    gate = (
-        ROOT / "src" / "chatgpt_web_adapter" / "google_translate_web_live_gate.py"
-    ).read_text(encoding="utf-8")
-
-    assert 'source_language="en"' in gate
-    assert 'target_language="es"' in gate
-    assert '"hola"' in gate
-    assert '"conversation_semantics": False' in gate
-    assert "GoogleTranslateOutcomeAmbiguousError" in gate
-    assert '"type": "characterize_translate_result"' in gate
-    assert '"output_region"' in gate
-    assert "AMBIGUOUS_WITH_IMMEDIATE_READ_ONLY_CHARACTERIZATION" in gate
+    assert "characterize_translate_" not in worker
+    assert "GoogleTranslateCharacterization" not in worker
+    assert "characterize_translate_" not in host
+    assert not (package / "google_translate_web_live_gate.py").exists()
+    assert not (package / "google_translate_web_characterization.py").exists()
