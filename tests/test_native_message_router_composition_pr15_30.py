@@ -129,7 +129,4 @@ const _cwaBaseOnNativeMessage = async (message) => {{
         "exit:canonical",
         "exit:ui",
     ]
-    assert (
-        result["result"]["type"]
-        == "turn:ui:canonical:release:capability:product"
-    )
+    assert result["result"]["type"] == "turn:ui:canonical:release:capability:product"
