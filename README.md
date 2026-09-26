@@ -15,7 +15,7 @@ CWA lets local software, assistants and agents use ordinary hosted AI products t
 typed runtime contracts without turning browser details, product observations or
 partial output into implicit authority.
 
-[Quickstart](docs/quickstart.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
+[Quickstart](docs/quickstart.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
 
 > [!WARNING]
 > CWA is not an official API client for OpenAI, Google or DeepSeek. It works with
