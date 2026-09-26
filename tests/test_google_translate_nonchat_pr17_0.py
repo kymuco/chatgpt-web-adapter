@@ -176,6 +176,8 @@ def test_google_translate_worker_is_page_owned_without_chat_turn_registration() 
     assert "fetch(" not in worker
     assert "Network." not in worker
     assert "Runtime.evaluate" in worker
+    assert "translated=texts.join(' ')" in worker
+    assert "texts[texts.length-1]" not in worker
     assert "PAGE_DOM_STABLE_RESULT" in worker
     assert "canonicalResultProven: false" in worker
     assert "automaticWriteRetry: false" in worker
