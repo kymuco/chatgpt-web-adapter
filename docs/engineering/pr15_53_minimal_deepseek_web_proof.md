@@ -83,7 +83,7 @@ The first proof interacts only with the official page:
 
 ```text
 Runtime.evaluate
-Input.dispatchKeyEvent
+page-owned send-control click
 chrome.tabs
 chrome.storage.local
 ```
@@ -114,7 +114,11 @@ The experimental finality rule is intentionally weaker than ChatGPT canonical
 readback.
 
 Before submission the worker records bounded visible response-like page text. It then
-performs exactly one Enter submission and waits until:
+writes the composer and performs exactly one page-owned send-control click. The send
+control is resolved only inside the composer-local DOM surface; there is no keyboard
+fallback and no second submit. After that single submit, if DeepSeek route navigation
+replaces the CDP target, the worker may reattach only for post-submit observation.
+It never replays the write. The worker then waits until:
 
 - new response text is visible;
 - an obvious stop-generation control is absent;
