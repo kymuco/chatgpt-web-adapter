@@ -236,7 +236,7 @@ async function _deepseekWebSendButtonPoint(debuggee) {
       const composerRect = composer.getBoundingClientRect();
       const selectors = [
         "div[role='button'].ds-button--primary.ds-button--filled",
-        "div[role='button'].ds-icon-button",
+        "div[role='button'].ds-button--primary.ds-button--circle",
         "button[type='submit']"
       ];
       const candidates = [];
