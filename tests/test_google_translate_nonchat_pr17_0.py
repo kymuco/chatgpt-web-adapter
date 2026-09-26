@@ -67,7 +67,9 @@ def test_google_translate_runtime_is_explicitly_non_chat() -> None:
         adapter.product_provider_boundary(runtime)
 
 
-def test_google_translate_translation_has_structured_parameters_without_conversation() -> None:
+def test_google_translate_translation_has_structured_parameters_without_conversation() -> (
+    None
+):
     bridge = _Bridge(_success_response())
     runtime = GoogleTranslateWebRuntime(bridge=bridge)
 
