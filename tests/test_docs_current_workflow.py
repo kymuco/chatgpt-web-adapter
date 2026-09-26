@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -10,7 +9,9 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_authentication_and_troubleshooting_guides_preserve_session_and_diagnostic_flow() -> None:
+def test_authentication_and_troubleshooting_guides_preserve_session_and_diagnostic_flow() -> (
+    None
+):
     authentication = _read("docs/authentication.md")
     troubleshooting = _read("docs/troubleshooting.md")
 
