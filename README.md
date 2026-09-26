@@ -373,6 +373,29 @@ product observation
 Current authenticated evidence remains conservative around generalized connector
 execution and generated-artifact download.
 
+## Conservative boundaries
+
+Some visible product surfaces remain intentionally unpromoted.
+
+```text
+tools_connectors = UNKNOWN
+```
+
+CWA can observe bounded product-tool / required-action evidence on proven ChatGPT
+paths, but current evidence does not justify a general connector execution contract.
+
+Generated-artifact observation also remains separate from download authority:
+
+```text
+ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
+```
+
+A future download handoff still requires stable product-owned artifact identity and a
+safe resolution path; CWA does not infer identity from filename, prose, DOM position or
+URL similarity.
+
+These decisions originated in post-0.3 product work and remain current boundaries.
+
 ## Safety and failure model
 
 CWA fails closed around uncertain product state.
@@ -441,6 +464,36 @@ CWA is not becoming:
 
 Downstream applications decide what to do with product evidence.
 
+## Examples
+
+Primary production example:
+
+- [examples/product_runtime.py](examples/product_runtime.py)
+
+Compatibility examples:
+
+- [examples/basic_send.py](examples/basic_send.py)
+- [examples/continue_saved.py](examples/continue_saved.py)
+- [examples/attach_existing.py](examples/attach_existing.py)
+- [examples/read_messages.py](examples/read_messages.py)
+- [examples/status_polling.py](examples/status_polling.py)
+
+Experimental examples:
+
+- [examples/approve_tools.py](examples/approve_tools.py)
+- [examples/raw_payload.py](examples/raw_payload.py)
+- [examples/github_auto_approve.py](examples/github_auto_approve.py)
+
+Research/diagnostic examples:
+
+- [examples/browser_native_send.py](examples/browser_native_send.py)
+- [examples/diagnose_latency.py](examples/diagnose_latency.py)
+- [examples/watch_conversation.py](examples/watch_conversation.py)
+
+Example classification follows the same support philosophy as the library: historical
+or diagnostic code remains discoverable without becoming the recommended application
+path.
+
 ## Documentation
 
 Start with:
@@ -452,6 +505,11 @@ Start with:
 - [docs/providers.md](docs/providers.md) — provider capability/support matrix;
 - [docs/browser_owned.md](docs/browser_owned.md) — browser-owned strategy;
 - [docs/README.md](docs/README.md) — documentation map;
+- [docs/authentication.md](docs/authentication.md) — ChatGPT authentication/session flow;
+- [docs/troubleshooting.md](docs/troubleshooting.md) — operational troubleshooting;
+- [docs/public_surface_pr8_6.md](docs/public_surface_pr8_6.md) — public-surface tier lineage;
+- [docs/raw_payload.md](docs/raw_payload.md) — experimental raw/backend surface;
+- [docs/rename_compatibility.md](docs/rename_compatibility.md) — historical package naming record;
 - [SECURITY.md](SECURITY.md) — security boundary.
 
 Historical PR-specific documents remain in `docs/` as evidence and architectural
