@@ -132,3 +132,11 @@ No images, files, tools/connectors, account pooling, model-profile abstraction o
 generic provider registry should be added until this two-provider proof is green.
 
 Tracking: #107
+
+
+## PR15.53 provider #2 follow-up
+
+PR15.53 exercises this boundary with an experimental `DeepSeekWebRuntime`.
+The second provider keeps ChatGPT-specific Temporary/Browser Authority/rich-input
+surfaces out of shared core and uses only the frozen identity/semantics,
+capabilities/provenance, no-retry/no-fallback and reconciliation invariants.
