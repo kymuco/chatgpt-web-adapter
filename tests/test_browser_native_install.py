@@ -36,6 +36,7 @@ def test_packaged_extension_identity_and_manifest() -> None:
     assert manifest["host_permissions"] == [
         "https://chatgpt.com/*",
         "https://chat.deepseek.com/*",
+        "https://gemini.google.com/*",
     ]
 
 
