@@ -170,22 +170,12 @@ support tier = EXPERIMENTAL
 
 Everything outside the proof is UNKNOWN or UNIMPLEMENTED.
 
-## Live gate
+## Live acceptance
 
-Prerequisites:
+The real logged-in DeepSeek Web acceptance passed on PR15.53 after the production
+submit path was corrected from synthetic Enter to one composer-local send-control click.
 
-- install/reload the extension built from this branch;
-- keep the Native Messaging host running;
-- sign in to `https://chat.deepseek.com` in that Chrome profile.
-
-Run:
-
-```powershell
-python -m chatgpt_web_adapter.deepseek_web_live_gate
-```
-
-The gate performs one new chat and one continuation with independent random response
-markers. Acceptance requires:
+Observed acceptance:
 
 ```text
 provider boundary passes
@@ -196,9 +186,14 @@ continuation keeps same opaque conversation id
 automatic write retry = false
 fallback transport = none
 canonical completion proven = false
+result = PASS
 ```
 
-CI proves deterministic composition and safety invariants. The provider is not
-graduated beyond EXPERIMENTAL until this live gate passes on the real product.
+The temporary executable acceptance harness was removed before merge. The repository
+keeps the production runtime, deterministic regression tests, and this evidence record;
+it does not ship a provider-specific live probe.
+
+The support tier remains EXPERIMENTAL because this slice proves only text new-chat and
+continuation behavior, not broader DeepSeek product semantics.
 
 Tracking: #107
