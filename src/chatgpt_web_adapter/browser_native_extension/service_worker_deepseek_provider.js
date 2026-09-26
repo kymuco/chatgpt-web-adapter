@@ -3,7 +3,7 @@ const CWA_DEEPSEEK_PROVIDER_ID = "deepseek";
 const CWA_DEEPSEEK_ORIGIN = "https://chat.deepseek.com";
 const CWA_DEEPSEEK_RUNTIME_TAB_KEY = "deepseekWebRuntimeTabIdV1";
 const CWA_DEEPSEEK_ROUTE_MAP_KEY = "deepseekWebConversationRoutesV1";
-const CWA_DEEPSEEK_STABLE_MS = 2000;
+const CWA_DEEPSEEK_STABLE_MS = 9000;
 
 function _cwaDeepSeekIsUrl(url) {
   try {
@@ -113,7 +113,7 @@ function _cwaDeepSeekSnapshotExpression(promptText) {
       "const style=getComputedStyle(element);" +
       "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
     "};" +
-    "const selectors=[\"main [class*='markdown']\",\"main [class*='message']\",\"main [class*='prose']\",'main p','main pre'];" +
+    "const selectors=[\".ds-markdown.ds-assistant-message-main-content\",\".ds-markdown.ds-markdown--block\",\"main [class*='markdown']\",\"main [class*='message']\",\"main [class*='prose']\",'main p','main pre'];" +
     "const texts=[];const seen=new Set();" +
     "for(const element of document.querySelectorAll(selectors.join(','))){" +
       "if(!visible(element)||element.closest(\"textarea,[contenteditable='true']\"))continue;" +
@@ -190,7 +190,10 @@ async function _cwaDeepSeekWaitForFinalText(debuggee, text, baseline, deadlineAt
     }
     await sleep(250);
   }
-  throw new Error("DEEPSEEK_PAGE_FINALITY_TIMEOUT");
+  throw new Error(
+    "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+    "PAGE_FINALITY_TIMEOUT"
+  );
 }
 
 async function _cwaDeepSeekHandleTurn(message) {
@@ -255,16 +258,7 @@ async function _cwaDeepSeekHandleTurn(message) {
   }
 }
 
-function _cwaDeepSeekDiagnosticMatches(message) {
-  return message?.providerId === CWA_DEEPSEEK_PROVIDER_ID;
-}
-
-async function _cwaDeepSeekDiagnosticHandle(message) {
-  return _cwaDeepSeekHandleTurn(message);
-}
-
-registerNativeTurnDiagnosticHandler(
-  "deepseek-provider",
-  _cwaDeepSeekDiagnosticMatches,
-  _cwaDeepSeekDiagnosticHandle
+registerProductProviderTurnHandler(
+  CWA_DEEPSEEK_PROVIDER_ID,
+  _cwaDeepSeekHandleTurn
 );
