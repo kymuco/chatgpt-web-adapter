@@ -50,7 +50,11 @@ async function _cwaGoogleTranslateExistingTab() {
   }
 }
 
-async function _cwaGoogleTranslateEnsureTab(sourceLanguage, targetLanguage) {
+async function _cwaGoogleTranslateEnsureTab(
+  sourceLanguage,
+  targetLanguage,
+  deadlineAt
+) {
   const targetUrl = _cwaGoogleTranslateTargetUrl(sourceLanguage, targetLanguage);
   let tab = await _cwaGoogleTranslateExistingTab();
 
@@ -67,7 +71,14 @@ async function _cwaGoogleTranslateEnsureTab(sourceLanguage, targetLanguage) {
     tab = await chrome.tabs.update(tab.id, { url: targetUrl, active: false });
   }
 
-  tab = await _cwaBaseWaitForTabComplete(tab.id, 45000);
+  const remainingMs = Math.floor(deadlineAt - performance.now());
+  if (remainingMs <= 0) {
+    throw new Error("GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_PAGE_READY");
+  }
+  tab = await _cwaBaseWaitForTabComplete(
+    tab.id,
+    Math.max(1, Math.min(45000, remainingMs))
+  );
   if (!_cwaGoogleTranslateIsUrl(tab?.url || "")) {
     throw new Error("GOOGLE_TRANSLATE_RUNTIME_TAB_ORIGIN_CHANGED");
   }
@@ -102,10 +113,8 @@ function _cwaGoogleTranslateSourceExpression(text) {
   "})()";
 }
 
-function _cwaGoogleTranslateResultExpression(targetLanguage) {
-  const encodedTarget = JSON.stringify(targetLanguage);
+function _cwaGoogleTranslateResultExpression() {
   return "(() => {" +
-    "const target=" + encodedTarget + ";" +
     "const normalize=(value)=>String(value||'').replace(/\\s+/g,' ').trim();" +
     "const visible=(element)=>{" +
       "if(!(element instanceof Element))return false;" +
@@ -114,16 +123,15 @@ function _cwaGoogleTranslateResultExpression(targetLanguage) {
       "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
     "};" +
     "const primary=Array.from(document.querySelectorAll('[jsname=\"W297wb\"],[jsname=\"jqKxS\"]')).filter(visible);" +
-    "const languageCandidates=Array.from(document.querySelectorAll('[lang]')).filter((element)=>visible(element)&&String(element.getAttribute('lang')||'').toLowerCase()===String(target||'').toLowerCase());" +
-    "const candidates=primary.length?primary:languageCandidates;" +
     "const texts=[];const seen=new Set();" +
-    "for(const element of candidates){" +
+    "for(const element of primary){" +
       "if(element.closest('textarea,[contenteditable=\"true\"]'))continue;" +
       "const text=normalize(element.innerText||element.textContent);" +
       "if(!text||seen.has(text))continue;" +
       "seen.add(text);texts.push(text);" +
     "}" +
-    "return {url:location.href,text:texts[0]||null,candidateCount:texts.length};" +
+    "const identityResolved=texts.length<=1;" +
+    "return {url:location.href,text:identityResolved?(texts[0]||null):null,candidateCount:texts.length,identityResolved};" +
   "})()";
 }
 
@@ -181,7 +189,7 @@ async function _cwaGoogleTranslateWaitForClearedResult(
   while (performance.now() < deadlineAt) {
     const snapshot = await _cwaGoogleTranslateEvaluate(
       debuggee,
-      _cwaGoogleTranslateResultExpression(targetLanguage)
+      _cwaGoogleTranslateResultExpression()
     );
     const text = typeof snapshot?.text === "string" ? snapshot.text.trim() : "";
     if (!text) return;
@@ -202,8 +210,14 @@ async function _cwaGoogleTranslateWaitForResult(
   while (performance.now() < deadlineAt) {
     const snapshot = await _cwaGoogleTranslateEvaluate(
       debuggee,
-      _cwaGoogleTranslateResultExpression(targetLanguage)
+      _cwaGoogleTranslateResultExpression()
     );
+    if (snapshot?.identityResolved === false) {
+      throw new Error(
+        "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+        "RESULT_IDENTITY_UNRESOLVED"
+      );
+    }
     const text = typeof snapshot?.text === "string" ? snapshot.text.trim() : "";
     if (text && text !== baselineText) {
       if (text !== lastText) {
@@ -238,7 +252,7 @@ async function _cwaGoogleTranslateText(message) {
     false
   );
   const timeoutMs = Math.max(
-    3000,
+    1000,
     Math.min(Number(message?.timeoutMs) || 30000, 120000)
   );
   const deadlineAt = performance.now() + timeoutMs;
@@ -246,7 +260,8 @@ async function _cwaGoogleTranslateText(message) {
 
   const tab = await _cwaGoogleTranslateEnsureTab(
     sourceLanguage,
-    targetLanguage
+    targetLanguage,
+    deadlineAt
   );
   const debuggee = { tabId: tab.id };
   let attached = false;
@@ -268,6 +283,12 @@ async function _cwaGoogleTranslateText(message) {
       Math.min(deadlineAt, performance.now() + 5000)
     );
     const baselineText = "";
+    const remainingBeforeInput = deadlineAt - performance.now();
+    if (remainingBeforeInput < CWA_GOOGLE_TRANSLATE_STABLE_MS + 1000) {
+      throw new Error(
+        "GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_INPUT"
+      );
+    }
 
     // Google Translate begins the hosted operation in response to this input
     // mutation. If the Runtime.evaluate result is lost, execution is ambiguous.
