@@ -161,6 +161,11 @@ input mutation may have executed
 
 No private Google Translate HTTP endpoint is called by CWA.
 
+The worker's page-load and pre-input phases share one operation deadline. It is not
+allowed to begin the authoritative input after the caller's usable response budget has
+already been exhausted. Python reserves a response margin between the worker budget
+and the outer bridge timeout.
+
 ## Current DOM hypotheses
 
 The spike intentionally keeps selector knowledge provider-local.
@@ -174,10 +179,17 @@ source
 result
 → [jsname="W297wb"]
 → fallback [jsname="jqKxS"]
-→ bounded target-language [lang] fallback
 ```
 
-These are not architecture contracts.
+The spike deliberately has **no generic `[lang]` fallback**. If the product-specific
+output selectors do not establish result identity, execution fails closed rather than
+accepting arbitrary page text.
+
+If more than one distinct output candidate is observed, PR16.2 also fails closed with
+`RESULT_IDENTITY_UNRESOLVED` instead of returning the first segment and silently
+truncating a translation. Multi-segment reconstruction is outside this first proof.
+
+These selectors are not architecture contracts.
 
 Live acceptance is allowed to falsify them.
 
@@ -191,10 +203,12 @@ PAGE_DOM_STABLE_TRANSLATION
 
 It means:
 
-1. a non-empty result appears after the source mutation;
-2. the result differs from the post-clear baseline;
-3. the result remains stable for a bounded interval;
-4. the page remains on the Google Translate origin.
+1. the previous page result is proven cleared before the authoritative input;
+2. exactly one bounded product-specific output candidate is established;
+3. a non-empty result appears after the source mutation;
+4. the result differs from the post-clear baseline;
+5. the result remains stable for a bounded interval;
+6. the page remains on the Google Translate origin.
 
 It does **not** claim:
 
