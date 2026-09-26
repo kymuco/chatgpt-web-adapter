@@ -392,6 +392,43 @@ identity resolved?
 so a future timeout can distinguish missing output from timing/finality failure without
 exporting translated content in the error.
 
+## Selector-state falsification
+
+A later real rerun visibly produced the correct translation in Google Translate but
+the observer timed out with bounded telemetry:
+
+```text
+PAGE_RESULT_TIMEOUT:
+candidates=0:
+leaves=0:
+text_present=false:
+identity_resolved=true
+```
+
+This narrows the failure sharply:
+
+```text
+hosted translation visibly succeeded
+but
+the current jqKxS / W297wb evidence selectors were absent
+```
+
+Therefore those product-specific selectors are not yet stable enough to be treated as
+the complete result identity contract.
+
+PR16.2 does not respond by promoting a generic `[lang]` or arbitrary right-side DOM
+fallback into the production success path. Instead, the temporary read-only
+characterization now returns a bounded diagnostic set of visible target-language /
+right-side / jsname / aria-live metadata so the alternate product state can be
+characterized without another write.
+
+The same review cycle also strengthened two independent safety boundaries:
+
+- each finality snapshot now verifies that the source field still contains the
+  requested input text;
+- the Native Messaging worker timeout is derived after loopback connection from the
+  caller's actual remaining RPC deadline, with a reserved response margin.
+
 ## What success would prove
 
 A successful spike would prove only:
