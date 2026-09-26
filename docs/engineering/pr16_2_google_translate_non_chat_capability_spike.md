@@ -217,25 +217,26 @@ It does **not** claim:
 - exactly-once server execution;
 - official Google API semantics.
 
-## Temporary live gate
+## Acceptance harness
 
-Acceptance-only command:
+A temporary acceptance-only live gate was used during PR16.2:
 
 ```powershell
 python -m chatgpt_web_adapter.google_translate_web_live_gate
 ```
 
-The gate currently asks Google Translate Web to translate:
+It asked Google Translate Web to translate:
 
 ```text
 hello
 en → es
 ```
 
-and requires a result containing `hola`.
+and required a result containing `hola`.
 
-The executable live gate must be removed before merge after real acceptance evidence is
-preserved in this record.
+A temporary read-only characterization path was also used to investigate ambiguous
+page-result states. Both executable diagnostic surfaces were removed from the packaged
+source before merge. Their evidence is preserved only in this engineering record.
 
 ## Preliminary live evidence
 
@@ -429,6 +430,46 @@ The same review cycle also strengthened two independent safety boundaries:
 - the Native Messaging worker timeout is derived after loopback connection from the
   caller's actual remaining RPC deadline, with a reserved response margin.
 
+## Final live acceptance
+
+After the intermediate falsification cycles and safety hardening, the final real
+Google Translate Web acceptance run passed on commit
+`5830bdf2f209941b05156e926ca9869b0eeb1f38`.
+
+Observed result:
+
+```text
+input:
+hello
+en → es
+
+translated_text                 Hola
+capability_id                   translate_text
+conversation_semantics          false
+finality_evidence               PAGE_DOM_STABLE_TRANSLATION
+canonical_completion_proven     false
+automatic_retry                 false
+result                          PASS
+```
+
+The same acceptance head passed deterministic CI #1614 across engineering quality,
+Linux/Windows Python 3.10-3.14, build-artifact validation and installed-wheel smoke.
+
+This closes the live falsification question:
+
+```text
+CWA lower browser bridge / authority / ambiguity machinery
+can execute at least one hosted capability
+that has no conversation identity or chat runtime contract.
+```
+
+The result does **not** justify a generic hosted-capability framework yet. Google
+Translate remains one experimental module-only proof, and the existing chat-provider
+schema remains unchanged.
+
+The temporary live gate, characterization module and
+`characterize_translate_*` Native Messaging operations were removed before merge.
+
 ## What success would prove
 
 A successful spike would prove only:
@@ -473,7 +514,7 @@ PR16.2 does not add:
 
 ## Acceptance
 
-Before merge:
+Closure requirements:
 
 ```text
 deterministic CI green
@@ -483,5 +524,9 @@ no private Google HTTP endpoint used
 post-input ambiguity → reconciliation
 automatic retry false
 temporary executable live gate removed
+temporary characterization surface removed
 evidence record updated
 ```
+
+The real-product requirements above are satisfied. The final removal-only cleanup must
+also pass the normal repository CI before merge.
