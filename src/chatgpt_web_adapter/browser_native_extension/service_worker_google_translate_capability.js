@@ -85,7 +85,13 @@ async function _cwaGoogleTranslateEnsureTab(
       CWA_GOOGLE_TRANSLATE_RUNTIME_TAB_KEY,
       tab.id
     );
-  } else if (tab.url !== targetUrl) {
+  } else if (
+    !_cwaGoogleTranslateRouteMatchesLanguages(
+      tab.url || "",
+      sourceLanguage,
+      targetLanguage
+    )
+  ) {
     tab = await chrome.tabs.update(tab.id, { url: targetUrl, active: false });
   }
 
