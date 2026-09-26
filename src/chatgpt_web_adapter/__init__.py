@@ -29,6 +29,18 @@ from .canonical_conversation_snapshot import (
 from .client import ChatGPTWebClient
 from .client import _original_send as _original_send
 from .conversation_prepare import PrepareResult, prepare_text_turn
+from .deepseek_web_provider import (
+    DEEPSEEK_WEB_PROVIDER_ID,
+    DeepSeekWebTurnProvider,
+    DeepSeekWebTurnResult,
+    DeepSeekWebWriteOutcomeAmbiguousError,
+)
+from .deepseek_web_runtime import (
+    DEEPSEEK_WEB_PRODUCT_TRANSPORT,
+    ORDINARY_DEEPSEEK_PRODUCT_SEMANTICS,
+    DeepSeekWebProductTransport,
+    DeepSeekWebRuntime,
+)
 from .exceptions import (
     AuthError,
     ConversationTimeoutError,
