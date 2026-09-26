@@ -10,9 +10,7 @@ RUNTIME = EXT / "service_worker_runtime.js"
 OWNER = EXT / "service_worker_native_message_router.js"
 
 LAYERS = {
-    "service_worker_google_translate.js": (
-        "_cwaOnNativeMessageWithGoogleTranslate"
-    ),
+    "service_worker_google_translate.js": ("_cwaOnNativeMessageWithGoogleTranslate"),
     "service_worker.js": "_cwaBaseOnNativeMessage",
     "service_worker_product_surface_pr11_0.js": "_cwaOnNativeMessageWithProductState",
     "service_worker_runtime_tab_reconciliation.js": (
