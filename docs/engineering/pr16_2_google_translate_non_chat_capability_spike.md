@@ -271,6 +271,76 @@ Because those changes affect the accepted worker, the preliminary PASS is preser
 evidence but **does not close final acceptance**. One live rerun is required on the
 post-hardening head before the temporary gate can be removed.
 
+## Result-identity characterization
+
+The hardened rerun correctly failed closed with:
+
+```text
+GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:
+RESULT_IDENTITY_UNRESOLVED
+```
+
+A temporary read-only characterization then inspected the already-rendered result
+without submitting another translation.
+
+Observed DOM:
+
+```text
+candidate 0
+  jsname = jqKxS
+  lang = es
+  text = Hola
+  contains = [1]
+
+candidate 1
+  jsname = W297wb
+  text = Hola
+  containedBy = [0]
+```
+
+Observed route:
+
+```text
+https://translate.google.com/?sl=en&tl=es&text=hello&op=translate
+```
+
+This proves that one logical translation result may be represented by nested
+product-output nodes:
+
+```text
+jqKxS "Hola"      ancestor wrapper
+└─ W297wb "Hola"  deepest result node
+```
+
+Therefore neither of these rules is valid:
+
+```text
+one matching DOM node = one logical result
+same text = safe deduplication
+```
+
+The revised identity rule is structural:
+
+```text
+product-specific output candidates
+→ remove any candidate that contains another matching candidate
+→ remaining deepest candidates are logical result candidates
+
+one deepest candidate
+→ bounded result identity established
+
+multiple deepest candidates
+→ RESULT_IDENTITY_UNRESOLVED
+→ fail closed
+```
+
+This collapses only containment wrappers demonstrated by the live DOM. It does not
+concatenate siblings or deduplicate independent nodes merely because their text is
+equal.
+
+The temporary characterization path is diagnostic only and must be removed with the
+live gate before merge.
+
 ## What success would prove
 
 A successful spike would prove only:
