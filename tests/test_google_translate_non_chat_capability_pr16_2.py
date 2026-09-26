@@ -82,6 +82,7 @@ def test_google_translate_text_contract_has_no_conversation_identity() -> None:
     assert request["text"] == "hello"
     assert request["sourceLanguage"] == "en"
     assert request["targetLanguage"] == "es"
+    assert 0 < int(request["timeoutMs"]) < 30_000
     assert "conversationId" not in request
     assert "providerId" not in request
 
@@ -199,6 +200,21 @@ def test_google_translate_page_outcome_ambiguity_requires_reconciliation() -> No
     assert caught.value.automatic_retry_allowed is False
 
 
+def test_google_translate_rejects_too_small_timeout_before_bridge_write() -> None:
+    bridge = _FakeBridge()
+    capability = GoogleTranslateWebCapability(bridge=bridge)
+
+    with pytest.raises(ValueError, match="at least 3 seconds"):
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="es",
+            timeout=2.0,
+        )
+
+    assert bridge.requests == []
+
+
 def test_google_translate_worker_is_valid_javascript() -> None:
     worker = EXT / "service_worker_google_translate_capability.js"
     subprocess.run(
@@ -244,9 +260,15 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert "https://translate.google.com" in worker
     assert "textarea" in worker
     assert 'jsname=\\"W297wb\\"' in worker
+    assert "querySelectorAll('[lang]')" not in worker
+    assert "identityResolved=texts.length<=1" in worker
+    assert "RESULT_IDENTITY_UNRESOLVED" in worker
     assert "InputEvent('input'" in worker
     assert "_cwaGoogleTranslateWaitForClearedResult" in worker
     assert "GOOGLE_TRANSLATE_PREWRITE_RESULT_NOT_CLEARED" in worker
+    assert "GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_PAGE_READY" in worker
+    assert "GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_INPUT" in worker
+    assert "deadlineAt" in worker
     assert "PAGE_DOM_STABLE_TRANSLATION" in worker
     assert "canonicalCompletionProven: false" in worker
     assert "automaticRetry: false" in worker
