@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -147,6 +148,30 @@ def test_google_translate_predelegation_bridge_failure_remains_ordinary() -> Non
     assert not isinstance(caught.value, GoogleTranslateOutcomeAmbiguousError)
 
 
+def test_google_translate_extension_timeout_after_forwarding_is_ambiguous() -> None:
+    class _TimeoutBridge(_FakeBridge):
+        def _rpc(self, payload, *, timeout, on_event=None):
+            return {
+                "protocol": 1,
+                "type": "translate_text_result",
+                "request_id": payload["request_id"],
+                "ok": False,
+                "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT",
+            }
+
+    capability = GoogleTranslateWebCapability(bridge=_TimeoutBridge())
+
+    with pytest.raises(GoogleTranslateOutcomeAmbiguousError) as caught:
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="es",
+        )
+
+    assert caught.value.reconciliation_required is True
+    assert caught.value.automatic_retry_allowed is False
+
+
 def test_google_translate_page_outcome_ambiguity_requires_reconciliation() -> None:
     class _AmbiguousBridge(_FakeBridge):
         def _rpc(self, payload, *, timeout, on_event=None):
@@ -172,6 +197,17 @@ def test_google_translate_page_outcome_ambiguity_requires_reconciliation() -> No
 
     assert caught.value.reconciliation_required is True
     assert caught.value.automatic_retry_allowed is False
+
+
+def test_google_translate_worker_is_valid_javascript() -> None:
+    worker = EXT / "service_worker_google_translate_capability.js"
+    subprocess.run(
+        ["node", "--check", str(worker)],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
 
 
 def test_google_translate_extension_is_explicit_non_chat_route() -> None:
@@ -209,6 +245,8 @@ def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     assert "textarea" in worker
     assert 'jsname=\\"W297wb\\"' in worker
     assert "InputEvent('input'" in worker
+    assert "_cwaGoogleTranslateWaitForClearedResult" in worker
+    assert "GOOGLE_TRANSLATE_PREWRITE_RESULT_NOT_CLEARED" in worker
     assert "PAGE_DOM_STABLE_TRANSLATION" in worker
     assert "canonicalCompletionProven: false" in worker
     assert "automaticRetry: false" in worker
