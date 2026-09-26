@@ -15,6 +15,41 @@ let activeRequestId = null;
 
 const nativeTurnDiagnosticHandlers = new Map();
 const nativeTurnObservers = new Map();
+const productProviderTurnHandlers = new Map();
+
+function registerProductProviderTurnHandler(providerId, handler) {
+  if (typeof providerId !== "string" || !providerId.trim()) {
+    throw new Error("CWA_PRODUCT_PROVIDER_ID_REQUIRED");
+  }
+  if (typeof handler !== "function") {
+    throw new Error("CWA_PRODUCT_PROVIDER_HANDLER_INVALID");
+  }
+  const key = providerId.trim().toLowerCase();
+  if (key === "chatgpt") {
+    throw new Error("CWA_CHATGPT_PROVIDER_IS_BASE_RUNTIME");
+  }
+  if (productProviderTurnHandlers.has(key)) {
+    throw new Error(`CWA_PRODUCT_PROVIDER_HANDLER_DUPLICATE:${key}`);
+  }
+  productProviderTurnHandlers.set(key, handler);
+}
+
+async function dispatchProductProviderTurn(message) {
+  const rawProviderId = typeof message?.providerId === "string"
+    ? message.providerId.trim().toLowerCase()
+    : "";
+  if (!rawProviderId || rawProviderId === "chatgpt") {
+    return { handled: false, result: null };
+  }
+  const handler = productProviderTurnHandlers.get(rawProviderId);
+  if (typeof handler !== "function") {
+    throw new Error(`CWA_PRODUCT_PROVIDER_UNSUPPORTED:${rawProviderId}`);
+  }
+  return {
+    handled: true,
+    result: await handler(message)
+  };
+}
 
 function registerNativeTurnObserver(name, observer) {
   if (typeof name !== "string" || !name.trim()) {
@@ -81,6 +116,9 @@ function registerNativeTurnDiagnosticHandler(name, matches, handle) {
 }
 
 async function dispatchNativeTurn(message) {
+  const providerTurn = await dispatchProductProviderTurn(message);
+  if (providerTurn.handled) return providerTurn.result;
+
   const matching = [];
   for (const [name, handler] of nativeTurnDiagnosticHandlers.entries()) {
     if (handler.matches(message) === true) matching.push([name, handler]);
