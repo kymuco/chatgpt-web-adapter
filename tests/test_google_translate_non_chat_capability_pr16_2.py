@@ -369,17 +369,17 @@ def test_google_translate_authority_lane_is_shared_without_canonical_reservation
     )
 
 
-def test_google_translate_characterization_discovers_only_existing_translate_tab() -> None:
+def test_google_translate_characterization_discovers_only_existing_translate_tab() -> (
+    None
+):
     worker = (EXT / "service_worker_google_translate_capability.js").read_text(
         encoding="utf-8"
     )
     helper = worker.split(
         "async function _cwaGoogleTranslateFindOpenTabForCharacterization()", 1
-    )[1].split(
-        "async function _cwaGoogleTranslateEnsureTab", 1
-    )[0]
+    )[1].split("async function _cwaGoogleTranslateEnsureTab", 1)[0]
 
-    assert 'chrome.tabs.query({' in helper
+    assert "chrome.tabs.query({" in helper
     assert '"https://translate.google.com/*"' in helper
     assert "chrome.tabs.create" not in helper
     assert "chrome.tabs.update" not in helper
