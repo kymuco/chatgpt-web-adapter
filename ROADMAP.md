@@ -143,7 +143,7 @@ No runtime/provider behavior changes were intended.
 
 ### PR16.2 — non-chat hosted-capability falsification
 
-Current experimental spike.
+Completed.
 
 Question:
 
@@ -168,7 +168,24 @@ The spike reuses only the lower-level browser bridge, authority lane and ambigui
 discipline. No generic hosted-capability framework should be created unless this and
 later non-chat evidence actually require one.
 
-HDE is explicitly not used as a test bed for this experiment.
+HDE was explicitly not used as a test bed for this experiment.
+
+Outcome:
+
+```text
+Google Translate Web translate_text
+→ real live PASS: hello / en→es / Hola
+→ PAGE_DOM_STABLE_TRANSLATION
+→ no conversation identity
+→ no automatic retry
+→ post-write ambiguity requires reconciliation
+```
+
+The proof establishes reuse of the lower browser bridge / authority / ambiguity layer
+outside chat semantics. It does not justify a generic `HostedCapabilityRuntime`,
+public capability registry, or schema-2 expansion.
+
+Google Translate remains an experimental module-only non-chat capability.
 
 ## Current direction after PR16
 
