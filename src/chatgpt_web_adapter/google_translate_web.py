@@ -5,7 +5,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from .browser_native_provider import BrowserNativeBridgeStatus, BrowserNativeTurnProvider
+from .browser_native_provider import (
+    BrowserNativeBridgeStatus,
+    BrowserNativeTurnProvider,
+)
 from .exceptions import RequestError
 
 GOOGLE_TRANSLATE_WEB_PRODUCT_ID = "google-translate-web"
