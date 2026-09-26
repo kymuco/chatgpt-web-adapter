@@ -210,6 +210,40 @@ function _cwaGoogleTranslateCharacterizationExpression() {
       "};" +
     "});" +
     "const targetLanguage=new URL(location.href).searchParams.get('tl');" +
+    "const outputRegion=document.querySelector('c-wiz[jsname=\"e79Xi\"][role=\"region\"]');" +
+    "const outputRegionNodes=outputRegion?Array.from(outputRegion.querySelectorAll('*')).filter((element)=>visible(element)):[];" +
+    "const outputRegionDescendants=[];" +
+    "for(const element of outputRegionNodes){" +
+      "if(outputRegionDescendants.length>=80)break;" +
+      "const rect=element.getBoundingClientRect();" +
+      "const text=normalize(element.innerText||element.textContent);" +
+      "if(!text||text.length>320)continue;" +
+      "outputRegionDescendants.push({" +
+        "tag:String(element.tagName||'').toLowerCase()," +
+        "id:String(element.id||'').slice(0,120)," +
+        "className:String(element.className||'').slice(0,180)," +
+        "jsname:element.getAttribute('jsname')," +
+        "lang:element.getAttribute('lang')," +
+        "role:element.getAttribute('role')," +
+        "ariaLive:element.getAttribute('aria-live')," +
+        "ariaLabel:String(element.getAttribute('aria-label')||'').slice(0,160)," +
+        "text:text.slice(0,320)," +
+        "childElementCount:element.childElementCount," +
+        "left:Math.round(rect.left)," +
+        "top:Math.round(rect.top)," +
+        "width:Math.round(rect.width)," +
+        "height:Math.round(rect.height)" +
+      "});" +
+    "}" +
+    "const outputRegionSnapshot=outputRegion?{" +
+      "tag:String(outputRegion.tagName||'').toLowerCase()," +
+      "jsname:outputRegion.getAttribute('jsname')," +
+      "role:outputRegion.getAttribute('role')," +
+      "className:String(outputRegion.className||'').slice(0,180)," +
+      "text:normalize(outputRegion.innerText||outputRegion.textContent).slice(0,1200)," +
+      "descendantCount:outputRegionDescendants.length," +
+      "descendants:outputRegionDescendants" +
+    "}:null;" +
     "const all=Array.from(document.querySelectorAll('body *')).filter((element)=>visible(element)&&!element.closest('textarea,[contenteditable=\"true\"]'));" +
     "const diagnostic=[];" +
     "for(const element of all){" +
@@ -245,7 +279,7 @@ function _cwaGoogleTranslateCharacterizationExpression() {
         "parentClass:parent?String(parent.className||'').slice(0,180):null" +
       "});" +
     "}" +
-    "return {url:location.href,candidateCount:candidates.length,candidates,diagnosticCount:diagnostic.length,diagnosticCandidates:diagnostic};" +
+    "return {url:location.href,candidateCount:candidates.length,candidates,outputRegion:outputRegionSnapshot,diagnosticCount:diagnostic.length,diagnosticCandidates:diagnostic};" +
   "})()";
 }
 
