@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -96,17 +97,50 @@ def build_artifact_manifest(
         conversation_id=conversation_id.strip(),
         index=index,
         files=normalized_files,
-        format=format.strip().lower() if isinstance(format, str) and format.strip() else None,
+        format=format.strip().lower()
+        if isinstance(format, str) and format.strip()
+        else None,
     )
 
 
 def render_artifact_manifest(manifest: StableArtifactManifest) -> str:
-    return json.dumps(
-        manifest.to_dict(),
-        ensure_ascii=False,
-        indent=2,
-        sort_keys=True,
-    ) + "\n"
+    return (
+        json.dumps(
+            manifest.to_dict(),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def write_artifact_text(
+    path: str | Path,
+    text: str,
+    *,
+    encoding: str = "utf-8",
+    newline: str = "\n",
+) -> Path:
+    """Write a CWA-owned conversation artifact with owner-only permissions on POSIX.
+
+    Conversation artifacts can carry sensitive conversation data, so newly created
+    files default to mode ``0600`` on POSIX (the same posture ``auth_store`` applies
+    to auth material); the requested mode is only ever narrowed by the process umask.
+    Windows keeps its platform-appropriate default. Existing files are not
+    re-permissioned."""
+    artifact_path = Path(path)
+    if os.name != "nt":
+        descriptor = os.open(
+            artifact_path,
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+            0o600,
+        )
+        with os.fdopen(descriptor, "w", encoding=encoding, newline=newline) as stream:
+            stream.write(text)
+    else:
+        artifact_path.write_text(text, encoding=encoding, newline=newline)
+    return artifact_path
 
 
 def write_artifact_manifest(
@@ -116,7 +150,8 @@ def write_artifact_manifest(
     manifest_path = Path(path)
     if manifest_path.exists():
         raise FileExistsError(f"artifact manifest already exists: {manifest_path}")
-    manifest_path.write_text(
+    write_artifact_text(
+        manifest_path,
         render_artifact_manifest(manifest),
         encoding="utf-8",
         newline="\n",

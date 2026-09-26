@@ -12,6 +12,7 @@ from .artifact_manifest import (
     artifact_file_entry,
     build_artifact_manifest,
     write_artifact_manifest,
+    write_artifact_text,
 )
 from .canonical_conversation_snapshot import CanonicalConversationSnapshot
 from .types import ChatConversation, ChatMessage, ConversationRef
@@ -207,9 +208,9 @@ def snapshot_conversation(
     if raw_payload_path is not None and raw_payload is not None:
         raw_text = json.dumps(raw_payload, ensure_ascii=False, indent=2) + "\n"
 
-    context_path.write_text(context_text, encoding="utf-8", newline="\n")
+    write_artifact_text(context_path, context_text, encoding="utf-8", newline="\n")
     if raw_payload_path is not None and raw_text is not None:
-        raw_payload_path.write_text(raw_text, encoding="utf-8", newline="\n")
+        write_artifact_text(raw_payload_path, raw_text, encoding="utf-8", newline="\n")
 
     ref = ConversationRef.from_any(conversation)
     manifest_files = [
