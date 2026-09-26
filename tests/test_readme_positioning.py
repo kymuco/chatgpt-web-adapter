@@ -31,7 +31,9 @@ def test_readme_starts_with_provider_aware_product_runtime_positioning() -> None
         assert line in intro
 
 
-def test_readme_explains_primary_compatibility_experimental_and_research_tiers() -> None:
+def test_readme_explains_primary_compatibility_experimental_and_research_tiers() -> (
+    None
+):
     text = README.read_text(encoding="utf-8")
 
     assert "## Public surface tiers" in text
