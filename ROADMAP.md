@@ -126,7 +126,7 @@ Decision:
 
 ### PR16.1 — current documentation refresh
 
-Current work.
+Completed.
 
 Refresh:
 
@@ -139,7 +139,36 @@ Refresh:
 - status/roadmap/docs map;
 - deterministic documentation contract tests.
 
-No runtime/provider behavior changes are intended.
+No runtime/provider behavior changes were intended.
+
+### PR16.2 — non-chat hosted-capability falsification
+
+Current experimental spike.
+
+Question:
+
+```text
+is CWA's reusable core broader than conversational providers?
+```
+
+First test:
+
+```text
+Google Translate Web
+→ translate_text(text, source_language, target_language)
+→ bounded page result
+```
+
+The experiment deliberately does not force translation into
+`ProductProviderBoundary schema 2`, because the existing runtime surface is still
+conversation-shaped (`send_text`, `ConversationInput`, `ChatResponse`,
+conversation/message identity).
+
+The spike reuses only the lower-level browser bridge, authority lane and ambiguity
+discipline. No generic hosted-capability framework should be created unless this and
+later non-chat evidence actually require one.
+
+HDE is explicitly not used as a test bed for this experiment.
 
 ## Current direction after PR16
 
