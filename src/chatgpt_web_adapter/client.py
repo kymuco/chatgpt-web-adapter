@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from . import legacy_client_core as _core
@@ -180,6 +181,45 @@ _original_send = _core.ChatGPTWebClient.send
 
 class ChatGPTWebClient(_core.ChatGPTWebClient):
     """Explicitly composed compatibility client over the frozen historical core."""
+
+    def __init__(
+        self,
+        auth: Any = None,
+        *,
+        auth_file: str | Path = _core.DEFAULT_AUTH_FILE,
+        timeout: int = DEFAULT_TIMEOUT_SECONDS,
+        curl_bin: str | None = None,
+        debug_trace_dir: str | Path | None = None,
+        debug_trace_sanitize: bool = True,
+        auto_refresh_auth: bool = True,
+        persist_refreshed_auth: bool = True,
+        auto_login: bool = False,
+        browser_profile_dir: str | Path | None = None,
+        browser_login_timeout: float = 300.0,
+        auto_sentinel: bool = False,
+        sentinel_timeout: float = 60.0,
+        sentinel_max_attempts: int = 2,
+        sentinel_headless: bool = False,
+        conversation_read_progress: bool = True,
+    ) -> None:
+        super().__init__(
+            auth,
+            auth_file=auth_file,
+            timeout=timeout,
+            curl_bin=curl_bin,
+            debug_trace_dir=debug_trace_dir,
+            debug_trace_sanitize=debug_trace_sanitize,
+            auto_refresh_auth=auto_refresh_auth,
+            persist_refreshed_auth=persist_refreshed_auth,
+            auto_login=auto_login,
+            browser_profile_dir=browser_profile_dir,
+            browser_login_timeout=browser_login_timeout,
+            auto_sentinel=auto_sentinel,
+            sentinel_timeout=sentinel_timeout,
+            sentinel_max_attempts=sentinel_max_attempts,
+            sentinel_headless=sentinel_headless,
+        )
+        self.conversation_read_progress = bool(conversation_read_progress)
 
     _normalize_reasoning_effort = staticmethod(_normalize_reasoning_effort)
     _resolve_model = staticmethod(_resolve_model)

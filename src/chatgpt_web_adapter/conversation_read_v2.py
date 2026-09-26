@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -19,6 +20,12 @@ CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES = (
 )
 CANONICAL_CONVERSATION_NON_JSON_RETRIES = 1
 MAX_CANONICAL_CONVERSATION_PAGES = 100
+
+
+def _emit_read_progress(client: Any, message: str) -> None:
+    if getattr(client, "conversation_read_progress", False) is not True:
+        return
+    print(f"[cwa] conversation read: {message}", file=sys.stderr, flush=True)
 
 
 def _optional_str(value: Any) -> str | None:
@@ -248,6 +255,8 @@ def _read_current_page(
     conversation_id: str,
     headers: dict[str, str],
     before: str | None = None,
+    progress: bool = False,
+    page_number: int | None = None,
 ) -> tuple[int, Any]:
     """Read one current-endpoint page with bounded load-shedding recovery.
 
@@ -264,7 +273,8 @@ def _read_current_page(
     last_status = 0
     last_data: Any = None
 
-    for num_turns in CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES:
+    candidates = CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES
+    for candidate_index, num_turns in enumerate(candidates):
         non_json_retries = CANONICAL_CONVERSATION_NON_JSON_RETRIES
         while True:
             current_url = _current_conversation_url(
@@ -277,6 +287,25 @@ def _read_current_page(
             last_status, last_data = status, data
 
             if _timeout_like_response(status, data):
+                if progress:
+                    if candidate_index + 1 < len(candidates):
+                        next_num_turns = candidates[candidate_index + 1]
+                        _emit_read_progress(
+                            client,
+                            (
+                                f"page {page_number or '?'} timed out at "
+                                f"num_turns={num_turns}; retrying with "
+                                f"num_turns={next_num_turns}"
+                            ),
+                        )
+                    else:
+                        _emit_read_progress(
+                            client,
+                            (
+                                f"page {page_number or '?'} timed out at "
+                                f"num_turns={num_turns}"
+                            ),
+                        )
                 break
 
             if (
@@ -285,6 +314,11 @@ def _read_current_page(
                 and non_json_retries > 0
             ):
                 non_json_retries -= 1
+                if progress:
+                    _emit_read_progress(
+                        client,
+                        f"page {page_number or '?'} returned non-JSON; retrying once",
+                    )
                 continue
 
             return status, data
@@ -310,11 +344,16 @@ def read_conversation_payload_v2(
         }
     )
 
+    if include_all_pages:
+        _emit_read_progress(client, "starting full history")
+
     status, data = _read_current_page(
         client,
         current_base_url=current_base_url,
         conversation_id=ref.conversation_id,
         headers=headers,
+        progress=include_all_pages,
+        page_number=1,
     )
     if status == 404:
         legacy_url = legacy_url_template.format(conversation_id=ref.conversation_id)
@@ -358,6 +397,11 @@ def read_conversation_payload_v2(
         return normalize_conversation_payload(data)
 
     pages = [data]
+    total_records = len(data["messages"])
+    _emit_read_progress(
+        client,
+        f"page 1 received, {len(data['messages'])} records",
+    )
     seen_cursors: set[str] = set()
     while True:
         cursor = _page_cursor(pages[-1])
@@ -374,12 +418,15 @@ def read_conversation_payload_v2(
                 request_stage="conversation_fetch",
             )
         seen_cursors.add(cursor)
+        page_number = len(pages) + 1
         page_status, page_data = _read_current_page(
             client,
             current_base_url=current_base_url,
             conversation_id=ref.conversation_id,
             headers=headers,
             before=cursor,
+            progress=True,
+            page_number=page_number,
         )
         if not _is_success_status(page_status):
             raise RequestError(
@@ -396,9 +443,28 @@ def read_conversation_payload_v2(
                 body_preview=page_data,
                 request_stage="conversation_fetch",
             )
+        page_messages = page_data.get("messages")
+        if not isinstance(page_messages, list):
+            raise RequestError(
+                "canonical conversation pagination page missing messages[]",
+                request_stage="conversation_fetch",
+            )
         pages.append(page_data)
+        total_records += len(page_messages)
+        _emit_read_progress(
+            client,
+            (
+                f"page {page_number} received, {len(page_messages)} records, "
+                f"{total_records} accumulated"
+            ),
+        )
 
-    return normalize_conversation_payload(merge_conversation_pages(pages))
+    merged = merge_conversation_pages(pages)
+    _emit_read_progress(
+        client,
+        f"complete, {len(pages)} pages, {len(merged['messages'])} records",
+    )
+    return normalize_conversation_payload(merged)
 
 
 @dataclass

@@ -20,6 +20,17 @@ client = ChatGPTWebClient(
 See [authentication.md](authentication.md) for the first-login and refresh
 lifecycle, and [troubleshooting.md](troubleshooting.md) for operational failures.
 
+Complete conversation-history reads emit compact progress to `stderr` by default so
+long pagination does not look stalled. Embedded applications can disable only this
+presentation layer without changing read semantics:
+
+```python
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    conversation_read_progress=False,
+)
+```
+
 ## Recommended Foundation for a Product Layer
 
 Use these as the core primitives:
