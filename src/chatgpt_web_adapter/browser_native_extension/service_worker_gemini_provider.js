@@ -231,6 +231,20 @@ async function _cwaGeminiReattachForObservation(debuggee, deadlineAt) {
   );
 }
 
+function _cwaGeminiPostSubmitAmbiguousError(error) {
+  const message = String(error?.message || error || "UNKNOWN");
+  if (message.startsWith(
+    "GEMINI_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:"
+  )) {
+    return error;
+  }
+  return new Error(
+    "GEMINI_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+    "POST_SUBMIT_OBSERVATION_FAILED:" +
+    message
+  );
+}
+
 async function _cwaGeminiSubmitOnce(debuggee, text, deadlineAt) {
   const written = await _cwaGeminiEvaluate(debuggee, _cwaGeminiComposerExpression(text));
   if (written?.written !== true) throw new Error("GEMINI_COMPOSER_WRITE_FAILED");
@@ -323,30 +337,41 @@ async function _cwaGeminiHandleTurn(message) {
     const baseline = new Set(Array.isArray(before?.texts) ? before.texts : []);
 
     await _cwaGeminiSubmitOnce(debuggee, message.text, deadlineAt);
-    const final = await _cwaGeminiWaitForFinalText(debuggee, message.text, baseline, deadlineAt);
-    const finalTab = await chrome.tabs.get(tab.id);
-    const finalUrl = typeof finalTab?.url === "string" ? finalTab.url : final.url;
-    if (!_cwaGeminiIsUrl(finalUrl)) throw new Error("GEMINI_FINAL_ROUTE_INVALID");
+    try {
+      const final = await _cwaGeminiWaitForFinalText(
+        debuggee,
+        message.text,
+        baseline,
+        deadlineAt
+      );
+      const finalTab = await chrome.tabs.get(tab.id);
+      const finalUrl = typeof finalTab?.url === "string" ? finalTab.url : final.url;
+      if (!_cwaGeminiIsUrl(finalUrl)) throw new Error("GEMINI_FINAL_ROUTE_INVALID");
 
-    let resolvedConversationId = conversationId;
-    if (resolvedConversationId === null) {
-      if (finalUrl === initialUrl) throw new Error("GEMINI_NEW_CHAT_ROUTE_IDENTITY_UNPROVEN");
-      resolvedConversationId = crypto.randomUUID();
+      let resolvedConversationId = conversationId;
+      if (resolvedConversationId === null) {
+        if (finalUrl === initialUrl) {
+          throw new Error("GEMINI_NEW_CHAT_ROUTE_IDENTITY_UNPROVEN");
+        }
+        resolvedConversationId = crypto.randomUUID();
+      }
+      await _cwaGeminiStoreRoute(resolvedConversationId, finalUrl);
+
+      return {
+        providerId: CWA_GEMINI_PROVIDER_ID,
+        conversationId: resolvedConversationId,
+        responseText: final.text,
+        finalUrl,
+        tabId: tab.id,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        finalityEvidence: "PAGE_DOM_STABLE_COMPLETION",
+        canonicalCompletionProven: false,
+        routeIdentityProven: true,
+        automaticWriteRetry: false
+      };
+    } catch (error) {
+      throw _cwaGeminiPostSubmitAmbiguousError(error);
     }
-    await _cwaGeminiStoreRoute(resolvedConversationId, finalUrl);
-
-    return {
-      providerId: CWA_GEMINI_PROVIDER_ID,
-      conversationId: resolvedConversationId,
-      responseText: final.text,
-      finalUrl,
-      tabId: tab.id,
-      elapsedMs: Math.round(performance.now() - startedAt),
-      finalityEvidence: "PAGE_DOM_STABLE_COMPLETION",
-      canonicalCompletionProven: false,
-      routeIdentityProven: true,
-      automaticWriteRetry: false
-    };
   } finally {
     if (attached) {
       try { await chrome.debugger.detach(debuggee); } catch {}
