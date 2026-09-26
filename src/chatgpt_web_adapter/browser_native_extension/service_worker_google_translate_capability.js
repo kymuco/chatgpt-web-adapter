@@ -68,6 +68,25 @@ async function _cwaGoogleTranslateExistingTab() {
   }
 }
 
+async function _cwaGoogleTranslateFindOpenTabForCharacterization() {
+  const stored = await _cwaGoogleTranslateExistingTab();
+  if (stored !== null) return stored;
+
+  const tabs = (await chrome.tabs.query({
+    url: "https://translate.google.com/*"
+  })).filter((tab) => Number.isInteger(tab?.id));
+
+  if (tabs.length === 1) return tabs[0];
+  if (tabs.length === 0) {
+    throw new Error("GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_MISSING");
+  }
+  throw new Error(
+    "GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_AMBIGUOUS:" +
+    String(tabs.length)
+  );
+}
+
+
 async function _cwaGoogleTranslateEnsureTab(
   sourceLanguage,
   targetLanguage,
@@ -231,10 +250,7 @@ function _cwaGoogleTranslateCharacterizationExpression() {
 }
 
 async function _cwaGoogleTranslateCharacterizeCurrentResult() {
-  const tab = await _cwaGoogleTranslateExistingTab();
-  if (tab === null) {
-    throw new Error("GOOGLE_TRANSLATE_CHARACTERIZATION_RUNTIME_TAB_MISSING");
-  }
+  const tab = await _cwaGoogleTranslateFindOpenTabForCharacterization();
   const debuggee = { tabId: tab.id };
   let attached = false;
   try {
