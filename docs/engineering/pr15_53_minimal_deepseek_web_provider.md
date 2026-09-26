@@ -28,7 +28,21 @@ transport         = deepseek-web
 support tier      = EXPERIMENTAL
 ```
 
-The runtime must pass the frozen `product_provider_boundary(...)` from PR15.52.
+The runtime must pass `product_provider_boundary(...)`. Provider #2 immediately
+falsified one PR15.52 assumption: a minimal web provider can prove bounded page-owned
+finality without an independent canonical read plane. PR15.53 therefore advances the
+provider-boundary schema to v2:
+
+```text
+canonical_readback AVAILABLE
+→ canonical_interface = CanonicalConversationClient required
+
+canonical_readback not AVAILABLE
+→ canonical_interface may be none
+```
+
+ChatGPT keeps its canonical interface unchanged. DeepSeek explicitly declares
+`canonical_interface = none` rather than fabricating one.
 
 ## Browser architecture
 
