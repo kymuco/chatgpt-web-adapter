@@ -313,7 +313,7 @@ async function _cwaGoogleTranslateWaitForClearedResult(
       _cwaGoogleTranslateResultExpression("")
     );
     const text = typeof snapshot?.text === "string" ? snapshot.text.trim() : "";
-    if (!text) return;
+    if (!text && snapshot?.sourceMatchesRequested === true) return;
     await sleep(100);
   }
   throw new Error("GOOGLE_TRANSLATE_PREWRITE_RESULT_NOT_CLEARED");
