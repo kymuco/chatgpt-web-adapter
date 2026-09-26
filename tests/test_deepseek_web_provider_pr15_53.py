@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.deepseek_web import (
     DEEPSEEK_PROVIDER_ID,
     DEEPSEEK_WEB_TRANSPORT,
@@ -175,7 +176,50 @@ def test_deepseek_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "control.click()" in worker
     assert "Input.dispatchKeyEvent" not in worker
     assert "_cwaDeepSeekReattachForObservation" in worker
+    assert "_cwaDeepSeekPostSubmitAmbiguousError" in worker
+    assert "POST_SUBMIT_OBSERVATION_FAILED" in worker
+    submit_index = worker.index("await _cwaDeepSeekSubmitOnce(")
+    ambiguity_index = worker.index(
+        "throw _cwaDeepSeekPostSubmitAmbiguousError(error);",
+        submit_index,
+    )
+    assert ambiguity_index > submit_index
     assert worker.count("await _cwaDeepSeekSubmitOnce(") == 1
+
+
+def test_deepseek_bridge_response_loss_after_delegation_requires_reconciliation() -> None:
+    provider = DeepSeekBrowserTurnProvider(connect_timeout=0.1, turn_timeout=5.0)
+
+    def rpc(payload, *, timeout, on_event=None):
+        raise RequestError(
+            "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION: socket closed",
+            request_stage="browser_native_bridge",
+        )
+
+    provider._rpc = rpc
+
+    with pytest.raises(DeepSeekWebWriteOutcomeAmbiguousError) as caught:
+        provider.send_text("one delegated turn")
+
+    assert caught.value.reconciliation_required is True
+    assert caught.value.automatic_retry_allowed is False
+
+
+def test_deepseek_predelegation_bridge_failure_remains_ordinary_request_error() -> None:
+    provider = DeepSeekBrowserTurnProvider(connect_timeout=0.1, turn_timeout=5.0)
+
+    def rpc(payload, *, timeout, on_event=None):
+        raise RequestError(
+            "BROWSER_NATIVE_BRIDGE_UNAVAILABLE: no running bridge",
+            request_stage="browser_native_bridge",
+        )
+
+    provider._rpc = rpc
+
+    with pytest.raises(RequestError) as caught:
+        provider.send_text("not delegated")
+
+    assert not isinstance(caught.value, DeepSeekWebWriteOutcomeAmbiguousError)
 
 
 def test_deepseek_ambiguous_post_submit_outcome_requires_reconciliation() -> None:
