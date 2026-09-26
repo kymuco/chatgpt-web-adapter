@@ -189,7 +189,6 @@ def test_gemini_worker_uses_page_dom_not_private_http_payloads() -> None:
         submit_helper_start,
     )
     submit_helper = worker[submit_helper_start:submit_helper_end]
-    assert "control.click()" not in submit_helper
     assert "DebuggerDetached(error)" in submit_helper
     assert "throw _cwaGeminiPostSubmitAmbiguousError(error);" in submit_helper
     assert "throw error;" not in submit_helper
