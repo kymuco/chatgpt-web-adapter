@@ -237,6 +237,40 @@ and requires a result containing `hola`.
 The executable live gate must be removed before merge after real acceptance evidence is
 preserved in this record.
 
+## Preliminary live evidence
+
+The first real Google Translate Web acceptance run passed on commit
+`849b3e1761a4017572aa61a6828a8794ee62d8b3`:
+
+```text
+input:
+hello
+en → es
+
+result:
+Hola
+
+capability_id                  translate_text
+conversation_semantics         false
+finality_evidence              PAGE_DOM_STABLE_TRANSLATION
+canonical_completion_proven    false
+automatic_retry                false
+result                         PASS
+```
+
+That run proved the basic non-chat browser path on the real product.
+
+A subsequent review identified three safety/identity edges and the implementation was
+hardened after that live run:
+
+- repeated identical output nodes must not bypass multi-candidate rejection;
+- the final observed route must still encode the requested source/target languages;
+- post-write finality must not introduce a separate `chrome.tabs.get` failure point.
+
+Because those changes affect the accepted worker, the preliminary PASS is preserved as
+evidence but **does not close final acceptance**. One live rerun is required on the
+post-hardening head before the temporary gate can be removed.
+
 ## What success would prove
 
 A successful spike would prove only:
