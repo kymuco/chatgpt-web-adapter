@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -43,7 +43,7 @@ class _FakeBridge:
             "translatedText": "Hola",
             "sourceLanguage": payload["sourceLanguage"],
             "targetLanguage": payload["targetLanguage"],
-            "finalUrl": ("https://translate.google.com/?sl=en&tl=es&op=translate"),
+            "finalUrl": "https://translate.google.com/?sl=en&tl=es&op=translate",
             "tabId": 17,
             "elapsedMs": 321,
             "finalityEvidence": GOOGLE_TRANSLATE_WEB_FINALITY,
@@ -237,9 +237,9 @@ def test_google_translate_extension_is_explicit_non_chat_route() -> None:
 
 
 def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
-    worker = (
-        EXT / "service_worker_google_translate_capability.js"
-    ).read_text(encoding="utf-8")
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
 
     assert "https://translate.google.com" in worker
     assert "textarea" in worker
