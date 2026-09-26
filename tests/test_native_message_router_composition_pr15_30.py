@@ -10,6 +10,9 @@ RUNTIME = EXT / "service_worker_runtime.js"
 OWNER = EXT / "service_worker_native_message_router.js"
 
 LAYERS = {
+    "service_worker_google_translate_pr17_0.js": (
+        "_cwaOnNativeMessageWithGoogleTranslate"
+    ),
     "service_worker.js": "_cwaBaseOnNativeMessage",
     "service_worker_product_surface_pr11_0.js": "_cwaOnNativeMessageWithProductState",
     "service_worker_runtime_tab_reconciliation.js": (
@@ -67,6 +70,7 @@ def test_runtime_assembles_native_message_owner_after_all_route_helpers() -> Non
 def test_native_message_router_preserves_historical_outer_to_inner_order() -> None:
     owner = OWNER.read_text(encoding="utf-8")
     markers = (
+        "_cwaOnNativeMessageWithGoogleTranslate",
         "_cwaOnNativeMessageWithUiLiveness",
         "_cwaOnNativeMessageWithCanonicalRead",
         "_pr88OnNativeMessageWithBrowserAuthorityLease",
@@ -91,6 +95,7 @@ function layer(name) {{
   }};
 }}
 
+const _cwaOnNativeMessageWithGoogleTranslate = layer("translate");
 const _cwaOnNativeMessageWithUiLiveness = layer("ui");
 const _cwaOnNativeMessageWithCanonicalRead = layer("canonical");
 const _pr88OnNativeMessageWithBrowserAuthorityLease = layer("release");
@@ -112,14 +117,18 @@ const _cwaBaseOnNativeMessage = async (message) => {{
 """
     result = _run_node(script)
     assert result["events"] == [
-        "enter:ui:turn",
-        "enter:canonical:turn:ui",
-        "enter:release:turn:ui:canonical",
-        "enter:product:turn:ui:canonical:release",
-        "base:turn:ui:canonical:release:product",
+        "enter:translate:turn",
+        "enter:ui:turn:translate",
+        "enter:canonical:turn:translate:ui",
+        "enter:release:turn:translate:ui:canonical",
+        "enter:product:turn:translate:ui:canonical:release",
+        "base:turn:translate:ui:canonical:release:product",
         "exit:product",
         "exit:release",
         "exit:canonical",
         "exit:ui",
+        "exit:translate",
     ]
-    assert result["result"]["type"] == "turn:ui:canonical:release:product"
+    assert result["result"]["type"] == (
+        "turn:translate:ui:canonical:release:product"
+    )
