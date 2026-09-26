@@ -15,6 +15,9 @@ LAYERS = {
     "service_worker_runtime_tab_reconciliation.js": (
         "_pr88OnNativeMessageWithBrowserAuthorityLease"
     ),
+    "service_worker_google_translate_capability.js": (
+        "_cwaOnNativeMessageWithGoogleTranslate"
+    ),
     "service_worker_canonical_read_v2.js": "_cwaOnNativeMessageWithCanonicalRead",
     "service_worker_ui_liveness.js": "_cwaOnNativeMessageWithUiLiveness",
 }
@@ -70,6 +73,7 @@ def test_native_message_router_preserves_historical_outer_to_inner_order() -> No
         "_cwaOnNativeMessageWithUiLiveness",
         "_cwaOnNativeMessageWithCanonicalRead",
         "_pr88OnNativeMessageWithBrowserAuthorityLease",
+        "_cwaOnNativeMessageWithGoogleTranslate",
         "_cwaOnNativeMessageWithProductState",
         "_cwaBaseOnNativeMessage",
     )
@@ -94,6 +98,7 @@ function layer(name) {{
 const _cwaOnNativeMessageWithUiLiveness = layer("ui");
 const _cwaOnNativeMessageWithCanonicalRead = layer("canonical");
 const _pr88OnNativeMessageWithBrowserAuthorityLease = layer("release");
+const _cwaOnNativeMessageWithGoogleTranslate = layer("capability");
 const _cwaOnNativeMessageWithProductState = layer("product");
 const _cwaBaseOnNativeMessage = async (message) => {{
   events.push("base:" + message.type);
@@ -115,11 +120,16 @@ const _cwaBaseOnNativeMessage = async (message) => {{
         "enter:ui:turn",
         "enter:canonical:turn:ui",
         "enter:release:turn:ui:canonical",
-        "enter:product:turn:ui:canonical:release",
-        "base:turn:ui:canonical:release:product",
+        "enter:capability:turn:ui:canonical:release",
+        "enter:product:turn:ui:canonical:release:capability",
+        "base:turn:ui:canonical:release:capability:product",
         "exit:product",
+        "exit:capability",
         "exit:release",
         "exit:canonical",
         "exit:ui",
     ]
-    assert result["result"]["type"] == "turn:ui:canonical:release:product"
+    assert (
+        result["result"]["type"]
+        == "turn:ui:canonical:release:capability:product"
+    )
