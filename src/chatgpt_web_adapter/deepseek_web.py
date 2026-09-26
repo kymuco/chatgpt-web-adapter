@@ -90,6 +90,13 @@ class DeepSeekBrowserTurnResult:
     automatic_write_retry: bool
 
 
+class DeepSeekWebWriteOutcomeAmbiguousError(RequestError):
+    """Post-submit DeepSeek outcome that must never authorize automatic replay."""
+
+    reconciliation_required = True
+    automatic_retry_allowed = False
+
+
 class DeepSeekBrowserTurnProvider(BrowserNativeTurnProvider):
     """Experimental DeepSeek Web turn provider over the existing local bridge."""
 
@@ -133,8 +140,16 @@ class DeepSeekBrowserTurnProvider(BrowserNativeTurnProvider):
             timeout=total_timeout,
         )
         if response.get("ok") is not True:
+            error = str(response.get("error") or "unknown error")
+            if error.startswith(
+                "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:"
+            ):
+                raise DeepSeekWebWriteOutcomeAmbiguousError(
+                    f"DEEPSEEK_WEB_TURN_FAILED: {error}",
+                    request_stage="deepseek_web_turn",
+                )
             raise RequestError(
-                f"DEEPSEEK_WEB_TURN_FAILED: {response.get('error') or 'unknown error'}",
+                f"DEEPSEEK_WEB_TURN_FAILED: {error}",
                 request_stage="deepseek_web_turn",
             )
         if response.get("providerId") != DEEPSEEK_PROVIDER_ID:
