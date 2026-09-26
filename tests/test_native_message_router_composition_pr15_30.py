@@ -10,7 +10,7 @@ RUNTIME = EXT / "service_worker_runtime.js"
 OWNER = EXT / "service_worker_native_message_router.js"
 
 LAYERS = {
-    "service_worker_google_translate_pr17_0.js": (
+    "service_worker_google_translate.js": (
         "_cwaOnNativeMessageWithGoogleTranslate"
     ),
     "service_worker.js": "_cwaBaseOnNativeMessage",
@@ -129,6 +129,4 @@ const _cwaBaseOnNativeMessage = async (message) => {{
         "exit:ui",
         "exit:translate",
     ]
-    assert result["result"]["type"] == (
-        "turn:translate:ui:canonical:release:product"
-    )
+    assert result["result"]["type"] == ("turn:translate:ui:canonical:release:product")
