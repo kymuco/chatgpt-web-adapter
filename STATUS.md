@@ -16,7 +16,7 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current docs phase      PR16 provider-aware public documentation
+current phase           PR16.2 non-chat hosted-capability falsification spike
 license                 MIT
 python                  3.10-3.14
 ```
@@ -190,26 +190,33 @@ PR15  architecture reset + provider-neutral boundary
       → provider architecture freeze
 PR16  public positioning/documentation alignment
       → naming deliberately deferred
+      → PR16.2 non-chat hosted-capability falsification spike
 ```
 
 The detailed PR15 lineage remains preserved in `docs/engineering/`.
 
 ## Current checkpoint
 
-The technical provider architecture is frozen.
+The technical chat-provider architecture remains frozen.
 
-The current work is not another runtime abstraction layer. It is aligning public
-documentation with the architecture that now exists:
+PR16.2 is a deliberately narrow falsification spike asking a different question:
 
 ```text
-provider-neutral contract
-+ explicit provider differences
-+ ChatGPT production/default
-+ DeepSeek/Gemini experimental
-+ browser-owned reference strategy
+can the proven browser bridge / authority / ambiguity layer
+support a hosted capability that is not a conversation?
 ```
 
-Future runtime work should be triggered by real consumers or observed product drift.
+Current experiment:
+
+```text
+Google Translate Web
+→ translate_text
+→ no conversation id
+→ no ProductWriteTransport
+→ no ProductProviderBoundary claim
+```
+
+This is not yet a new stable public architecture.
 
 ## Release policy
 
