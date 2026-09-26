@@ -187,8 +187,8 @@ PR15 Architecture Reset
 → closure audit removes hidden composer-focus/readiness + response-stream rebindings
 → PR15.51 retire detached PR8.7 Temporary characterization source [merged]
 → PR15.52 freeze provider-neutral runtime boundary [merged]
-→ PR15.53 minimal DeepSeek Web new-chat/continuation proof [active]
-→ live gate required before provider support graduation
+→ PR15.53 minimal DeepSeek Web new-chat/continuation proof [live acceptance PASS]
+→ real DeepSeek Web new-chat + continuation accepted; shipping acceptance harness removed before merge
 ```
 
 PR14.9 showed that the next highest-leverage work is structural rather than another
