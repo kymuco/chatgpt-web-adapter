@@ -322,9 +322,7 @@ class GeminiWebTransport:
         if poll_interval <= 0:
             raise ValueError("poll_interval must be positive")
         if on_token is not None or on_event is not None:
-            raise ValueError(
-                "Gemini Web streaming callbacks are outside PR15.55 scope"
-            )
+            raise ValueError("Gemini Web streaming callbacks are outside PR15.55 scope")
 
         continuation = conversation is not None
         turn = self.provider.send_text(
