@@ -10,7 +10,7 @@ function _cwaGoogleTranslateIsUrl(url) {
   }
 }
 
-function _cwaGoogleTranslateLanguageCode(value, *, source) {
+function _cwaGoogleTranslateLanguageCode(value, source) {
   if (typeof value !== "string") throw new Error("GOOGLE_TRANSLATE_LANGUAGE_REQUIRED");
   const normalized = value.trim();
   if (source && normalized.toLowerCase() === "auto") return "auto";
@@ -156,7 +156,6 @@ function _cwaGoogleTranslateAmbiguousError(error) {
 async function _cwaGoogleTranslateWriteSource(
   debuggee,
   text,
-  *,
   outcomeMayHaveStarted
 ) {
   try {
@@ -215,11 +214,11 @@ async function _cwaGoogleTranslateText(message) {
 
   const sourceLanguage = _cwaGoogleTranslateLanguageCode(
     message?.sourceLanguage,
-    { source: true }
+    true
   );
   const targetLanguage = _cwaGoogleTranslateLanguageCode(
     message?.targetLanguage,
-    { source: false }
+    false
   );
   const timeoutMs = Math.max(
     3000,
@@ -244,7 +243,7 @@ async function _cwaGoogleTranslateText(message) {
     await _cwaGoogleTranslateWriteSource(
       debuggee,
       "",
-      { outcomeMayHaveStarted: false }
+      false
     );
     await sleep(250);
     const baseline = await _cwaGoogleTranslateEvaluate(
@@ -259,7 +258,7 @@ async function _cwaGoogleTranslateText(message) {
     await _cwaGoogleTranslateWriteSource(
       debuggee,
       text,
-      { outcomeMayHaveStarted: true }
+      true
     );
 
     let final;
