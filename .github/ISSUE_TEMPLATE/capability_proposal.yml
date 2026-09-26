@@ -1,0 +1,72 @@
+name: Hosted capability proposal
+description: Propose one bounded hosted product capability for CWA.
+title: "capability: "
+labels: []
+body:
+  - type: input
+    id: product
+    attributes:
+      label: Product
+      description: Which ordinary hosted product would CWA interact with?
+      placeholder: "Example: Google Translate Web"
+    validations:
+      required: true
+  - type: textarea
+    id: user_value
+    attributes:
+      label: User value
+      description: What useful local-app or agent workflow does this unlock?
+    validations:
+      required: true
+  - type: textarea
+    id: operation
+    attributes:
+      label: Smallest useful operation
+      description: Describe one bounded input -> product operation -> result contract.
+      placeholder: "text + source language + target language -> translated text"
+    validations:
+      required: true
+  - type: textarea
+    id: official_api
+    attributes:
+      label: Official API relationship
+      description: If an official API exists, explain which consumer-product semantics are different or missing. CWA should not duplicate an official API without a product-level reason.
+    validations:
+      required: true
+  - type: textarea
+    id: side_effects
+    attributes:
+      label: Product side effects / commitment boundary
+      description: At what point may the hosted product already have accepted the operation? Is any durable state created?
+    validations:
+      required: true
+  - type: textarea
+    id: finality
+    attributes:
+      label: Result identity and finality
+      description: How could CWA identify the intended result, and what evidence would count as completion without overstating canonical finality?
+    validations:
+      required: true
+  - type: textarea
+    id: auth
+    attributes:
+      label: Authentication / session assumptions
+      description: What signed-in browser or product state is required? Do not include credentials or private session data.
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Explicit non-goals
+      description: What should this first capability slice deliberately not generalize or automate?
+    validations:
+      required: true
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: CWA invariants
+      options:
+        - label: I understand that product observation does not grant write, retry, approval, or downstream filesystem/Git authority.
+          required: true
+        - label: I will not rely on automatic replay after an ambiguous product mutation.
+          required: true
+        - label: I will keep product-specific UI/DOM/routing mechanics below the shared contract unless independent evidence justifies a shared primitive.
+          required: true
