@@ -137,20 +137,28 @@ function _cwaGoogleTranslateSourceExpression(text) {
   "})()";
 }
 
-function _cwaGoogleTranslateResultExpression() {
+function _cwaGoogleTranslateResultExpression(requestedText) {
+  const encodedRequestedText = JSON.stringify(requestedText);
   return "(() => {" +
+    "const requestedText=" + encodedRequestedText + ";" +
     "const normalize=(value)=>String(value||'').replace(/\\s+/g,' ').trim();" +
+    "const normalizeSource=(value)=>String(value??'').replace(/\\r\\n/g,'\\n');" +
     "const visible=(element)=>{" +
       "if(!(element instanceof Element))return false;" +
       "const rect=element.getBoundingClientRect();" +
       "const style=getComputedStyle(element);" +
       "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
     "};" +
+    "const sourceCandidates=Array.from(document.querySelectorAll('textarea,[contenteditable=\"true\"][role=\"textbox\"]')).filter((element)=>visible(element)&&element.getAttribute('aria-disabled')!=='true'&&!element.disabled);" +
+    "sourceCandidates.sort((left,right)=>left.getBoundingClientRect().left-right.getBoundingClientRect().left);" +
+    "const source=sourceCandidates[0]||null;" +
+    "const currentSourceText=source?(source instanceof HTMLTextAreaElement||source instanceof HTMLInputElement?source.value:(source.innerText||source.textContent||'')):null;" +
+    "const sourceMatchesRequested=source!==null&&normalizeSource(currentSourceText)===normalizeSource(requestedText);" +
     "const primary=Array.from(document.querySelectorAll('[jsname=\"W297wb\"],[jsname=\"jqKxS\"]')).filter((element)=>visible(element)&&!element.closest('textarea,[contenteditable=\"true\"]'));" +
     "const leaves=primary.filter((element)=>!primary.some((other)=>other!==element&&element.contains(other)));" +
     "const texts=leaves.map((element)=>normalize(element.innerText||element.textContent)).filter(Boolean);" +
     "const identityResolved=texts.length<=1;" +
-    "return {url:location.href,text:identityResolved?(texts[0]||null):null,candidateCount:primary.length,leafCandidateCount:texts.length,identityResolved};" +
+    "return {url:location.href,text:identityResolved?(texts[0]||null):null,candidateCount:primary.length,leafCandidateCount:texts.length,identityResolved,sourceMatchesRequested};" +
   "})()";
 }
 
@@ -182,7 +190,43 @@ function _cwaGoogleTranslateCharacterizationExpression() {
         "containedBy:nodes.filter((other)=>other!==element&&other.contains(element)).map((other)=>index.get(other))" +
       "};" +
     "});" +
-    "return {url:location.href,candidateCount:candidates.length,candidates};" +
+    "const targetLanguage=new URL(location.href).searchParams.get('tl');" +
+    "const all=Array.from(document.querySelectorAll('body *')).filter((element)=>visible(element)&&!element.closest('textarea,[contenteditable=\"true\"]'));" +
+    "const diagnostic=[];" +
+    "for(const element of all){" +
+      "if(diagnostic.length>=60)break;" +
+      "const rect=element.getBoundingClientRect();" +
+      "const text=normalize(element.innerText||element.textContent);" +
+      "if(!text||text.length>240)continue;" +
+      "const lang=element.getAttribute('lang');" +
+      "const jsname=element.getAttribute('jsname');" +
+      "const ariaLive=element.getAttribute('aria-live');" +
+      "const role=element.getAttribute('role');" +
+      "const onRight=rect.left>=window.innerWidth*0.45;" +
+      "const targetLang=targetLanguage&&lang&&lang.toLowerCase()===targetLanguage.toLowerCase();" +
+      "if(!(targetLang||onRight||jsname||ariaLive||role==='status'))continue;" +
+      "const parent=element.parentElement;" +
+      "diagnostic.push({" +
+        "tag:String(element.tagName||'').toLowerCase()," +
+        "id:String(element.id||'').slice(0,120)," +
+        "className:String(element.className||'').slice(0,180)," +
+        "jsname," +
+        "lang," +
+        "role," +
+        "ariaLive," +
+        "ariaLabel:String(element.getAttribute('aria-label')||'').slice(0,160)," +
+        "text:text.slice(0,240)," +
+        "childElementCount:element.childElementCount," +
+        "left:Math.round(rect.left)," +
+        "top:Math.round(rect.top)," +
+        "width:Math.round(rect.width)," +
+        "height:Math.round(rect.height)," +
+        "parentTag:parent?String(parent.tagName||'').toLowerCase():null," +
+        "parentJsname:parent?parent.getAttribute('jsname'):null," +
+        "parentClass:parent?String(parent.className||'').slice(0,180):null" +
+      "});" +
+    "}" +
+    "return {url:location.href,candidateCount:candidates.length,candidates,diagnosticCount:diagnostic.length,diagnosticCandidates:diagnostic};" +
   "})()";
 }
 
@@ -266,7 +310,7 @@ async function _cwaGoogleTranslateWaitForClearedResult(
   while (performance.now() < deadlineAt) {
     const snapshot = await _cwaGoogleTranslateEvaluate(
       debuggee,
-      _cwaGoogleTranslateResultExpression()
+      _cwaGoogleTranslateResultExpression("")
     );
     const text = typeof snapshot?.text === "string" ? snapshot.text.trim() : "";
     if (!text) return;
@@ -278,6 +322,7 @@ async function _cwaGoogleTranslateWaitForClearedResult(
 async function _cwaGoogleTranslateWaitForResult(
   debuggee,
   targetLanguage,
+  requestedText,
   baselineText,
   deadlineAt
 ) {
@@ -288,9 +333,15 @@ async function _cwaGoogleTranslateWaitForResult(
   while (performance.now() < deadlineAt) {
     const snapshot = await _cwaGoogleTranslateEvaluate(
       debuggee,
-      _cwaGoogleTranslateResultExpression()
+      _cwaGoogleTranslateResultExpression(requestedText)
     );
     lastSnapshot = snapshot;
+    if (snapshot?.sourceMatchesRequested !== true) {
+      throw new Error(
+        "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+        "SOURCE_INPUT_MISMATCH"
+      );
+    }
     if (snapshot?.identityResolved === false) {
       throw new Error(
         "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
@@ -397,6 +448,7 @@ async function _cwaGoogleTranslateText(message) {
       final = await _cwaGoogleTranslateWaitForResult(
         debuggee,
         targetLanguage,
+        text,
         baselineText,
         deadlineAt
       );
