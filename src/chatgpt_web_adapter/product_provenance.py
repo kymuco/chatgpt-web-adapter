@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
 
+
 class CompletionSource(str, Enum):
     """Highest-level evidence source proving a successful returned execution."""
 
@@ -130,7 +131,9 @@ class ProductCompletionProvenance:
         finish_reason = _optional_text(self.finish_reason)
         object.__setattr__(self, "finish_reason", finish_reason)
         object.__setattr__(self, "finish_reason_observed", finish_reason is not None)
-        object.__setattr__(self, "finality_detail", _optional_text(self.finality_detail))
+        object.__setattr__(
+            self, "finality_detail", _optional_text(self.finality_detail)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -150,7 +153,9 @@ class ProductIdentityProvenance:
     observed_model: str | None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "conversation_id", _optional_text(self.conversation_id))
+        object.__setattr__(
+            self, "conversation_id", _optional_text(self.conversation_id)
+        )
         object.__setattr__(self, "message_id", _optional_text(self.message_id))
         object.__setattr__(self, "observed_model", _optional_text(self.observed_model))
 
@@ -182,9 +187,13 @@ class ProductConversationModeProvenance:
         if not proven and observed is not ConversationMode.UNKNOWN:
             raise ValueError("unproven observed conversation mode must be UNKNOWN")
         if proven and source is ConversationModeEvidenceSource.NONE:
-            raise ValueError("proven observed conversation mode requires an evidence source")
+            raise ValueError(
+                "proven observed conversation mode requires an evidence source"
+            )
         if not proven and source is not ConversationModeEvidenceSource.NONE:
-            raise ValueError("unproven observed conversation mode must use evidence source NONE")
+            raise ValueError(
+                "unproven observed conversation mode must use evidence source NONE"
+            )
         object.__setattr__(self, "requested_conversation_mode", requested)
         object.__setattr__(self, "observed_conversation_mode", observed)
         object.__setattr__(self, "observed_mode_evidence_source", source)
@@ -230,8 +239,7 @@ class ProductTemporaryLifecycleProvenance:
                     "unproven temporary lifecycle state must use evidence source NONE"
                 )
         if self.live_write_authority_proven and (
-            not self.lifecycle_state_proven
-            or state is not TemporaryLifecycleState.LIVE
+            not self.lifecycle_state_proven or state is not TemporaryLifecycleState.LIVE
         ):
             raise ValueError(
                 "live Temporary write authority requires a proven LIVE lifecycle"
@@ -295,7 +303,9 @@ class ProductExecutionProvenance:
         object.__setattr__(self, "write_plane", _optional_text(self.write_plane))
         object.__setattr__(self, "readback_plane", _optional_text(self.readback_plane))
         object.__setattr__(self, "session_plane", _optional_text(self.session_plane))
-        object.__setattr__(self, "transport_metadata", copy.deepcopy(self.transport_metadata))
+        object.__setattr__(
+            self, "transport_metadata", copy.deepcopy(self.transport_metadata)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
