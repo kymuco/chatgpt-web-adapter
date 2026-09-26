@@ -393,7 +393,7 @@ class DeepSeekWebRuntime:
             {
                 "provider_id": self.provider_id,
                 "transport": self.transport,
-                "canonical_interface": "CanonicalConversationClient",
+                "canonical_interface": None,
                 "write_transport_interface": "ProductWriteTransport",
                 "capability_model": "ProductCapabilities",
                 "provenance_model": "ProductExecutionProvenance",
