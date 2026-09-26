@@ -16,7 +16,8 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current docs phase      PR16 provider-aware public documentation
+public docs             PR16.1 provider-aware refresh merged
+current research        PR17.0 non-chat hosted-capability falsification
 license                 MIT
 python                  3.10-3.14
 ```
@@ -189,27 +190,39 @@ PR15  architecture reset + provider-neutral boundary
       → Gemini live proof
       → provider architecture freeze
 PR16  public positioning/documentation alignment
+      → provider-aware docs merged
       → naming deliberately deferred
+PR17  hosted-capability falsification
+      → PR17.0 Google Translate Web text translation [active research]
 ```
 
 The detailed PR15 lineage remains preserved in `docs/engineering/`.
 
 ## Current checkpoint
 
-The technical provider architecture is frozen.
+The technical chat-provider architecture is frozen and the PR16 public documentation
+refresh is merged.
 
-The current work is not another runtime abstraction layer. It is aligning public
-documentation with the architecture that now exists:
+PR17.0 now tests a narrower research hypothesis without changing the stable public
+positioning:
 
 ```text
-provider-neutral contract
-+ explicit provider differences
-+ ChatGPT production/default
-+ DeepSeek/Gemini experimental
-+ browser-owned reference strategy
+local software
+→ CWA browser/native execution infrastructure
+→ bounded hosted product capability
 ```
 
-Future runtime work should be triggered by real consumers or observed product drift.
+The first non-chat proof is Google Translate Web text translation.
+
+PR17.0 deliberately does **not** claim that translation fits
+`ProductProviderBoundary schema 2`, `ProductWriteTransport`, `ChatResponse`, or
+conversation identity. It tests whether the lower browser-owned authority,
+serialization, ambiguity and no-replay machinery generalizes beyond chat.
+
+HDE is not used as a validation target in this research slice. No HDE integration is
+part of PR17.0.
+
+Naming remains deliberately deferred.
 
 ## Release policy
 
