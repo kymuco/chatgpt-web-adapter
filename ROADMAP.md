@@ -176,6 +176,14 @@ conversation-read interface. Shared core therefore keeps provider identity/seman
 write transport, capabilities/provenance, no fallback, no automatic retry and explicit
 finality/reconciliation, while canonical readback is conditional. The DeepSeek live proof is green. PR15.54 completed the post-second-provider neutrality audit: shared provenance now requires explicit provider semantics while released ChatGPT compatibility remains owned by `ChatGPTProductRuntime`. PR15.55 proves Gemini Web as provider #3 for text new-chat + continuation on the surviving schema-2 boundary. The real logged-in live gate is green; the proof also tightens the invariant that any uncertainty after delegation or page submit requires reconciliation and never authorizes automatic replay. PR15.56 is the provider-architecture closure: align DeepSeek to the same post-write uncertainty rule, freeze schema 2 as the stable provider-neutral public boundary, keep DeepSeek/Gemini concrete runtimes module-only and EXPERIMENTAL, and stop adding abstraction unless a real provider or consumer falsifies the frozen contract.
 
+PR15 provider architecture is now frozen. The immediate next step is PR16.0: align
+the project's public identity and documentation with the architecture that now exists.
+This is a design/docs pass, not a runtime expansion. The leading direction is to keep
+the short identity `CWA`, position the project as a local runtime bridge for consumer
+AI web products, keep ChatGPT as the mature/default provider, keep DeepSeek/Gemini
+experimental, and defer any hard repository/distribution/import rename until a real
+public multi-provider consumer surface justifies the migration cost.
+
 Consumer-driven runtime hardening remains the rule for what enters the resulting
 public contract. A provider or web capability does not become production scope merely
 because its UI exposes it.
