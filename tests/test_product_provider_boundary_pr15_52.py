@@ -150,6 +150,24 @@ def test_provider_boundary_accepts_non_chatgpt_semantics_without_special_case() 
     assert boundary.incremental_observation_is_canonical_finality is False
 
 
+def test_provider_boundary_rejects_legacy_chatgpt_capability_default_for_other_provider() -> None:
+    runtime = _SyntheticProviderRuntime()
+    runtime.write_transport.capabilities = lambda: ProductCapabilities.from_entries(
+        transport=runtime.transport,
+        entries=(
+            ProductCapability(
+                name="text_turns",
+                state=CapabilityState.AVAILABLE,
+                owner=CapabilityOwner.TRANSPORT,
+                evidence="legacy-default fixture",
+            ),
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="product semantics mismatch"):
+        adapter.product_provider_boundary(runtime)
+
+
 def test_provider_boundary_rejects_runtime_and_capability_semantics_mismatch() -> None:
     runtime = _SyntheticProviderRuntime()
     original = runtime.governance
