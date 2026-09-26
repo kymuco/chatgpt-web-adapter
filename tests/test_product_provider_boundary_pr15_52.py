@@ -6,6 +6,7 @@ import pytest
 
 import chatgpt_web_adapter as adapter
 from chatgpt_web_adapter.product_capabilities import (
+    CANONICAL_READBACK,
     CapabilityOwner,
     CapabilityState,
     ProductCapabilities,
@@ -177,3 +178,29 @@ def test_provider_boundary_source_has_no_provider_wire_assumptions() -> None:
     assert "browser-owned" not in source
     assert "ordinary-deepseek" not in source
     assert "deepseek-web" not in source
+
+
+def test_provider_boundary_requires_canonical_interface_only_when_capability_available() -> None:
+    runtime = _SyntheticProviderRuntime()
+    original = runtime.capabilities
+
+    def capabilities():
+        base = original()
+        return ProductCapabilities.from_entries(
+            transport=base.transport,
+            product_semantics=base.product_semantics,
+            entries=(
+                *base.entries,
+                ProductCapability(
+                    name=CANONICAL_READBACK,
+                    state=CapabilityState.AVAILABLE,
+                    owner=CapabilityOwner.CANONICAL,
+                    evidence="fixture canonical read",
+                ),
+            ),
+        )
+
+    runtime.capabilities = capabilities
+
+    with pytest.raises(RuntimeError, match="CanonicalConversationClient"):
+        adapter.product_provider_boundary(runtime)
