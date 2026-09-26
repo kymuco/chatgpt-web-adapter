@@ -317,6 +317,29 @@ def test_google_translate_authority_lane_is_shared_without_canonical_reservation
     )
 
 
+def test_google_translate_characterization_is_read_only_and_temporary() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    characterization = worker.split(
+        "function _cwaGoogleTranslateCharacterizationExpression()", 1
+    )[1].split(
+        "async function _cwaGoogleTranslateEvaluate", 1
+    )[0]
+    script = (
+        ROOT
+        / "src"
+        / "chatgpt_web_adapter"
+        / "google_translate_web_characterization.py"
+    ).read_text(encoding="utf-8")
+
+    assert "characterize_translate_result" in worker
+    assert "InputEvent(" not in characterization
+    assert "_cwaGoogleTranslateWriteSource(" not in characterization
+    assert '"type": "characterize_translate_result"' in script
+    assert "translate_text(" not in script
+
+
 def test_google_translate_live_gate_is_acceptance_only() -> None:
     gate = (
         ROOT / "src" / "chatgpt_web_adapter" / "google_translate_web_live_gate.py"
