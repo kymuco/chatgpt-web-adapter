@@ -5,9 +5,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
 
-from .product_capabilities import ORDINARY_CHATGPT_PRODUCT_SEMANTICS
-
-
 class CompletionSource(str, Enum):
     """Highest-level evidence source proving a successful returned execution."""
 
@@ -385,7 +382,9 @@ def build_product_execution_provenance(
 
     product_semantics = _optional_text(governance_payload.get("product_semantics"))
     if product_semantics is None:
-        product_semantics = ORDINARY_CHATGPT_PRODUCT_SEMANTICS
+        raise RuntimeError(
+            "product execution provenance requires explicit product_semantics"
+        )
 
     return ProductExecutionProvenance(
         product_semantics=product_semantics,
