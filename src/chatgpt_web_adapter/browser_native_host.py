@@ -377,8 +377,6 @@ class BrowserNativeBroker:
         if operation not in {
             "turn",
             "translate_text",
-            "characterize_translate_result",
-            "characterize_translate_ping",
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
@@ -411,8 +409,6 @@ class BrowserNativeBroker:
             default_timeout_ms = {
                 "turn": 120_000,
                 "translate_text": 30_000,
-                "characterize_translate_result": 10_000,
-                "characterize_translate_ping": 5_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,
             }[operation]
