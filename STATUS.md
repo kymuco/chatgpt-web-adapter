@@ -16,7 +16,7 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           post-PR16.2 consumer/drift-driven validation
+current phase           PR16.3 adoption/discoverability foundation
 license                 MIT
 python                  3.10-3.14
 ```
@@ -29,12 +29,13 @@ tag. Do not assume every current-main behavior exists in the published 0.3.0 whe
 CWA is a standalone local product-runtime bridge for authenticated consumer AI web
 products.
 
-Current provider status:
+Current provider/capability status:
 
 ```text
-ChatGPT       PRODUCTION / default
-DeepSeek Web  EXPERIMENTAL
-Gemini Web    EXPERIMENTAL
+ChatGPT               PRODUCTION / default conversational runtime
+DeepSeek Web          EXPERIMENTAL conversational runtime
+Gemini Web            EXPERIMENTAL conversational runtime
+Google Translate Web  EXPERIMENTAL non-chat translate_text capability
 ```
 
 The shared provider-neutral architecture is represented by
@@ -216,6 +217,25 @@ discipline can support at least one hosted capability outside conversation seman
 
 It did **not** establish a generic hosted-capability runtime or registry. Future
 generalization remains evidence-driven.
+
+## Adoption and discovery
+
+PR16.3 is a docs/metadata/community slice. It does not change runtime behavior.
+
+The current goal is to make the proven project surface legible to:
+
+- first-time users;
+- Python application developers;
+- local assistants / coding agents;
+- future capability contributors;
+- machine/LLM discovery.
+
+New discovery surfaces include `docs/quickstart.md`, `docs/capabilities.md`,
+`docs/agent_integration.md`, `docs/adding_capability.md`, and repository-root
+`llms.txt`.
+
+A dedicated MCP adapter remains a future integration layer, not a current support
+claim.
 
 ## Release policy
 
