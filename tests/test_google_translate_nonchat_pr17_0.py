@@ -7,11 +7,9 @@ import pytest
 
 import chatgpt_web_adapter as adapter
 from chatgpt_web_adapter.exceptions import RequestError
-from chatgpt_web_adapter.google_translate_web_pr17_0 import (
+from chatgpt_web_adapter.google_translate_web import (
     GOOGLE_TRANSLATE_PRODUCT_ID,
-    GOOGLE_TRANSLATE_PRODUCT_SEMANTICS,
     GOOGLE_TRANSLATE_TEXT_CAPABILITY,
-    GOOGLE_TRANSLATE_WEB_TRANSPORT,
     GoogleTranslateOutcomeAmbiguousError,
     GoogleTranslateWebRuntime,
 )
@@ -148,9 +146,9 @@ def test_google_translate_predelegation_failure_remains_ordinary() -> None:
 
 
 def test_google_translate_module_does_not_import_chat_product_contracts() -> None:
-    from chatgpt_web_adapter import google_translate_web_pr17_0
+    from chatgpt_web_adapter import google_translate_web
 
-    source = inspect.getsource(google_translate_web_pr17_0)
+    source = inspect.getsource(google_translate_web)
 
     assert "from .product_" not in source
     assert "ChatResponse" not in source
@@ -167,7 +165,7 @@ def test_google_translate_worker_is_page_owned_without_chat_turn_registration() 
         / "src"
         / "chatgpt_web_adapter"
         / "browser_native_extension"
-        / "service_worker_google_translate_pr17_0.js"
+        / "service_worker_google_translate.js"
     ).read_text(encoding="utf-8")
 
     assert 'message?.type !== "translate_text"' in worker
@@ -188,9 +186,9 @@ def test_google_translate_native_operation_uses_existing_authority_lane() -> Non
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    host = (
-        root / "src" / "chatgpt_web_adapter" / "browser_native_host.py"
-    ).read_text(encoding="utf-8")
+    host = (root / "src" / "chatgpt_web_adapter" / "browser_native_host.py").read_text(
+        encoding="utf-8"
+    )
     router = (
         root
         / "src"
