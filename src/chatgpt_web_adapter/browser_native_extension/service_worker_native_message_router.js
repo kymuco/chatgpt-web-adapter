@@ -7,9 +7,13 @@
 // Preserve that exact outer-to-inner routing without import-time hook reassignment.
 
 async function onNativeMessage(message, port) {
-  return _cwaOnNativeMessageWithUiLiveness(
+  return _cwaOnNativeMessageWithGoogleTranslate(
     message,
     port,
+    (capabilityMessage, capabilityPort) =>
+      _cwaOnNativeMessageWithUiLiveness(
+        capabilityMessage,
+        capabilityPort,
     (uiMessage, uiPort) =>
       _cwaOnNativeMessageWithCanonicalRead(
         uiMessage,
@@ -26,5 +30,6 @@ async function onNativeMessage(message, port) {
               )
           )
       )
+  );
   );
 }
