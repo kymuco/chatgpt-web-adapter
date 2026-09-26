@@ -252,6 +252,33 @@ def test_google_translate_extension_is_explicit_non_chat_route() -> None:
     assert "conversationId" not in worker
 
 
+def test_google_translate_reuses_route_when_languages_match_even_with_text_query() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    ensure_tab = worker.split(
+        "async function _cwaGoogleTranslateEnsureTab", 1
+    )[1].split(
+        "function _cwaGoogleTranslateSourceExpression", 1
+    )[0]
+
+    assert "_cwaGoogleTranslateRouteMatchesLanguages(" in ensure_tab
+    assert "tab.url !== targetUrl" not in ensure_tab
+    assert "chrome.tabs.update" in ensure_tab
+
+
+def test_google_translate_timeout_reports_bounded_observer_state() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PAGE_RESULT_TIMEOUT:" in worker
+    assert "candidates=" in worker
+    assert "leaves=" in worker
+    assert "text_present=" in worker
+    assert "identity_resolved=" in worker
+
+
 def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
     worker = (EXT / "service_worker_google_translate_capability.js").read_text(
         encoding="utf-8"
