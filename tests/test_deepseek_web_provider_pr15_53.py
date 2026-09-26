@@ -171,6 +171,11 @@ def test_deepseek_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert 'finalityEvidence: "PAGE_DOM_STABLE_COMPLETION"' in worker
     assert "canonicalCompletionProven: false" in worker
     assert "DEEPSEEK_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED" in worker
+    assert "_cwaDeepSeekSubmitExpression" in worker
+    assert "control.click()" in worker
+    assert "Input.dispatchKeyEvent" not in worker
+    assert "_cwaDeepSeekReattachForObservation" in worker
+    assert worker.count("await _cwaDeepSeekSubmitOnce(") == 1
 
 
 def test_deepseek_ambiguous_post_submit_outcome_requires_reconciliation() -> None:
