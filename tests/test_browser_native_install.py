@@ -37,7 +37,7 @@ def test_packaged_extension_identity_and_manifest() -> None:
         "https://chatgpt.com/*",
         "https://chat.deepseek.com/*",
         "https://gemini.google.com/*",
-        "https://notebook.google/*",
+        "https://notebook.google.com/*",
         "https://notebooklm.google.com/*",
         "https://translate.google.com/*",
     ]

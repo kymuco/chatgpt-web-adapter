@@ -41,7 +41,7 @@ def test_manifest_presents_a_product_popup_without_expanding_permissions() -> No
         "https://chatgpt.com/*",
         "https://chat.deepseek.com/*",
         "https://gemini.google.com/*",
-        "https://notebook.google/*",
+        "https://notebook.google.com/*",
         "https://notebooklm.google.com/*",
         "https://translate.google.com/*",
     ]

@@ -23,7 +23,8 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
         encoding="utf-8"
     )
 
-    assert "https://notebook.google" in worker
+    assert "https://notebook.google.com" in worker
+    assert '"https://notebook.google"' not in worker
     assert "https://notebooklm.google.com" in worker
     assert 'message?.type !== "characterize_gemini_notebook"' in worker
 
@@ -53,7 +54,8 @@ def test_gemini_notebook_characterization_is_explicit_extension_layer() -> None:
         encoding="utf-8"
     )
 
-    assert "https://notebook.google/*" in manifest
+    assert "https://notebook.google.com/*" in manifest
+    assert "https://notebook.google/*" not in manifest
     assert "https://notebooklm.google.com/*" in manifest
     assert 'importScripts("service_worker_gemini_notebook_capability.js");' in runtime
     assert runtime.index("service_worker_gemini_provider.js") < runtime.index(

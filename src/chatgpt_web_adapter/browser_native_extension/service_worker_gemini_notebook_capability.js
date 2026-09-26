@@ -1,6 +1,6 @@
 const CWA_GEMINI_NOTEBOOK_PRODUCT_ID = "gemini-notebook-web";
 const CWA_GEMINI_NOTEBOOK_ORIGINS = new Set([
-  "https://notebook.google",
+  "https://notebook.google.com",
   "https://notebooklm.google.com"
 ]);
 
@@ -16,7 +16,7 @@ async function _cwaGeminiNotebookFindOpenTabForCharacterization() {
   const tabs = (
     await chrome.tabs.query({
       url: [
-        "https://notebook.google/*",
+        "https://notebook.google.com/*",
         "https://notebooklm.google.com/*"
       ]
     })

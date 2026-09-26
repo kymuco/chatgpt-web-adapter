@@ -97,11 +97,23 @@ Supported product origins for characterization are intentionally limited to the
 currently documented/current standalone hosts:
 
 ```text
-https://notebook.google/*
+https://notebook.google.com/*
 https://notebooklm.google.com/*
 ```
 
 If zero or multiple matching tabs are open, characterization fails closed.
+
+### First live characterization finding
+
+The initial branch guessed `https://notebook.google/*` as the renamed consumer host.
+The first real owned notebook instead exposed the route as
+`https://notebook.google.com/notebook/...` and the characterization correctly failed
+closed with `GEMINI_NOTEBOOK_CHARACTERIZATION_TAB_MISSING` before any mutation.
+
+The allowlist was therefore corrected to the exact observed consumer origin
+`https://notebook.google.com`, while retaining `https://notebooklm.google.com` as the
+legacy/alternate standalone origin. This is characterization evidence, not a reason
+to widen the product boundary further.
 
 ## Expected durable contract
 
