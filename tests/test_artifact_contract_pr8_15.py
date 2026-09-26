@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,6 +36,16 @@ class _ArtifactClient:
     def _get_conversation_payload(self, conversation_id: str):
         self.payload_calls.append(conversation_id)
         return dict(self.raw_payload)
+
+
+class _BarrierArtifactClient(_ArtifactClient):
+    def __init__(self, messages: list[ChatMessage]) -> None:
+        super().__init__(messages)
+        self.barrier = threading.Barrier(2)
+
+    def get_messages(self, conversation, **kwargs):
+        self.barrier.wait(timeout=5)
+        return super().get_messages(conversation, **kwargs)
 
 
 def _manifest(path: Path) -> dict:
@@ -147,6 +159,29 @@ def test_snapshot_manifest_collision_fails_before_canonical_reads(tmp_path: Path
     assert client.payload_calls == []
 
 
+def test_concurrent_snapshots_atomically_claim_distinct_indexes(tmp_path: Path) -> None:
+    client = _BarrierArtifactClient([ChatMessage(role="user", text="Hello")])
+
+    def create_snapshot():
+        return snapshot_conversation(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            include_raw_payload=False,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: create_snapshot(), range(2)))
+
+    assert {result.index for result in results} == {1, 2}
+    for result in results:
+        manifest = _manifest(result.manifest_path)
+        assert manifest["files"][0]["sha256"] == hashlib.sha256(
+            result.context_path.read_bytes()
+        ).hexdigest()
+
+
 def test_export_writer_creates_portable_file_and_manifest(tmp_path: Path) -> None:
     client = _ArtifactClient(
         [
@@ -212,6 +247,29 @@ def test_export_manifest_collision_fails_before_canonical_read(tmp_path: Path) -
         )
 
     assert client.message_calls == []
+
+
+def test_concurrent_exports_atomically_claim_distinct_indexes(tmp_path: Path) -> None:
+    client = _BarrierArtifactClient([ChatMessage(role="user", text="Hello")])
+
+    def create_export():
+        return write_conversation_export(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            format="jsonl",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: create_export(), range(2)))
+
+    assert {result.index for result in results} == {1, 2}
+    for result in results:
+        manifest = _manifest(result.manifest_path)
+        assert manifest["files"][0]["sha256"] == hashlib.sha256(
+            result.export_path.read_bytes()
+        ).hexdigest()
 
 
 def test_export_writer_uses_normalized_current_branch_read_contract(tmp_path: Path) -> None:
