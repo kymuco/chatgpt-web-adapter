@@ -66,12 +66,21 @@ PR15.56 aligns DeepSeek with Gemini:
 before delegation / before submit uncertainty
 → ordinary failure where appropriate
 
-after delegation / after submit uncertainty
-→ reconciliation required
+after delegation / once click-capable submit evaluation is dispatched
+→ reconciliation required when execution outcome is uncertain
 → automatic retry forbidden
 ```
 
 The successful DeepSeek write path is unchanged.
+
+The audit also tightened the exact submit commit boundary for both DeepSeek and Gemini.
+The page click is executed inside a CDP `Runtime.evaluate` command. If that command
+fails with a non-navigation-detach error, CWA cannot prove whether `control.click()`
+ran before the result was lost. That uncertainty is now classified as ambiguous inside
+the submit helper itself. Known pre-click failures such as composer write failure or a
+submit control that never becomes ready remain ordinary failures. The already-proven
+navigation-detach path still proceeds to observation-only debugger reattachment and
+never replays the write.
 
 ## Frozen provider-neutral contract
 
