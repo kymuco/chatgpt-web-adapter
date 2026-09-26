@@ -443,6 +443,11 @@ callers.
 Backend/raw helpers, `browserless-request`, and provider-specific DeepSeek/Gemini
 modules whose product mechanics may evolve faster.
 
+Lower-level compatibility/research helpers such as `PayloadBuilder`,
+`validate_payload`, and `send_payload` remain discoverable for existing callers and
+diagnostics; they are not the recommended runtime foundation. See
+[docs/raw_payload.md](docs/raw_payload.md).
+
 ### Research / diagnostic
 
 Low-level browser-native, Sentinel, characterization and diagnostic surfaces.
