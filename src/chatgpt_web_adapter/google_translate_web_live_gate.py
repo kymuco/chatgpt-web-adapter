@@ -53,9 +53,7 @@ def main() -> int:
                 "candidates": characterization.get("candidates"),
                 "output_region": characterization.get("outputRegion"),
                 "diagnostic_count": characterization.get("diagnosticCount"),
-                "diagnostic_candidates": characterization.get(
-                    "diagnosticCandidates"
-                ),
+                "diagnostic_candidates": characterization.get("diagnosticCandidates"),
             },
         }
         print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
