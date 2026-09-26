@@ -42,6 +42,8 @@ def main() -> int:
         "url": response.get("url"),
         "origin": response.get("origin"),
         "title": response.get("title"),
+        "source_panel_found": response.get("sourcePanelFound") is True,
+        "overlay_root_count": response.get("overlayRootCount"),
         "heading_count": response.get("headingCount"),
         "headings": response.get("headings"),
         "candidate_count": response.get("candidateCount"),

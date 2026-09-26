@@ -115,6 +115,45 @@ The allowlist was therefore corrected to the exact observed consumer origin
 legacy/alternate standalone origin. This is characterization evidence, not a reason
 to widen the product boundary further.
 
+
+### First successful read-only snapshot
+
+After correcting the observed host, the characterization passed on the same owned
+notebook with:
+
+```text
+origin = https://notebook.google.com
+route  = /notebook/<observed-id>
+read_only = true
+```
+
+The snapshot exposed a product-owned source trigger with class
+`.add-source-button`, an enclosing Sources navigation panel, and the empty-source
+state. It also showed that the first broad document scan collected unrelated chat,
+studio and Google-account chrome.
+
+That breadth is not needed for the source-admission experiment. The temporary
+characterizer is therefore narrowed before the next live run to:
+
+```text
+Sources panel
++ currently open dialog / overlay roots
+```
+
+It no longer serializes whole-page body text. This keeps the research probe aligned
+with data minimization and makes subsequent evidence easier to interpret.
+
+The next read-only step is human-assisted state setup:
+
+```text
+user manually opens Add sources
+→ CWA performs no click
+→ rerun characterize_gemini_notebook
+→ inspect the already-open source-admission dialog
+```
+
+This still precedes any CWA-owned product mutation.
+
 ## Expected durable contract
 
 The intended operation is:

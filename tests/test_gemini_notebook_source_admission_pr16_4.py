@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 
 def test_gemini_notebook_characterization_worker_is_valid_javascript() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is unavailable")
+
     worker = EXT / "service_worker_gemini_notebook_capability.js"
     subprocess.run(
-        ["node", "--check", str(worker)],
+        [node, "--check", str(worker)],
         check=True,
         capture_output=True,
         text=True,
@@ -42,6 +49,11 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
     assert "batchexecute" not in worker
 
     assert "Runtime.evaluate" in worker
+    assert "document.body" not in worker
+    assert 'document.querySelector(".add-source-button")' in worker
+    assert '".cdk-overlay-pane"' in worker
+    assert "sourcePanelFound:" in worker
+    assert "overlayRootCount:" in worker
     assert "readOnly: true" in worker
     assert "GEMINI_NOTEBOOK_CHARACTERIZATION_TAB_MISSING" in worker
     assert "GEMINI_NOTEBOOK_CHARACTERIZATION_TAB_AMBIGUOUS" in worker
@@ -85,6 +97,8 @@ def test_gemini_notebook_characterization_cli_does_not_mutate_product() -> None:
 
     assert '"type": "characterize_gemini_notebook"' in script
     assert '"read_only"' in script
+    assert '"source_panel_found"' in script
+    assert '"overlay_root_count"' in script
     assert "add_url_source" not in script
     assert "translate_text" not in script
     assert "send_text" not in script

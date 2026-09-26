@@ -78,6 +78,21 @@ function _cwaGeminiNotebookCharacterizationExpression() {
         height: Math.round(rect.height)
       };
     };
+    const sourceTrigger = document.querySelector(".add-source-button");
+    const sourcePanel =
+      sourceTrigger?.closest("nav") ||
+      sourceTrigger?.closest("aside") ||
+      null;
+    const overlayRoots = Array.from(
+      document.querySelectorAll(
+        "[role='dialog'],mat-dialog-container,.mat-mdc-dialog-container,.cdk-overlay-pane"
+      )
+    ).filter(visible);
+    const roots = [sourcePanel, ...overlayRoots].filter(
+      (element, index, values) =>
+        element instanceof Element && values.indexOf(element) === index
+    );
+
     const selectors = [
       "button",
       "[role='button']",
@@ -93,38 +108,60 @@ function _cwaGeminiNotebookCharacterizationExpression() {
     ];
     const seen = new Set();
     const candidates = [];
-    for (const selector of selectors) {
-      for (const element of document.querySelectorAll(selector)) {
-        if (candidates.length >= 180) break;
-        if (seen.has(element) || !visible(element)) continue;
-        seen.add(element);
-        const text = normalize(element.innerText || element.textContent);
-        const aria = normalize(element.getAttribute("aria-label"));
-        const placeholder = normalize(element.getAttribute("placeholder"));
-        if (
-          !text &&
-          !aria &&
-          !placeholder &&
-          element.tagName !== "INPUT" &&
-          element.tagName !== "TEXTAREA"
-        ) {
-          continue;
+    for (const root of roots) {
+      for (const selector of selectors) {
+        const elements = [
+          ...(root.matches(selector) ? [root] : []),
+          ...root.querySelectorAll(selector)
+        ];
+        for (const element of elements) {
+          if (candidates.length >= 180) break;
+          if (seen.has(element) || !visible(element)) continue;
+          seen.add(element);
+          const text = normalize(element.innerText || element.textContent);
+          const aria = normalize(element.getAttribute("aria-label"));
+          const placeholder = normalize(element.getAttribute("placeholder"));
+          if (
+            !text &&
+            !aria &&
+            !placeholder &&
+            element.tagName !== "INPUT" &&
+            element.tagName !== "TEXTAREA"
+          ) {
+            continue;
+          }
+          candidates.push(summarize(element, candidates.length));
         }
-        candidates.push(summarize(element, candidates.length));
+        if (candidates.length >= 180) break;
       }
       if (candidates.length >= 180) break;
     }
-    const headings = Array.from(
-      document.querySelectorAll("h1,h2,h3,[role='heading']")
-    )
-      .filter(visible)
-      .slice(0, 60)
-      .map((element, index) => summarize(element, index));
+
+    const headingSeen = new Set();
+    const headings = [];
+    for (const root of roots) {
+      for (const element of root.querySelectorAll("h1,h2,h3,[role='heading']")) {
+        if (headings.length >= 60) break;
+        if (headingSeen.has(element) || !visible(element)) continue;
+        headingSeen.add(element);
+        headings.push(summarize(element, headings.length));
+      }
+      if (headings.length >= 60) break;
+    }
+
+    const scopedText = roots
+      .map((root) => normalize(root.innerText || root.textContent))
+      .filter(Boolean)
+      .join(" | ")
+      .slice(0, 5000);
+
     return {
       url: location.href,
       origin: location.origin,
       title: document.title,
-      bodyText: normalize(document.body?.innerText || "").slice(0, 5000),
+      sourcePanelFound: sourcePanel instanceof Element,
+      overlayRootCount: overlayRoots.length,
+      bodyText: scopedText,
       headingCount: headings.length,
       headings,
       candidateCount: candidates.length,
