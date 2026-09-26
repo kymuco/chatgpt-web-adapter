@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from chatgpt_web_adapter.product_provenance import (
     CompletionSource,
     build_product_execution_provenance,
@@ -45,7 +47,9 @@ def test_canonical_readback_completion_does_not_synthesize_finish_reason() -> No
     assert provenance.transport_metadata == {"runtime_tab_id": 77}
 
 
-def test_observed_finish_reason_is_preserved_without_becoming_completion_source() -> None:
+def test_observed_finish_reason_is_preserved_without_becoming_completion_source() -> (
+    None
+):
     provenance = build_product_execution_provenance(
         transport="browser-owned",
         response=_response(finish_reason="stop"),
