@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from chatgpt_web_adapter.product_provenance import (
     CompletionSource,
     build_product_execution_provenance,
@@ -45,12 +47,17 @@ def test_canonical_readback_completion_does_not_synthesize_finish_reason() -> No
     assert provenance.transport_metadata == {"runtime_tab_id": 77}
 
 
-def test_observed_finish_reason_is_preserved_without_becoming_completion_source() -> None:
+def test_observed_finish_reason_is_preserved_without_becoming_completion_source() -> (
+    None
+):
     provenance = build_product_execution_provenance(
         transport="browser-owned",
         response=_response(finish_reason="stop"),
         observation=SimpleNamespace(to_dict=lambda: {"source": "fake"}),
-        governance={"canonical_readback_required": True},
+        governance={
+            "product_semantics": "ordinary-chatgpt",
+            "canonical_readback_required": True,
+        },
     )
 
     assert provenance.completion.source is CompletionSource.CANONICAL_READBACK
@@ -64,8 +71,29 @@ def test_noncanonical_transport_return_is_distinct_from_canonical_completion() -
         transport="browser-owned",
         response=_response(),
         observation=None,
-        governance={"canonical_readback_required": False},
+        governance={
+            "product_semantics": "ordinary-chatgpt",
+            "canonical_readback_required": False,
+        },
     )
 
     assert provenance.completion.source is CompletionSource.TRANSPORT_RETURN
     assert provenance.completion.canonical_completion_proven is False
+
+
+def test_generic_provenance_requires_explicit_product_semantics() -> None:
+    with pytest.raises(RuntimeError, match="explicit product_semantics"):
+        build_product_execution_provenance(
+            transport="future-provider-web",
+            response=_response(),
+            observation=None,
+            governance={"canonical_readback_required": False},
+        )
+
+
+def test_generic_provenance_source_has_no_chatgpt_semantics_fallback() -> None:
+    from chatgpt_web_adapter import product_provenance
+
+    source = __import__("inspect").getsource(product_provenance)
+
+    assert "ORDINARY_CHATGPT_PRODUCT_SEMANTICS" not in source

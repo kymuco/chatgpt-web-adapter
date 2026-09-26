@@ -105,10 +105,15 @@ def test_legacy_transport_provenance_without_mode_is_upgraded_by_runtime() -> No
         transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
         response=_response(),
         observation={"source": "legacy-transport"},
-        governance={"canonical_readback_required": True},
+        governance={
+            "product_semantics": "ordinary-chatgpt",
+            "canonical_readback_required": True,
+        },
     )
     assert supplied.conversation_mode is None
-    runtime = ChatGPTProductRuntime(_Client(), write_transport=_Transport(provenance=supplied))
+    runtime = ChatGPTProductRuntime(
+        _Client(), write_transport=_Transport(provenance=supplied)
+    )
 
     execution = runtime.send_text_observed("hello", conversation_mode="normal")
 
@@ -132,10 +137,15 @@ def test_matching_transport_supplied_mode_provenance_is_preserved() -> None:
         transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
         response=_response(),
         observation={"source": "transport"},
-        governance={"canonical_readback_required": True},
+        governance={
+            "product_semantics": "ordinary-chatgpt",
+            "canonical_readback_required": True,
+        },
         conversation_mode=supplied_mode,
     )
-    runtime = ChatGPTProductRuntime(_Client(), write_transport=_Transport(provenance=supplied))
+    runtime = ChatGPTProductRuntime(
+        _Client(), write_transport=_Transport(provenance=supplied)
+    )
 
     execution = runtime.send_text_observed("hello", conversation_mode="normal")
 
@@ -153,16 +163,20 @@ def test_contradictory_transport_mode_provenance_is_rejected() -> None:
         transport=BROWSER_OWNED_PRODUCT_TRANSPORT,
         response=_response(),
         observation=None,
-        governance={},
+        governance={"product_semantics": "ordinary-chatgpt"},
         conversation_mode=contradictory_mode,
     )
-    runtime = ChatGPTProductRuntime(_Client(), write_transport=_Transport(provenance=supplied))
+    runtime = ChatGPTProductRuntime(
+        _Client(), write_transport=_Transport(provenance=supplied)
+    )
 
     with pytest.raises(RuntimeError, match="unexpected requested mode"):
         runtime.send_text_observed("hello", conversation_mode="normal")
 
 
-def test_blocked_temporary_request_exposes_unknown_observed_mode_and_zero_write() -> None:
+def test_blocked_temporary_request_exposes_unknown_observed_mode_and_zero_write() -> (
+    None
+):
     transport = _Transport()
     runtime = ChatGPTProductRuntime(_Client(), write_transport=transport)
 
@@ -175,11 +189,16 @@ def test_blocked_temporary_request_exposes_unknown_observed_mode_and_zero_write(
     assert mode.observed_mode_evidence_source is ConversationModeEvidenceSource.NONE
     assert mode.observed_mode_proven is False
     assert transport.write_calls == []
-    assert caught.value.to_dict()["conversation_mode"]["observed_conversation_mode"] == "UNKNOWN"
+    assert (
+        caught.value.to_dict()["conversation_mode"]["observed_conversation_mode"]
+        == "UNKNOWN"
+    )
 
 
 def test_mode_provenance_rejects_claimed_observation_without_proof() -> None:
-    with pytest.raises(ValueError, match="unproven observed conversation mode must be UNKNOWN"):
+    with pytest.raises(
+        ValueError, match="unproven observed conversation mode must be UNKNOWN"
+    ):
         ProductConversationModeProvenance(
             requested_conversation_mode="temporary",
             observed_conversation_mode="temporary",
@@ -192,8 +211,14 @@ def test_governance_declares_mode_provenance_contract() -> None:
     runtime = ChatGPTProductRuntime(_Client(), write_transport=_Transport())
     governance = runtime.governance()
 
-    assert governance["conversation_mode_provenance_model"] == "ProductConversationModeProvenance"
+    assert (
+        governance["conversation_mode_provenance_model"]
+        == "ProductConversationModeProvenance"
+    )
     assert governance["requested_conversation_mode_is_caller_input"] is True
-    assert governance["normal_observed_mode_evidence_source"] == "TRANSPORT_SEMANTICS_CONTRACT"
+    assert (
+        governance["normal_observed_mode_evidence_source"]
+        == "TRANSPORT_SEMANTICS_CONTRACT"
+    )
     assert governance["blocked_temporary_observed_mode"] == "UNKNOWN"
     assert governance["temporary_mode_observation_required_before_write"] is True
