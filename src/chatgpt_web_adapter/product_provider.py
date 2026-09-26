@@ -4,9 +4,13 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from .product_capabilities import ProductCapabilities
+from .product_capabilities import (
+    CANONICAL_READBACK,
+    CapabilityState,
+    ProductCapabilities,
+)
 
-PRODUCT_PROVIDER_BOUNDARY_SCHEMA = 1
+PRODUCT_PROVIDER_BOUNDARY_SCHEMA = 2
 CHATGPT_PRODUCT_PROVIDER_ID = "chatgpt"
 
 _CANONICAL_INTERFACE = "CanonicalConversationClient"
@@ -32,7 +36,7 @@ class ProductProviderBoundary:
     provider_id: str
     product_semantics: str
     transport: str
-    canonical_interface: str
+    canonical_interface: str | None
     write_transport_interface: str
     capability_model: str
     provenance_model: str
@@ -58,10 +62,10 @@ class ProductProviderBoundary:
             "transport",
             _required_text(self.transport, name="transport"),
         )
-        if self.canonical_interface != _CANONICAL_INTERFACE:
+        if self.canonical_interface not in {None, _CANONICAL_INTERFACE}:
             raise RuntimeError(
-                "provider boundary requires canonical_interface="
-                f"{_CANONICAL_INTERFACE!r}"
+                "provider boundary canonical_interface must be "
+                f"{_CANONICAL_INTERFACE!r} or None"
             )
         if self.write_transport_interface != _WRITE_TRANSPORT_INTERFACE:
             raise RuntimeError(
@@ -117,6 +121,23 @@ def product_provider_boundary(runtime: Any) -> ProductProviderBoundary:
         )
 
     governance = _require_mapping(governance_method(), name="runtime governance")
+    canonical_capability = capabilities.get(CANONICAL_READBACK)
+    canonical_available = (
+        canonical_capability is not None
+        and canonical_capability.state is CapabilityState.AVAILABLE
+    )
+    canonical_interface = governance.get("canonical_interface")
+    if canonical_available and canonical_interface != _CANONICAL_INTERFACE:
+        raise RuntimeError(
+            "provider boundary requires CanonicalConversationClient when "
+            "canonical_readback is AVAILABLE"
+        )
+    if canonical_interface not in {None, _CANONICAL_INTERFACE}:
+        raise RuntimeError(
+            "provider boundary canonical_interface must be "
+            f"{_CANONICAL_INTERFACE!r} or None"
+        )
+
     product_semantics = _required_text(
         governance.get("product_semantics"),
         name="product_semantics",
@@ -166,7 +187,7 @@ def product_provider_boundary(runtime: Any) -> ProductProviderBoundary:
         provider_id=provider_id,
         product_semantics=product_semantics,
         transport=transport,
-        canonical_interface=governance.get("canonical_interface"),
+        canonical_interface=canonical_interface,
         write_transport_interface=governance.get("write_transport_interface"),
         capability_model=governance.get("capability_model"),
         provenance_model=governance.get("provenance_model"),
