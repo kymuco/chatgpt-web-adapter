@@ -39,83 +39,98 @@ async function _cwaGeminiNotebookFindOpenTabForCharacterization() {
 }
 
 function _cwaGeminiNotebookCharacterizationExpression() {
-  return "(() => {" +
-    "const normalize=(value)=>String(value||'').replace(/\\s+/g,' ').trim();" +
-    "const visible=(element)=>{" +
-      "if(!(element instanceof Element))return false;" +
-      "const rect=element.getBoundingClientRect();" +
-      "const style=getComputedStyle(element);" +
-      "return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';" +
-    "};" +
-    "const summarize=(element,index)=>{" +
-      "const rect=element.getBoundingClientRect();" +
-      "const parent=element.parentElement;" +
-      "return {" +
-        "index," +
-        "tag:String(element.tagName||'').toLowerCase()," +
-        "id:String(element.id||'').slice(0,120)," +
-        "className:String(element.className||'').slice(0,220)," +
-        "role:element.getAttribute('role')," +
-        "ariaLabel:String(element.getAttribute('aria-label')||'').slice(0,220)," +
-        "placeholder:String(element.getAttribute('placeholder')||'').slice(0,220)," +
-        "type:String(element.getAttribute('type')||'').slice(0,80)," +
-        "name:String(element.getAttribute('name')||'').slice(0,120)," +
-        "jsname:element.getAttribute('jsname')," +
-        "dataTestId:element.getAttribute('data-testid')," +
-        "text:normalize(element.innerText||element.textContent).slice(0,420)," +
-        "childElementCount:element.childElementCount," +
-        "parentTag:parent?String(parent.tagName||'').toLowerCase():null," +
-        "parentRole:parent?parent.getAttribute('role'):null," +
-        "parentClass:parent?String(parent.className||'').slice(0,180):null," +
-        "left:Math.round(rect.left)," +
-        "top:Math.round(rect.top)," +
-        "width:Math.round(rect.width)," +
-        "height:Math.round(rect.height)" +
-      "};" +
-    "};" +
-    "const selectors=[" +
-      "'button'," +
-      "'[role=\\"button\\"]'," +
-      "'[role=\\"dialog\\"]'," +
-      "'[role=\\"list\\"]'," +
-      "'[role=\\"listitem\\"]'," +
-      "'[role=\\"menuitem\\"]'," +
-      "'input'," +
-      "'textarea'," +
-      "'[contenteditable=\\"true\\"]'," +
-      "'[aria-label]'," +
-      "'[data-testid]'" +
-    "];" +
-    "const seen=new Set();" +
-    "const candidates=[];" +
-    "for(const selector of selectors){" +
-      "for(const element of document.querySelectorAll(selector)){" +
-        "if(candidates.length>=180)break;" +
-        "if(seen.has(element)||!visible(element))continue;" +
-        "seen.add(element);" +
-        "const text=normalize(element.innerText||element.textContent);" +
-        "const aria=normalize(element.getAttribute('aria-label'));" +
-        "const placeholder=normalize(element.getAttribute('placeholder'));" +
-        "if(!text&&!aria&&!placeholder&&element.tagName!=='INPUT'&&element.tagName!=='TEXTAREA')continue;" +
-        "candidates.push(summarize(element,candidates.length));" +
-      "}" +
-      "if(candidates.length>=180)break;" +
-    "}" +
-    "const headings=Array.from(document.querySelectorAll('h1,h2,h3,[role=\\"heading\\"]'))" +
-      ".filter(visible)" +
-      ".slice(0,60)" +
-      ".map((element,index)=>summarize(element,index));" +
-    "return {" +
-      "url:location.href," +
-      "origin:location.origin," +
-      "title:document.title," +
-      "bodyText:normalize(document.body?.innerText||'').slice(0,5000)," +
-      "headingCount:headings.length," +
-      "headings," +
-      "candidateCount:candidates.length," +
-      "candidates" +
-    "};" +
-  "})()";
+  return `(() => {
+    const normalize = (value) => String(value || "").replace(/\\s+/g, " ").trim();
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const summarize = (element, index) => {
+      const rect = element.getBoundingClientRect();
+      const parent = element.parentElement;
+      return {
+        index,
+        tag: String(element.tagName || "").toLowerCase(),
+        id: String(element.id || "").slice(0, 120),
+        className: String(element.className || "").slice(0, 220),
+        role: element.getAttribute("role"),
+        ariaLabel: String(element.getAttribute("aria-label") || "").slice(0, 220),
+        placeholder: String(element.getAttribute("placeholder") || "").slice(0, 220),
+        type: String(element.getAttribute("type") || "").slice(0, 80),
+        name: String(element.getAttribute("name") || "").slice(0, 120),
+        jsname: element.getAttribute("jsname"),
+        dataTestId: element.getAttribute("data-testid"),
+        text: normalize(element.innerText || element.textContent).slice(0, 420),
+        childElementCount: element.childElementCount,
+        parentTag: parent ? String(parent.tagName || "").toLowerCase() : null,
+        parentRole: parent ? parent.getAttribute("role") : null,
+        parentClass: parent ? String(parent.className || "").slice(0, 180) : null,
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      };
+    };
+    const selectors = [
+      "button",
+      "[role='button']",
+      "[role='dialog']",
+      "[role='list']",
+      "[role='listitem']",
+      "[role='menuitem']",
+      "input",
+      "textarea",
+      "[contenteditable='true']",
+      "[aria-label]",
+      "[data-testid]"
+    ];
+    const seen = new Set();
+    const candidates = [];
+    for (const selector of selectors) {
+      for (const element of document.querySelectorAll(selector)) {
+        if (candidates.length >= 180) break;
+        if (seen.has(element) || !visible(element)) continue;
+        seen.add(element);
+        const text = normalize(element.innerText || element.textContent);
+        const aria = normalize(element.getAttribute("aria-label"));
+        const placeholder = normalize(element.getAttribute("placeholder"));
+        if (
+          !text &&
+          !aria &&
+          !placeholder &&
+          element.tagName !== "INPUT" &&
+          element.tagName !== "TEXTAREA"
+        ) {
+          continue;
+        }
+        candidates.push(summarize(element, candidates.length));
+      }
+      if (candidates.length >= 180) break;
+    }
+    const headings = Array.from(
+      document.querySelectorAll("h1,h2,h3,[role='heading']")
+    )
+      .filter(visible)
+      .slice(0, 60)
+      .map((element, index) => summarize(element, index));
+    return {
+      url: location.href,
+      origin: location.origin,
+      title: document.title,
+      bodyText: normalize(document.body?.innerText || "").slice(0, 5000),
+      headingCount: headings.length,
+      headings,
+      candidateCount: candidates.length,
+      candidates
+    };
+  })()`;
 }
 
 async function _cwaGeminiNotebookCharacterizeCurrentPage() {
