@@ -26,6 +26,11 @@ def test_current_repository_entrypoints_exist() -> None:
         "docs/architecture.md",
         "docs/providers.md",
         "docs/browser_owned.md",
+        "docs/quickstart.md",
+        "docs/capabilities.md",
+        "docs/agent_integration.md",
+        "docs/adding_capability.md",
+        "llms.txt",
     ):
         assert (ROOT / path).is_file(), path
 
@@ -142,7 +147,8 @@ def test_project_metadata_points_to_current_repository_docs() -> None:
 
     assert project["version"] == "0.3.0"
     assert project["description"] == (
-        "Local Python SDK and CLI bridge for an existing ordinary ChatGPT web session."
+        "Local Python SDK and CLI bridge for authenticated consumer AI web products "
+        "and hosted capabilities."
     )
     assert urls["Documentation"].endswith("/blob/main/docs/README.md")
     assert urls["Roadmap"].endswith("/blob/main/ROADMAP.md")
