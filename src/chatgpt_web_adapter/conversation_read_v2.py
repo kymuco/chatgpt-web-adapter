@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -18,6 +19,9 @@ CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES = (
     5,
 )
 CANONICAL_CONVERSATION_NON_JSON_RETRIES = 1
+CANONICAL_CONVERSATION_THROTTLE_MAX_RETRIES = 3
+CANONICAL_CONVERSATION_THROTTLE_BACKOFF_BASE_SECONDS = 0.25
+CANONICAL_CONVERSATION_THROTTLE_BACKOFF_MAX_SECONDS = 4.0
 MAX_CANONICAL_CONVERSATION_PAGES = 100
 
 
@@ -256,16 +260,20 @@ def _read_current_page(
     request is wasteful. Step down the hint while preserving the exact conversation
     identity and pagination cursor.
 
+    HTTP 429 responses use a separate bounded retry policy. A throttled request is
+    retried with the same num_turns and pagination cursor before giving up.
+
     A successful non-object response is retried once at the same hint. This covers
     transient empty/HTML intermediary responses without turning redirects, auth
     failures, or arbitrary HTTP 500s into silent retry loops.
     """
-
     last_status = 0
     last_data: Any = None
 
     for num_turns in CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES:
         non_json_retries = CANONICAL_CONVERSATION_NON_JSON_RETRIES
+        throttle_retries = 0
+
         while True:
             current_url = _current_conversation_url(
                 current_base_url,
@@ -275,6 +283,19 @@ def _read_current_page(
             )
             status, data = client._json_request("GET", current_url, None, headers)
             last_status, last_data = status, data
+
+            if status == 429:
+                if throttle_retries >= CANONICAL_CONVERSATION_THROTTLE_MAX_RETRIES:
+                    return status, data
+
+                delay = min(
+                    CANONICAL_CONVERSATION_THROTTLE_BACKOFF_MAX_SECONDS,
+                    CANONICAL_CONVERSATION_THROTTLE_BACKOFF_BASE_SECONDS
+                    * (2**throttle_retries),
+                )
+                time.sleep(delay)
+                throttle_retries += 1
+                continue
 
             if _timeout_like_response(status, data):
                 break
