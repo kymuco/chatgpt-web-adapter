@@ -15,6 +15,21 @@ def main() -> int:
             "GOOGLE_TRANSLATE_CHARACTERIZATION_BROWSER_BRIDGE_UNAVAILABLE"
         )
 
+    ping = bridge._rpc(  # noqa: SLF001
+        {
+            "type": "characterize_translate_ping",
+            "request_id": uuid.uuid4().hex,
+            "timeoutMs": 5_000,
+        },
+        timeout=5.0,
+    )
+    if ping.get("ok") is not True:
+        raise RequestError(
+            "GOOGLE_TRANSLATE_CHARACTERIZATION_WORKER_PING_FAILED:"
+            f"{ping.get('error') or 'unknown error'}",
+            request_stage="google_translate_characterization",
+        )
+
     response = bridge._rpc(  # noqa: SLF001
         {
             "type": "characterize_translate_result",
@@ -33,6 +48,10 @@ def main() -> int:
     payload = {
         "result": "PASS",
         "read_only": True,
+        "worker_ping": {
+            "worker": ping.get("worker"),
+            "characterization_version": ping.get("characterizationVersion"),
+        },
         "url": response.get("url"),
         "candidate_count": response.get("candidateCount"),
         "candidates": response.get("candidates"),
