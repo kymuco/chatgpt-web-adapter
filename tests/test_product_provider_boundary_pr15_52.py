@@ -95,7 +95,7 @@ class _SyntheticProviderRuntime:
             {
                 "provider_id": self.provider_id,
                 "transport": self.transport,
-                "canonical_interface": "CanonicalConversationClient",
+                "canonical_interface": None,
                 "write_transport_interface": "ProductWriteTransport",
                 "capability_model": "ProductCapabilities",
                 "provenance_model": "ProductExecutionProvenance",
@@ -117,7 +117,7 @@ def test_chatgpt_runtime_declares_provider_identity() -> None:
     boundary = adapter.product_provider_boundary(runtime)
 
     assert runtime.provider_id == adapter.CHATGPT_PRODUCT_PROVIDER_ID == "chatgpt"
-    assert boundary.schema == adapter.PRODUCT_PROVIDER_BOUNDARY_SCHEMA == 1
+    assert boundary.schema == adapter.PRODUCT_PROVIDER_BOUNDARY_SCHEMA == 2
     assert boundary.provider_id == "chatgpt"
     assert boundary.product_semantics == "ordinary-chatgpt"
     assert boundary.transport == "browser-owned"
@@ -129,7 +129,7 @@ def test_provider_boundary_accepts_non_chatgpt_semantics_without_special_case() 
     assert boundary.provider_id == "deepseek"
     assert boundary.product_semantics == "ordinary-deepseek"
     assert boundary.transport == "deepseek-web"
-    assert boundary.canonical_interface == "CanonicalConversationClient"
+    assert boundary.canonical_interface is None
     assert boundary.write_transport_interface == "ProductWriteTransport"
     assert boundary.automatic_write_retry is False
     assert boundary.fallback_transport is None
