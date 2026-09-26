@@ -119,8 +119,6 @@ class GoogleTranslateWebCapability:
         total_timeout = self.operation_timeout if timeout is None else float(timeout)
         if total_timeout < 3.0:
             raise ValueError("timeout must be at least 3 seconds")
-        worker_timeout_ms = max(1000, int(total_timeout * 1000) - 1000)
-
         payload = {
             "type": GOOGLE_TRANSLATE_TEXT_CAPABILITY_ID,
             "request_id": uuid.uuid4().hex,
@@ -128,7 +126,7 @@ class GoogleTranslateWebCapability:
             "text": text,
             "sourceLanguage": source,
             "targetLanguage": target,
-            "timeoutMs": worker_timeout_ms,
+            "timeoutMs": 1,
         }
 
         try:
@@ -137,6 +135,8 @@ class GoogleTranslateWebCapability:
             response = self.bridge._rpc(  # noqa: SLF001
                 payload,
                 timeout=total_timeout,
+                delegated_timeout_ms_key="timeoutMs",
+                delegated_response_margin=1.0,
             )
         except RequestError as error:
             if str(error).startswith(
