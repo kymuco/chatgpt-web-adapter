@@ -20,7 +20,7 @@ Current `main` contains product/runtime work newer than the `v0.3.0` tag. Do not
 
 ## Product role
 
-CWA is a standalone local SDK / CLI bridge to an existing ordinary ChatGPT web session.
+CWA is a standalone local product-runtime bridge for authenticated consumer AI web products. ChatGPT is the production/default provider; DeepSeek Web and Gemini Web are experimental providers on current `main`.
 
 Primary application boundary:
 
@@ -193,7 +193,8 @@ PR15 Architecture Reset
 → PR15.55 minimal Gemini Web new-chat/continuation proof [merged; live acceptance PASS]
 → real Gemini Web new-chat + continuation accepted; post-submit ambiguity hardening applied; shipping live gate removed
 → PR15.56 provider architecture closure/freeze [merged; architecture frozen]
-→ PR16.0 CWA identity/positioning direction [active; docs/design only]
+→ PR16.0 CWA positioning direction [merged; naming deferred]
+→ PR16.1 public README/documentation refresh [active; docs only]
 ```
 
 PR14.9 showed that the next highest-leverage work is structural rather than another
