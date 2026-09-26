@@ -126,7 +126,7 @@ Decision:
 
 ### PR16.1 — current documentation refresh
 
-Current work.
+Completed.
 
 Refresh:
 
@@ -140,6 +140,64 @@ Refresh:
 - deterministic documentation contract tests.
 
 No runtime/provider behavior changes are intended.
+
+## PR17 — hosted capability falsification
+
+### PR17.0 — Google Translate Web text translation
+
+Active research.
+
+Question:
+
+```text
+Can CWA's browser-owned authority and reconciliation machinery
+support a useful hosted capability
+without pretending the capability is a conversation turn?
+```
+
+PR17.0 uses Google Translate Web text translation as the first non-chat proof:
+
+```text
+text
++ source language
++ target language
+→ translated text
+```
+
+The spike intentionally lives outside the frozen chat-provider schema:
+
+- no `ProductProviderBoundary schema 2` claim;
+- no `ProductWriteTransport`;
+- no `ProductCapabilities`;
+- no `ChatResponse`;
+- no conversation id;
+- no generic capability registry/factory;
+- no private Google HTTP protocol;
+- no HDE integration;
+- no OCR implementation yet.
+
+It reuses only the lower local browser/native execution infrastructure and the
+cross-cutting safety discipline:
+
+```text
+exclusive authority lane
++ explicit product operation
++ no fallback
++ no automatic retry
++ ambiguous delegated/mutated outcome requires reconciliation
+```
+
+If translation passes live acceptance, compare the evidence from chat vs translation
+before designing any shared hosted-capability abstraction.
+
+OCR is a possible second falsification case because it would add file/image input and
+extraction semantics, but it should not begin until the translation result is
+understood.
+
+Naming remains a separate later decision.
+
+See
+[`docs/engineering/pr17_0_google_translate_nonchat_falsification.md`](docs/engineering/pr17_0_google_translate_nonchat_falsification.md).
 
 ## Current direction after PR16
 
