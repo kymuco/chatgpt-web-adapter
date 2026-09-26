@@ -173,6 +173,23 @@ async function _cwaGoogleTranslateWriteSource(
   }
 }
 
+async function _cwaGoogleTranslateWaitForClearedResult(
+  debuggee,
+  targetLanguage,
+  deadlineAt
+) {
+  while (performance.now() < deadlineAt) {
+    const snapshot = await _cwaGoogleTranslateEvaluate(
+      debuggee,
+      _cwaGoogleTranslateResultExpression(targetLanguage)
+    );
+    const text = typeof snapshot?.text === "string" ? snapshot.text.trim() : "";
+    if (!text) return;
+    await sleep(100);
+  }
+  throw new Error("GOOGLE_TRANSLATE_PREWRITE_RESULT_NOT_CLEARED");
+}
+
 async function _cwaGoogleTranslateWaitForResult(
   debuggee,
   targetLanguage,
@@ -245,13 +262,12 @@ async function _cwaGoogleTranslateText(message) {
       "",
       false
     );
-    await sleep(250);
-    const baseline = await _cwaGoogleTranslateEvaluate(
+    await _cwaGoogleTranslateWaitForClearedResult(
       debuggee,
-      _cwaGoogleTranslateResultExpression(targetLanguage)
+      targetLanguage,
+      Math.min(deadlineAt, performance.now() + 5000)
     );
-    const baselineText =
-      typeof baseline?.text === "string" ? baseline.text.trim() : "";
+    const baselineText = "";
 
     // Google Translate begins the hosted operation in response to this input
     // mutation. If the Runtime.evaluate result is lost, execution is ambiguous.
