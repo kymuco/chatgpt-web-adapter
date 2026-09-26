@@ -43,7 +43,7 @@ class _FakeGeminiProvider(GeminiBrowserTurnProvider):
             "providerId": GEMINI_PROVIDER_ID,
             "conversationId": conversation_id,
             "responseText": "proof response",
-            "finalUrl": "https://gemini.google.com/a/chat/s/app/opaque-route",
+            "finalUrl": "https://gemini.google.com/app/opaque-route",
             "tabId": 17,
             "elapsedMs": 1250,
             "finalityEvidence": "PAGE_DOM_STABLE_COMPLETION",
