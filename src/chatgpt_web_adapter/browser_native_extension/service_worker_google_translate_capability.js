@@ -106,7 +106,7 @@ function _cwaGoogleTranslateResultExpression(targetLanguage) {
   const encodedTarget = JSON.stringify(targetLanguage);
   return "(() => {" +
     "const target=" + encodedTarget + ";" +
-    "const normalize=(value)=>String(value||'').replace(/\s+/g,' ').trim();" +
+    "const normalize=(value)=>String(value||'').replace(/\\s+/g,' ').trim();" +
     "const visible=(element)=>{" +
       "if(!(element instanceof Element))return false;" +
       "const rect=element.getBoundingClientRect();" +
