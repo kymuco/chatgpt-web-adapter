@@ -1,7 +1,7 @@
 # chatgpt-web-adapter
 
 <p align="center">
-  <img src="docs/assets/cwa-hero.svg" alt="chatgpt-web-adapter — Python SDK, CLI and Browser Bridge" width="100%">
+  <img src="docs/assets/cwa-hero.svg" alt="CWA — local product-runtime bridge for consumer AI web products" width="100%">
 </p>
 
 [![CI](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/kymuco/chatgpt-web-adapter/actions/workflows/ci.yml)
@@ -9,84 +9,162 @@
 [![Python](https://img.shields.io/pypi/pyversions/chatgpt-web-adapter.svg)](https://pypi.org/project/chatgpt-web-adapter/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Product-runtime adapter for using an existing ordinary ChatGPT web session from Python, HDE-style local runtimes, and terminal tools.**
+**Local product-runtime bridge for authenticated consumer AI web products.**
 
-[Documentation](docs/README.md) · [Architecture](docs/architecture.md) · [Status](STATUS.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md)
+CWA lets local software use ordinary hosted AI products through typed runtime contracts
+without turning browser details, product observations or partial output into implicit
+authority.
+
+[Documentation](docs/README.md) · [Architecture](docs/architecture.md) · [Providers](docs/providers.md) · [Status](STATUS.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md)
 
 > [!WARNING]
-> Not the official OpenAI API.  
-> Uses an existing ChatGPT web session and ordinary ChatGPT product semantics.  
-> Browser and web-product behavior may change.
+> CWA is not an official API client for OpenAI, Google or DeepSeek. It works with
+> ordinary consumer web products and depends on product behavior that may change.
 
-> **Product observation is not authority. Streaming is not finality. Ambiguous writes are not automatically retried.**
+> **Product observation is not authority. Incremental output is not canonical finality.
+> Ambiguous writes are never automatically retried.**
 
-`chatgpt-web-adapter` (CWA) wraps an authenticated ChatGPT web-product session behind a typed Python runtime and CLI. The forward-looking application boundary is `ChatGPTProductRuntime`; the production write transport is `browser-owned`. The historical `ChatGPTWebClient` remains available as a compatibility surface, while low-level Sentinel/direct browser-native APIs remain research or diagnostic surfaces.
+## What CWA is
 
-## Current status
-
-- **Latest public release:** `v0.3.0` — 2026-09-01.
-- **Current `main`:** post-0.3 development; see [STATUS.md](STATUS.md) for merged post-release milestones.
-- **Production write transport:** `browser-owned`.
-- **Experimental transport:** `browserless-request`.
-- **Current product boundary:** text, images, general files, multimodal continuation, canonical conversation reads, streaming/finality, model profiles, Temporary Chat, web-search observation, and typed product observations are implemented on their evidence-backed paths.
-- **Conservative boundaries:** `tools_connectors` remains `UNKNOWN`; generated-artifact download handoff remains unsupported without a stable product-owned artifact identity and safe resolution path.
-- **Generated-artifact handoff status:** `ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY`.
-
-See [STATUS.md](STATUS.md) for the compact current-state snapshot and [ROADMAP.md](ROADMAP.md) for what comes next.
-
-## Why CWA
-
-CWA is for callers that want ordinary ChatGPT product semantics without embedding browser internals throughout their application.
+CWA sits between a local application and an authenticated consumer AI product:
 
 ```text
-application / HDE / CMA / terminal
-               |
-               v
-       ChatGPTProductRuntime
-          /       |       \
-         /        |        \
- canonical     product    structured
- read/status    write     observations
-     |            |           |
-     |      browser-owned      |
-     |        PRODUCTION       |
-     +------------+------------+
+application / HDE / Codexia / terminal
                   |
                   v
-            ChatGPT product
+        provider-specific runtime
+          /          |          \
+         /           |           \
+   ChatGPT      DeepSeek Web    Gemini Web
+ production     experimental    experimental
+       |
+       +---- each runtime is inspected / validated through
+             ProductProviderBoundary schema 2
 ```
 
-The runtime deliberately separates:
+`ProductProviderBoundary` is **not** an execution router. It is a provider-neutral
+metadata and invariant view over an already-created runtime.
 
-- **canonical observation** — attach/read/status and final assistant readback;
-- **product mutation** — an explicit product write transport;
-- **structured observations** — bounded search/tool/source/citation/required-action evidence;
-- **capability state** — `AVAILABLE`, `UNSUPPORTED`, `UNKNOWN`, `UNIMPLEMENTED`;
-- **support tier** — production, shared support, compatibility, experimental, research/diagnostic;
-- **downstream authority** — always owned by the caller, never inferred from product evidence.
+The shared architecture preserves explicit:
 
-## Capability snapshot
+- provider identity and product semantics;
+- capability state;
+- transport/support tier;
+- execution provenance;
+- canonical-readback requirements;
+- write and retry authority;
+- ambiguous-write reconciliation;
+- finality claims.
 
-| Surface | Current state | Notes |
-| --- | --- | --- |
-| Ordinary text new chat / continuation | Production | Browser-owned protected write + canonical readback |
-| Canonical messages / status / attach | Production | Browserless where supported |
-| Revision-safe streaming / final-only | Production | Incremental output never becomes canonical finality |
-| Model profiles | Production | `INSTANT` / `MEDIUM` / `HIGH` CLI aliases; semantic Python profiles remain supported |
-| Temporary Chat | Production | Session-local authority; no durable fallback |
-| Images and general files | Production on the proven default provider path | Exact attachment-set and request correlation guards |
-| Multimodal continuation | Production on the proven default provider path | Same canonical finality boundary |
-| Web-search observation | Production on the proven default provider path | Typed search/source/citation evidence |
-| Generic product-tool observation | Observed | Reports what the product emitted; does not create caller tool authority |
-| Required-action point evidence | Observed | Can represent visible authorization requirements without approving them |
-| Connector execution lifecycle | Conservative / `tools_connectors=UNKNOWN` | Requires explicit stable product identity/correlation |
-| Generated-artifact observation | Bounded internal boundary | Observation does not grant download authority |
-| Generated-artifact download | Unsupported today | Reopens only with stable product-owned identity + safe browser-owned resolution |
-| `browserless-request` writes | Experimental | May fail closed at current challenge/Sentinel boundaries |
+Provider differences remain visible instead of being forced into a fake universal chat
+API.
 
-Capability state is provider-aware. A custom provider does not inherit an `AVAILABLE` capability merely because it uses the same transport name.
+## Provider status on current `main`
 
-## Quick start
+| Capability / property | ChatGPT | DeepSeek Web | Gemini Web |
+| --- | --- | --- | --- |
+| Support tier | **Production/default** | Experimental | Experimental |
+| Text new chat | Production | Live-proven | Live-proven |
+| Text continuation | Production | Live-proven | Live-proven |
+| Canonical conversation readback | Yes | No claim | No claim |
+| Completion model | Canonical readback where required | Page-DOM stable completion, noncanonical | Page-DOM stable completion, noncanonical |
+| Images / files | Production on proven browser-owned paths | Unimplemented | Unimplemented |
+| Streaming | Production on proven paths | Unimplemented | Unimplemented |
+| Model / reasoning profiles | Evidence-backed | Unknown | Unknown |
+| Temporary Chat | Production text path | Unimplemented | Unimplemented |
+| Web-search observation | Production on proven path | Unknown | Unknown |
+| Public root runtime API | `ChatGPTProductRuntime` | Module-only | Module-only |
+
+DeepSeek and Gemini are deliberately not presented as equally mature alternatives to
+ChatGPT. Their current purpose is a real, live-proven provider implementation plus
+evidence that the shared provider architecture is not ChatGPT-specific.
+
+See [docs/providers.md](docs/providers.md) for the detailed matrix and finality model.
+
+## Release vs current `main`
+
+- **Latest public release:** `v0.3.0` — 2026-09-01.
+- **Published package version:** `0.3.0`.
+- **Current `main`:** includes substantial post-0.3 work, including the completed PR15
+  architecture reset and experimental DeepSeek/Gemini provider proofs.
+
+Do not assume every behavior described for current `main` exists in the published
+0.3.0 wheel. [STATUS.md](STATUS.md) is the compact source of truth for release/main
+differences.
+
+## Why the browser-owned path is the default
+
+For consumer web products, “browserless” is not automatically more reliable.
+
+The browser already owns:
+
+```text
+authenticated session
+cookies
+frontend JavaScript
+normal product navigation
+page-owned upload/submit behavior
+product challenge/protection state
+```
+
+The browser-owned strategy therefore keeps CWA's job bounded:
+
+```text
+resolve product surface
+→ perform one governed write
+→ observe / reconcile outcome
+```
+
+A reusable background runtime tab is an implementation resource, not public
+conversation authority.
+
+CWA still contains an experimental ChatGPT `browserless-request` transport, but it is
+not the architectural target merely because it avoids Chrome. It remains fail-closed
+around product protections and is not allowed to silently fall back or synthesize
+challenge credentials.
+
+See [docs/browser_owned.md](docs/browser_owned.md).
+
+## Official APIs are different semantics
+
+Official APIs can be excellent interfaces, but they are not the same thing as the
+ordinary consumer product:
+
+```text
+OpenAI API  != ordinary ChatGPT product session
+Gemini API  != ordinary Gemini consumer web session
+DeepSeek API != ordinary DeepSeek consumer web session
+```
+
+CWA exists specifically for product semantics that live in the consumer product:
+conversation state, product-native modes, browser-owned uploads, product UI behavior
+and other evidence-backed product capabilities.
+
+It is not intended to replace official APIs where API semantics are what the caller
+actually wants.
+
+## ChatGPT: production/default provider
+
+ChatGPT remains the mature provider and the current production application path.
+
+```text
+application
+    |
+    v
+ChatGPTProductRuntime
+    |\
+    | +---- ProductWriteTransport
+    |        browser-owned = PRODUCTION
+    |        browserless-request = EXPERIMENTAL
+    |
+    +------ CanonicalConversationClient
+             canonical read / attach / status / finality
+```
+
+The historical `ChatGPTWebClient` remains available as a compatibility surface, but
+new integrations should start with `ChatGPTProductRuntime`.
+
+## Quick start — current production path
 
 ### Install
 
@@ -94,43 +172,43 @@ Capability state is provider-aware. A custom provider does not inherit an `AVAIL
 python -m pip install "chatgpt-web-adapter[browser]"
 ```
 
-Requirements:
+Requirements for the current ChatGPT production path:
 
 - Python 3.10-3.14;
-- system `curl` in `PATH` for the canonical web-session client;
+- Chrome/Chromium;
 - an authenticated ChatGPT web session;
-- Chrome/Chromium plus the packaged extension and Native Messaging host for production protected writes.
+- the packaged extension + Native Messaging host;
+- system `curl` where the canonical web-session client requires it.
 
-### Authenticate once
+### Authenticate
 
 ```bash
 chatgpt-web-adapter auth login --auth-file auth_data.json
 chatgpt-web-adapter auth status --auth-file auth_data.json
 ```
 
-`auth_data.json` contains reusable account/session material. Do not commit or share it. See [docs/authentication.md](docs/authentication.md) and [SECURITY.md](SECURITY.md).
+Treat `auth_data.json` and the associated signed-in browser profile as sensitive.
+See [docs/authentication.md](docs/authentication.md) and [SECURITY.md](SECURITY.md).
 
-### Install the browser-owned bridge
+### Install the browser bridge
 
 ```powershell
 chatgpt-web-adapter browser-native install
 chatgpt-web-adapter browser-native extension-dir
 ```
 
-Load the printed extension directory through `chrome://extensions` → Developer mode → Load unpacked, then verify:
+Load the printed directory through `chrome://extensions` → Developer mode → Load
+unpacked, then verify:
 
 ```powershell
 chatgpt-web-adapter browser-native status
 cwa doctor --json
 ```
 
-A healthy bridge reports the extension connected and the runtime ready.
+The extension popup is read-only local product chrome. Opening it does not create
+write authority or submit a product turn.
 
-The Chrome extension also exposes a small local popup with Native Messaging connection state, runtime-tab presence, activity state, version and sanitized copyable diagnostics. Opening the popup performs **no ChatGPT product write** and does not provision the hidden runtime tab. See [docs/browser_bridge_product_surface_pr11_0.md](docs/browser_bridge_product_surface_pr11_0.md).
-
-Because the current installation path is still **Load unpacked**, Chrome may continue to label it as a developer extension. Chrome Web Store distribution is intentionally deferred until external adoption makes the extra store/privacy/update lifecycle worthwhile.
-
-### Send from the CLI
+### Send from the stable CLI
 
 ```powershell
 cwa send "Give me a short project summary." --profile HIGH
@@ -147,22 +225,13 @@ cwa snapshot <conversation-id> --name project --output-dir ./artifacts --json
 cwa export <conversation-id> --format jsonl --name project --output-dir ./artifacts --json
 ```
 
-The long-form runtime commands remain supported:
-
-```powershell
-chatgpt-web-adapter runtime status
-chatgpt-web-adapter runtime send "Hello from the product runtime"
-```
-
 Temporary Chat:
 
 ```powershell
 cwa send "Answer briefly." --temporary --profile INSTANT
 ```
 
-The stable CLI is intentionally narrower than the complete Python runtime surface.
-
-## Production Python Quick Start
+## Production Python example
 
 ```python
 from chatgpt_web_adapter import assemble_product_runtime
@@ -184,7 +253,7 @@ print(execution.provenance.to_dict())
 print(execution.observations)
 ```
 
-Canonical lifecycle access remains on the same runtime:
+Canonical lifecycle access remains separate from mutation:
 
 ```python
 status = runtime.get_status(conversation_id)
@@ -192,42 +261,103 @@ messages = runtime.get_messages(conversation_id)
 attached = runtime.attach_conversation(conversation_id)
 ```
 
-For ordinary callers, `runtime.send(...)` is the compact entrypoint when the complete observation/provenance result is not needed directly.
+For a compact result, `runtime.send(...)` remains available.
 
-### Rich input
+## Rich input on ChatGPT
 
-On the live-proven production/default browser-owned provider path, `send_text_observed()` accepts images and general files through `media=`:
+On the live-proven production/default browser-owned path:
 
 ```python
 execution = runtime.send_text_observed(
-    "Describe this image and summarize the attached notes.",
+    "Describe this image and summarize the notes.",
     media=["./diagram.png", "./notes.txt"],
 )
 ```
 
-The official ChatGPT page owns upload and protected submit. CWA validates the requested attachment set and preserves the same canonical finality/no-retry boundary as ordinary text turns.
+The official page owns upload and protected submit. CWA validates the requested
+attachment set and preserves the same no-fallback / no-automatic-retry boundaries as
+ordinary text turns.
 
-## Capabilities
+## Experimental providers
 
-Runtime capability declarations are evidence-backed and provider-aware. Use `runtime.capabilities()` rather than inferring support from a transport name, a visible ChatGPT UI control, or the presence of an internal implementation module.
+Current `main` contains module-only experimental runtimes for DeepSeek Web and Gemini
+Web. They are intentionally not root-package production exports.
 
-The compact status table above is the repository-level snapshot; [STATUS.md](STATUS.md) records the current post-0.3 boundaries in more detail.
+Minimal examples:
+
+```python
+from chatgpt_web_adapter.deepseek_web import DeepSeekWebRuntime
+
+runtime = DeepSeekWebRuntime()
+response = runtime.send_text("Reply with one short sentence.")
+print(response.text)
+```
+
+```python
+from chatgpt_web_adapter.gemini_web import GeminiWebRuntime
+
+runtime = GeminiWebRuntime()
+response = runtime.send_text("Reply with one short sentence.")
+print(response.text)
+```
+
+These paths require the same local browser bridge and an authenticated session in the
+corresponding web product. Current evidence covers text new-chat and continuation only.
+
+They remain experimental because live acceptance proves observed behavior on the
+current product revision; it does not make DOM/navigation mechanics a durable public
+API.
+
+## Provider-neutral inspection
+
+Any conforming runtime can be inspected through the stable provider-neutral boundary:
+
+```python
+from chatgpt_web_adapter import product_provider_boundary
+
+boundary = product_provider_boundary(runtime)
+print(boundary.to_dict())
+```
+
+The boundary validates semantics such as:
+
+```text
+automatic_write_retry = false
+fallback_transport = none
+ambiguous_write_requires_reconciliation = true
+incremental_observation_is_canonical_finality = false
+```
+
+and records whether canonical readback is required for that runtime.
+
+## Capabilities and provenance
+
+Do not infer capability from a provider name, transport string or visible UI control.
+
+Use:
+
+```python
+capabilities = runtime.capabilities()
+```
+
+Canonical capability states are:
+
+- `AVAILABLE`;
+- `UNSUPPORTED`;
+- `UNKNOWN`;
+- `UNIMPLEMENTED`.
+
+Support tier is a separate axis.
+
+Execution provenance records what was actually observed. CWA does not synthesize
+canonical completion or provider semantics merely to make heterogeneous providers look
+uniform.
 
 ## Structured product observations
 
-`send_text_observed()` can return immutable typed observations for search activity, generic tool/activity points, source identity, citation relationships and required-action evidence.
-
-```python
-from chatgpt_web_adapter import (
-    ProductActivityObservation,
-    ProductCitationObservation,
-    ProductObservationKind,
-    ProductObservationPhase,
-    ProductRequiredActionObservation,
-    ProductSourceObservation,
-    StructuredProductObservation,
-)
-```
+The mature ChatGPT runtime can expose immutable typed observations for search activity,
+generic tool/activity points, source identity, citation relationships and
+required-action evidence.
 
 The governing rule is:
 
@@ -240,87 +370,110 @@ product observation
 != filesystem/Git/workspace authority
 ```
 
-PR10.0 adds stronger connector/required-action lifecycle models when an explicit stable product identifier exists, but current authenticated product evidence remains conservative and does not graduate the combined `tools_connectors` capability.
+Current authenticated evidence remains conservative around generalized connector
+execution and generated-artifact download.
 
-PR10.1 also establishes a bounded generated-artifact observation boundary. Actual download/materialization is intentionally not implemented until a stable product-owned artifact identity and safe browser-owned resolution path are proven. See [docs/generated_artifact_handoff_pr10_1.md](docs/generated_artifact_handoff_pr10_1.md).
+## Conservative boundaries
 
-## Public Surface Tiers
+Some visible product surfaces remain intentionally unpromoted.
 
-Support level is explicit and machine-readable.
-
-### Primary production
-
-Canonical tier: `PRIMARY_PRODUCTION`.
-
-Use these for new integrations:
-
-- `assemble_product_runtime()`;
-- `ChatGPTProductRuntime`;
-- `ProductWriteTransport`;
-- `CanonicalConversationClient`;
-- capability, contract and provenance models;
-- immutable root-exported structured observation value types;
-- `chatgpt-web-adapter runtime status`;
-- `chatgpt-web-adapter runtime send`.
-
-### Shared support
-
-Canonical tier: `SHARED_SUPPORT`.
-
-Auth/session helpers, common response/conversation types, errors, and the `MediaItem` / `MediaSource` rich-input types.
-
-### Compatibility
-
-Canonical tier: `COMPATIBILITY`.
-
-`ChatGPTWebClient` / `WebChatClient` remain supported for existing callers and historical workflows. They are not silently redirected into `ChatGPTProductRuntime`.
-
-Existing Sentinel-era behavior remains discoverable for migration and regression work; for example `auto_sentinel=True` remains a compatibility concept rather than the recommended architecture for new integrations.
-
-### Experimental
-
-Canonical tier: `EXPERIMENTAL`.
-
-Approval helpers, raw/prepared web-backend helpers, `PayloadBuilder`, `validate_payload`, `send_payload`, and the `browserless-request` transport depend more directly on undocumented product behavior and may evolve faster.
-
-See [docs/raw_payload.md](docs/raw_payload.md).
-
-### Research / diagnostic
-
-Canonical tier: `RESEARCH_DIAGNOSTIC`.
-
-Direct `BrowserNativeTurnProvider`, Sentinel transaction/provider internals, low-level bridge diagnostics, and PR-specific probes exist for transport research and regression diagnosis. They are not the application API.
-
-The machine-readable classification is available through:
-
-```python
-from chatgpt_web_adapter import PUBLIC_SURFACE_CLASSIFICATION, public_surface_tier
-
-print(public_surface_tier("ChatGPTProductRuntime"))
-print(public_surface_tier("ChatGPTWebClient"))
+```text
+tools_connectors = UNKNOWN
 ```
 
-The detailed historical tier decision is preserved in [docs/public_surface_pr8_6.md](docs/public_surface_pr8_6.md).
+CWA can observe bounded product-tool / required-action evidence on proven ChatGPT
+paths, but current evidence does not justify a general connector execution contract.
+
+Generated-artifact observation also remains separate from download authority:
+
+```text
+ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
+```
+
+A future download handoff still requires stable product-owned artifact identity and a
+safe resolution path; CWA does not infer identity from filename, prose, DOM position or
+URL similarity.
+
+These decisions originated in post-0.3 product work and remain current boundaries.
 
 ## Safety and failure model
 
-CWA intentionally fails closed around uncertain product state.
+CWA fails closed around uncertain product state.
 
 - No automatic retry after an ambiguous write.
-- No silent browser-owned ↔ browserless ↔ legacy fallback.
-- Streaming does not prove canonical completion.
-- Generic tool/router activity does not prove connector identity.
-- Required-action observation does not approve an action.
-- Generated-artifact observation does not authorize download or filesystem writes.
-- CWA does not implement Turnstile solving, proof-token synthesis, credential replay, or challenge-bypass machinery.
+- No silent provider/transport fallback.
+- Incremental output is not canonical finality.
+- Page-DOM stable completion is not relabeled as canonical completion.
+- Observation never grants approval or downstream action authority.
+- CWA does not solve Turnstile, synthesize proof tokens or build challenge-bypass
+  machinery.
 
-For operational failures, see [docs/troubleshooting.md](docs/troubleshooting.md). For security-sensitive behavior, see [SECURITY.md](SECURITY.md).
+For page-owned providers, uncertainty once the click-capable submit evaluation may
+have executed is treated as reconciliation-required rather than replay permission.
+
+See [docs/architecture.md](docs/architecture.md), [docs/providers.md](docs/providers.md)
+and [SECURITY.md](SECURITY.md).
+
+## Public surface tiers
+
+CWA keeps support level explicit and machine-readable.
+
+### Primary production
+
+Use for new production integrations:
+
+- `ChatGPTProductRuntime`;
+- `assemble_product_runtime()`;
+- `ProductProviderBoundary` / `product_provider_boundary()`;
+- `ProductWriteTransport`;
+- `CanonicalConversationClient`;
+- capability/provenance/contracts and immutable structured observation values.
+
+### Shared support
+
+Auth/session helpers, common conversation/response/error types and media value types.
+
+### Compatibility
+
+`ChatGPTWebClient` / `WebChatClient` and historical workflows retained for existing
+callers.
+
+### Experimental
+
+Backend/raw helpers, `browserless-request`, and provider-specific DeepSeek/Gemini
+modules whose product mechanics may evolve faster.
+
+Lower-level compatibility/research helpers such as `PayloadBuilder`,
+`validate_payload`, and `send_payload` remain discoverable for existing callers and
+diagnostics; they are not the recommended runtime foundation. See
+[docs/raw_payload.md](docs/raw_payload.md).
+
+### Research / diagnostic
+
+Low-level browser-native, Sentinel, characterization and diagnostic surfaces.
+
+Use `public_surface_tier(...)` for root-package classification.
+
+## What stays outside CWA
+
+CWA is not becoming:
+
+- a full chat UI/TUI;
+- an agent or task orchestrator;
+- HDE/Codexia memory or project cognition;
+- a Git/filesystem authority layer;
+- a caller-controlled abstraction over every internal product tool;
+- a provider failover router;
+- a challenge/protection bypass toolkit;
+- a generic model/API aggregator.
+
+Downstream applications decide what to do with product evidence.
 
 ## Examples
 
 Primary production example:
 
-- [examples/product_runtime.py](examples/product_runtime.py) — primary `ChatGPTProductRuntime` example.
+- [examples/product_runtime.py](examples/product_runtime.py)
 
 Compatibility examples:
 
@@ -342,29 +495,30 @@ Research/diagnostic examples:
 - [examples/diagnose_latency.py](examples/diagnose_latency.py)
 - [examples/watch_conversation.py](examples/watch_conversation.py)
 
-PR-specific feasibility probes may also live in `examples/`; their presence does not promote them into the public production SDK.
+Example classification follows the same support philosophy as the library: historical
+or diagnostic code remains discoverable without becoming the recommended application
+path.
 
 ## Documentation
 
-Use [docs/README.md](docs/README.md) as the documentation map.
+Start with:
 
-Current entry points:
+- [STATUS.md](STATUS.md) — current release/main checkpoint;
+- [ROADMAP.md](ROADMAP.md) — current direction;
+- [USAGE.md](USAGE.md) — usage guide;
+- [docs/architecture.md](docs/architecture.md) — current architecture;
+- [docs/providers.md](docs/providers.md) — provider capability/support matrix;
+- [docs/browser_owned.md](docs/browser_owned.md) — browser-owned strategy;
+- [docs/README.md](docs/README.md) — documentation map;
+- [docs/authentication.md](docs/authentication.md) — ChatGPT authentication/session flow;
+- [docs/troubleshooting.md](docs/troubleshooting.md) — operational troubleshooting;
+- [docs/public_surface_pr8_6.md](docs/public_surface_pr8_6.md) — public-surface tier lineage;
+- [docs/raw_payload.md](docs/raw_payload.md) — experimental raw/backend surface;
+- [docs/rename_compatibility.md](docs/rename_compatibility.md) — historical package naming record;
+- [SECURITY.md](SECURITY.md) — security boundary.
 
-- [STATUS.md](STATUS.md) — current release/main/capability snapshot;
-- [ROADMAP.md](ROADMAP.md) — current development direction;
-- [USAGE.md](USAGE.md) — current runtime-first user guide with a separate compatibility section;
-- [docs/architecture.md](docs/architecture.md) — current runtime architecture;
-- [docs/browser_owned_v1_contract.md](docs/browser_owned_v1_contract.md) — production browser-owned contract;
-- [docs/browser_bridge_product_surface_pr11_0.md](docs/browser_bridge_product_surface_pr11_0.md) — Chrome extension product chrome and local status boundary;
-- [docs/product_rich_input_pr9_2.md](docs/product_rich_input_pr9_2.md) — rich-input evidence and boundary;
-- [docs/product_runtime_observation_integration_pr9_3.md](docs/product_runtime_observation_integration_pr9_3.md) — observation integration;
-- [docs/generated_artifact_handoff_pr10_1.md](docs/generated_artifact_handoff_pr10_1.md) — current artifact handoff boundary;
-- [docs/authentication.md](docs/authentication.md);
-- [docs/troubleshooting.md](docs/troubleshooting.md);
-- [docs/release_checklist.md](docs/release_checklist.md);
-- [docs/rename_compatibility.md](docs/rename_compatibility.md).
-
-Historical PR-specific documents remain in `docs/` as evidence and architectural lineage. They are not all current getting-started documentation.
+Historical PR-specific documents remain in `docs/` as evidence and architectural
+lineage. Their presence does not make them current application documentation.
 
 ## Development
 
@@ -373,29 +527,33 @@ python -m pip install -e ".[test,browser]"
 python -m pytest -q
 ```
 
-Product-facing changes require deterministic regression coverage and bounded live validation appropriate to the changed surface. Documentation-only changes do not justify a live product write.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Product-facing changes require deterministic regression coverage and bounded live
+validation appropriate to the changed surface.
 
 ## Release integrity
 
-CWA validates source tests on Ubuntu and Windows across Python 3.10-3.14, builds wheel + sdist, checks distribution metadata/contracts, and smoke-tests the exact installed wheel outside the source checkout.
+CWA validates source tests on Ubuntu and Windows across Python 3.10-3.14, builds wheel
++ sdist, validates packaged assets/contracts, and smoke-tests the exact installed
+wheel.
 
-Tagged publication additionally requires:
+Tagged publication also requires:
 
 ```text
 GitHub tag version == pyproject package version == dated CHANGELOG release heading
 ```
 
-The latest public release is [v0.3.0](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.3.0).
+Latest public release: `v0.3.0`.
 
-## Package naming
+## Naming
 
-- repository: `chatgpt-web-adapter`
-- distribution: `chatgpt-web-adapter`
-- import: `chatgpt_web_adapter`
+Current names remain unchanged:
 
-See [docs/rename_compatibility.md](docs/rename_compatibility.md).
+- repository: `chatgpt-web-adapter`;
+- distribution: `chatgpt-web-adapter`;
+- import: `chatgpt_web_adapter`;
+- CLI: `cwa` and `chatgpt-web-adapter`.
+
+Future naming is deliberately deferred to a separate discussion.
 
 ## License
 

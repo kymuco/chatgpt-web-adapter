@@ -1,11 +1,18 @@
 # `chatgpt-web-adapter` Usage Guide
 
-This guide documents the **current `ChatGPTProductRuntime`-first usage path** for `chatgpt-web-adapter` (CWA).
+This guide documents the current usage paths for `chatgpt-web-adapter` (CWA).
 
-For repository positioning and capability status, start with [`README.md`](README.md) and [`STATUS.md`](STATUS.md). The historical `ChatGPTWebClient` remains available for compatibility and is covered separately below.
+The mature/default application path is still **`ChatGPTProductRuntime`**. Current
+`main` also contains module-only experimental runtimes for DeepSeek Web and Gemini
+Web.
+
+For project positioning and provider capability status, start with
+[`README.md`](README.md), [`STATUS.md`](STATUS.md) and
+[`docs/providers.md`](docs/providers.md).
 
 > [!WARNING]
-> CWA is not the official OpenAI API. It uses an existing ordinary ChatGPT web session and depends on undocumented web-product behavior that may change.
+> CWA is not an official provider API client. It works with ordinary consumer web
+> products and depends on product behavior that may change.
 
 ## 1. Install
 
@@ -27,7 +34,8 @@ Requirements:
 - Python 3.10-3.14;
 - system `curl` in `PATH` for canonical web-session reads;
 - an authenticated ChatGPT web session;
-- Chrome/Chromium for the current production protected-write transport.
+- Chrome/Chromium for the current production ChatGPT protected-write transport and
+  the current experimental DeepSeek/Gemini web-provider paths.
 
 ## 2. Authenticate
 
@@ -154,6 +162,46 @@ For a compact response without the full execution wrapper:
 response = runtime.send("Hello from CWA")
 print(response.text)
 ```
+
+### Experimental providers on current `main`
+
+DeepSeek Web:
+
+```python
+from chatgpt_web_adapter.deepseek_web import DeepSeekWebRuntime
+
+runtime = DeepSeekWebRuntime()
+response = runtime.send_text("Reply briefly.")
+print(response.text)
+```
+
+Gemini Web:
+
+```python
+from chatgpt_web_adapter.gemini_web import GeminiWebRuntime
+
+runtime = GeminiWebRuntime()
+response = runtime.send_text("Reply briefly.")
+print(response.text)
+```
+
+These concrete runtimes are module-only and `EXPERIMENTAL`. Current evidence covers
+text new-chat and continuation. They do not expose ChatGPT's canonical readback,
+streaming, rich-input, Temporary Chat or model-profile surface.
+
+Both use the local browser bridge and require an authenticated session in the
+corresponding consumer web product.
+
+Provider-neutral metadata can be inspected without treating the boundary as an
+execution router:
+
+```python
+from chatgpt_web_adapter import product_provider_boundary
+
+print(product_provider_boundary(runtime).to_dict())
+```
+
+See [`docs/providers.md`](docs/providers.md).
 
 ## 6. Continue an existing conversation
 
@@ -379,10 +427,11 @@ Start with [`examples/product_runtime.py`](examples/product_runtime.py) for ordi
 
 Common failures include:
 
-- reusable session auth expires or is revoked;
+- an authenticated provider session expires or is revoked;
 - Native Messaging host or extension is not connected;
-- the reusable runtime tab must be recreated/reconciled;
+- a provider runtime tab must be recreated/reconciled;
 - ChatGPT page/request/canonical schemas drift;
+- DeepSeek/Gemini page DOM or route behavior drifts;
 - rich-input correlation changes;
 - source/citation metadata shapes change;
 - browserless admission reaches a challenge boundary;
@@ -419,6 +468,8 @@ See [`SECURITY.md`](SECURITY.md).
 - [`ROADMAP.md`](ROADMAP.md) — current development direction;
 - [`docs/README.md`](docs/README.md) — documentation map;
 - [`docs/architecture.md`](docs/architecture.md) — architecture;
+- [`docs/providers.md`](docs/providers.md) — provider support/finality matrix;
+- [`docs/browser_owned.md`](docs/browser_owned.md) — browser-owned strategy;
 - [`docs/browser_owned_v1_contract.md`](docs/browser_owned_v1_contract.md) — production write contract;
 - [`docs/product_rich_input_pr9_2.md`](docs/product_rich_input_pr9_2.md) — rich-input boundary;
 - [`docs/product_runtime_observation_integration_pr9_3.md`](docs/product_runtime_observation_integration_pr9_3.md) — product observations;
