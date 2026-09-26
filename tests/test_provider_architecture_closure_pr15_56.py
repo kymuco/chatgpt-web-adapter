@@ -28,7 +28,12 @@ def test_schema2_boundary_is_shared_by_both_page_owned_providers() -> None:
         GeminiWebRuntime(GeminiWebTransport(provider=object()))
     )
 
-    assert deepseek.schema == gemini.schema == adapter.PRODUCT_PROVIDER_BOUNDARY_SCHEMA == 2
+    assert (
+        deepseek.schema
+        == gemini.schema
+        == adapter.PRODUCT_PROVIDER_BOUNDARY_SCHEMA
+        == 2
+    )
     assert deepseek.provider_id == DEEPSEEK_PROVIDER_ID == "deepseek"
     assert gemini.provider_id == GEMINI_PROVIDER_ID == "gemini"
     assert deepseek.product_semantics == ORDINARY_DEEPSEEK_PRODUCT_SEMANTICS
@@ -89,7 +94,7 @@ def test_provider_specific_web_runtimes_remain_module_only() -> None:
 
 
 def test_neutral_boundary_and_provenance_have_no_page_provider_special_cases() -> None:
-    from chatgpt_web_adapter import product_provider, product_provenance
+    from chatgpt_web_adapter import product_provenance, product_provider
 
     provider_source = inspect.getsource(product_provider).lower()
     provenance_source = inspect.getsource(product_provenance).lower()
@@ -118,12 +123,12 @@ def test_page_owned_providers_share_post_write_uncertainty_invariant() -> None:
     extension = root / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
     workers = {
-        "DEEPSEEK": (
-            extension / "service_worker_deepseek_provider.js"
-        ).read_text(encoding="utf-8"),
-        "GEMINI": (
-            extension / "service_worker_gemini_provider.js"
-        ).read_text(encoding="utf-8"),
+        "DEEPSEEK": (extension / "service_worker_deepseek_provider.js").read_text(
+            encoding="utf-8"
+        ),
+        "GEMINI": (extension / "service_worker_gemini_provider.js").read_text(
+            encoding="utf-8"
+        ),
     }
 
     for prefix, worker in workers.items():
