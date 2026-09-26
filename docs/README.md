@@ -100,6 +100,15 @@ not public API definition.
 - [`engineering/pr16_0_cwa_identity_direction.md`](engineering/pr16_0_cwa_identity_direction.md)
   — post-PR15 positioning direction; naming is deliberately deferred.
 
+## Current hosted-capability research
+
+- [`engineering/pr17_0_google_translate_nonchat_falsification.md`](engineering/pr17_0_google_translate_nonchat_falsification.md)
+  — first non-chat falsification: Google Translate Web text translation outside the
+  frozen chat-provider schema.
+
+PR17.0 is research evidence, not a change to the stable public provider/runtime
+contract.
+
 ## Release and maintenance
 
 - [`release_checklist.md`](release_checklist.md) — release gates;
