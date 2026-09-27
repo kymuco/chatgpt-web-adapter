@@ -16,7 +16,7 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           PR16.4 Gemini Notebook source-admission spike
+current phase           PR16.4 Gemini Notebook URL-source capability closure
 license                 MIT
 python                  3.10-3.14
 ```
@@ -36,6 +36,7 @@ ChatGPT               PRODUCTION / default conversational runtime
 DeepSeek Web          EXPERIMENTAL conversational runtime
 Gemini Web            EXPERIMENTAL conversational runtime
 Google Translate Web  EXPERIMENTAL non-chat translate_text capability
+Gemini Notebook Web    EXPERIMENTAL persistent-workspace add_url_source capability
 ```
 
 The shared provider-neutral architecture is represented by
@@ -250,7 +251,8 @@ existing owned consumer Gemini Notebook
 → durable source admission
 ```
 
-The current branch is characterization-first and read-only. No Gemini Notebook
+PR16.4 has live-proven one bounded Gemini Notebook URL-source admission path. The
+capability is module-only and experimental; no Gemini Notebook
 capability is claimed on `main` until product identity, commitment boundary and
 admission finality are live-proven.
 

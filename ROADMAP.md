@@ -207,7 +207,7 @@ or a second non-chat product.
 
 ### PR16.4 — Gemini Notebook persistent-workspace proof
 
-Active characterization-first spike.
+Closed bounded capability proof.
 
 Question:
 
@@ -224,13 +224,29 @@ existing owned consumer notebook
 → durable source admission
 ```
 
-The experiment begins read-only. It must establish the real notebook route, Sources
-panel structure, source identity and admission-finality evidence before any product
-write.
+The experiment established the real notebook route, Sources-panel structure, durable
+source-row identity, commitment boundary, and page-DOM admission finality. One
+fully CWA-owned live URL-source admission passed with post-commit reconciliation.
 
 Gemini Notebook Enterprise already exposes preview notebook/source APIs. This CWA
 experiment is explicitly about ordinary consumer-product semantics, not API
 replacement.
+
+Public module-only surface:
+
+```python
+GeminiNotebookWebCapability.add_url_source(
+    notebook=...,
+    source_url=...,
+)
+```
+
+Finality remains noncanonical and product-local:
+
+```text
+PAGE_DOM_DURABLE_SOURCE_ADMISSION
+automatic retry = false
+```
 
 No shared hosted-capability abstraction is introduced by default.
 

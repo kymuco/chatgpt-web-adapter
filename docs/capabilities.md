@@ -16,8 +16,9 @@ particular runtime instance.
 | DeepSeek Web | text new chat + continuation | Experimental | `DeepSeekWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
 | Gemini Web | text new chat + continuation | Experimental | `GeminiWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
 | Google Translate Web | text translation | Experimental | `GoogleTranslateWebCapability` module-only | `PAGE_DOM_STABLE_TRANSLATION`, noncanonical |
+| Gemini Notebook Web | add web URL source | Experimental | `GeminiNotebookWebCapability` module-only | `PAGE_DOM_DURABLE_SOURCE_ADMISSION`, noncanonical |
 
-## Two capability families currently proven
+## Three capability families currently proven
 
 ### Conversational product runtimes
 
@@ -44,8 +45,21 @@ local application
 Google Translate is the first proof that useful CWA infrastructure exists below the
 conversation-shaped runtime.
 
-One proof is not enough to justify a generic `HostedCapabilityRuntime`, public
-capability factory, or universal operation schema.
+Gemini Notebook adds a second non-chat class:
+
+```text
+local application
+-> CWA lower browser bridge / authority lane
+-> existing owned Gemini Notebook
+-> durable URL-source admission
+```
+
+Its result is persistent hosted workspace state, not a chat turn and not a stateless
+transform. Finality is proven from one new stable product-owned source-row reference
+in the same notebook. Checkbox selection state is explicitly not admission identity.
+
+These two non-chat proofs are still not enough to justify a generic
+`HostedCapabilityRuntime`, public capability factory, or universal operation schema.
 
 ## Support vocabulary
 
