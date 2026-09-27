@@ -61,6 +61,10 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
     assert "valueLength:" in worker
     assert "element.value" in worker
     assert "value:" not in worker
+    assert "sourceAncestorPath" in worker
+    assert "checkboxCount:" in worker
+    assert "buttonCount:" in worker
+    assert "rect.width > 760" in worker
     assert "sourcePanelFound:" in worker
     assert "overlayRootCount:" in worker
     assert "readOnly: true" in worker
@@ -108,6 +112,7 @@ def test_gemini_notebook_characterization_cli_does_not_mutate_product() -> None:
     assert '"read_only"' in script
     assert '"add_source_route_active"' in script
     assert '"source_panel_found"' in script
+    assert '"source_ancestor_path"' in script
     assert '"overlay_root_count"' in script
     assert "add_url_source" not in script
     assert "translate_text" not in script

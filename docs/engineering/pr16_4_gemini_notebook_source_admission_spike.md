@@ -236,6 +236,40 @@ user manually enters one valid test URL
 The probe therefore records `disabled`, `ariaDisabled`, `valuePresent` and
 `valueLength` for candidate controls without serializing input values.
 
+
+### First durable-admission observation
+
+After the manual URL-entry experiment, the next characterization found the notebook
+back on its ordinary route with no add-source overlay. That transition alone was
+ambiguous and was not treated as success.
+
+The visible product state then provided stronger post-commit evidence:
+
+```text
+Sources panel
+  → one persisted source row ("Example Domain")
+
+notebook state
+  → source count = 1
+
+main notebook surface
+  → source-derived content present
+```
+
+The checkbox shown next to the source is not used as admission finality. The UI also
+shows a **Select all** checkbox, which indicates that checked state belongs to source
+selection/inclusion semantics rather than source existence.
+
+This is the first durable source-admission observation for PR16.4. However, the exact
+commit-trigger event was not observed, so the implementation must not yet assume that
+the commitment boundary is specifically a click on the visible **Add** button.
+
+Before freezing finality selectors, the temporary read-only probe now records a bounded
+ancestor path around the product-owned `.add-source-button`. For each nearby container
+it reports only structural metadata, a bounded text sample, and descendant checkbox /
+button counts. The probe stops before broad page containers so post-admission evidence
+can identify the real Sources-panel owner without returning the whole notebook DOM.
+
 ## Expected durable contract
 
 The intended operation is:

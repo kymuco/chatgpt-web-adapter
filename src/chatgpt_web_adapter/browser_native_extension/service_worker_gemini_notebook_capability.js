@@ -90,6 +90,35 @@ function _cwaGeminiNotebookCharacterizationExpression() {
       sourceTrigger?.closest("nav") ||
       sourceTrigger?.closest("aside") ||
       null;
+
+    const sourceAncestorPath = [];
+    let sourceAncestor = sourceTrigger?.parentElement || null;
+    for (let depth = 0; sourceAncestor && depth < 6; depth += 1) {
+      if (!visible(sourceAncestor)) break;
+      const rect = sourceAncestor.getBoundingClientRect();
+      if (rect.width > 760) break;
+      sourceAncestorPath.push({
+        depth,
+        tag: String(sourceAncestor.tagName || "").toLowerCase(),
+        className: String(sourceAncestor.className || "").slice(0, 220),
+        role: sourceAncestor.getAttribute("role"),
+        text: normalize(
+          sourceAncestor.innerText || sourceAncestor.textContent
+        ).slice(0, 420),
+        checkboxCount: sourceAncestor.querySelectorAll(
+          "input[type='checkbox'],[role='checkbox'],mat-checkbox"
+        ).length,
+        buttonCount: sourceAncestor.querySelectorAll(
+          "button,[role='button'],nb-button,nb-icon-button"
+        ).length,
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      });
+      sourceAncestor = sourceAncestor.parentElement;
+    }
+
     const overlayCandidates = Array.from(
       document.querySelectorAll(
         "[role='dialog'],mat-dialog-container,.mat-mdc-dialog-container,.cdk-overlay-pane"
@@ -175,6 +204,7 @@ function _cwaGeminiNotebookCharacterizationExpression() {
       addSourceRouteActive:
         new URL(location.href).searchParams.get("addSource") === "true",
       sourcePanelFound: sourcePanel instanceof Element,
+      sourceAncestorPath,
       overlayRootCount: overlayRoots.length,
       bodyText: scopedText,
       headingCount: headings.length,

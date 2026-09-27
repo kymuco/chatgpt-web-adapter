@@ -44,6 +44,7 @@ def main() -> int:
         "title": response.get("title"),
         "add_source_route_active": response.get("addSourceRouteActive") is True,
         "source_panel_found": response.get("sourcePanelFound") is True,
+        "source_ancestor_path": response.get("sourceAncestorPath"),
         "overlay_root_count": response.get("overlayRootCount"),
         "heading_count": response.get("headingCount"),
         "headings": response.get("headings"),
