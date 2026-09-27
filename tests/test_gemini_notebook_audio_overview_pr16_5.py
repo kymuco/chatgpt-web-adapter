@@ -130,7 +130,7 @@ def test_audio_overview_worker_probe_is_read_only_and_bounded() -> None:
     assert "targetControls.length >= 30" in probe_expression
     assert "controls.slice(0, 60)" in probe_expression
     assert "sourcePanel.contains(control)" in probe_expression
-    assert '"button,[role=\'button\']"' in probe_expression
+    assert "\"button,[role='button']\"" in probe_expression
     assert "[aria-label],[title]" not in probe_expression
     assert ".slice(0, 40)" in probe_expression
     assert "rawDomExported: false" in probe_expression
