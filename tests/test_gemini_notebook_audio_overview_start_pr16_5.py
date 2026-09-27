@@ -115,6 +115,9 @@ def test_audio_overview_start_worker_freezes_effect_boundary_before_click() -> N
     assert "automaticRetry: false" in start_function
     assert "canonicalCompletionProven: false" in start_function
     assert "generationStartedProven: false" in start_function
+    assert "artifact-library-container" in start_function
+    assert "artifact-library-container-empty" in start_function
+    assert 'container?.querySelector("artifact-library")' in start_function
 
 
 def test_audio_overview_start_click_is_exact_and_single() -> None:

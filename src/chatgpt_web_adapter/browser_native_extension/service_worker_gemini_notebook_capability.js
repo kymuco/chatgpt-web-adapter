@@ -11,6 +11,8 @@ const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION =
   "gemini_notebook_audio_overview_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION =
   "gemini_notebook_audio_overview_start_probe";
+const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CONFIG_PROBE_OPERATION =
+  "gemini_notebook_audio_overview_config_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID = "audio_overview";
 const CWA_GEMINI_NOTEBOOK_FINALITY =
   "PAGE_DOM_DURABLE_SOURCE_ADMISSION";
@@ -733,6 +735,186 @@ async function _cwaGeminiNotebookProbeAudioOverviewStart(message) {
   }
 }
 
+
+function _cwaGeminiNotebookAudioOverviewConfigProbeExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const normalize = (value) =>
+      String(value || "").replace(/\\s+/g, " ").trim();
+    const clip = (value, limit = 160) => normalize(value).slice(0, limit);
+    const classText = (element) =>
+      clip(
+        typeof element?.className === "string"
+          ? element.className
+          : element?.getAttribute?.("class") || "",
+        180
+      );
+    const iconTexts = (element) =>
+      Array.from(element?.querySelectorAll?.("mat-icon") || [])
+        .slice(0, 8)
+        .map((icon) => clip(icon.textContent, 48))
+        .filter(Boolean);
+
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    ).filter(visible);
+    if (dialogs.length !== 1) {
+      return {
+        dialogIdentityResolved: false,
+        dialogCount: dialogs.length,
+        dialog: null
+      };
+    }
+
+    const dialog = dialogs[0];
+    const controls = Array.from(
+      dialog.querySelectorAll(
+        "button,[role='button'],input,textarea,select,[role='combobox'],[role='radio']"
+      )
+    )
+      .filter(visible)
+      .slice(0, 40)
+      .map((control, index) => ({
+        index,
+        tag: String(control.tagName || "").toLowerCase(),
+        id: clip(control.id || "", 120),
+        className: classText(control),
+        role: clip(control.getAttribute("role") || "", 48),
+        ariaLabel: clip(control.getAttribute("aria-label") || "", 160),
+        title: clip(control.getAttribute("title") || "", 160),
+        placeholder: clip(control.getAttribute("placeholder") || "", 180),
+        text:
+          String(control.tagName || "").toLowerCase() === "textarea" ||
+          String(control.tagName || "").toLowerCase() === "input"
+            ? ""
+            : clip(control.innerText || control.textContent || "", 160),
+        checked:
+          "checked" in control ? Boolean(control.checked) : null,
+        disabled:
+          "disabled" in control
+            ? Boolean(control.disabled)
+            : control.getAttribute("aria-disabled") === "true",
+        icons: iconTexts(control)
+      }));
+
+    const actionContainer =
+      dialog.querySelector(".mat-mdc-dialog-actions") ||
+      dialog.querySelector("[class*='dialog-actions']") ||
+      null;
+    const actionButtons =
+      actionContainer instanceof Element
+        ? Array.from(
+            actionContainer.querySelectorAll("button,[role='button']")
+          )
+            .filter(visible)
+            .slice(0, 10)
+            .map((button, index) => ({
+              index,
+              tag: String(button.tagName || "").toLowerCase(),
+              id: clip(button.id || "", 120),
+              className: classText(button),
+              role: clip(button.getAttribute("role") || "", 48),
+              ariaLabel: clip(button.getAttribute("aria-label") || "", 160),
+              title: clip(button.getAttribute("title") || "", 160),
+              text: clip(button.innerText || button.textContent || "", 160),
+              disabled:
+                "disabled" in button
+                  ? Boolean(button.disabled)
+                  : button.getAttribute("aria-disabled") === "true",
+              icons: iconTexts(button)
+            }))
+        : [];
+
+    return {
+      dialogIdentityResolved: true,
+      dialogCount: 1,
+      dialog: {
+        tag: String(dialog.tagName || "").toLowerCase(),
+        id: clip(dialog.id || "", 160),
+        className: classText(dialog),
+        role: clip(dialog.getAttribute("role") || "", 48),
+        icons: iconTexts(dialog),
+        radioInputCount: dialog.querySelectorAll("input[type='radio']").length,
+        textareaCount: dialog.querySelectorAll("textarea").length,
+        comboboxCount: dialog.querySelectorAll("select,[role='combobox']").length,
+        controls,
+        actionContainerFound: actionContainer instanceof Element,
+        actionButtons
+      }
+    };
+  })()`;
+}
+
+async function _cwaGeminiNotebookProbeAudioOverviewConfig(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+  if (message?.probeId !== CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID) {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const startedAt = performance.now();
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const state = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioOverviewConfigProbeExpression()
+    );
+    if (state?.dialogIdentityResolved !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_CONFIG_DIALOG_IDENTITY_UNRESOLVED:" +
+          String(state?.dialogCount ?? -1)
+      );
+    }
+
+    return {
+      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+      probeId: CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID,
+      notebookUrl,
+      tabId: tab.id,
+      elapsedMs: Math.round(performance.now() - startedAt),
+      dialog: state.dialog,
+      rawDomExported: false,
+      writePerformed: false,
+      navigationPerformed: false
+    };
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Read-only configuration observation cannot change product state.
+      }
+    }
+  }
+}
+
 function _cwaGeminiNotebookClickAddSourceExpression() {
   return `(() => {
     const panel = document.querySelector("section.source-panel");
@@ -1288,7 +1470,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
     ![
       CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CONFIG_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -1302,7 +1485,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       ? "gemini_notebook_audio_overview_probe_result"
       : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION
         ? "gemini_notebook_audio_overview_start_probe_result"
-        : "gemini_notebook_add_url_source_result";
+        : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CONFIG_PROBE_OPERATION
+          ? "gemini_notebook_audio_overview_config_probe_result"
+          : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -1310,7 +1495,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
         ? await _cwaGeminiNotebookProbeAudioOverview(message)
         : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION
           ? await _cwaGeminiNotebookProbeAudioOverviewStart(message)
-          : await _cwaGeminiNotebookAddUrlSource(message);
+          : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CONFIG_PROBE_OPERATION
+            ? await _cwaGeminiNotebookProbeAudioOverviewConfig(message)
+            : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,

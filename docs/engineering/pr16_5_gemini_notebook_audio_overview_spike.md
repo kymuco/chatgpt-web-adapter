@@ -328,3 +328,53 @@ automaticRetry = false
 Artifact observation is scoped to the already-proven `artifact-library` owner and
 returns structural metadata only. Configuration observation is bounded to visible
 dialog/control accessibility structure and does not return broad page text.
+
+
+## Characterization result — first Audio tile click opens configuration only
+
+The first one-click live transition probe produced:
+
+```text
+transition = CONFIGURATION_SURFACE_OBSERVED
+artifact library before = empty
+artifact library after = empty
+generationStartedProven = false
+canonicalCompletionProven = false
+automaticRetry = false
+```
+
+Therefore the Audio tile click is **not** the generation-start action for the observed
+product state. It opens an Audio Overview configuration dialog.
+
+The dialog contains bounded product structure including:
+
+- four radio inputs;
+- one combobox/select surface;
+- two radio-style toggle buttons;
+- one focus textarea;
+- two terminal action buttons;
+- product icon `audio_magic_eraser`.
+
+The artifact library remains unchanged while this dialog is open.
+
+This narrows the real effect boundary: the next candidate is one of the dialog action
+buttons, not the Studio Audio tile.
+
+## Characterization slice 4 — read-only config dialog identity
+
+Before any second mutation, a new temporary read-only probe inspects only the already
+open Audio Overview config dialog.
+
+It may return:
+
+- exact dialog structural identity;
+- bounded controls and selected/disabled state;
+- bounded button/combobox/radio labels;
+- bounded action-button text;
+- placeholder metadata for the focus textarea.
+
+It never returns input/textarea values and performs no click, input event, navigation,
+or private request.
+
+The purpose is to identify the exact terminal generation action without relying on
+button position.
