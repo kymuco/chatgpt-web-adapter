@@ -209,3 +209,71 @@ text, hrefs, or raw HTML are returned.
 The next question is whether the empty Studio surface already exposes a stable
 artifact-list/container topology that can support later pending/completed
 reconciliation. No Audio Overview control is clicked in slice 2.
+
+
+## Characterization result — empty artifact library owner
+
+The second live read-only probe established a dedicated artifact-library surface inside
+the proven Studio owner before any Audio Overview generation:
+
+```text
+section.studio-panel
+  → studio-panel
+    → .artifact-library-container.artifact-library-container-empty
+      → artifact-library.luminous-ui
+        → .artifact-library-empty-state.luminous
+```
+
+This is materially stronger than using Studio-wide text or spinner state as
+reconciliation evidence.
+
+The pre-generation notebook therefore has a bounded read model:
+
+```text
+notebook route = exact
+source row count = 2
+Studio owner = section.studio-panel
+Audio create candidate count = 1
+Audio create discriminator = audio_spark
+artifact library owner = artifact-library
+artifact library container = artifact-library-container
+empty marker = artifact-library-container-empty
+```
+
+No generated artifact identity exists yet, so PR16.5 still does not assume a row id,
+DOM position, title, or status representation for pending/completed output.
+
+## First mutation readiness
+
+The first bounded mutation may now target exactly one proven Audio create control:
+
+```text
+section.studio-panel
+→ basic-create-artifact-button
+→ descendant [role=button]
+→ descendant mat-icon text = audio_spark
+```
+
+The conservative potential-effect boundary must be set **before** that control is
+clicked. Characterization has not yet proven whether this click merely opens a
+configuration surface or immediately starts hosted generation.
+
+After that click may execute:
+
+```text
+generation may already have started
+→ outcome may consume hosted work/quota
+→ any uncertain failure is reconciliation-required
+→ automatic retry = false
+```
+
+The immediate post-click observation must stay bounded to:
+
+- exact notebook route;
+- exact Studio owner;
+- exact artifact-library owner/container classes;
+- presence of the pre-state empty marker;
+- bounded dialog/configuration structure if one appears;
+- bounded pending/completed artifact structure if the library changes.
+
+No second click is authorized until that first transition is characterized.
