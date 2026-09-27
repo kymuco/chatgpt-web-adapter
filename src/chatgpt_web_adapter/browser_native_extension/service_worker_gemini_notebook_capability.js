@@ -9,6 +9,8 @@ const CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_OPERATION =
 const CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_CAPABILITY_ID = "add_url_source";
 const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION =
   "gemini_notebook_audio_overview_probe";
+const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION =
+  "gemini_notebook_audio_overview_start_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID = "audio_overview";
 const CWA_GEMINI_NOTEBOOK_FINALITY =
   "PAGE_DOM_DURABLE_SOURCE_ADMISSION";
@@ -357,6 +359,375 @@ async function _cwaGeminiNotebookProbeAudioOverview(message) {
         await chrome.debugger.detach(debuggee);
       } catch {
         // Read-only characterization cannot change product state on detach.
+      }
+    }
+  }
+}
+
+
+function _cwaGeminiNotebookAudioArtifactStateExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const normalize = (value) =>
+      String(value || "").replace(/\\s+/g, " ").trim();
+    const clip = (value, limit = 120) => normalize(value).slice(0, limit);
+    const classText = (element) =>
+      clip(
+        typeof element?.className === "string"
+          ? element.className
+          : element?.getAttribute?.("class") || "",
+        180
+      );
+    const iconTexts = (element) =>
+      Array.from(element?.querySelectorAll?.("mat-icon") || [])
+        .slice(0, 5)
+        .map((icon) => clip(icon.textContent, 48))
+        .filter(Boolean);
+    const descriptor = (element) => ({
+      tag: String(element?.tagName || "").toLowerCase(),
+      id: clip(element?.id || "", 160),
+      className: classText(element),
+      role: clip(element?.getAttribute?.("role") || "", 48),
+      childCount: element?.children?.length || 0,
+      buttonCount:
+        element?.querySelectorAll?.("button,[role='button']")?.length || 0,
+      icons: iconTexts(element)
+    });
+
+    const notebookUrl =
+      location.origin + location.pathname.replace(/\\/$/, "");
+    const studio = document.querySelector("section.studio-panel");
+    const container =
+      studio?.querySelector(".artifact-library-container") || null;
+    const library = container?.querySelector("artifact-library") || null;
+    const emptyMarker =
+      container instanceof Element &&
+      container.classList.contains("artifact-library-container-empty");
+
+    const directChildren =
+      library instanceof Element
+        ? Array.from(library.children)
+            .filter(visible)
+            .slice(0, 40)
+            .map(descriptor)
+        : [];
+
+    const candidates =
+      library instanceof Element
+        ? Array.from(
+            library.querySelectorAll(
+              "[id],[role='button'],button,[class*='artifact']," +
+                "[class*='audio'],[class*='loading'],[class*='progress']," +
+                "[class*='pending'],[class*='generat']"
+            )
+          )
+            .filter(visible)
+            .slice(0, 100)
+            .map(descriptor)
+        : [];
+
+    return {
+      notebookUrl,
+      studioFound: studio instanceof Element && visible(studio),
+      containerFound: container instanceof Element && visible(container),
+      containerClassName:
+        container instanceof Element ? classText(container) : "",
+      libraryFound: library instanceof Element && visible(library),
+      libraryClassName:
+        library instanceof Element ? classText(library) : "",
+      emptyMarker,
+      directChildren,
+      candidates
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookAudioConfigStateExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const normalize = (value) =>
+      String(value || "").replace(/\\s+/g, " ").trim();
+    const clip = (value, limit = 120) => normalize(value).slice(0, limit);
+    const classText = (element) =>
+      clip(
+        typeof element?.className === "string"
+          ? element.className
+          : element?.getAttribute?.("class") || "",
+        180
+      );
+    const iconTexts = (element) =>
+      Array.from(element?.querySelectorAll?.("mat-icon") || [])
+        .slice(0, 8)
+        .map((icon) => clip(icon.textContent, 48))
+        .filter(Boolean);
+
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    )
+      .filter(visible)
+      .slice(0, 5)
+      .map((dialog) => ({
+        tag: String(dialog.tagName || "").toLowerCase(),
+        id: clip(dialog.id || "", 160),
+        className: classText(dialog),
+        role: clip(dialog.getAttribute("role") || "", 48),
+        ariaLabel: clip(dialog.getAttribute("aria-label") || "", 160),
+        title: clip(dialog.getAttribute("title") || "", 160),
+        buttonCount: dialog.querySelectorAll("button,[role='button']").length,
+        inputCount: dialog.querySelectorAll("input").length,
+        textareaCount: dialog.querySelectorAll("textarea").length,
+        selectCount: dialog.querySelectorAll("select,[role='combobox']").length,
+        icons: iconTexts(dialog),
+        controls: Array.from(
+          dialog.querySelectorAll("button,[role='button'],input,textarea,select,[role='combobox']")
+        )
+          .filter(visible)
+          .slice(0, 30)
+          .map((control) => ({
+            tag: String(control.tagName || "").toLowerCase(),
+            id: clip(control.id || "", 120),
+            className: classText(control),
+            role: clip(control.getAttribute("role") || "", 48),
+            ariaLabel: clip(control.getAttribute("aria-label") || "", 160),
+            title: clip(control.getAttribute("title") || "", 160),
+            placeholder: clip(control.getAttribute("placeholder") || "", 160),
+            disabled:
+              "disabled" in control
+                ? Boolean(control.disabled)
+                : control.getAttribute("aria-disabled") === "true",
+            icons: iconTexts(control)
+          }))
+      }));
+
+    return {
+      dialogCount: dialogs.length,
+      dialogs
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookClickAudioOverviewExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const studio = document.querySelector("section.studio-panel");
+    if (!(studio instanceof Element) || !visible(studio)) {
+      return { clicked: false, reason: "STUDIO_OWNER_MISSING" };
+    }
+
+    const candidates = Array.from(
+      studio.querySelectorAll("basic-create-artifact-button")
+    )
+      .map((owner) => {
+        const control =
+          owner.querySelector("[role='button']") ||
+          owner.querySelector("button") ||
+          null;
+        const icons =
+          control instanceof Element
+            ? Array.from(control.querySelectorAll("mat-icon")).map(
+                (icon) => String(icon.textContent || "").trim()
+              )
+            : [];
+        return { control, icons };
+      })
+      .filter(
+        (entry) =>
+          entry.control instanceof Element &&
+          visible(entry.control) &&
+          entry.icons.includes("audio_spark")
+      );
+
+    if (candidates.length !== 1) {
+      return {
+        clicked: false,
+        reason: "AUDIO_CREATE_CONTROL_IDENTITY_UNRESOLVED",
+        candidateCount: candidates.length
+      };
+    }
+
+    const control = candidates[0].control;
+    if (
+      control.getAttribute("aria-disabled") === "true" ||
+      ("disabled" in control && Boolean(control.disabled))
+    ) {
+      return { clicked: false, reason: "AUDIO_CREATE_CONTROL_DISABLED" };
+    }
+
+    control.click();
+    return { clicked: true };
+  })()`;
+}
+
+async function _cwaGeminiNotebookProbeAudioOverviewStart(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+  if (message?.probeId !== CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID) {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const timeoutMs = Math.max(
+    5000,
+    Math.min(Number(message?.timeoutMs) || 15000, 30000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+  let audioGenerationMayHaveStarted = false;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const beforeArtifact = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioArtifactStateExpression()
+    );
+    if (
+      beforeArtifact?.notebookUrl !== notebookUrl ||
+      beforeArtifact?.studioFound !== true ||
+      beforeArtifact?.containerFound !== true ||
+      beforeArtifact?.libraryFound !== true
+    ) {
+      throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LIBRARY_NOT_READY");
+    }
+    if (beforeArtifact?.emptyMarker !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_PRESTATE_NONEMPTY_UNSUPPORTED"
+      );
+    }
+
+    const beforeConfig = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioConfigStateExpression()
+    );
+    const beforeArtifactSignature = JSON.stringify(beforeArtifact);
+    const beforeDialogCount = Number(beforeConfig?.dialogCount) || 0;
+
+    audioGenerationMayHaveStarted = true;
+    const clicked = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickAudioOverviewExpression()
+    );
+    if (clicked?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_CREATE_CLICK_FAILED:" +
+          String(clicked?.reason || "UNKNOWN")
+      );
+    }
+
+    let lastArtifact = null;
+    let lastConfig = null;
+    while (performance.now() < deadlineAt) {
+      const artifact = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookAudioArtifactStateExpression()
+      );
+      const config = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookAudioConfigStateExpression()
+      );
+      lastArtifact = artifact;
+      lastConfig = config;
+
+      if (artifact?.notebookUrl !== notebookUrl) {
+        throw new Error("GEMINI_NOTEBOOK_AUDIO_NOTEBOOK_ROUTE_CHANGED");
+      }
+
+      const artifactChanged =
+        JSON.stringify(artifact) !== beforeArtifactSignature;
+      const configurationObserved =
+        (Number(config?.dialogCount) || 0) > beforeDialogCount;
+
+      if (artifactChanged || configurationObserved) {
+        const transitionKind =
+          artifactChanged && configurationObserved
+            ? "ARTIFACT_AND_CONFIGURATION"
+            : artifactChanged
+              ? "ARTIFACT_LIBRARY_CHANGED"
+              : "CONFIGURATION_SURFACE_OBSERVED";
+        return {
+          productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+          probeId: CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID,
+          notebookUrl,
+          tabId: tab.id,
+          elapsedMs: Math.round(performance.now() - startedAt),
+          transitionKind,
+          preArtifactState: beforeArtifact,
+          postArtifactState: artifact,
+          configState: config,
+          potentialEffectMayHaveExecuted: true,
+          generationStartedProven: false,
+          canonicalCompletionProven: false,
+          automaticRetry: false
+        };
+      }
+      await sleep(100);
+    }
+
+    const observedDialogs = Number(lastConfig?.dialogCount) || 0;
+    const observedEmpty =
+      lastArtifact?.emptyMarker === true ? "true" : "false";
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_TRANSITION_UNRESOLVED:" +
+        "dialogs=" +
+        String(observedDialogs) +
+        ":empty=" +
+        observedEmpty
+    );
+  } catch (error) {
+    if (audioGenerationMayHaveStarted) {
+      throw _cwaGeminiNotebookAmbiguousError(error);
+    }
+    throw error;
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Detach cannot alter the already-classified product outcome.
       }
     }
   }
@@ -916,7 +1287,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
     message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
     ![
       CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -928,13 +1300,17 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
   const responseType =
     operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION
       ? "gemini_notebook_audio_overview_probe_result"
-      : "gemini_notebook_add_url_source_result";
+      : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION
+        ? "gemini_notebook_audio_overview_start_probe_result"
+        : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
       operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION
         ? await _cwaGeminiNotebookProbeAudioOverview(message)
-        : await _cwaGeminiNotebookAddUrlSource(message);
+        : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION
+          ? await _cwaGeminiNotebookProbeAudioOverviewStart(message)
+          : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,

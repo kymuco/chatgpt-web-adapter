@@ -277,3 +277,54 @@ The immediate post-click observation must stay bounded to:
 - bounded pending/completed artifact structure if the library changes.
 
 No second click is authorized until that first transition is characterized.
+
+
+## Characterization slice 3 — one-click transition probe
+
+Temporary mutating operation:
+
+```text
+gemini_notebook_audio_overview_start_probe
+```
+
+This is not production generation. It is a one-click characterization gate.
+
+The operation is deliberately constrained:
+
+```text
+exact notebook
+→ exact empty artifact-library pre-state
+→ exact one audio_spark create control
+→ potential-effect marker set
+→ one click only
+→ observe bounded configuration/artifact-library transition
+→ stop
+```
+
+The potential-effect marker is set **before** evaluating the click expression. It is
+never reset. Any error, bridge loss, timeout, route drift, or unresolved transition
+after that point is reconciliation-required and cannot authorize automatic retry.
+
+The transition probe does not make a second product click. It does not submit a
+configuration dialog and does not attempt to wait for completed audio.
+
+It can return only an observed transition class:
+
+```text
+CONFIGURATION_SURFACE_OBSERVED
+ARTIFACT_LIBRARY_CHANGED
+ARTIFACT_AND_CONFIGURATION
+```
+
+Even on an observed transition:
+
+```text
+potentialEffectMayHaveExecuted = true
+generationStartedProven = false
+canonicalCompletionProven = false
+automaticRetry = false
+```
+
+Artifact observation is scoped to the already-proven `artifact-library` owner and
+returns structural metadata only. Configuration observation is bounded to visible
+dialog/control accessibility structure and does not return broad page text.
