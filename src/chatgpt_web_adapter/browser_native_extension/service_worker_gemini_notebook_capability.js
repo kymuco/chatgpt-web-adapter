@@ -83,11 +83,17 @@ function _cwaGeminiNotebookCharacterizationExpression() {
       sourceTrigger?.closest("nav") ||
       sourceTrigger?.closest("aside") ||
       null;
-    const overlayRoots = Array.from(
+    const overlayCandidates = Array.from(
       document.querySelectorAll(
         "[role='dialog'],mat-dialog-container,.mat-mdc-dialog-container,.cdk-overlay-pane"
       )
     ).filter(visible);
+    const overlayRoots = overlayCandidates.filter(
+      (element) =>
+        !overlayCandidates.some(
+          (other) => other !== element && element.contains(other)
+        )
+    );
     const roots = [sourcePanel, ...overlayRoots].filter(
       (element, index, values) =>
         element instanceof Element && values.indexOf(element) === index
@@ -159,6 +165,8 @@ function _cwaGeminiNotebookCharacterizationExpression() {
       url: location.href,
       origin: location.origin,
       title: document.title,
+      addSourceRouteActive:
+        new URL(location.href).searchParams.get("addSource") === "true",
       sourcePanelFound: sourcePanel instanceof Element,
       overlayRootCount: overlayRoots.length,
       bodyText: scopedText,

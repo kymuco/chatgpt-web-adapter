@@ -42,6 +42,7 @@ def main() -> int:
         "url": response.get("url"),
         "origin": response.get("origin"),
         "title": response.get("title"),
+        "add_source_route_active": response.get("addSourceRouteActive") is True,
         "source_panel_found": response.get("sourcePanelFound") is True,
         "overlay_root_count": response.get("overlayRootCount"),
         "heading_count": response.get("headingCount"),

@@ -51,7 +51,10 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
     assert "Runtime.evaluate" in worker
     assert "document.body" not in worker
     assert 'document.querySelector(".add-source-button")' in worker
-    assert '".cdk-overlay-pane"' in worker
+    assert ".cdk-overlay-pane" in worker
+    assert "overlayCandidates" in worker
+    assert "element.contains(other)" in worker
+    assert "addSourceRouteActive:" in worker
     assert "sourcePanelFound:" in worker
     assert "overlayRootCount:" in worker
     assert "readOnly: true" in worker
@@ -97,6 +100,7 @@ def test_gemini_notebook_characterization_cli_does_not_mutate_product() -> None:
 
     assert '"type": "characterize_gemini_notebook"' in script
     assert '"read_only"' in script
+    assert '"add_source_route_active"' in script
     assert '"source_panel_found"' in script
     assert '"overlay_root_count"' in script
     assert "add_url_source" not in script

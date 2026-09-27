@@ -154,6 +154,50 @@ user manually opens Add sources
 
 This still precedes any CWA-owned product mutation.
 
+
+### Second read-only snapshot: source-type chooser
+
+With the user manually opening **Add sources**, the same notebook exposed:
+
+```text
+route = /notebook/<observed-id>?addSource=true
+read_only = true
+source_panel_found = false
+dialog present
+```
+
+The route query therefore carries an observable add-source UI state. The source panel
+trigger is no longer a reliable owner while the modal is active; characterization must
+treat the dialog/overlay as the current product surface rather than requiring the
+background Sources panel to remain discoverable.
+
+The chooser presented product-owned source actions including:
+
+```text
+Upload files
+Sites
+Books
+Drive
+Copied text
+```
+
+For the intended URL-source operation, **Sites** is the relevant next product control.
+The visible textarea with placeholder equivalent to *find new sources on the internet*
+belongs to search/research discovery and is not evidence for direct URL admission.
+
+The characterization also found both the material dialog container and its parent CDK
+overlay. These are one UI surface, not two independent dialogs, so the probe now
+collapses containing overlay roots and records the add-source route state explicitly.
+
+Next read-only state transition:
+
+```text
+user manually clicks Sites
+→ CWA performs no click
+→ rerun characterize_gemini_notebook
+→ inspect direct website/URL admission controls
+```
+
 ## Expected durable contract
 
 The intended operation is:
