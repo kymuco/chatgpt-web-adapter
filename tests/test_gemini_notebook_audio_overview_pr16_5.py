@@ -131,7 +131,10 @@ def test_audio_overview_worker_probe_is_read_only_and_bounded() -> None:
     assert "innerHTML" not in probe_expression
     assert "outerHTML" not in probe_expression
     assert 'document.querySelector("section.studio-panel")' in probe_expression
-    assert 'studio.querySelectorAll("basic-create-artifact-button")' in probe_expression
+    assert (
+        'studio.querySelectorAll("basic-create-artifact-button")'
+        in probe_expression
+    )
     assert 'entry.control.icons.includes("audio_spark")' in probe_expression
     assert "studio.querySelectorAll(\"*\")" in probe_expression
     assert ".slice(0, 120)" in probe_expression
