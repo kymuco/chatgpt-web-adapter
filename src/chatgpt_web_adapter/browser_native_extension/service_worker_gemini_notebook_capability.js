@@ -151,7 +151,7 @@ function _cwaGeminiNotebookSourceRowsExpression() {
 
 
 function _cwaGeminiNotebookAudioOverviewProbeExpression() {
-  return \`(() => {
+  return `(() => {
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -282,7 +282,7 @@ function _cwaGeminiNotebookAudioOverviewProbeExpression() {
       writePerformed: false,
       navigationPerformed: false
     };
-  })()\`;
+  })()`;
 }
 
 async function _cwaGeminiNotebookProbeAudioOverview(message) {

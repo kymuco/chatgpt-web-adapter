@@ -12,9 +12,7 @@ from .gemini_notebook_web import (
     GeminiNotebookWebCapability,
 )
 
-GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION = (
-    "gemini_notebook_audio_overview_probe"
-)
+GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION = "gemini_notebook_audio_overview_probe"
 GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID = "audio_overview"
 
 

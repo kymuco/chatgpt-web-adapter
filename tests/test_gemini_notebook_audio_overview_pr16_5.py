@@ -56,8 +56,9 @@ class _FakeBridge:
 
 
 def test_audio_overview_probe_is_temporary_module_only_surface() -> None:
-    assert GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION == (
-        "gemini_notebook_audio_overview_probe"
+    assert (
+        GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION
+        == "gemini_notebook_audio_overview_probe"
     )
     assert GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID == "audio_overview"
     assert not hasattr(adapter, "probe_gemini_notebook_audio_overview")
