@@ -1,155 +1,237 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter.gemini_notebook_audio_overview_probe import (
-    GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID,
-    GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION,
-    probe_gemini_notebook_audio_overview,
+from chatgpt_web_adapter.exceptions import RequestError
+from chatgpt_web_adapter.gemini_notebook_web import (
+    GEMINI_NOTEBOOK_AUDIO_ACCEPTED_EVIDENCE,
+    GEMINI_NOTEBOOK_AUDIO_COMPLETION_FINALITY,
+    GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CAPABILITY_ID,
+    GEMINI_NOTEBOOK_AUDIO_PENDING_EVIDENCE,
+    GEMINI_NOTEBOOK_GENERATE_AUDIO_OVERVIEW_OPERATION,
+    GEMINI_NOTEBOOK_OBSERVE_AUDIO_OVERVIEW_OPERATION,
+    GeminiNotebookOutcomeAmbiguousError,
+    GeminiNotebookWebCapability,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
+PACKAGE = ROOT / "src" / "chatgpt_web_adapter"
+EXT = PACKAGE / "browser_native_extension"
 NOTEBOOK = "https://notebook.google.com/notebook/564ab6b8-c253-4f1a-b104-6f8026d67c76"
+ARTIFACT_REF = "261a5005-1c03-44d7-9aa9-ecfb5bcef8f2"
 
 
 class _FakeBridge:
-    def __init__(self) -> None:
-        self.requests: list[dict[str, object]] = []
-        self.rpc_options: list[dict[str, object]] = []
+    def __init__(self, status: str = "PENDING") -> None:
+        self.requests = []
+        self.status = status
 
     def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
         self.requests.append(dict(payload))
-        self.rpc_options.append({"timeout": timeout, **kwargs})
+        if payload["type"] == GEMINI_NOTEBOOK_GENERATE_AUDIO_OVERVIEW_OPERATION:
+            return {
+                "ok": True,
+                "productId": "gemini-notebook-web",
+                "capabilityId": GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CAPABILITY_ID,
+                "notebookUrl": payload["notebookUrl"],
+                "generationCommitMayHaveExecuted": True,
+                "generationAcceptedProven": True,
+                "observedArtifactRef": ARTIFACT_REF,
+                "artifactStatus": "PENDING",
+                "artifactTitle": "Creating audio overview",
+                "artifactDetails": "Come back in a few minutes.",
+                "startEvidence": GEMINI_NOTEBOOK_AUDIO_ACCEPTED_EVIDENCE,
+                "canonicalCompletionProven": False,
+                "automaticRetry": False,
+            }
+        completed = self.status == "COMPLETED"
         return {
-            "protocol": 1,
-            "type": "gemini_notebook_audio_overview_probe_result",
-            "request_id": payload["request_id"],
             "ok": True,
             "productId": "gemini-notebook-web",
-            "probeId": GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID,
+            "capabilityId": GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CAPABILITY_ID,
             "notebookUrl": payload["notebookUrl"],
-            "tabId": 17,
-            "elapsedMs": 25,
-            "sourcePanelFound": True,
-            "sourcePickerFound": True,
-            "sourceRowCount": 2,
-            "studioOwnerFound": True,
-            "studioOwner": {
-                "tag": "section",
-                "className": "studio-panel",
-                "role": "",
-                "id": "",
-                "childCount": 1,
-                "buttonCount": 13,
-                "icons": [],
-            },
-            "createArtifactControls": [],
-            "audioCreateCandidates": [],
-            "studioStructure": [],
-            "rawDomExported": False,
+            "observedArtifactRef": payload["observedArtifactRef"],
+            "artifactStatus": self.status,
+            "artifactTitle": "Audio overview",
+            "artifactDetails": "2 sources",
+            "completionProven": completed,
+            "reloadVerified": completed,
+            "finalityEvidence": (
+                GEMINI_NOTEBOOK_AUDIO_COMPLETION_FINALITY
+                if completed
+                else GEMINI_NOTEBOOK_AUDIO_PENDING_EVIDENCE
+            ),
+            "canonicalCompletionProven": False,
+            "automaticRetry": False,
             "writePerformed": False,
-            "navigationPerformed": False,
+            "navigationPerformed": completed,
         }
 
 
-def test_audio_overview_probe_is_temporary_module_only_surface() -> None:
-    assert (
-        GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION
-        == "gemini_notebook_audio_overview_probe"
-    )
-    assert GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID == "audio_overview"
-    assert not hasattr(adapter, "probe_gemini_notebook_audio_overview")
+def test_audio_overview_is_module_only_experimental_capability() -> None:
+    assert GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CAPABILITY_ID == "generate_audio_overview"
+    assert not hasattr(adapter, "GeminiNotebookWebCapability")
 
 
-def test_audio_overview_probe_contract_is_read_only() -> None:
+def test_generate_audio_overview_returns_background_acceptance() -> None:
     bridge = _FakeBridge()
-
-    result = probe_gemini_notebook_audio_overview(
-        notebook=NOTEBOOK + "?ignored=true",
-        bridge=bridge,
+    result = GeminiNotebookWebCapability(bridge=bridge).generate_audio_overview(
+        notebook=NOTEBOOK
     )
-
-    assert result["notebook_url"] == NOTEBOOK
-    assert result["source_row_count"] == 2
-    assert result["studio_owner_found"] is True
-    assert result["studio_owner"]["className"] == "studio-panel"
-    assert result["write_performed"] is False
-    assert result["navigation_performed"] is False
-    assert result["raw_dom_exported"] is False
-
-    [request] = bridge.requests
-    assert request["type"] == GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION
-    assert request["productId"] == "gemini-notebook-web"
-    assert request["probeId"] == "audio_overview"
-    assert request["notebookUrl"] == NOTEBOOK
-    assert "conversationId" not in request
-    assert "providerId" not in request
-
-    [rpc_options] = bridge.rpc_options
-    assert rpc_options["timeout"] == 15.0
-    assert rpc_options["delegated_timeout_ms_key"] == "timeoutMs"
-    assert rpc_options["delegated_response_margin"] == 1.0
+    assert result.observed_artifact_ref == ARTIFACT_REF
+    assert result.artifact_status == "PENDING"
+    assert result.start_evidence == "PAGE_DOM_BACKGROUND_ARTIFACT_ACCEPTED"
+    assert result.canonical_completion_proven is False
+    assert result.automatic_retry is False
 
 
-def test_audio_overview_probe_validates_before_bridge() -> None:
-    bridge = _FakeBridge()
+def test_generate_audio_overview_bridge_loss_is_ambiguous() -> None:
+    class _LostBridge(_FakeBridge):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
+            raise RequestError(
+                "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION: closed",
+                request_stage="browser_native_bridge",
+            )
 
-    with pytest.raises(ValueError, match="exactly one Gemini Notebook"):
-        probe_gemini_notebook_audio_overview(
-            notebook="https://notebook.google.com/",
-            bridge=bridge,
+    with pytest.raises(GeminiNotebookOutcomeAmbiguousError) as captured:
+        GeminiNotebookWebCapability(bridge=_LostBridge()).generate_audio_overview(
+            notebook=NOTEBOOK
         )
+    assert captured.value.reconciliation_required is True
+    assert captured.value.automatic_retry_allowed is False
 
+
+def test_observe_audio_overview_pending_has_no_reload() -> None:
+    result = GeminiNotebookWebCapability(
+        bridge=_FakeBridge("PENDING")
+    ).observe_audio_overview(
+        notebook=NOTEBOOK,
+        observed_artifact_ref=ARTIFACT_REF,
+    )
+    assert result.artifact_status == "PENDING"
+    assert result.completion_proven is False
+    assert result.reload_verified is False
+    assert result.finality_evidence == "PAGE_DOM_BACKGROUND_ARTIFACT_PENDING"
+    assert result.navigation_performed is False
+
+
+def test_observe_audio_overview_completed_requires_reload_finality() -> None:
+    result = GeminiNotebookWebCapability(
+        bridge=_FakeBridge("COMPLETED")
+    ).observe_audio_overview(
+        notebook=NOTEBOOK,
+        observed_artifact_ref=ARTIFACT_REF,
+    )
+    assert result.artifact_status == "COMPLETED"
+    assert result.completion_proven is True
+    assert result.reload_verified is True
+    assert result.finality_evidence == (
+        "PAGE_DOM_DURABLE_BACKGROUND_ARTIFACT_COMPLETION"
+    )
+    assert result.navigation_performed is True
+
+
+def test_audio_overview_validates_ref_before_bridge() -> None:
+    bridge = _FakeBridge()
+    with pytest.raises(ValueError, match="observed_artifact_ref is invalid"):
+        GeminiNotebookWebCapability(bridge=bridge).observe_audio_overview(
+            notebook=NOTEBOOK,
+            observed_artifact_ref="bad ref",
+        )
     assert bridge.requests == []
 
 
-def test_audio_overview_worker_probe_is_read_only_and_bounded() -> None:
+def test_audio_overview_worker_is_valid_javascript() -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is unavailable")
+    subprocess.run(
+        ["node", "--check", str(EXT / "service_worker_gemini_notebook_capability.js")],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+
+def test_generate_effect_boundary_is_final_action_only() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
-
-    assert "gemini_notebook_audio_overview_probe" in worker
-    assert "_cwaGeminiNotebookAudioOverviewProbeExpression" in worker
-    assert "_cwaGeminiNotebookProbeAudioOverview" in worker
-
-    probe_expression = worker.split(
-        "function _cwaGeminiNotebookAudioOverviewProbeExpression()",
-        1,
+    generate = worker.split(
+        "async function _cwaGeminiNotebookGenerateAudioOverview(message)", 1
     )[1].split(
-        "async function _cwaGeminiNotebookProbeAudioOverview",
-        1,
+        "async function _cwaGeminiNotebookObserveAudioOverview(message)", 1
     )[0]
-    assert ".click()" not in probe_expression
-    assert "dispatchEvent(" not in probe_expression
-    assert "InputEvent(" not in probe_expression
-    assert "fetch(" not in probe_expression
-    assert "XMLHttpRequest" not in probe_expression
-    assert "innerHTML" not in probe_expression
-    assert "outerHTML" not in probe_expression
-    assert 'document.querySelector("section.studio-panel")' in probe_expression
-    assert 'studio.querySelectorAll("basic-create-artifact-button")' in probe_expression
-    assert 'entry.control.icons.includes("audio_spark")' in probe_expression
-    assert 'studio.querySelectorAll("*")' in probe_expression
-    assert ".slice(0, 120)" in probe_expression
-    assert "control.innerText" not in probe_expression
-    assert "control.textContent" not in probe_expression
-    assert "rawDomExported: false" in probe_expression
-    assert "writePerformed: false" in probe_expression
-    assert "navigationPerformed: false" in probe_expression
+    assert "_cwaGeminiNotebookWaitForAudioConfig(debuggee, deadlineAt)" in generate
+    boundary = generate.index("generationCommitMayHaveExecuted = true;")
+    commit = generate.index("_cwaGeminiNotebookClickAudioGenerateNowExpression()")
+    assert boundary < commit
+    assert generate.count("generationCommitMayHaveExecuted = false") == 1
+    assert "if (generationCommitMayHaveExecuted)" in generate
+    assert "_cwaGeminiNotebookAmbiguousError(error)" in generate
 
 
-def test_audio_overview_probe_reuses_existing_notebook_runtime_layer() -> None:
-    runtime = (EXT / "service_worker_runtime.js").read_text(encoding="utf-8")
-    host = (ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py").read_text(
+def test_generate_identity_is_structural_and_nonlocalized() -> None:
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
+    click = worker.split(
+        "function _cwaGeminiNotebookClickAudioGenerateNowExpression()", 1
+    )[1].split(
+        "async function _cwaGeminiNotebookWaitForAudioConfig", 1
+    )[0]
+    assert "audio_magic_eraser" in click
+    assert ".mat-mdc-dialog-actions" in click
+    assert 'button.classList.contains("mat-tonal-button")' in click
+    assert click.count(".click()") == 1
+    assert "Сгенерировать сейчас" not in click
+    assert "Generate now" not in click
 
-    notebook_import = 'importScripts("service_worker_gemini_notebook_capability.js");'
-    assert runtime.count(notebook_import) == 1
-    assert '"gemini_notebook_audio_overview_probe",' in host
-    assert '"gemini_notebook_audio_overview_probe": 15_000' in host
-    assert "_claim_authority_lane(operation, lease_id)" in host
+
+def test_observation_requires_same_ref_after_reload_for_completion() -> None:
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
+        encoding="utf-8"
+    )
+    observe = worker.split(
+        "async function _cwaGeminiNotebookObserveAudioOverview(message)", 1
+    )[1].split(
+        "function _cwaGeminiNotebookClickAddSourceExpression()", 1
+    )[0]
+    assert "_cwaGeminiNotebookWaitForStableAudioArtifact(" in observe
+    assert "_cwaGeminiNotebookReloadExactNotebookTab(" in observe
+    assert "PENDING_CANDIDATE" in observe
+    assert "NON_PENDING_CANDIDATE" in observe
+    assert "reloadVerified: true" in observe
+    assert "completionProven: true" in observe
+
+
+def test_audio_uses_no_private_google_protocol() -> None:
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
+        encoding="utf-8"
+    )
+    assert "fetch(" not in worker
+    assert "XMLHttpRequest" not in worker
+    assert "batchexecute" not in worker
+
+
+def test_audio_temporary_probe_surfaces_are_removed() -> None:
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
+        encoding="utf-8"
+    )
+    host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
+    assert "audio_overview_probe" not in worker
+    assert "audio_overview_probe" not in host
+    for name in (
+        "gemini_notebook_audio_overview_probe.py",
+        "gemini_notebook_audio_overview_start_probe.py",
+        "gemini_notebook_audio_overview_config_probe.py",
+        "gemini_notebook_audio_overview_generate_probe.py",
+        "gemini_notebook_audio_overview_artifact_probe.py",
+    ):
+        assert not (PACKAGE / name).exists()
