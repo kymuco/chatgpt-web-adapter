@@ -88,3 +88,57 @@ menu once and characterize its actions.
 
 Opening a menu still does not authorize a Download click. The Download effect boundary
 and browser acquisition correlation belong to later slices.
+
+
+## Live result — exact row-scoped menu trigger
+
+The first live PR16.6a probe matched the completed artifact by exact ref and returned
+three visible row-local controls:
+
+```text
+1. artifact-stretched-button
+2. play_arrow action
+3. more_vert action
+```
+
+The `more_vert` control was unique and structurally owned by:
+
+```text
+exact artifact-labels-<ref> row
+→ .artifact-button-content
+→ .artifact-actions
+→ nb-icon-button.artifact-more-button
+→ button.mat-mdc-menu-trigger
+→ mat-icon more_vert
+```
+
+The observed localized accessibility label is characterization evidence only and is
+not identity authority.
+
+The probe performed no product write, navigation, or download. This closes slice
+16.6a.
+
+## Slice 16.6b — open exact artifact menu once
+
+Temporary operation:
+
+```text
+gemini_notebook_audio_artifact_menu_probe
+```
+
+The operation requires zero visible menus before mutation. It then resolves the exact
+artifact row from `expectedArtifactRef`, requires exactly one visible
+`button.mat-mdc-menu-trigger` under `nb-icon-button.artifact-more-button` whose
+product icon is `more_vert`, and clicks that control exactly once.
+
+This is a transient UI mutation only. It does not authorize a product write or a
+download.
+
+After the click, the operation observes only visible menu panels and at most 24 menu
+items. It never activates a menu item.
+
+Localized item text is allowed as characterization evidence but must not silently
+become the future Download identity.
+
+The next gate requires one unambiguous menu and structural evidence for a Download
+action before any Download click is implemented.
