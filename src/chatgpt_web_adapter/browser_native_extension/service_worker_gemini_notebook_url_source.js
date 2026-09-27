@@ -78,7 +78,7 @@ async function _cwaGeminiNotebookMutationEvaluate(debuggee, expression) {
 }
 
 function _cwaGeminiNotebookSourceRowsExpression() {
-  return \`(() => {
+  return `(() => {
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -137,11 +137,11 @@ function _cwaGeminiNotebookSourceRowsExpression() {
       sourcePickerFound: picker instanceof Element,
       rows
     };
-  })()\`;
+  })()`;
 }
 
 function _cwaGeminiNotebookClickAddSourceExpression() {
-  return \`(() => {
+  return `(() => {
     const panel = document.querySelector("section.source-panel");
     const trigger = panel?.querySelector(".add-source-button") || null;
     const button =
@@ -156,11 +156,11 @@ function _cwaGeminiNotebookClickAddSourceExpression() {
     }
     button.click();
     return { clicked: true };
-  })()\`;
+  })()`;
 }
 
 function _cwaGeminiNotebookDialogStateExpression() {
-  return \`(() => {
+  return `(() => {
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -213,11 +213,11 @@ function _cwaGeminiNotebookDialogStateExpression() {
       directUrlState: textareas.length === 1 && commitButtons.length === 1,
       sitesActionCount: sitesActions.length
     };
-  })()\`;
+  })()`;
 }
 
 function _cwaGeminiNotebookClickSitesExpression() {
-  return \`(() => {
+  return `(() => {
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -262,13 +262,13 @@ function _cwaGeminiNotebookClickSitesExpression() {
     }
     candidates[0].click();
     return { clicked: true };
-  })()\`;
+  })()`;
 }
 
 function _cwaGeminiNotebookUrlInputExpression(sourceUrl, write) {
   const encodedSourceUrl = JSON.stringify(sourceUrl);
-  return \`(() => {
-    const requestedUrl = \${encodedSourceUrl};
+  return `(() => {
+    const requestedUrl = ${encodedSourceUrl};
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -311,7 +311,7 @@ function _cwaGeminiNotebookUrlInputExpression(sourceUrl, write) {
     }
     const input = textareas[0];
     const commit = commitButtons[0];
-    if (\${write ? "true" : "false"}) {
+    if (${write ? "true" : "false"}) {
       input.focus();
       const setter = Object.getOwnPropertyDescriptor(
         HTMLTextAreaElement.prototype,
@@ -339,13 +339,13 @@ function _cwaGeminiNotebookUrlInputExpression(sourceUrl, write) {
         commit.getAttribute("aria-disabled") === "true" ||
         commit.classList.contains("mat-mdc-button-disabled")
     };
-  })()\`;
+  })()`;
 }
 
 function _cwaGeminiNotebookCommitExpression(sourceUrl) {
   const encodedSourceUrl = JSON.stringify(sourceUrl);
-  return \`(() => {
-    const requestedUrl = \${encodedSourceUrl};
+  return `(() => {
+    const requestedUrl = ${encodedSourceUrl};
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -398,7 +398,7 @@ function _cwaGeminiNotebookCommitExpression(sourceUrl) {
     }
     commit.click();
     return { clicked: true };
-  })()\`;
+  })()`;
 }
 
 function _cwaGeminiNotebookAmbiguousError(error) {
