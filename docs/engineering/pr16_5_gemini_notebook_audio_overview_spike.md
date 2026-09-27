@@ -462,3 +462,88 @@ automaticRetry = false
 
 Completion, stable artifact identity, and reload persistence remain separate later
 characterization questions.
+
+
+## Live result — default generation accepted as background artifact
+
+The first default-generation live probe succeeded:
+
+```text
+generationCommitMayHaveExecuted = true
+generationAcceptedProven = true
+startEvidence = PAGE_DOM_BACKGROUND_ARTIFACT_ACCEPTED
+canonicalCompletionProven = false
+automaticRetry = false
+elapsed ≈ 5.7 s
+```
+
+The artifact library changed from empty to non-empty and exposed a pending artifact:
+
+```text
+artifact-library-ungrouped-items
+→ artifact-item-button ... --entering
+→ artifact-stretched-button disabled
+→ progress_activity
+```
+
+A product-observed opaque identity appeared immediately:
+
+```text
+artifact-labels-261a5005-1c03-44d7-9aa9-ecfb5bcef8f2
+```
+
+PR16.5 treats only the suffix as an observed DOM artifact reference. It is not claimed
+to be an official Google API identifier.
+
+This proves hosted background work acceptance, not completion.
+
+## Characterization slice 6 — stable artifact observation
+
+Temporary read-only operation:
+
+```text
+gemini_notebook_audio_overview_artifact_probe
+```
+
+The probe is scoped to the proven `artifact-library` owner and observes at most 20
+`.artifact-item-button` rows. For the current characterization it fails closed unless
+exactly one row exists and it has an `artifact-labels-<ref>` identity.
+
+It classifies only structural candidates:
+
+```text
+PENDING_CANDIDATE
+  = observed ref
+  + progress_activity
+  + disabled artifact action
+
+NON_PENDING_CANDIDATE
+  = observed ref
+  + no progress_activity
+  + enabled artifact action
+
+UNKNOWN
+  = anything else
+```
+
+Neither candidate proves completion. The probe requires the same ref/status/action/icon
+signature to remain stable for at least one second, performs no product mutation, and
+always returns:
+
+```text
+completionProven = false
+canonicalCompletionProven = false
+automaticRetry = false
+```
+
+The optional `expectedArtifactRef` binds observation to the already accepted artifact.
+
+The next evidence sequence is:
+
+```text
+accepted pending artifact ref
+→ read-only stable NON_PENDING_CANDIDATE
+→ ordinary notebook reload
+→ same exact ref observed again
+→ only then decide whether durable completion finality is supportable
+```

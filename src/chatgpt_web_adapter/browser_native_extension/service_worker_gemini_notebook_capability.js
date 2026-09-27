@@ -15,8 +15,11 @@ const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CONFIG_PROBE_OPERATION =
   "gemini_notebook_audio_overview_config_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_GENERATE_PROBE_OPERATION =
   "gemini_notebook_audio_overview_generate_probe";
+const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_ARTIFACT_PROBE_OPERATION =
+  "gemini_notebook_audio_overview_artifact_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID = "audio_overview";
 const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_STABLE_MS = 800;
+const CWA_GEMINI_NOTEBOOK_AUDIO_OBSERVATION_STABLE_MS = 1000;
 const CWA_GEMINI_NOTEBOOK_FINALITY =
   "PAGE_DOM_DURABLE_SOURCE_ADMISSION";
 const CWA_GEMINI_NOTEBOOK_SOURCE_ROW_STABLE_MS = 1200;
@@ -1151,6 +1154,240 @@ async function _cwaGeminiNotebookProbeAudioOverviewGenerate(message) {
   }
 }
 
+
+function _cwaGeminiNotebookAudioArtifactItemsExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const normalize = (value) =>
+      String(value || "").replace(/\\s+/g, " ").trim();
+    const clip = (value, limit = 160) => normalize(value).slice(0, limit);
+    const classText = (element) =>
+      clip(
+        typeof element?.className === "string"
+          ? element.className
+          : element?.getAttribute?.("class") || "",
+        180
+      );
+    const iconTexts = (element) =>
+      Array.from(element?.querySelectorAll?.("mat-icon") || [])
+        .slice(0, 8)
+        .map((icon) => clip(icon.textContent, 48))
+        .filter(Boolean);
+
+    const notebookUrl =
+      location.origin + location.pathname.replace(/\\/$/, "");
+    const studio = document.querySelector("section.studio-panel");
+    const container =
+      studio?.querySelector(".artifact-library-container") || null;
+    const library = container?.querySelector("artifact-library") || null;
+    const rows = [];
+
+    if (library instanceof Element) {
+      for (const row of library.querySelectorAll(".artifact-item-button")) {
+        if (rows.length >= 20) break;
+        if (!visible(row)) continue;
+
+        const labels = row.querySelector("[id^='artifact-labels-']");
+        const labelsId = String(labels?.id || "");
+        const prefix = "artifact-labels-";
+        const observedArtifactRef = labelsId.startsWith(prefix)
+          ? labelsId.slice(prefix.length)
+          : null;
+        const actionButton =
+          row.querySelector("button.artifact-stretched-button") ||
+          row.querySelector("button") ||
+          null;
+        const icons = iconTexts(row);
+        const actionDisabled =
+          actionButton instanceof Element
+            ? Boolean(actionButton.disabled) ||
+              actionButton.getAttribute("aria-disabled") === "true" ||
+              actionButton.classList.contains("mat-mdc-button-disabled")
+            : null;
+        const pendingIcon = icons.includes("progress_activity");
+        let statusCandidate = "UNKNOWN";
+        if (observedArtifactRef && pendingIcon && actionDisabled === true) {
+          statusCandidate = "PENDING_CANDIDATE";
+        } else if (
+          observedArtifactRef &&
+          !pendingIcon &&
+          actionButton instanceof Element &&
+          actionDisabled === false
+        ) {
+          statusCandidate = "NON_PENDING_CANDIDATE";
+        }
+
+        const title = row.querySelector(".artifact-title");
+        const details = row.querySelector(".artifact-details");
+        rows.push({
+          observedArtifactRef,
+          rowClassName: classText(row),
+          title: clip(title?.textContent || "", 180),
+          details: clip(details?.textContent || "", 180),
+          icons,
+          actionButtonFound: actionButton instanceof Element,
+          actionDisabled,
+          statusCandidate
+        });
+      }
+    }
+
+    return {
+      notebookUrl,
+      studioFound: studio instanceof Element && visible(studio),
+      containerFound: container instanceof Element && visible(container),
+      containerClassName:
+        container instanceof Element ? classText(container) : "",
+      libraryFound: library instanceof Element && visible(library),
+      emptyMarker:
+        container instanceof Element &&
+        container.classList.contains("artifact-library-container-empty"),
+      rows
+    };
+  })()`;
+}
+
+async function _cwaGeminiNotebookProbeAudioOverviewArtifact(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+  if (message?.probeId !== CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID) {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const expectedArtifactRef =
+    typeof message?.expectedArtifactRef === "string" &&
+    /^[A-Za-z0-9_-]{8,200}$/.test(message.expectedArtifactRef)
+      ? message.expectedArtifactRef
+      : null;
+  if (message?.expectedArtifactRef && !expectedArtifactRef) {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_REF_INVALID");
+  }
+
+  const timeoutMs = Math.max(
+    3000,
+    Math.min(Number(message?.timeoutMs) || 15000, 30000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+  let stableSignature = null;
+  let stableSince = null;
+  let lastState = null;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    while (performance.now() < deadlineAt) {
+      const state = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookAudioArtifactItemsExpression()
+      );
+      lastState = state;
+
+      if (state?.notebookUrl !== notebookUrl) {
+        throw new Error("GEMINI_NOTEBOOK_AUDIO_NOTEBOOK_ROUTE_CHANGED");
+      }
+      if (
+        state?.studioFound !== true ||
+        state?.containerFound !== true ||
+        state?.libraryFound !== true
+      ) {
+        throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LIBRARY_NOT_READY");
+      }
+
+      const rows = Array.isArray(state?.rows) ? state.rows : [];
+      if (rows.length !== 1) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_IDENTITY_UNRESOLVED:" +
+            String(rows.length)
+        );
+      }
+      const row = rows[0];
+      if (!row?.observedArtifactRef) {
+        throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_REF_UNRESOLVED");
+      }
+      if (
+        expectedArtifactRef &&
+        String(row.observedArtifactRef) !== expectedArtifactRef
+      ) {
+        throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_REF_MISMATCH");
+      }
+
+      const signature = JSON.stringify({
+        observedArtifactRef: row.observedArtifactRef,
+        statusCandidate: row.statusCandidate,
+        actionDisabled: row.actionDisabled,
+        icons: row.icons
+      });
+      if (signature !== stableSignature) {
+        stableSignature = signature;
+        stableSince = performance.now();
+      } else if (
+        stableSince !== null &&
+        performance.now() - stableSince >=
+          CWA_GEMINI_NOTEBOOK_AUDIO_OBSERVATION_STABLE_MS
+      ) {
+        return {
+          productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+          probeId: CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_ID,
+          notebookUrl,
+          tabId: tab.id,
+          elapsedMs: Math.round(performance.now() - startedAt),
+          artifactObservationStable: true,
+          observedArtifactRef: String(row.observedArtifactRef),
+          artifact: row,
+          emptyMarker: state.emptyMarker === true,
+          completionProven: false,
+          canonicalCompletionProven: false,
+          automaticRetry: false,
+          writePerformed: false,
+          navigationPerformed: false
+        };
+      }
+
+      await sleep(200);
+    }
+
+    const observedRows = Array.isArray(lastState?.rows)
+      ? lastState.rows.length
+      : -1;
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_OBSERVATION_TIMEOUT:rows=" +
+        String(observedRows)
+    );
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Read-only artifact observation cannot change product state.
+      }
+    }
+  }
+}
+
 function _cwaGeminiNotebookClickAddSourceExpression() {
   return `(() => {
     const panel = document.querySelector("section.source-panel");
@@ -1708,7 +1945,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_START_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CONFIG_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_GENERATE_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_GENERATE_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_ARTIFACT_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -1726,7 +1964,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
           ? "gemini_notebook_audio_overview_config_probe_result"
           : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_GENERATE_PROBE_OPERATION
             ? "gemini_notebook_audio_overview_generate_probe_result"
-            : "gemini_notebook_add_url_source_result";
+            : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_ARTIFACT_PROBE_OPERATION
+              ? "gemini_notebook_audio_overview_artifact_probe_result"
+              : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -1738,7 +1978,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
             ? await _cwaGeminiNotebookProbeAudioOverviewConfig(message)
             : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_GENERATE_PROBE_OPERATION
               ? await _cwaGeminiNotebookProbeAudioOverviewGenerate(message)
-              : await _cwaGeminiNotebookAddUrlSource(message);
+              : operation === CWA_GEMINI_NOTEBOOK_AUDIO_OVERVIEW_ARTIFACT_PROBE_OPERATION
+                ? await _cwaGeminiNotebookProbeAudioOverviewArtifact(message)
+                : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,
