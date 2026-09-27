@@ -21,10 +21,7 @@ from chatgpt_web_adapter.gemini_notebook_web import (
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-NOTEBOOK = (
-    "https://notebook.google.com/notebook/"
-    "564ab6b8-c253-4f1a-b104-6f8026d67c76"
-)
+NOTEBOOK = "https://notebook.google.com/notebook/564ab6b8-c253-4f1a-b104-6f8026d67c76"
 
 
 class _FakeBridge:
@@ -238,16 +235,15 @@ def test_gemini_notebook_mutation_is_explicit_runtime_layer() -> None:
         encoding="utf-8"
     )
 
-    characterization = 'importScripts("service_worker_gemini_notebook_capability.js");'
-    mutation = 'importScripts("service_worker_gemini_notebook_capability.js");'
+    notebook = 'importScripts("service_worker_gemini_notebook_capability.js");'
     translate = 'importScripts("service_worker_google_translate_capability.js");'
 
-    assert characterization in runtime
-    assert mutation in runtime
+    assert notebook in runtime
     assert translate in runtime
-    assert runtime.index(characterization) < runtime.index(mutation)
-    assert runtime.index(mutation) < runtime.index(translate)
-    assert "_cwaOnNativeMessageWithGeminiNotebookUrlSource(" in router
+    assert "service_worker_gemini_notebook_url_source.js" not in runtime
+    assert runtime.index(notebook) < runtime.index(translate)
+    assert "_cwaOnNativeMessageWithGeminiNotebook(" in router
+    assert "_cwaOnNativeMessageWithGeminiNotebookUrlSource(" not in router
 
 
 def test_gemini_notebook_native_host_admits_mutation_on_shared_lane() -> None:

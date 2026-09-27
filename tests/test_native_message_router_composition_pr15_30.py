@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -31,8 +34,12 @@ def _source(name: str) -> str:
 
 
 def _run_node(script: str) -> dict[str, object]:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is unavailable")
+
     completed = subprocess.run(
-        ["node", "-e", script],
+        [node, "-e", script],
         check=True,
         capture_output=True,
         text=True,

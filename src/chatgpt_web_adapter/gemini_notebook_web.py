@@ -186,10 +186,7 @@ class GeminiNotebookWebCapability:
                 "GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH",
                 request_stage="gemini_notebook_add_url_source",
             )
-        if (
-            response.get("capabilityId")
-            != GEMINI_NOTEBOOK_ADD_URL_SOURCE_CAPABILITY_ID
-        ):
+        if response.get("capabilityId") != GEMINI_NOTEBOOK_ADD_URL_SOURCE_CAPABILITY_ID:
             raise RequestError(
                 "GEMINI_NOTEBOOK_CAPABILITY_ID_MISMATCH",
                 request_stage="gemini_notebook_add_url_source",
