@@ -378,3 +378,87 @@ or private request.
 
 The purpose is to identify the exact terminal generation action without relying on
 button position.
+
+
+## Characterization result — exact default generation action
+
+The read-only config probe established three action-like elements inside the dialog
+actions surface, but only two are actual `button` elements:
+
+```text
+span.expected-usage-label[role=button]
+  → informational "AI usage" surface
+
+button.mat-mdc-button
+  → localized "generate later"
+
+button.mat-tonal-button
+  → localized "generate now"
+```
+
+The default immediate generation action can therefore be identified without localized
+text:
+
+```text
+exact one visible Audio config dialog
+→ dialog contains audio_magic_eraser
+→ exact .mat-mdc-dialog-actions owner
+→ exactly two actual button elements
+→ exactly one enabled button.mat-tonal-button
+```
+
+The same probe confirmed the untouched/default configuration used for this
+characterization: first radio selected, one language combobox, default-length toggle,
+two sources, and an empty focus textarea.
+
+## Characterization slice 5 — commit default generation once
+
+Temporary mutating operation:
+
+```text
+gemini_notebook_audio_overview_generate_probe
+```
+
+Preconditions:
+
+```text
+exact notebook route
+artifact library exists and is empty
+exact Audio config dialog exists
+audio_magic_eraser owner proven
+exact structural "generate now" action resolved
+```
+
+The conservative generation effect boundary is set **before** evaluating the one-click
+commit expression. It is never reset.
+
+After that boundary:
+
+```text
+generation may already be running
+→ response loss / timeout / unresolved observation is ambiguous
+→ reconciliation required
+→ automatic retry = false
+```
+
+The probe clicks exactly one enabled `button.mat-tonal-button` and then ignores dialog
+closure as evidence. Generation acceptance is proven only when the already-known
+artifact library changes from:
+
+```text
+artifact-library-container-empty
+```
+
+to a stable non-empty library with at least one visible direct child.
+
+That proves only background artifact acceptance:
+
+```text
+startEvidence = PAGE_DOM_BACKGROUND_ARTIFACT_ACCEPTED
+generationAcceptedProven = true
+canonicalCompletionProven = false
+automaticRetry = false
+```
+
+Completion, stable artifact identity, and reload persistence remain separate later
+characterization questions.

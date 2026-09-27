@@ -381,6 +381,7 @@ class BrowserNativeBroker:
             "gemini_notebook_audio_overview_probe",
             "gemini_notebook_audio_overview_start_probe",
             "gemini_notebook_audio_overview_config_probe",
+            "gemini_notebook_audio_overview_generate_probe",
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
@@ -417,6 +418,7 @@ class BrowserNativeBroker:
                 "gemini_notebook_audio_overview_probe": 15_000,
                 "gemini_notebook_audio_overview_start_probe": 15_000,
                 "gemini_notebook_audio_overview_config_probe": 15_000,
+                "gemini_notebook_audio_overview_generate_probe": 30_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,
             }[operation]

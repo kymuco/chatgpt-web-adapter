@@ -115,9 +115,18 @@ def test_audio_overview_start_worker_freezes_effect_boundary_before_click() -> N
     assert "automaticRetry: false" in start_function
     assert "canonicalCompletionProven: false" in start_function
     assert "generationStartedProven: false" in start_function
-    assert "artifact-library-container" in start_function
-    assert "artifact-library-container-empty" in start_function
-    assert 'container?.querySelector("artifact-library")' in start_function
+    assert "_cwaGeminiNotebookAudioArtifactStateExpression()" in start_function
+
+    artifact_expression = worker.split(
+        "function _cwaGeminiNotebookAudioArtifactStateExpression()",
+        1,
+    )[1].split(
+        "function _cwaGeminiNotebookAudioConfigStateExpression()",
+        1,
+    )[0]
+    assert "artifact-library-container" in artifact_expression
+    assert "artifact-library-container-empty" in artifact_expression
+    assert 'container?.querySelector("artifact-library")' in artifact_expression
 
 
 def test_audio_overview_start_click_is_exact_and_single() -> None:
