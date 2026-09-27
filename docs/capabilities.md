@@ -76,10 +76,11 @@ turn open until media completion. `observe_audio_overview(...)` is the read-only
 re-entry surface; it reports pending without navigation and proves completed finality
 only after the same exact product-observed artifact ref survives one ordinary reload.
 
-Translate, durable source admission, and background artifact generation now provide
-three qualitatively different non-chat proofs. That is still not enough evidence to
-promote a generic `HostedCapabilityRuntime`, capability factory, or universal
-operation schema; the product-specific contracts remain explicit.
+One proof is not enough to justify a generic `HostedCapabilityRuntime`, public
+capability factory, or universal operation schema. Translate, durable source admission,
+and background artifact generation now provide three qualitatively different non-chat
+proofs, but CWA still keeps their product-specific contracts explicit until repeated
+primitives are understood well enough to justify a shared runtime.
 
 ## Support vocabulary
 
