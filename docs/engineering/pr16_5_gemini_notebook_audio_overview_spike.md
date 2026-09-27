@@ -156,3 +156,56 @@ returned structure to narrow the next probe around the real Studio/Audio subtree
 
 No generation click is authorized until the trigger path and a reconciliation-capable
 artifact identity model are proven.
+
+
+## Characterization result — Studio owner and Audio create control
+
+The first live read-only probe against the owned notebook produced a clean structural
+result:
+
+```text
+section.studio-panel
+  → studio-panel
+    → .panel-content-scrollable
+      → .create-artifact-buttons-container.studio-panel-open-create
+        → basic-create-artifact-button
+          → [role=button]
+              aria-label = localized Audio Overview label
+              mat-icon = audio_spark
+              mat-icon = chevron_forward
+```
+
+The important identity is structural, not the localized label:
+
+```text
+exact owner = section.studio-panel
+create owner = basic-create-artifact-button
+audio discriminator = mat-icon audio_spark
+control = descendant [role=button]
+```
+
+The same probe observed two admitted sources and reported no write, navigation, or raw
+DOM export.
+
+The first broad fallback control sample also demonstrated that page-wide
+accessibility metadata is unnecessarily broad for this experiment. Characterization
+slice 2 therefore removes page-wide control sampling entirely and scopes all detailed
+observation to `section.studio-panel`.
+
+## Characterization slice 2
+
+The temporary operation remains read-only but now returns only:
+
+- exact Studio owner structure;
+- at most 20 `basic-create-artifact-button` owners and their descendant controls;
+- Audio create candidates identified by the product icon `audio_spark`;
+- at most 120 visible Studio descendants whose tag/class structure mentions
+  studio/artifact/audio/generate/loading/progress;
+- source panel/picker presence and source-row count only.
+
+No broad page controls, notebook-header controls, account controls, source titles, raw
+text, hrefs, or raw HTML are returned.
+
+The next question is whether the empty Studio surface already exposes a stable
+artifact-list/container topology that can support later pending/completed
+reconciliation. No Audio Overview control is clicked in slice 2.

@@ -90,14 +90,18 @@ def probe_gemini_notebook_audio_overview(
         "source_row_count": response.get("sourceRowCount")
         if isinstance(response.get("sourceRowCount"), int)
         else 0,
-        "target_controls": response.get("targetControls")
-        if isinstance(response.get("targetControls"), list)
+        "studio_owner_found": response.get("studioOwnerFound") is True,
+        "studio_owner": response.get("studioOwner")
+        if isinstance(response.get("studioOwner"), dict)
+        else None,
+        "create_artifact_controls": response.get("createArtifactControls")
+        if isinstance(response.get("createArtifactControls"), list)
         else [],
-        "control_sample": response.get("controlSample")
-        if isinstance(response.get("controlSample"), list)
+        "audio_create_candidates": response.get("audioCreateCandidates")
+        if isinstance(response.get("audioCreateCandidates"), list)
         else [],
-        "region_candidates": response.get("regionCandidates")
-        if isinstance(response.get("regionCandidates"), list)
+        "studio_structure": response.get("studioStructure")
+        if isinstance(response.get("studioStructure"), list)
         else [],
         "raw_dom_exported": False,
         "write_performed": False,

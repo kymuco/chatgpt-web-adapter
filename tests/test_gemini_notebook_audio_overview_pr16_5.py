@@ -37,18 +37,19 @@ class _FakeBridge:
             "sourcePanelFound": True,
             "sourcePickerFound": True,
             "sourceRowCount": 2,
-            "targetControls": [
-                {
-                    "tag": "button",
-                    "className": "example",
-                    "ariaLabel": "Audio Overview",
-                    "text": "Audio Overview",
-                    "icons": ["headphones"],
-                    "ancestors": [],
-                }
-            ],
-            "controlSample": [],
-            "regionCandidates": [],
+            "studioOwnerFound": True,
+            "studioOwner": {
+                "tag": "section",
+                "className": "studio-panel",
+                "role": "",
+                "id": "",
+                "childCount": 1,
+                "buttonCount": 13,
+                "icons": [],
+            },
+            "createArtifactControls": [],
+            "audioCreateCandidates": [],
+            "studioStructure": [],
             "rawDomExported": False,
             "writePerformed": False,
             "navigationPerformed": False,
@@ -74,6 +75,8 @@ def test_audio_overview_probe_contract_is_read_only() -> None:
 
     assert result["notebook_url"] == NOTEBOOK
     assert result["source_row_count"] == 2
+    assert result["studio_owner_found"] is True
+    assert result["studio_owner"]["className"] == "studio-panel"
     assert result["write_performed"] is False
     assert result["navigation_performed"] is False
     assert result["raw_dom_exported"] is False
@@ -127,12 +130,13 @@ def test_audio_overview_worker_probe_is_read_only_and_bounded() -> None:
     assert "XMLHttpRequest" not in probe_expression
     assert "innerHTML" not in probe_expression
     assert "outerHTML" not in probe_expression
-    assert "targetControls.length >= 30" in probe_expression
-    assert "controls.slice(0, 60)" in probe_expression
-    assert "sourcePanel.contains(control)" in probe_expression
-    assert "\"button,[role='button']\"" in probe_expression
-    assert "[aria-label],[title]" not in probe_expression
-    assert ".slice(0, 40)" in probe_expression
+    assert 'document.querySelector("section.studio-panel")' in probe_expression
+    assert 'studio.querySelectorAll("basic-create-artifact-button")' in probe_expression
+    assert 'entry.control.icons.includes("audio_spark")' in probe_expression
+    assert "studio.querySelectorAll(\"*\")" in probe_expression
+    assert ".slice(0, 120)" in probe_expression
+    assert "control.innerText" not in probe_expression
+    assert "control.textContent" not in probe_expression
     assert "rawDomExported: false" in probe_expression
     assert "writePerformed: false" in probe_expression
     assert "navigationPerformed: false" in probe_expression

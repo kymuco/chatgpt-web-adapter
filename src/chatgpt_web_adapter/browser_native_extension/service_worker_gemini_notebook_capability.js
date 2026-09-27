@@ -178,34 +178,16 @@ function _cwaGeminiNotebookAudioOverviewProbeExpression() {
         .slice(0, 5)
         .map((icon) => clip(icon.textContent, 48))
         .filter(Boolean);
-    const descriptor = (element, includeText) => ({
+    const structuralDescriptor = (element) => ({
       tag: String(element?.tagName || "").toLowerCase(),
       id: clip(element?.id || "", 160),
       className: classText(element),
       role: clip(element?.getAttribute?.("role") || "", 48),
-      ariaLabel: clip(element?.getAttribute?.("aria-label") || "", 160),
-      title: clip(element?.getAttribute?.("title") || "", 160),
-      text: includeText ? clip(element?.innerText || element?.textContent || "", 180) : "",
-      disabled:
-        "disabled" in element
-          ? Boolean(element.disabled)
-          : element?.getAttribute?.("aria-disabled") === "true",
+      childCount: element?.children?.length || 0,
+      buttonCount:
+        element?.querySelectorAll?.("button,[role='button']")?.length || 0,
       icons: iconTexts(element)
     });
-    const ancestorPath = (element) => {
-      const result = [];
-      let current = element?.parentElement || null;
-      while (current instanceof Element && result.length < 5) {
-        result.push({
-          tag: String(current.tagName || "").toLowerCase(),
-          id: clip(current.id || "", 120),
-          className: classText(current),
-          role: clip(current.getAttribute("role") || "", 48)
-        });
-        current = current.parentElement;
-      }
-      return result;
-    };
 
     const notebookUrl =
       location.origin + location.pathname.replace(/\\/$/, "");
@@ -216,73 +198,90 @@ function _cwaGeminiNotebookAudioOverviewProbeExpression() {
         ? sourcePicker.querySelectorAll(".single-source-container").length
         : 0;
 
-    const controls = Array.from(
-      document.querySelectorAll("button,[role='button']")
-    ).filter(
-      (control) =>
-        visible(control) &&
-        !(
-          sourcePanel instanceof Element &&
-          sourcePanel.contains(control)
-        )
-    );
-
-    const targetPattern =
-      /(audio|overview|studio|podcast|headphone|listen|generate|аудио|обзор|студи|созд|сгенер)/i;
-    const targetControls = [];
-    for (const control of controls) {
-      const icons = iconTexts(control);
-      const semantic = normalize(
-        [
-          control.id,
-          classText(control),
-          control.getAttribute("role"),
-          control.getAttribute("aria-label"),
-          control.getAttribute("title"),
-          control.innerText,
-          control.textContent,
-          ...icons
-        ].join(" ")
-      );
-      if (!targetPattern.test(semantic)) continue;
-      targetControls.push({
-        ...descriptor(control, true),
-        ancestors: ancestorPath(control)
-      });
-      if (targetControls.length >= 30) break;
+    const studio = document.querySelector("section.studio-panel");
+    if (!(studio instanceof Element) || !visible(studio)) {
+      return {
+        notebookUrl,
+        sourcePanelFound: sourcePanel instanceof Element,
+        sourcePickerFound: sourcePicker instanceof Element,
+        sourceRowCount,
+        studioOwnerFound: false,
+        studioOwner: null,
+        createArtifactControls: [],
+        audioCreateCandidates: [],
+        studioStructure: [],
+        rawDomExported: false,
+        writePerformed: false,
+        navigationPerformed: false
+      };
     }
 
-    const controlSample = controls.slice(0, 60).map((control) => ({
-      ...descriptor(control, false),
-      ancestors: ancestorPath(control).slice(0, 2)
-    }));
-
-    const regionCandidates = Array.from(
-      document.querySelectorAll(
-        "section,aside,[role='region'],[role='complementary']," +
-          "mat-card,mat-expansion-panel"
-      )
+    const createArtifactControls = Array.from(
+      studio.querySelectorAll("basic-create-artifact-button")
     )
-      .filter(visible)
-      .slice(0, 40)
-      .map((region) => ({
-        tag: String(region.tagName || "").toLowerCase(),
-        id: clip(region.id || "", 120),
-        className: classText(region),
-        role: clip(region.getAttribute("role") || "", 48),
-        ariaLabel: clip(region.getAttribute("aria-label") || "", 160),
-        title: clip(region.getAttribute("title") || "", 160),
-        buttonCount: region.querySelectorAll("button,[role='button']").length
-      }));
+      .slice(0, 20)
+      .map((owner) => {
+        const control =
+          owner.querySelector("[role='button']") ||
+          owner.querySelector("button") ||
+          null;
+        const icons = iconTexts(control || owner);
+        return {
+          owner: structuralDescriptor(owner),
+          control:
+            control instanceof Element
+              ? {
+                  tag: String(control.tagName || "").toLowerCase(),
+                  id: clip(control.id || "", 160),
+                  className: classText(control),
+                  role: clip(control.getAttribute("role") || "", 48),
+                  ariaLabel: clip(control.getAttribute("aria-label") || "", 160),
+                  title: clip(control.getAttribute("title") || "", 160),
+                  disabled:
+                    "disabled" in control
+                      ? Boolean(control.disabled)
+                      : control.getAttribute("aria-disabled") === "true",
+                  icons
+                }
+              : null
+        };
+      });
+
+    const audioCreateCandidates = createArtifactControls.filter((entry) =>
+      Array.isArray(entry?.control?.icons) &&
+      entry.control.icons.includes("audio_spark")
+    );
+
+    const studioStructure = Array.from(studio.querySelectorAll("*"))
+      .filter((element) => {
+        if (!visible(element)) return false;
+        const tag = String(element.tagName || "").toLowerCase();
+        const classes = classText(element).toLowerCase();
+        return (
+          tag.includes("studio") ||
+          tag.includes("artifact") ||
+          tag.includes("audio") ||
+          classes.includes("studio") ||
+          classes.includes("artifact") ||
+          classes.includes("audio") ||
+          classes.includes("generate") ||
+          classes.includes("loading") ||
+          classes.includes("progress")
+        );
+      })
+      .slice(0, 120)
+      .map(structuralDescriptor);
 
     return {
       notebookUrl,
       sourcePanelFound: sourcePanel instanceof Element,
       sourcePickerFound: sourcePicker instanceof Element,
       sourceRowCount,
-      targetControls,
-      controlSample,
-      regionCandidates,
+      studioOwnerFound: true,
+      studioOwner: structuralDescriptor(studio),
+      createArtifactControls,
+      audioCreateCandidates,
+      studioStructure,
       rawDomExported: false,
       writePerformed: false,
       navigationPerformed: false
@@ -334,14 +333,19 @@ async function _cwaGeminiNotebookProbeAudioOverview(message) {
       sourceRowCount: Number.isInteger(snapshot?.sourceRowCount)
         ? snapshot.sourceRowCount
         : 0,
-      targetControls: Array.isArray(snapshot?.targetControls)
-        ? snapshot.targetControls
+      studioOwnerFound: snapshot?.studioOwnerFound === true,
+      studioOwner:
+        snapshot?.studioOwner && typeof snapshot.studioOwner === "object"
+          ? snapshot.studioOwner
+          : null,
+      createArtifactControls: Array.isArray(snapshot?.createArtifactControls)
+        ? snapshot.createArtifactControls
         : [],
-      controlSample: Array.isArray(snapshot?.controlSample)
-        ? snapshot.controlSample
+      audioCreateCandidates: Array.isArray(snapshot?.audioCreateCandidates)
+        ? snapshot.audioCreateCandidates
         : [],
-      regionCandidates: Array.isArray(snapshot?.regionCandidates)
-        ? snapshot.regionCandidates
+      studioStructure: Array.isArray(snapshot?.studioStructure)
+        ? snapshot.studioStructure
         : [],
       rawDomExported: false,
       writePerformed: false,
