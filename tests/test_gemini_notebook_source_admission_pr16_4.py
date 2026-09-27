@@ -55,6 +55,12 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
     assert "overlayCandidates" in worker
     assert "element.contains(other)" in worker
     assert "addSourceRouteActive:" in worker
+    assert "disabled:" in worker
+    assert "ariaDisabled:" in worker
+    assert "valuePresent:" in worker
+    assert "valueLength:" in worker
+    assert "element.value" in worker
+    assert "value:" not in worker
     assert "sourcePanelFound:" in worker
     assert "overlayRootCount:" in worker
     assert "readOnly: true" in worker

@@ -67,6 +67,13 @@ function _cwaGeminiNotebookCharacterizationExpression() {
         name: String(element.getAttribute("name") || "").slice(0, 120),
         jsname: element.getAttribute("jsname"),
         dataTestId: element.getAttribute("data-testid"),
+        disabled:
+          "disabled" in element ? Boolean(element.disabled) : null,
+        ariaDisabled: element.getAttribute("aria-disabled"),
+        valuePresent:
+          "value" in element ? String(element.value || "").length > 0 : null,
+        valueLength:
+          "value" in element ? String(element.value || "").length : null,
         text: normalize(element.innerText || element.textContent).slice(0, 420),
         childElementCount: element.childElementCount,
         parentTag: parent ? String(parent.tagName || "").toLowerCase() : null,

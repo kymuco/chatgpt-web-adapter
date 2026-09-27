@@ -198,6 +198,44 @@ user manually clicks Sites
 → inspect direct website/URL admission controls
 ```
 
+
+### Third read-only snapshot: direct URL admission surface
+
+With **Sites** opened manually, the product exposed the direct website/YouTube source
+state while keeping the same `?addSource=true` route.
+
+Observed direct-URL controls:
+
+```text
+textarea
+  aria-label = Enter URL
+  placeholder = Paste links
+
+button
+  text = Add
+  disabled while input is empty
+```
+
+The dialog explicitly states that multiple URLs may be separated by whitespace/newlines,
+but PR16.4 remains intentionally narrower: the candidate public operation is one exact
+web URL at a time.
+
+The current route/query does not distinguish the chooser from the nested Sites state,
+so durable implementation must not use `?addSource=true` alone as source-type identity.
+It needs the product-local URL input plus commit-control structure.
+
+Before crossing the commit boundary, one more read-only transition is required:
+
+```text
+user manually enters one valid test URL
+→ user does not click Add
+→ CWA reads only value presence/length and commit enabled state
+→ no raw entered URL is returned by characterization
+```
+
+The probe therefore records `disabled`, `ariaDisabled`, `valuePresent` and
+`valueLength` for candidate controls without serializing input values.
+
 ## Expected durable contract
 
 The intended operation is:
