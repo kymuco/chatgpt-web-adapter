@@ -355,16 +355,24 @@ Before the source-accepting product action executes:
 ordinary failure may be safe
 ```
 
-Once the source-add action may have executed:
+Because characterization did not isolate the exact durable trigger, the conservative
+potential-effect boundary begins immediately before CWA mutates the direct URL input
+and dispatches product-owned `input` / `change` events.
 
 ```text
-outcome may be durable
+before URL input mutation
+→ ordinary failure may be safe
+
+URL input mutation may execute
+→ durable admission may already have started
 → unknown outcome requires reconciliation
 → no automatic replay
 ```
 
-A timeout or debugger/bridge failure after that boundary must never silently resubmit
-the source.
+A timeout, product error, or debugger/bridge failure after that boundary must never
+silently resubmit the source. A later Add-button failure cannot reset the ambiguity
+marker because the earlier input mutation may already have crossed the product effect
+boundary.
 
 ## Finality
 
@@ -448,9 +456,11 @@ Google source ID.
 The first production add_url_source(...) slice remains product-local and uses the
 shared Browser Authority lane. It targets one exact already-open notebook route,
 snapshots existing source-row refs, follows the observed Add sources -> Sites -> URL
-path, and crosses an explicit commitment boundary only around the product Add action.
-Any failure after that action may have executed requires reconciliation and never
-authorizes blind automatic replay.
+path. Because the exact product commitment trigger was not isolated, the production
+worker now crosses its conservative potential-effect boundary immediately before
+mutating the direct URL input / dispatching input and change events. Any later failure
+requires reconciliation and never authorizes blind automatic replay, even if the
+subsequent explicit Add click is not observed.
 
 The temporary characterization CLI and live gate were removed after the automated live
 PASS. The production capability remains module-only and experimental.

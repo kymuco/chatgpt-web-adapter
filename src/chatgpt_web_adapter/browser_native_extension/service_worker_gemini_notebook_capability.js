@@ -558,7 +558,7 @@ async function _cwaGeminiNotebookAddUrlSource(message) {
   const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
   const debuggee = { tabId: tab.id };
   let attached = false;
-  let commitMayHaveExecuted = false;
+  let sourceAdmissionMayHaveExecuted = false;
 
   try {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
@@ -622,6 +622,7 @@ async function _cwaGeminiNotebookAddUrlSource(message) {
       );
     }
 
+    sourceAdmissionMayHaveExecuted = true;
     const written = await _cwaGeminiNotebookMutationEvaluate(
       debuggee,
       _cwaGeminiNotebookUrlInputExpression(sourceUrl, true)
@@ -639,13 +640,11 @@ async function _cwaGeminiNotebookAddUrlSource(message) {
       deadlineAt
     );
 
-    commitMayHaveExecuted = true;
     const committed = await _cwaGeminiNotebookMutationEvaluate(
       debuggee,
       _cwaGeminiNotebookCommitExpression(sourceUrl)
     );
     if (committed?.clicked !== true) {
-      commitMayHaveExecuted = false;
       throw new Error(
         "GEMINI_NOTEBOOK_URL_SOURCE_COMMIT_FAILED:" +
           String(committed?.reason || "UNKNOWN")
@@ -676,7 +675,7 @@ async function _cwaGeminiNotebookAddUrlSource(message) {
       automaticRetry: false
     };
   } catch (error) {
-    if (commitMayHaveExecuted) {
+    if (sourceAdmissionMayHaveExecuted) {
       throw _cwaGeminiNotebookAmbiguousError(error);
     }
     throw error;

@@ -211,8 +211,15 @@ def test_gemini_notebook_worker_freezes_commit_and_reconciliation() -> None:
     assert 'querySelectorAll(".single-source-container")' in worker
     assert "source-item-more-button-" in worker
     assert "preRefs" in worker
-    assert "commitMayHaveExecuted = true" in worker
-    assert "commitMayHaveExecuted = false" in worker
+    assert "let sourceAdmissionMayHaveExecuted = false;" in worker
+    effect_boundary = worker.index("sourceAdmissionMayHaveExecuted = true;")
+    input_mutation = worker.index(
+        "_cwaGeminiNotebookUrlInputExpression(sourceUrl, true)"
+    )
+    assert effect_boundary < input_mutation
+    assert worker.count("sourceAdmissionMayHaveExecuted = false") == 1
+    assert "commitMayHaveExecuted" not in worker
+    assert "if (sourceAdmissionMayHaveExecuted)" in worker
     assert "_cwaGeminiNotebookAmbiguousError(error)" in worker
     assert "MULTIPLE_NEW_SOURCE_ROWS" in worker
     assert "POSTCOMMIT_ROW_IDENTITY_UNRESOLVED" in worker
