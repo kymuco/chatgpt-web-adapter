@@ -75,6 +75,9 @@ class _FakeBridge:
 
 def test_audio_overview_is_module_only_experimental_capability() -> None:
     assert GEMINI_NOTEBOOK_AUDIO_OVERVIEW_CAPABILITY_ID == "generate_audio_overview"
+    assert GEMINI_NOTEBOOK_OBSERVE_AUDIO_OVERVIEW_OPERATION == (
+        "gemini_notebook_observe_audio_overview"
+    )
     assert not hasattr(adapter, "GeminiNotebookWebCapability")
 
 
@@ -165,9 +168,7 @@ def test_generate_effect_boundary_is_final_action_only() -> None:
     )
     generate = worker.split(
         "async function _cwaGeminiNotebookGenerateAudioOverview(message)", 1
-    )[1].split(
-        "async function _cwaGeminiNotebookObserveAudioOverview(message)", 1
-    )[0]
+    )[1].split("async function _cwaGeminiNotebookObserveAudioOverview(message)", 1)[0]
     assert "_cwaGeminiNotebookWaitForAudioConfig(debuggee, deadlineAt)" in generate
     boundary = generate.index("generationCommitMayHaveExecuted = true;")
     commit = generate.index("_cwaGeminiNotebookClickAudioGenerateNowExpression()")
@@ -183,9 +184,7 @@ def test_generate_identity_is_structural_and_nonlocalized() -> None:
     )
     click = worker.split(
         "function _cwaGeminiNotebookClickAudioGenerateNowExpression()", 1
-    )[1].split(
-        "async function _cwaGeminiNotebookWaitForAudioConfig", 1
-    )[0]
+    )[1].split("async function _cwaGeminiNotebookWaitForAudioConfig", 1)[0]
     assert "audio_magic_eraser" in click
     assert ".mat-mdc-dialog-actions" in click
     assert 'button.classList.contains("mat-tonal-button")' in click
@@ -200,9 +199,7 @@ def test_observation_requires_same_ref_after_reload_for_completion() -> None:
     )
     observe = worker.split(
         "async function _cwaGeminiNotebookObserveAudioOverview(message)", 1
-    )[1].split(
-        "function _cwaGeminiNotebookClickAddSourceExpression()", 1
-    )[0]
+    )[1].split("function _cwaGeminiNotebookClickAddSourceExpression()", 1)[0]
     assert "_cwaGeminiNotebookWaitForStableAudioArtifact(" in observe
     assert "_cwaGeminiNotebookReloadExactNotebookTab(" in observe
     assert "PENDING_CANDIDATE" in observe

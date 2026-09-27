@@ -315,7 +315,6 @@ class GeminiNotebookWebCapability:
             automatic_retry=False,
         )
 
-
     def generate_audio_overview(
         self,
         *,
@@ -376,13 +375,17 @@ class GeminiNotebookWebCapability:
         if response.get("notebookUrl") != notebook_url:
             raise RequestError("GEMINI_NOTEBOOK_FINAL_NOTEBOOK_IDENTITY_MISMATCH")
         if response.get("generationCommitMayHaveExecuted") is not True:
-            raise RequestError("GEMINI_NOTEBOOK_AUDIO_GENERATION_EFFECT_BOUNDARY_UNPROVEN")
+            raise RequestError(
+                "GEMINI_NOTEBOOK_AUDIO_GENERATION_EFFECT_BOUNDARY_UNPROVEN"
+            )
         if response.get("generationAcceptedProven") is not True:
             raise RequestError("GEMINI_NOTEBOOK_AUDIO_GENERATION_ACCEPTANCE_UNPROVEN")
         if response.get("startEvidence") != GEMINI_NOTEBOOK_AUDIO_ACCEPTED_EVIDENCE:
             raise RequestError("GEMINI_NOTEBOOK_AUDIO_START_EVIDENCE_INVALID")
         if response.get("canonicalCompletionProven") is not False:
-            raise RequestError("GEMINI_NOTEBOOK_CANONICAL_COMPLETION_MUST_REMAIN_UNPROVEN")
+            raise RequestError(
+                "GEMINI_NOTEBOOK_CANONICAL_COMPLETION_MUST_REMAIN_UNPROVEN"
+            )
         if response.get("automaticRetry") is not False:
             raise RequestError("GEMINI_NOTEBOOK_AUTOMATIC_RETRY_FORBIDDEN")
 
@@ -454,7 +457,9 @@ class GeminiNotebookWebCapability:
         if response.get("observedArtifactRef") != observed_ref:
             raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_REF_MISMATCH")
         if response.get("canonicalCompletionProven") is not False:
-            raise RequestError("GEMINI_NOTEBOOK_CANONICAL_COMPLETION_MUST_REMAIN_UNPROVEN")
+            raise RequestError(
+                "GEMINI_NOTEBOOK_CANONICAL_COMPLETION_MUST_REMAIN_UNPROVEN"
+            )
         if response.get("automaticRetry") is not False:
             raise RequestError("GEMINI_NOTEBOOK_AUTOMATIC_RETRY_FORBIDDEN")
         if response.get("writePerformed") is not False:
