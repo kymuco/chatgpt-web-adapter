@@ -64,6 +64,30 @@ def translate_text(text: str, source: str, target: str) -> str:
 
 The translation surface is experimental and page-finality is noncanonical.
 
+## Python tool wrapper - Gemini Notebook Audio Overview
+
+```python
+from chatgpt_web_adapter.gemini_notebook_web import GeminiNotebookWebCapability
+
+notebook = GeminiNotebookWebCapability()
+
+started = notebook.generate_audio_overview(
+    notebook="https://notebook.google.com/notebook/<id>",
+)
+
+observation = notebook.observe_audio_overview(
+    notebook=started.notebook_url,
+    observed_artifact_ref=started.observed_artifact_ref,
+)
+```
+
+`generate_audio_overview(...)` returns after the background artifact is durably
+accepted; it does not keep one browser turn open until media completion.
+`observe_audio_overview(...)` is a separate re-entry operation. Pending observation
+does not reload the page. Completed finality is reported only after the same observed
+artifact ref survives one ordinary reload. Ambiguous generation never authorizes blind
+replay.
+
 ## CLI tool wrapper
 
 For a minimal local agent that can launch subprocesses:

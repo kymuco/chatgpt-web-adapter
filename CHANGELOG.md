@@ -6,6 +6,8 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- Gemini Notebook Web: add experimental module-only default Audio Overview generation as a re-enterable background-artifact lifecycle; generation returns after stable artifact acceptance, exact artifact observation remains read-only while pending, completed finality requires the same observed artifact ref to survive ordinary reload, and ambiguous generation is never automatically replayed
+
 - Gemini Notebook Web: add experimental module-only `add_url_source` for one exact already-open consumer notebook; live-proven durable source admission uses page-owned row reconciliation, a conservative potential-effect boundary before URL input mutation, and no automatic retry without introducing a generic hosted-capability runtime
 - adoption/discoverability: add a first-time quickstart, cross-product capability map, local-agent integration guide, hosted-capability contribution workflow, root `llms.txt`, Google Translate example, and broader package discovery metadata without changing runtime authority or support tiers
 - connectors / required actions: add post-0.3 typed connector and required-action lifecycle observations that require explicit stable product identity/correlation; authenticated product evidence proves required-action point observation while the combined `tools_connectors` capability remains `UNKNOWN`

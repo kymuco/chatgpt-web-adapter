@@ -547,3 +547,94 @@ accepted pending artifact ref
 → same exact ref observed again
 → only then decide whether durable completion finality is supportable
 ```
+
+
+## Durable completion result — same artifact survives ordinary reload
+
+The accepted artifact later transitioned from:
+
+```text
+observed ref = 261a5005-1c03-44d7-9aa9-ecfb5bcef8f2
+progress_activity
+artifact action disabled
+PENDING_CANDIDATE
+```
+
+to:
+
+```text
+same observed ref
+audio_spark + play_arrow + more_vert
+artifact action enabled
+NON_PENDING_CANDIDATE
+```
+
+The non-pending signature remained stable for more than one second.
+
+After an ordinary notebook reload, the same exact observed artifact ref remained
+present with the same non-pending signature and enabled action. The row no longer
+carried the pending/entering shimmer class.
+
+This closes the live evidence chain:
+
+```text
+default generation commit
+→ durable pending artifact
+→ same exact observed artifact ref
+→ stable non-pending candidate
+→ ordinary reload
+→ same exact ref survives
+→ same non-pending state survives
+```
+
+The supported noncanonical completion finality is:
+
+```text
+PAGE_DOM_DURABLE_BACKGROUND_ARTIFACT_COMPLETION
+canonicalCompletionProven = false
+automaticRetry = false
+```
+
+The `artifact-labels-<ref>` suffix remains product-observed DOM identity, not an
+official Google API artifact id.
+
+## Production closure
+
+PR16.5 closes with a deliberately re-enterable two-phase surface:
+
+```python
+started = capability.generate_audio_overview(notebook=...)
+observation = capability.observe_audio_overview(
+    notebook=started.notebook_url,
+    observed_artifact_ref=started.observed_artifact_ref,
+)
+```
+
+`generate_audio_overview(...)`:
+
+- currently requires an empty Audio artifact library;
+- opens the proven `audio_spark` Studio tile;
+- waits for the proven Audio configuration owner;
+- leaves configuration choices untouched;
+- sets the ambiguity boundary immediately before the exact structural
+  `button.mat-tonal-button` generation commit;
+- clicks exactly once;
+- returns after one stable product-observed artifact ref is accepted;
+- never automatically replays an ambiguous generation.
+
+`observe_audio_overview(...)`:
+
+- binds to one exact observed artifact ref;
+- performs no product write;
+- returns `PENDING` without navigation while the pending signature is stable;
+- when a stable non-pending candidate appears, performs one ordinary browser reload;
+- returns `COMPLETED` only if the same exact ref is again stable and non-pending;
+- never claims canonical completion.
+
+Temporary characterization Python modules, Native Messaging probe operations, and
+focused probe tests are removed at closure. Their evidence remains in this record and
+repository history.
+
+This is the third qualitatively different non-chat proof. It still does **not** promote
+a generic `HostedCapabilityRuntime`, capability factory, or universal operation
+schema.

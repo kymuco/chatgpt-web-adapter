@@ -40,7 +40,7 @@ Current proven product surfaces include:
 - **DeepSeek Web** — experimental text new-chat + continuation;
 - **Gemini Web** — experimental text new-chat + continuation;
 - **Google Translate Web** — experimental non-chat `translate_text` capability;
-- **Gemini Notebook Web** — experimental persistent-workspace `add_url_source` capability.
+- **Gemini Notebook Web** — experimental persistent-workspace `add_url_source` and background `generate_audio_overview` capabilities.
 
 The Google Translate and Gemini Notebook proofs are intentionally separate from the
 conversation-shaped provider contract. See [docs/capabilities.md](docs/capabilities.md).

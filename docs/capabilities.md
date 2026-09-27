@@ -17,6 +17,7 @@ particular runtime instance.
 | Gemini Web | text new chat + continuation | Experimental | `GeminiWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
 | Google Translate Web | text translation | Experimental | `GoogleTranslateWebCapability` module-only | `PAGE_DOM_STABLE_TRANSLATION`, noncanonical |
 | Gemini Notebook Web | add web URL source | Experimental | `GeminiNotebookWebCapability` module-only | `PAGE_DOM_DURABLE_SOURCE_ADMISSION`, noncanonical |
+| Gemini Notebook Web | generate + observe Audio Overview | Experimental | `GeminiNotebookWebCapability` module-only | background acceptance, then `PAGE_DOM_DURABLE_BACKGROUND_ARTIFACT_COMPLETION` after reload verification; noncanonical |
 
 ## Three capability families currently proven
 
@@ -58,10 +59,27 @@ Its result is persistent hosted workspace state, not a chat turn and not a state
 transform. Finality is proven from one new stable product-owned source-row reference
 in the same notebook. Checkbox selection state is explicitly not admission identity.
 
-One proof is not enough to justify a generic `HostedCapabilityRuntime`, public
-capability factory, or universal operation schema. PR16.4 now provides a second,
-qualitatively different non-chat proof, and two proofs are still not enough to promote
-that abstraction.
+PR16.5 adds a third non-chat lifecycle:
+
+```text
+existing owned notebook
+-> default Audio Overview generation commit
+-> durable pending background artifact
+-> re-enterable read-only observation
+-> stable non-pending artifact
+-> ordinary reload
+-> same exact observed artifact ref
+```
+
+Generation returns after durable background acceptance rather than holding one browser
+turn open until media completion. `observe_audio_overview(...)` is the read-only
+re-entry surface; it reports pending without navigation and proves completed finality
+only after the same exact product-observed artifact ref survives one ordinary reload.
+
+Translate, durable source admission, and background artifact generation now provide
+three qualitatively different non-chat proofs. That is still not enough evidence to
+promote a generic `HostedCapabilityRuntime`, capability factory, or universal
+operation schema; the product-specific contracts remain explicit.
 
 ## Support vocabulary
 
@@ -108,7 +126,6 @@ Future non-chat experiments may explore additional classes such as:
 - grounded research workspaces;
 - OCR / visual extraction;
 - hosted media transformation;
-- long-running generated artifacts.
 
 Those are research directions, not current capability claims.
 
