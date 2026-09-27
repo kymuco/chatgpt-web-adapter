@@ -296,6 +296,44 @@ href paths/query strings or input values. The purpose is to determine whether a
 persisted source row exposes a stable identity that can reconcile one exact URL
 admission after an ambiguous post-commit failure.
 
+
+### Persisted source-row structure observed
+
+The bounded source-picker snapshot exposed a concrete persisted row:
+
+```text
+.single-source-container
+  → button.source-stretched-button
+      aria-label = Example Domain
+  → .source-title
+      text / aria-label = Example Domain
+  → input[type=checkbox]
+      selection semantics only
+  → #source-item-more-button-<opaque-ref>
+```
+
+No href/origin is exposed by the row itself. The opaque suffix on the per-source
+more-menu control is therefore treated only as an **observed row reference**; PR16.4
+does not assume that it is an official Google source ID.
+
+The generic 55-element `source_surface_candidates` probe has now served its purpose
+and is removed. Characterization emits only a compact `source_rows` read model:
+
+```text
+title
+row class
+title class
+stretched-button presence
+selected
+observed row ref presence
+observed row ref
+```
+
+The final characterization check is persistence across an ordinary page reload. If the
+same source row and opaque observed row reference survive reload, the implementation
+can use pre/post source-row snapshots for reconciliation without relying on checkbox
+state, DOM position, or localized source-panel text.
+
 ## Expected durable contract
 
 The intended operation is:

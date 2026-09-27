@@ -67,12 +67,18 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
     assert "checkboxCount:" in worker
     assert "buttonCount:" in worker
     assert "rect.width > 760" in worker
-    assert "sourceSurfaceCandidates" in worker
-    assert "sourceSurfaceCandidateCount:" in worker
-    assert "hrefOrigin" in worker
-    assert "hrefPresent:" in worker
-    assert "ariaChecked:" in worker
-    assert "href:" not in worker
+    assert 'querySelectorAll(".single-source-container")' in worker
+    assert 'querySelector(".source-title")' in worker
+    assert 'querySelector(".source-stretched-button")' in worker
+    assert 'querySelector("input[type=\'checkbox\']")' in worker
+    assert '"[id^=\'source-item-more-button-\']"' in worker
+    assert 'const observedRowRefPrefix = "source-item-more-button-";' in worker
+    assert "observedRowRefPresent:" in worker
+    assert "observedRowRef" in worker
+    assert "sourceRowCount:" in worker
+    assert "sourceRows" in worker
+    assert "hrefOrigin" not in worker
+    assert "sourceSurfaceCandidates" not in worker
     assert "sourcePanelFound:" in worker
     assert "overlayRootCount:" in worker
     assert "readOnly: true" in worker
@@ -124,8 +130,10 @@ def test_gemini_notebook_characterization_cli_does_not_mutate_product() -> None:
     assert '"source_panel_class"' in script
     assert '"source_picker_found"' in script
     assert '"source_ancestor_path"' in script
-    assert '"source_surface_candidate_count"' in script
-    assert '"source_surface_candidates"' in script
+    assert '"source_row_count"' in script
+    assert '"source_rows"' in script
+    assert '"source_surface_candidate_count"' not in script
+    assert '"source_surface_candidates"' not in script
     assert '"overlay_root_count"' in script
     assert "add_url_source" not in script
     assert "translate_text" not in script

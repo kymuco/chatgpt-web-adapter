@@ -121,80 +121,45 @@ function _cwaGeminiNotebookCharacterizationExpression() {
       sourceAncestor = sourceAncestor.parentElement;
     }
 
-    const sourceSurfaceCandidates = [];
+    const sourceRows = [];
     if (sourcePicker instanceof Element) {
-      for (const element of sourcePicker.querySelectorAll("*")) {
-        if (sourceSurfaceCandidates.length >= 80) break;
-        if (!visible(element)) continue;
-        const rect = element.getBoundingClientRect();
-        if (
-          rect.width < 20 ||
-          rect.height < 12 ||
-          rect.height > 140 ||
-          rect.width > 520
-        ) {
-          continue;
-        }
+      for (const row of sourcePicker.querySelectorAll(".single-source-container")) {
+        if (sourceRows.length >= 100) break;
+        if (!visible(row)) continue;
 
-        const text = normalize(element.innerText || element.textContent);
-        const aria = normalize(element.getAttribute("aria-label"));
-        const title = normalize(element.getAttribute("title"));
-        const className = String(element.className || "");
-        const role = element.getAttribute("role");
-        const tag = String(element.tagName || "").toLowerCase();
-        const href = element.getAttribute("href");
+        const titleElement =
+          row.querySelector(".source-title") ||
+          row.querySelector(".source-stretched-button");
+        const stretchedButton = row.querySelector(".source-stretched-button");
+        const checkbox = row.querySelector("input[type='checkbox']");
+        const moreButton = row.querySelector(
+          "[id^='source-item-more-button-']"
+        );
+        const moreButtonId = String(moreButton?.id || "");
+        const observedRowRefPrefix = "source-item-more-button-";
+        const observedRowRef = moreButtonId.startsWith(observedRowRefPrefix)
+          ? moreButtonId.slice(observedRowRefPrefix.length)
+          : null;
+        const title = normalize(
+          titleElement?.getAttribute("aria-label") ||
+            titleElement?.innerText ||
+            titleElement?.textContent ||
+            stretchedButton?.getAttribute("aria-label") ||
+            ""
+        );
 
-        if (
-          !text &&
-          !aria &&
-          !title &&
-          !href &&
-          role !== "checkbox" &&
-          tag !== "input"
-        ) {
-          continue;
-        }
-        if (
-          element.childElementCount > 8 &&
-          text.length > 220 &&
-          !className.toLowerCase().includes("source")
-        ) {
-          continue;
-        }
-
-        let hrefOrigin = null;
-        if (href) {
-          try {
-            hrefOrigin = new URL(href, location.href).origin;
-          } catch {
-            hrefOrigin = null;
-          }
-        }
-
-        sourceSurfaceCandidates.push({
-          index: sourceSurfaceCandidates.length,
-          tag,
-          className: className.slice(0, 220),
-          role,
-          ariaLabel: aria.slice(0, 220),
+        sourceRows.push({
+          index: sourceRows.length,
           title: title.slice(0, 220),
-          text: text.slice(0, 220),
-          checked:
-            "checked" in element ? Boolean(element.checked) : null,
-          ariaChecked: element.getAttribute("aria-checked"),
-          hrefPresent: Boolean(href),
-          hrefOrigin,
-          childElementCount: element.childElementCount,
-          parentTag: element.parentElement
-            ? String(element.parentElement.tagName || "").toLowerCase()
+          rowClass: String(row.className || "").slice(0, 220),
+          titleClass: titleElement
+            ? String(titleElement.className || "").slice(0, 220)
             : null,
-          parentClass: element.parentElement
-            ? String(element.parentElement.className || "").slice(0, 180)
-            : null,
-          left: Math.round(rect.left),
-          top: Math.round(rect.top),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height)
+          stretchedButtonPresent: stretchedButton instanceof Element,
+          selected:
+            checkbox && "checked" in checkbox ? Boolean(checkbox.checked) : null,
+          observedRowRefPresent: Boolean(observedRowRef),
+          observedRowRef
         });
       }
     }
@@ -294,8 +259,8 @@ function _cwaGeminiNotebookCharacterizationExpression() {
           : null,
       sourcePickerFound: sourcePicker instanceof Element,
       sourceAncestorPath,
-      sourceSurfaceCandidateCount: sourceSurfaceCandidates.length,
-      sourceSurfaceCandidates,
+      sourceRowCount: sourceRows.length,
+      sourceRows,
       overlayRootCount: overlayRoots.length,
       bodyText: scopedText,
       headingCount: headings.length,
