@@ -217,10 +217,15 @@ function _cwaGeminiNotebookAudioOverviewProbeExpression() {
         : 0;
 
     const controls = Array.from(
-      document.querySelectorAll(
-        "button,[role='button'],[aria-label],[title]"
-      )
-    ).filter(visible);
+      document.querySelectorAll("button,[role='button']")
+    ).filter(
+      (control) =>
+        visible(control) &&
+        !(
+          sourcePanel instanceof Element &&
+          sourcePanel.contains(control)
+        )
+    );
 
     const targetPattern =
       /(audio|overview|studio|podcast|headphone|listen|generate|аудио|обзор|студи|созд|сгенер)/i;

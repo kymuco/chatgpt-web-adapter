@@ -89,7 +89,9 @@ Target controls:
 
 Fallback control sample:
 
-- at most 60 visible controls;
+- at most 60 visible button / button-role controls;
+- controls inside `section.source-panel` are excluded so source titles cannot leak
+  through per-source aria labels;
 - tag/id/class/role/aria/title/icon structure only;
 - text is deliberately omitted.
 
