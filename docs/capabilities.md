@@ -58,8 +58,10 @@ Its result is persistent hosted workspace state, not a chat turn and not a state
 transform. Finality is proven from one new stable product-owned source-row reference
 in the same notebook. Checkbox selection state is explicitly not admission identity.
 
-These two non-chat proofs are still not enough to justify a generic
-`HostedCapabilityRuntime`, public capability factory, or universal operation schema.
+One proof is not enough to justify a generic `HostedCapabilityRuntime`, public
+capability factory, or universal operation schema. PR16.4 now provides a second,
+qualitatively different non-chat proof, and two proofs are still not enough to promote
+that abstraction.
 
 ## Support vocabulary
 
