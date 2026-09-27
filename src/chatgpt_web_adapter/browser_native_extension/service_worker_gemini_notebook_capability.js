@@ -263,7 +263,7 @@ function _cwaGeminiNotebookAudioArtifactActionProbeExpression(
 ) {
   const encodedArtifactRef = JSON.stringify(expectedArtifactRef);
   return `(() => {
-    const expectedArtifactRef = \${encodedArtifactRef};
+    const expectedArtifactRef = ${encodedArtifactRef};
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
