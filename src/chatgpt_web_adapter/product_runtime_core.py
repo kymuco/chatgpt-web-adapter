@@ -7,7 +7,10 @@ from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE
 from .client import DEFAULT_TIMEOUT_SECONDS, ChatGPTWebClient
-from .product_capabilities import ProductCapabilities
+from .product_capabilities import (
+    ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+    ProductCapabilities,
+)
 from .product_media import browser_owned_media_scope
 from .product_provenance import (
     CompletionSource,
@@ -571,11 +574,16 @@ class ChatGPTProductRuntime:
         if mode == _NORMAL_CONVERSATION_MODE:
             expected_mode = _normal_conversation_mode_provenance()
             if provenance is None:
+                provenance_governance = dict(self.write_transport.governance())
+                provenance_governance.setdefault(
+                    "product_semantics",
+                    ORDINARY_CHATGPT_PRODUCT_SEMANTICS,
+                )
                 provenance = build_product_execution_provenance(
                     transport=self.transport,
                     response=execution.response,
                     observation=execution.observation,
-                    governance=self.write_transport.governance(),
+                    governance=provenance_governance,
                     conversation_mode=expected_mode,
                 )
             elif not isinstance(provenance, ProductExecutionProvenance):

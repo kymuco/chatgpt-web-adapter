@@ -1,0 +1,44 @@
+# CWA - chatgpt-web-adapter
+
+> CWA is a local product-runtime bridge for authenticated consumer AI web products. It lets local applications and agents use evidence-backed hosted product capabilities while keeping observation, write authority, retry authority, and finality separate.
+
+## Start
+
+- [Project overview](https://github.com/kymuco/chatgpt-web-adapter/blob/main/README.md)
+- [Quickstart](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/quickstart.md)
+- [Capability map](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/capabilities.md)
+- [Provider matrix](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/providers.md)
+- [Agent integration](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/agent_integration.md)
+- [Architecture](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/architecture.md)
+- [Security](https://github.com/kymuco/chatgpt-web-adapter/blob/main/SECURITY.md)
+
+## Current proven product surfaces
+
+- ChatGPT: production/default conversational runtime; text, continuation, proven rich input and structured product observations; canonical readback where required.
+- DeepSeek Web: experimental module-only text new-chat and continuation; page-DOM stable noncanonical completion.
+- Gemini Web: experimental module-only text new-chat and continuation; page-DOM stable noncanonical completion.
+- Google Translate Web: experimental module-only text translation; PAGE_DOM_STABLE_TRANSLATION; no conversation identity.
+
+## Integration
+
+- Python package: chatgpt-web-adapter
+- Python import: chatgpt_web_adapter
+- CLI: cwa / chatgpt-web-adapter
+- Python 3.10-3.14
+- Browser-owned execution is the reference/default strategy for ordinary consumer web products.
+- MCP adapter: planned direction, not currently shipped.
+
+## Important invariants
+
+- Product observation is not product approval.
+- Capability availability is not caller authorization.
+- Incremental output is not canonical finality.
+- Ambiguous product writes are not automatically retried.
+- CWA is not an official API client for OpenAI, Google, or DeepSeek.
+- Product-specific browser mechanics stay below public runtime contracts.
+
+## Contributing
+
+- [Contributing](https://github.com/kymuco/chatgpt-web-adapter/blob/main/CONTRIBUTING.md)
+- [Adding a hosted capability](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/adding_capability.md)
+- [Issues](https://github.com/kymuco/chatgpt-web-adapter/issues)

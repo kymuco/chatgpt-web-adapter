@@ -1,6 +1,6 @@
 # Security
 
-`chatgpt-web-adapter` (CWA) works with an existing authenticated `chatgpt.com` session and, on the current production write path, a high-trust local Chrome extension / Native Messaging bridge. Treat all session, browser and product-capability material accordingly.
+`chatgpt-web-adapter` (CWA) works with authenticated consumer AI web-product sessions and a high-trust local Chrome extension / Native Messaging bridge. ChatGPT is the current production/default provider; DeepSeek Web and Gemini Web are experimental providers on current `main`. Treat all provider-session, browser and product-capability material accordingly.
 
 ## Sensitive material
 
@@ -8,8 +8,8 @@ The following must be treated as secrets or high-sensitivity local data:
 
 - `auth_data.json` and equivalent reusable auth/session stores;
 - access, refresh and session tokens;
-- ChatGPT session cookies;
-- the persistent signed-in Chromium profile;
+- provider session cookies and equivalent authenticated browser state;
+- persistent signed-in Chromium profiles used by supported providers;
 - Native Messaging runtime descriptors and per-process bridge tokens;
 - Sentinel, Turnstile, proof and conduit credentials/tokens;
 - authorization headers and copied request headers;
@@ -36,15 +36,15 @@ Do not commit, attach to public issues, or paste into public PRs:
 
 Use local-only directories and repository-local exclusions such as `.git/info/exclude` for temporary traffic/debug material.
 
-## Production browser-owned bridge
+## Browser-owned bridge
 
-The production protected-write transport is `browser-owned`.
+The production ChatGPT protected-write transport is `browser-owned`. Current experimental DeepSeek/Gemini provider proofs also use the same local browser bridge with provider-specific page semantics.
 
-The browser-native extension has Chrome's high-trust `debugger` permission. Load only the extension shipped with this package/source tree and treat changes to extension/service-worker/Native Messaging code as security-sensitive product-runtime changes.
+The browser-native extension has Chrome's high-trust `debugger` permission. Load only the extension shipped with this package/source tree and treat changes to extension/service-worker/Native Messaging/provider code as security-sensitive product-runtime changes.
 
 The local broker binds to loopback and authenticates SDK-facing requests with a random per-process token stored in local state. That token is not sent to `chatgpt.com`.
 
-The extension/native bridge is designed not to return cookies, authorization headers, Sentinel credentials, Turnstile state, raw conversation SSE, or arbitrary page state through its ordinary SDK-facing contract.
+The extension/native bridge is designed not to return provider cookies, authorization headers, Sentinel/Turnstile material, raw conversation streams, arbitrary page state, or equivalent provider credentials through its ordinary SDK-facing contract.
 
 ## Product observation privacy
 
@@ -84,7 +84,7 @@ See [`docs/generated_artifact_handoff_pr10_1.md`](docs/generated_artifact_handof
 
 ## Challenge and anti-abuse boundary
 
-CWA does not provide or seek to provide:
+This boundary applies across providers. CWA does not provide or seek to provide:
 
 - Turnstile solving;
 - proof-token synthesis;
@@ -92,11 +92,11 @@ CWA does not provide or seek to provide:
 - replay-oriented protection credential machinery;
 - an alternative username/password authentication protocol.
 
-The experimental `browserless-request` transport fails closed when current product protections require evidence that CWA cannot legitimately provide. It does not silently fall back to another write transport.
+The experimental ChatGPT `browserless-request` transport fails closed when current product protections require evidence that CWA cannot legitimately provide. It does not silently fall back to another write transport or provider.
 
 ## Session and profile safety
 
-The SDK uses the normal ChatGPT login page for interactive authentication. Protect the persistent browser profile like any other signed-in browser profile.
+For ChatGPT's stable authentication workflow, the SDK uses the normal ChatGPT login page. Experimental page-owned providers rely on the corresponding product already being authenticated in the browser profile. Protect every persistent provider profile like any other signed-in browser profile.
 
 A copied `auth_data.json` is sensitive even when it is insufficient by itself to reproduce a complete signed-in environment. Do not use that uncertainty as a reason to handle it less carefully.
 

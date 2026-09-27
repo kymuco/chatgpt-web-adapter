@@ -132,3 +132,16 @@ No images, files, tools/connectors, account pooling, model-profile abstraction o
 generic provider registry should be added until this two-provider proof is green.
 
 Tracking: #107
+
+
+## PR15.53 second-provider correction
+
+The first real DeepSeek Web implementation falsifies one PR15.52 assumption:
+`CanonicalConversationClient` is not a universal provider requirement. PR15.53
+advances `ProductProviderBoundary` to schema 2: canonical readback is explicit
+and conditional. ChatGPT retains `CanonicalConversationClient` with
+`canonical_readback_required=true`; DeepSeek Web uses page-owned completion
+evidence with `canonical_readback_required=false` and `canonical_interface=None`.
+The shared invariants around provider/transport identity, capabilities/provenance,
+no automatic retry, no fallback, reconciliation, and non-canonical incremental
+observation remain unchanged.

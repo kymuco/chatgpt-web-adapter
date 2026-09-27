@@ -1,0 +1,387 @@
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import pytest
+
+import chatgpt_web_adapter as adapter
+from chatgpt_web_adapter.browser_native_provider import BrowserNativeBridgeStatus
+from chatgpt_web_adapter.exceptions import RequestError
+from chatgpt_web_adapter.google_translate_web import (
+    GOOGLE_TRANSLATE_TEXT_CAPABILITY_ID,
+    GOOGLE_TRANSLATE_WEB_FINALITY,
+    GOOGLE_TRANSLATE_WEB_PRODUCT_ID,
+    GOOGLE_TRANSLATE_WEB_SUPPORT_TIER,
+    GoogleTranslateOutcomeAmbiguousError,
+    GoogleTranslateWebCapability,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
+
+
+class _FakeBridge:
+    def __init__(self) -> None:
+        self.requests: list[dict[str, object]] = []
+        self.rpc_options: list[dict[str, object]] = []
+
+    def status(self) -> BrowserNativeBridgeStatus:
+        return BrowserNativeBridgeStatus(
+            available=True,
+            extension_connected=True,
+        )
+
+    def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
+        self.requests.append(dict(payload))
+        self.rpc_options.append({"timeout": timeout, **kwargs})
+        return {
+            "protocol": 1,
+            "type": "translate_text_result",
+            "request_id": payload["request_id"],
+            "ok": True,
+            "productId": GOOGLE_TRANSLATE_WEB_PRODUCT_ID,
+            "capabilityId": GOOGLE_TRANSLATE_TEXT_CAPABILITY_ID,
+            "translatedText": "Hola",
+            "sourceLanguage": payload["sourceLanguage"],
+            "targetLanguage": payload["targetLanguage"],
+            "finalUrl": "https://translate.google.com/?sl=en&tl=es&op=translate",
+            "tabId": 17,
+            "elapsedMs": 321,
+            "finalityEvidence": GOOGLE_TRANSLATE_WEB_FINALITY,
+            "canonicalCompletionProven": False,
+            "automaticRetry": False,
+        }
+
+
+def test_google_translate_capability_is_non_chat_module_only() -> None:
+    assert GOOGLE_TRANSLATE_WEB_SUPPORT_TIER == "EXPERIMENTAL"
+    assert GOOGLE_TRANSLATE_WEB_PRODUCT_ID == "google-translate-web"
+    assert GOOGLE_TRANSLATE_TEXT_CAPABILITY_ID == "translate_text"
+    assert not hasattr(adapter, "GoogleTranslateWebCapability")
+
+
+def test_google_translate_text_contract_has_no_conversation_identity() -> None:
+    bridge = _FakeBridge()
+    capability = GoogleTranslateWebCapability(bridge=bridge)
+
+    result = capability.translate_text(
+        "hello",
+        source_language="en",
+        target_language="es",
+    )
+
+    assert result.translated_text == "Hola"
+    assert result.source_language == "en"
+    assert result.target_language == "es"
+    assert result.finality_evidence == "PAGE_DOM_STABLE_TRANSLATION"
+    assert result.canonical_completion_proven is False
+    assert result.automatic_retry is False
+
+    [request] = bridge.requests
+    assert request["type"] == "translate_text"
+    assert request["productId"] == "google-translate-web"
+    assert request["text"] == "hello"
+    assert request["sourceLanguage"] == "en"
+    assert request["targetLanguage"] == "es"
+    assert request["timeoutMs"] == 1
+    [rpc_options] = bridge.rpc_options
+    assert rpc_options["delegated_timeout_ms_key"] == "timeoutMs"
+    assert rpc_options["delegated_response_margin"] == 1.0
+    assert rpc_options["timeout"] == 30.0
+    assert "conversationId" not in request
+    assert "providerId" not in request
+
+
+def test_google_translate_language_validation_fails_before_bridge_write() -> None:
+    bridge = _FakeBridge()
+    capability = GoogleTranslateWebCapability(bridge=bridge)
+
+    with pytest.raises(ValueError, match="target_language cannot be auto"):
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="auto",
+        )
+
+    with pytest.raises(ValueError, match="bounded language code"):
+        capability.translate_text(
+            "hello",
+            source_language="not a language",
+            target_language="es",
+        )
+
+    assert bridge.requests == []
+
+
+def test_google_translate_bridge_response_loss_requires_reconciliation() -> None:
+    class _LostBridge(_FakeBridge):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
+            raise RequestError(
+                "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION: socket closed",
+                request_stage="browser_native_bridge",
+            )
+
+    capability = GoogleTranslateWebCapability(bridge=_LostBridge())
+
+    with pytest.raises(GoogleTranslateOutcomeAmbiguousError) as caught:
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="es",
+        )
+
+    assert caught.value.reconciliation_required is True
+    assert caught.value.automatic_retry_allowed is False
+
+
+def test_google_translate_predelegation_bridge_failure_remains_ordinary() -> None:
+    class _UnavailableBridge(_FakeBridge):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
+            raise RequestError(
+                "BROWSER_NATIVE_BRIDGE_UNAVAILABLE: no running bridge",
+                request_stage="browser_native_bridge",
+            )
+
+    capability = GoogleTranslateWebCapability(bridge=_UnavailableBridge())
+
+    with pytest.raises(RequestError) as caught:
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="es",
+        )
+
+    assert not isinstance(caught.value, GoogleTranslateOutcomeAmbiguousError)
+
+
+def test_google_translate_extension_timeout_after_forwarding_is_ambiguous() -> None:
+    class _TimeoutBridge(_FakeBridge):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
+            return {
+                "protocol": 1,
+                "type": "translate_text_result",
+                "request_id": payload["request_id"],
+                "ok": False,
+                "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT",
+            }
+
+    capability = GoogleTranslateWebCapability(bridge=_TimeoutBridge())
+
+    with pytest.raises(GoogleTranslateOutcomeAmbiguousError) as caught:
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="es",
+        )
+
+    assert caught.value.reconciliation_required is True
+    assert caught.value.automatic_retry_allowed is False
+
+
+def test_google_translate_page_outcome_ambiguity_requires_reconciliation() -> None:
+    class _AmbiguousBridge(_FakeBridge):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
+            return {
+                "protocol": 1,
+                "type": "translate_text_result",
+                "request_id": payload["request_id"],
+                "ok": False,
+                "error": (
+                    "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:"
+                    "PAGE_RESULT_TIMEOUT"
+                ),
+            }
+
+    capability = GoogleTranslateWebCapability(bridge=_AmbiguousBridge())
+
+    with pytest.raises(GoogleTranslateOutcomeAmbiguousError) as caught:
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="es",
+        )
+
+    assert caught.value.reconciliation_required is True
+    assert caught.value.automatic_retry_allowed is False
+
+
+def test_google_translate_rejects_too_small_timeout_before_bridge_write() -> None:
+    bridge = _FakeBridge()
+    capability = GoogleTranslateWebCapability(bridge=bridge)
+
+    with pytest.raises(ValueError, match="at least 3 seconds"):
+        capability.translate_text(
+            "hello",
+            source_language="en",
+            target_language="es",
+            timeout=2.0,
+        )
+
+    assert bridge.requests == []
+
+
+def test_google_translate_worker_is_valid_javascript() -> None:
+    worker = EXT / "service_worker_google_translate_capability.js"
+    subprocess.run(
+        ["node", "--check", str(worker)],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+
+def test_google_translate_extension_is_explicit_non_chat_route() -> None:
+    manifest = (EXT / "manifest.json").read_text(encoding="utf-8")
+    runtime = (EXT / "service_worker_runtime.js").read_text(encoding="utf-8")
+    router = (EXT / "service_worker_native_message_router.js").read_text(
+        encoding="utf-8"
+    )
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "https://translate.google.com/*" in manifest
+    assert 'importScripts("service_worker_google_translate_capability.js");' in runtime
+    assert runtime.index("service_worker_gemini_provider.js") < runtime.index(
+        "service_worker_google_translate_capability.js"
+    )
+    assert runtime.index(
+        "service_worker_google_translate_capability.js"
+    ) < runtime.index("service_worker_native_message_router.js")
+
+    assert "_cwaOnNativeMessageWithGoogleTranslate(" in router
+    assert 'message?.type !== "translate_text"' in worker
+    assert "registerProductProviderTurnHandler(" not in worker
+    assert "dispatchProductProviderTurn(" not in worker
+    assert "conversationId" not in worker
+
+
+def test_google_translate_reuses_route_when_languages_match_even_with_text_query() -> (
+    None
+):
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    ensure_tab = worker.split("async function _cwaGoogleTranslateEnsureTab", 1)[
+        1
+    ].split("function _cwaGoogleTranslateSourceExpression", 1)[0]
+
+    assert "_cwaGoogleTranslateRouteMatchesLanguages(" in ensure_tab
+    assert "tab.url !== targetUrl" not in ensure_tab
+    assert "chrome.tabs.update" in ensure_tab
+
+
+def test_google_translate_timeout_reports_bounded_observer_state() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PAGE_RESULT_TIMEOUT:" in worker
+    assert "candidates=" in worker
+    assert "leaves=" in worker
+    assert "text_present=" in worker
+    assert "identity_resolved=" in worker
+
+
+def test_google_translate_worker_uses_page_owned_dom_not_private_http() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "https://translate.google.com" in worker
+    assert "textarea" in worker
+    assert 'jsname=\\"W297wb\\"' in worker
+    assert "querySelectorAll('[lang]')" not in worker
+    assert "const leaves=primary.filter" in worker
+    assert "element.contains(other)" in worker
+    assert "leafCandidateCount:texts.length" in worker
+    assert "identityResolved=texts.length<=1" in worker
+    assert "RESULT_IDENTITY_UNRESOLVED" in worker
+    assert "InputEvent('input'" in worker
+    assert "_cwaGoogleTranslateWaitForClearedResult" in worker
+    assert "sourceMatchesRequested === true" in worker
+    assert "SOURCE_INPUT_MISMATCH" in worker
+    assert "GOOGLE_TRANSLATE_PREWRITE_RESULT_NOT_CLEARED" in worker
+    assert "GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_PAGE_READY" in worker
+    assert "GOOGLE_TRANSLATE_OPERATION_DEADLINE_EXHAUSTED_BEFORE_INPUT" in worker
+    assert "deadlineAt" in worker
+    assert "PAGE_DOM_STABLE_TRANSLATION" in worker
+    assert "canonicalCompletionProven: false" in worker
+    assert "automaticRetry: false" in worker
+    assert "_cwaGoogleTranslateRouteMatchesLanguages" in worker
+    assert "GOOGLE_TRANSLATE_FINAL_ROUTE_LANGUAGE_IDENTITY_INVALID" in worker
+    assert "GOOGLE_TRANSLATE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED" in worker
+
+    assert "fetch(" not in worker
+    assert "XMLHttpRequest" not in worker
+    assert "translate_a/" not in worker
+    assert "Network.enable" not in worker
+    assert "Network.request" not in worker
+    assert ".click()" not in worker
+
+
+def test_google_translate_result_identity_collapses_only_containment_wrappers() -> None:
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    result_expression = worker.split(
+        "function _cwaGoogleTranslateResultExpression(requestedText)", 1
+    )[1].split("async function _cwaGoogleTranslateEvaluate", 1)[0]
+
+    assert "const leaves=primary.filter" in result_expression
+    assert "element.contains(other)" in result_expression
+    assert "leafCandidateCount:texts.length" in result_expression
+    assert "new Set(" not in result_expression
+    assert "texts[0]" in result_expression
+
+
+def test_google_translate_post_write_finality_uses_observed_route_without_tab_lookup() -> (
+    None
+):
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    post_write = worker.split("let final;", 1)[1].split("return {", 1)[0]
+
+    assert "_cwaGoogleTranslateRouteMatchesLanguages(" in post_write
+    assert "sourceLanguage" in post_write
+    assert "targetLanguage" in post_write
+    assert "chrome.tabs.get" not in post_write
+
+
+def test_google_translate_authority_lane_is_shared_without_canonical_reservation() -> (
+    None
+):
+    host = (ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"translate_text",' in host
+    assert '"translate_text": 30_000' in host
+    assert "_claim_authority_lane(operation, lease_id)" in host
+    assert (
+        'operation == "translate_text"'
+        not in host.split("if lease_id is not None and (", 1)[1].split(
+            "return message", 1
+        )[0]
+    )
+
+
+def test_google_translate_temporary_acceptance_surfaces_are_absent_after_closure() -> (
+    None
+):
+    worker = (EXT / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    host = (ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py").read_text(
+        encoding="utf-8"
+    )
+    package = ROOT / "src" / "chatgpt_web_adapter"
+
+    assert "characterize_translate_" not in worker
+    assert "GoogleTranslateCharacterization" not in worker
+    assert "characterize_translate_" not in host
+    assert not (package / "google_translate_web_live_gate.py").exists()
+    assert not (package / "google_translate_web_characterization.py").exists()

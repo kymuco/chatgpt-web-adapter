@@ -7,7 +7,7 @@ PRODUCT_RUNTIME_CONTRACT_SCHEMA = 1
 
 
 class ProductTransportSupportTier(str, Enum):
-    """Stability/support tier for one concrete ChatGPT product transport.
+    """Stability/support tier for one concrete product transport.
 
     This is deliberately independent from capability state. A transport can be
     EXPERIMENTAL while an individual capability is AVAILABLE on that transport.

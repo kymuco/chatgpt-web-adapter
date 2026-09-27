@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -15,6 +18,12 @@ LAYERS = {
     "service_worker_runtime_tab_reconciliation.js": (
         "_pr88OnNativeMessageWithBrowserAuthorityLease"
     ),
+    "service_worker_gemini_notebook_capability.js": (
+        "_cwaOnNativeMessageWithGeminiNotebook"
+    ),
+    "service_worker_google_translate_capability.js": (
+        "_cwaOnNativeMessageWithGoogleTranslate"
+    ),
     "service_worker_canonical_read_v2.js": "_cwaOnNativeMessageWithCanonicalRead",
     "service_worker_ui_liveness.js": "_cwaOnNativeMessageWithUiLiveness",
 }
@@ -25,8 +34,12 @@ def _source(name: str) -> str:
 
 
 def _run_node(script: str) -> dict[str, object]:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is unavailable")
+
     completed = subprocess.run(
-        ["node", "-e", script],
+        [node, "-e", script],
         check=True,
         capture_output=True,
         text=True,
@@ -70,6 +83,8 @@ def test_native_message_router_preserves_historical_outer_to_inner_order() -> No
         "_cwaOnNativeMessageWithUiLiveness",
         "_cwaOnNativeMessageWithCanonicalRead",
         "_pr88OnNativeMessageWithBrowserAuthorityLease",
+        "_cwaOnNativeMessageWithGeminiNotebook",
+        "_cwaOnNativeMessageWithGoogleTranslate",
         "_cwaOnNativeMessageWithProductState",
         "_cwaBaseOnNativeMessage",
     )
@@ -94,6 +109,8 @@ function layer(name) {{
 const _cwaOnNativeMessageWithUiLiveness = layer("ui");
 const _cwaOnNativeMessageWithCanonicalRead = layer("canonical");
 const _pr88OnNativeMessageWithBrowserAuthorityLease = layer("release");
+const _cwaOnNativeMessageWithGeminiNotebook = layer("notebook");
+const _cwaOnNativeMessageWithGoogleTranslate = layer("capability");
 const _cwaOnNativeMessageWithProductState = layer("product");
 const _cwaBaseOnNativeMessage = async (message) => {{
   events.push("base:" + message.type);
@@ -115,11 +132,18 @@ const _cwaBaseOnNativeMessage = async (message) => {{
         "enter:ui:turn",
         "enter:canonical:turn:ui",
         "enter:release:turn:ui:canonical",
-        "enter:product:turn:ui:canonical:release",
-        "base:turn:ui:canonical:release:product",
+        "enter:notebook:turn:ui:canonical:release",
+        "enter:capability:turn:ui:canonical:release:notebook",
+        "enter:product:turn:ui:canonical:release:notebook:capability",
+        "base:turn:ui:canonical:release:notebook:capability:product",
         "exit:product",
+        "exit:capability",
+        "exit:notebook",
         "exit:release",
         "exit:canonical",
         "exit:ui",
     ]
-    assert result["result"]["type"] == "turn:ui:canonical:release:product"
+    assert (
+        result["result"]["type"]
+        == "turn:ui:canonical:release:notebook:capability:product"
+    )

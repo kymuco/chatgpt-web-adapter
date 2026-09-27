@@ -1,193 +1,325 @@
 # chatgpt-web-adapter Roadmap
 
-_Last updated: 2026-09-02_
+_Last updated: 2026-09-26_
 
-This is the current product roadmap for `chatgpt-web-adapter` (CWA). Historical PR8/PR9 planning documents remain in `docs/` as evidence and lineage; this file describes the current direction after CWA 0.3 and the completed PR10/PR11 milestones.
+This roadmap describes the current direction after CWA 0.3 and the completed PR15
+architecture reset.
+
+Historical PR planning documents remain in `docs/` as evidence and lineage.
 
 ## Product role
 
-CWA is a standalone local SDK / CLI / ChatGPT product bridge.
+CWA is a standalone local product-runtime bridge for authenticated consumer AI web
+products.
 
 ```text
-ordinary ChatGPT product
-          |
-          v
-chatgpt-web-adapter
- typed product runtime
-          |
-   +------+------+ 
-   |             |
-   v             v
- Python / CLI   downstream runtimes
-               CMA / HDE / others
+local application / HDE / Codexia / terminal
+                  |
+                  v
+        provider-specific runtime
+          /          |          \
+         /           |           \
+   ChatGPT      DeepSeek Web    Gemini Web
+ production     experimental    experimental
 ```
 
-CWA owns product/session mechanics, canonical observation, product mutation, transport boundaries, capabilities, provenance, product-level observations, diagnostics, and the local browser bridge product surface.
+Each runtime can be inspected/validated through the frozen provider-neutral
+`ProductProviderBoundary schema 2`.
 
-CWA does **not** own project cognition, Git/workspace authority, autonomous continuation policy, or approval policy for external actions. Those remain downstream concerns.
+CWA owns reusable product/session/write/finality mechanics, capabilities, provenance,
+structured product observations, diagnostics and the local browser bridge.
 
-## Completed generations
+CWA does **not** own project cognition, task planning, Git/workspace authority,
+external-action approval policy, or autonomous continuation policy.
+
+## Completed release generations
 
 ### CWA 0.2 — production text baseline
 
 Released `v0.2.0` on 2026-08-22.
 
-Established:
+Established the forward-looking ChatGPT product runtime, browser-owned production
+writes, canonical finality, model profiles, Temporary Chat, stable CLI and release-grade
+CI.
 
-- `ChatGPTProductRuntime` as the forward-looking application boundary;
-- browser-owned production text turns;
-- canonical read/status/final readback;
-- revision-safe streaming;
-- model profiles;
-- Temporary Chat;
-- stable `cwa` CLI;
-- snapshot/export artifacts and deterministic manifests;
-- release-grade CI and installed-wheel validation.
+### CWA 0.3 — rich input and product observation
 
-### PR9 generation — CWA 0.3
-
-Completed and released as `v0.3.0` on 2026-09-01.
+Released `v0.3.0` on 2026-09-01.
 
 ```text
 PR9.0  browser-owned v1 + standalone runtime contract
 PR9.1  experimental browserless-request transport
 PR9.2  images / files / multimodal continuation
-PR9.3  search / tools / source / citation observations
-PR9.4  0.3 stabilization and release
+PR9.3  search / tool / source / citation observations
+PR9.4  stabilization and release
 ```
 
-CWA 0.3 is the current public release baseline.
+## Completed post-0.3 milestones
 
-### PR10.0 — app/connector and required-action observation
+### PR10 — conservative product boundaries
 
-Completed after 0.3.
-
-Added stronger typed models for connector activity and required-action lifecycle while preserving the authority rule:
+Added stronger connector/required-action observation while keeping:
 
 ```text
-product observation
-!= product approval
-!= connector authorization
-!= external/local action authority
-!= canonical finality
-!= retry authority
+tools_connectors = UNKNOWN
 ```
 
-Authenticated product evidence proved required-action point observation, but did not prove enough stable connector execution identity/correlation to graduate `tools_connectors` from `UNKNOWN`.
-
-### PR10.1 — generated-artifact observation and handoff boundary
-
-Completed and merged 2026-09-02.
-
-The milestone established a bounded artifact observation model and investigated available product surfaces without exporting capability-bearing locator values.
-
-Current frozen result:
+and froze generated-artifact download as:
 
 ```text
 ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
 ```
 
-Actual generated-artifact download/materialization remains intentionally unimplemented. The research path stops rather than depending on minified React/update-queue internals as a public SDK contract.
+### PR11 — browser bridge product surface
 
-### PR11.0 — browser bridge product surface
+Established the local extension's bounded read-only product chrome, diagnostics and
+packaging surface without changing product write/finality authority.
 
-Completed after the public-readiness pass.
+### PR12-14 — runtime hardening
 
-PR11.0 gives the unpacked Chrome bridge its own CWA identity and a bounded read-only product surface:
+Hardened browser authority, recovery/delegation behavior, ambiguity semantics and
+failure handling before the architecture reset.
 
-- CWA extension icon family and repository visual identity;
-- concise manifest name/description;
-- light/dark popup;
-- local Native Messaging connection, runtime-tab presence and activity status;
-- sanitized copyable diagnostics;
-- toolbar ready/working/unavailable state;
-- exact packaging/release validation for HTML/CSS/PNG extension assets.
+### PR15 — architecture reset and provider proof
 
-The popup does not send ChatGPT turns, provision the runtime tab merely by opening, inspect ChatGPT page content, expose product ids/credentials, or gain retry/approval authority.
+PR15 is complete.
 
-Chrome Web Store publication remains deferred; the current installation flow stays explicit and local (`Developer mode -> Load unpacked`).
-
-See [`docs/browser_bridge_product_surface_pr11_0.md`](docs/browser_bridge_product_surface_pr11_0.md).
-
-## Current checkpoint
-
-Current `main` is a strong post-0.3 product-runtime baseline with coherent public documentation and a coherent local browser-bridge surface.
-
-The immediate goal is no longer “discover one more hidden ChatGPT surface” or “polish one more repository page.” The next work should be driven primarily by real consumer needs and observed product drift.
-
-## Next vertical milestone: PR15 Architecture Reset
-
-PR14.9 closed an important post-delegation failure class, but the acceptance work
-also exposed a broader structural issue: historical research/repair generations are
-still active participants in production composition.
-
-The next milestone therefore changes from feature expansion to in-place
-consolidation.
+The sequence:
 
 ```text
-same repository
-same public compatibility
-same proven safety/finality invariants
-
-but
-
-fewer active owners
-explicit call graphs
-no monkeypatch-by-import-order architecture
+historical layered ChatGPT runtime
+→ explicit ownership consolidation
+→ zero reachable production rebinding
+→ provider-neutral boundary v1
+→ DeepSeek falsifies mandatory canonical readback
+→ ProductProviderBoundary schema 2
+→ neutrality audit removes silent ChatGPT provenance default
+→ Gemini passes schema 2
+→ cross-provider ambiguity parity
+→ architecture freeze
 ```
 
-The key question is now:
+The result is a stable shared provider contract without a public generic provider
+factory or fake capability uniformity.
 
-```text
-Can CWA preserve its proven product behavior
-while replacing historical repair layering with one explicit runtime path?
-```
+ChatGPT remains production/default.
 
-The PR15 sequence is evidence-driven:
-
-```text
-PR15.0 inventory + consolidation boundary
-PR15.1 explicit diagnostic / observer composition
-PR15.2 detach Temporary characterization from ordinary runtime
-PR15.3 detach zero-write control characterization from ordinary runtime
-remaining mixed-use ChatGPT consolidation slices
-provider architecture proof with minimal DeepSeek support
-```
-
-The provider proof intentionally has no frozen PR number yet. PR15.1 exposed
-additional active historical ownership inside the ChatGPT runtime; abstracting that
-structure into a second provider would preserve the wrong boundary.
-
-Do not create a parallel v2 repository. Migrate slice-by-slice inside the existing
-repository:
-
-```text
-old owner
-→ new explicit owner
-→ deterministic equivalence
-→ bounded live proof when required
-→ delete old owner
-```
-
-ChatGPT consolidation is now complete through PR15.51. PR15.52 freezes the first
-provider-neutral contract around provider identity/semantics, canonical/write
-interfaces, capabilities/provenance, no fallback, no automatic retry, reconciliation,
-and non-canonical incremental observation. ChatGPT remains provider #1; DeepSeek is
-the second proof because it provides a materially different web-session/API shape.
-Gemini remains deferred until the abstraction survives two providers.
-
-Consumer-driven runtime hardening remains the rule for what enters the resulting
-public contract. A provider or web capability does not become production scope merely
-because its UI exposes it.
+DeepSeek/Gemini remain module-only experimental providers with live-proven text
+new-chat and continuation.
 
 See
-[`docs/engineering/pr15_0_architecture_reset_inventory.md`](docs/engineering/pr15_0_architecture_reset_inventory.md).
+[`docs/engineering/pr15_56_provider_architecture_closure.md`](docs/engineering/pr15_56_provider_architecture_closure.md).
 
-## Reopen conditions for conservative boundaries
+## PR16 — public positioning and documentation
 
-### Connector execution lifecycle
+### PR16.0 — positioning direction
 
-Revisit stronger connector capability only if authenticated product evidence exposes stable connector execution identity/correlation without exporting credentials, private retrieved content, or arbitrary connector payloads.
+Completed.
+
+Decision:
+
+- describe CWA according to the provider-aware architecture that now exists;
+- keep ChatGPT as production/default;
+- keep DeepSeek/Gemini experimental;
+- preserve all current repository/distribution/import/CLI names;
+- deliberately defer any future naming decision.
+
+### PR16.1 — current documentation refresh
+
+Completed.
+
+Refresh:
+
+- README;
+- architecture;
+- provider support/finality matrix;
+- browser-owned strategy;
+- usage/downstream-integration guidance;
+- security framing;
+- status/roadmap/docs map;
+- deterministic documentation contract tests.
+
+No runtime/provider behavior changes were intended.
+
+### PR16.2 — non-chat hosted-capability falsification
+
+Completed.
+
+Question:
+
+```text
+is CWA's reusable core broader than conversational providers?
+```
+
+First test:
+
+```text
+Google Translate Web
+→ translate_text(text, source_language, target_language)
+→ bounded page result
+```
+
+The experiment deliberately does not force translation into
+`ProductProviderBoundary schema 2`, because the existing runtime surface is still
+conversation-shaped (`send_text`, `ConversationInput`, `ChatResponse`,
+conversation/message identity).
+
+The spike reuses only the lower-level browser bridge, authority lane and ambiguity
+discipline. No generic hosted-capability framework should be created unless this and
+later non-chat evidence actually require one.
+
+HDE was explicitly not used as a test bed for this experiment.
+
+Outcome:
+
+```text
+Google Translate Web translate_text
+→ real live PASS: hello / en→es / Hola
+→ PAGE_DOM_STABLE_TRANSLATION
+→ no conversation identity
+→ no automatic retry
+→ post-write ambiguity requires reconciliation
+```
+
+The proof establishes reuse of the lower browser bridge / authority / ambiguity layer
+outside chat semantics. It does not justify a generic `HostedCapabilityRuntime`,
+public capability registry, or schema-2 expansion.
+
+Google Translate remains an experimental module-only non-chat capability.
+
+### PR16.3 — adoption and discoverability foundation
+
+Active.
+
+No runtime semantics change.
+
+Goals:
+
+- reduce the first-use path for newcomers;
+- make the current chat + non-chat capability surface easy to discover;
+- give local assistants/agents an explicit integration entrypoint;
+- add machine-oriented discovery without turning static docs into runtime authority;
+- add a capability-proposal workflow for external contributors;
+- align README/PyPI metadata with the post-PR16.2 project role.
+
+This slice deliberately does **not** add MCP, a generic hosted-capability registry,
+or a second non-chat product.
+
+### PR16.4 — Gemini Notebook persistent-workspace proof
+
+Closed bounded capability proof.
+
+Question:
+
+```text
+can CWA support a persistent consumer research workspace
+without turning it into chat semantics?
+```
+
+First intended operation:
+
+```text
+existing owned consumer notebook
++ exact web URL source
+→ durable source admission
+```
+
+The experiment established the real notebook route, Sources-panel structure, durable
+source-row identity, commitment boundary, and page-DOM admission finality. One
+fully CWA-owned live URL-source admission passed with post-commit reconciliation.
+
+Gemini Notebook Enterprise already exposes preview notebook/source APIs. This CWA
+experiment is explicitly about ordinary consumer-product semantics, not API
+replacement.
+
+Public module-only surface:
+
+```python
+GeminiNotebookWebCapability.add_url_source(
+    notebook=...,
+    source_url=...,
+)
+```
+
+Finality remains noncanonical and product-local:
+
+```text
+PAGE_DOM_DURABLE_SOURCE_ADMISSION
+automatic retry = false
+```
+
+No shared hosted-capability abstraction is introduced by default.
+
+## Current direction after PR16
+
+After the documentation/discovery surface catches up, stop architecture-driven expansion.
+
+The next runtime work should be **consumer-driven** or **drift-driven**.
+
+### Consumer-driven triggers
+
+Examples:
+
+- HDE/Codexia needs a reusable capability that clearly belongs below application
+  policy;
+- an external consumer needs stable provider construction/selection;
+- a non-ChatGPT provider needs promotion because it is now a real production
+  dependency;
+- a bounded product capability provides clear utility across consumers.
+
+### Drift-driven triggers
+
+Reopen implementation work when:
+
+- a previously proven provider path fails;
+- DOM/request/session behavior changes;
+- finality or conversation identity assumptions stop holding;
+- browser/extension behavior changes materially;
+- a reproducible compatibility regression appears.
+
+Preferred response:
+
+```text
+observe failure
+→ characterize narrowly
+→ repair the smallest owned contract
+→ deterministic regression
+→ bounded live validation
+→ document the new boundary
+```
+
+Avoid open-ended reverse engineering after the decision-relevant boundary is known.
+
+## Reopen conditions for provider architecture
+
+Do not add provider #4 or another abstraction layer just to increase coverage.
+
+Reopen the frozen provider architecture only if:
+
+1. a real provider cannot fit schema 2 without lying about semantics;
+2. a real consumer needs stable public provider construction/selection;
+3. a new canonical interface shape cannot be represented;
+4. an experimental provider is being promoted to production and needs a stronger
+   support contract;
+5. a concrete safety failure disproves current write/reconciliation invariants.
+
+## Browser-owned vs browserless
+
+Browser-owned remains the reference/default web-product mutation strategy.
+
+`browserless-request` remains `EXPERIMENTAL` until long-term evidence supports a
+stronger claim.
+
+CWA will not add challenge-bypass machinery merely to remove the browser.
+
+See [`docs/browser_owned.md`](docs/browser_owned.md).
+
+## Conservative boundaries
+
+### Connector execution
+
+Revisit only if authenticated product evidence exposes stable connector execution
+identity/correlation without exporting credentials or private connector content.
 
 Until then:
 
@@ -199,103 +331,51 @@ tools_connectors = UNKNOWN
 
 Reopen only after both are proven:
 
-1. a stable product-owned artifact/file/asset identity;
-2. a safe browser-owned resolution path that keeps locator/capability material private.
-
-Any future handoff must also preserve explicit caller destination/overwrite authority, exact final byte identity, no automatic retry/fallback, and no effect on canonical turn finality.
-
-### Browserless production promotion
-
-`browserless-request` remains `EXPERIMENTAL` until long-term evidence supports a stronger claim. Passing on one product revision is insufficient.
-
-CWA will not add challenge-bypass machinery merely to make browserless writes appear reliable.
+1. stable product-owned artifact identity;
+2. a safe browser-owned resolution path.
 
 ### Chrome Web Store distribution
 
-Consider store publication only when external adoption justifies the additional distribution contract. Before reopening, review:
+Reconsider only when external adoption justifies the privacy/update/support contract.
 
-- `debugger` permission policy/review expectations;
-- privacy disclosures;
-- extension version/update lifecycle;
-- support burden for externally installed bridge versions;
-- whether store distribution materially improves the actual CWA consumer workflow.
-
-Do not publish merely to remove the visual “unpacked/developer” label from a local development install.
-
-## Compatibility-drift hardening
-
-ChatGPT Web is an undocumented changing product surface. Drift work should be triggered by concrete evidence:
-
-- a previously proven product path fails;
-- schemas/DOM/request behavior change;
-- canonical finality or identity assumptions stop holding;
-- browser/extension behavior changes materially;
-- a release or consumer exposes a reproducible compatibility regression.
-
-Preferred response:
-
-```text
-observe failure
--> characterize narrowly
--> repair public contract if justified
--> deterministic regression
--> bounded live validation
--> document the new boundary
-```
-
-Avoid open-ended reverse engineering after the decision-relevant boundary is already known.
+Do not publish merely to remove the unpacked/developer label.
 
 ## Release direction
 
-Do not cut a new major/minor release for repository/product-surface polish alone.
+Do not cut a new minor release for documentation polish alone.
 
-A likely release policy is:
+Likely rule:
 
-- `0.3.x` for compatible fixes, drift repairs, documentation/packaging/product-surface hardening, and narrow ergonomics improvements;
-- `0.4.0` when a coherent new product/consumer capability set materially expands the public runtime contract.
-
-Every release continues to require Linux/Windows validation, exact built-artifact checks, installed-wheel smoke, explicit support/capability documentation, and tag/version/changelog agreement.
+- `0.3.x` — compatible fixes, drift repairs, docs, packaging, narrow ergonomics;
+- `0.4.0` — coherent new public runtime capability generation.
 
 ## Architectural invariants
 
-1. CWA remains standalone; CMA/HDE are consumers, not owners of its roadmap.
-2. Ordinary ChatGPT product semantics remain first-class.
-3. Canonical observation and product mutation are separate planes.
-4. Transport selection is explicit; there is no silent fallback.
+1. CWA remains standalone.
+2. Provider semantics remain explicit.
+3. Canonical observation and mutation authority stay separate.
+4. Transport/provider fallback is never silent.
 5. Ambiguous writes are never automatically retried.
-6. Streaming and structured observations are not canonical finality.
-7. Provenance is observed rather than synthesized.
-8. Capability state remains evidence-backed and provider-aware.
-9. Observation never becomes approval or downstream authority by implication.
-10. Browser internals remain below the public runtime boundary.
-11. Research/diagnostic surfaces do not become public production contracts merely because they exist in-tree.
-12. Product chrome may expose local sanitized bridge state, but opening the UI never grants ChatGPT product-write/finality authority.
-13. No challenge-bypass expansion.
-14. Product drift fails clearly rather than pretending permanence.
+6. Incremental/page observation is not promoted to canonical finality.
+7. Provenance is observed rather than fabricated.
+8. Capability state is evidence-backed and provider-aware.
+9. Observation never becomes downstream authority by implication.
+10. Browser internals remain below the runtime boundary.
+11. Research surfaces do not become production APIs merely by existing.
+12. No challenge-bypass expansion.
+13. Product drift fails clearly rather than pretending permanence.
+14. Future naming is a separate product decision, not an architecture requirement.
 
 ## Non-goals
 
 CWA is not becoming:
 
-- a full chat application or TUI;
+- a full chat application;
 - a general agent/orchestrator;
-- HDE/CMA project memory or policy;
+- HDE/Codexia memory or policy;
 - a Git/filesystem authority layer;
-- a caller-controlled abstraction over every internal ChatGPT tool;
+- a provider failover router;
+- a caller-controlled abstraction over every internal product tool;
 - a browser-protection bypass toolkit;
-- an unstable DOM/React scraper presented as a stable SDK;
-- a Chrome Web Store product before distribution is justified by real adoption.
-
-## Historical maps
-
-Useful lineage documents:
-
-- [`docs/post_pr8_daily_use_product_bridge_direction.md`](docs/post_pr8_daily_use_product_bridge_direction.md) — detailed PR8-era direction;
-- [`docs/post_0_3_product_generation.md`](docs/post_0_3_product_generation.md) — PR10.0 working contract and post-0.3 planning context;
-- [`docs/browserless_request_transport_pr9_1.md`](docs/browserless_request_transport_pr9_1.md) — browserless experimental boundary;
-- [`docs/product_rich_input_pr9_2.md`](docs/product_rich_input_pr9_2.md) — rich-input evidence;
-- [`docs/product_runtime_observation_integration_pr9_3.md`](docs/product_runtime_observation_integration_pr9_3.md) — structured observation integration;
-- [`docs/generated_artifact_handoff_pr10_1.md`](docs/generated_artifact_handoff_pr10_1.md) — artifact handoff closure;
-- [`docs/browser_bridge_product_surface_pr11_0.md`](docs/browser_bridge_product_surface_pr11_0.md) — browser bridge product-surface contract.
-
-Use [`docs/README.md`](docs/README.md) for the complete documentation map.
+- a generic model/API aggregator;
+- a public provider registry without a real consumer need.
