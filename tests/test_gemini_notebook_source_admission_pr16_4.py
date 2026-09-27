@@ -51,6 +51,8 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
     assert "Runtime.evaluate" in worker
     assert "document.body" not in worker
     assert 'document.querySelector(".add-source-button")' in worker
+    assert 'closest("section.source-panel")' in worker
+    assert 'querySelector("source-picker")' in worker
     assert ".cdk-overlay-pane" in worker
     assert "overlayCandidates" in worker
     assert "element.contains(other)" in worker
@@ -65,6 +67,12 @@ def test_gemini_notebook_characterization_is_read_only_and_product_local() -> No
     assert "checkboxCount:" in worker
     assert "buttonCount:" in worker
     assert "rect.width > 760" in worker
+    assert "sourceSurfaceCandidates" in worker
+    assert "sourceSurfaceCandidateCount:" in worker
+    assert "hrefOrigin" in worker
+    assert "hrefPresent:" in worker
+    assert "ariaChecked:" in worker
+    assert "href:" not in worker
     assert "sourcePanelFound:" in worker
     assert "overlayRootCount:" in worker
     assert "readOnly: true" in worker
@@ -112,7 +120,12 @@ def test_gemini_notebook_characterization_cli_does_not_mutate_product() -> None:
     assert '"read_only"' in script
     assert '"add_source_route_active"' in script
     assert '"source_panel_found"' in script
+    assert '"source_panel_tag"' in script
+    assert '"source_panel_class"' in script
+    assert '"source_picker_found"' in script
     assert '"source_ancestor_path"' in script
+    assert '"source_surface_candidate_count"' in script
+    assert '"source_surface_candidates"' in script
     assert '"overlay_root_count"' in script
     assert "add_url_source" not in script
     assert "translate_text" not in script

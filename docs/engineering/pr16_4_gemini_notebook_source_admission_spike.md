@@ -270,6 +270,32 @@ it reports only structural metadata, a bounded text sample, and descendant check
 button counts. The probe stops before broad page containers so post-admission evidence
 can identify the real Sources-panel owner without returning the whole notebook DOM.
 
+
+### Sources-panel owner observed
+
+The post-admission ancestor probe identified the concrete product-local hierarchy:
+
+```text
+section.source-panel
+  → .source-panel-content
+    → source-picker.source-sorting-enabled
+      → .contents
+```
+
+The persisted `Example Domain` row is inside this hierarchy. Checkbox counts are
+deliberately not interpreted as source counts because the DOM contains multiple
+checkbox/control nodes for the same visible selection semantics.
+
+The characterizer therefore now promotes `section.source-panel` as the first exact
+Sources owner, keeps the older nav/aside fallbacks only for characterization drift, and
+adds one final bounded probe inside `source-picker`.
+
+The probe emits candidate row/control structure with short text/aria/title/class/tag
+metadata, checked state, and at most the origin of any href. It does not return raw
+href paths/query strings or input values. The purpose is to determine whether a
+persisted source row exposes a stable identity that can reconcile one exact URL
+admission after an ambiguous post-commit failure.
+
 ## Expected durable contract
 
 The intended operation is:

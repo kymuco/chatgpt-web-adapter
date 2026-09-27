@@ -87,9 +87,11 @@ function _cwaGeminiNotebookCharacterizationExpression() {
     };
     const sourceTrigger = document.querySelector(".add-source-button");
     const sourcePanel =
+      sourceTrigger?.closest("section.source-panel") ||
       sourceTrigger?.closest("nav") ||
       sourceTrigger?.closest("aside") ||
       null;
+    const sourcePicker = sourcePanel?.querySelector("source-picker") || null;
 
     const sourceAncestorPath = [];
     let sourceAncestor = sourceTrigger?.parentElement || null;
@@ -117,6 +119,84 @@ function _cwaGeminiNotebookCharacterizationExpression() {
         height: Math.round(rect.height)
       });
       sourceAncestor = sourceAncestor.parentElement;
+    }
+
+    const sourceSurfaceCandidates = [];
+    if (sourcePicker instanceof Element) {
+      for (const element of sourcePicker.querySelectorAll("*")) {
+        if (sourceSurfaceCandidates.length >= 80) break;
+        if (!visible(element)) continue;
+        const rect = element.getBoundingClientRect();
+        if (
+          rect.width < 20 ||
+          rect.height < 12 ||
+          rect.height > 140 ||
+          rect.width > 520
+        ) {
+          continue;
+        }
+
+        const text = normalize(element.innerText || element.textContent);
+        const aria = normalize(element.getAttribute("aria-label"));
+        const title = normalize(element.getAttribute("title"));
+        const className = String(element.className || "");
+        const role = element.getAttribute("role");
+        const tag = String(element.tagName || "").toLowerCase();
+        const href = element.getAttribute("href");
+
+        if (
+          !text &&
+          !aria &&
+          !title &&
+          !href &&
+          role !== "checkbox" &&
+          tag !== "input"
+        ) {
+          continue;
+        }
+        if (
+          element.childElementCount > 8 &&
+          text.length > 220 &&
+          !className.toLowerCase().includes("source")
+        ) {
+          continue;
+        }
+
+        let hrefOrigin = null;
+        if (href) {
+          try {
+            hrefOrigin = new URL(href, location.href).origin;
+          } catch {
+            hrefOrigin = null;
+          }
+        }
+
+        sourceSurfaceCandidates.push({
+          index: sourceSurfaceCandidates.length,
+          tag,
+          className: className.slice(0, 220),
+          role,
+          ariaLabel: aria.slice(0, 220),
+          title: title.slice(0, 220),
+          text: text.slice(0, 220),
+          checked:
+            "checked" in element ? Boolean(element.checked) : null,
+          ariaChecked: element.getAttribute("aria-checked"),
+          hrefPresent: Boolean(href),
+          hrefOrigin,
+          childElementCount: element.childElementCount,
+          parentTag: element.parentElement
+            ? String(element.parentElement.tagName || "").toLowerCase()
+            : null,
+          parentClass: element.parentElement
+            ? String(element.parentElement.className || "").slice(0, 180)
+            : null,
+          left: Math.round(rect.left),
+          top: Math.round(rect.top),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        });
+      }
     }
 
     const overlayCandidates = Array.from(
@@ -204,7 +284,18 @@ function _cwaGeminiNotebookCharacterizationExpression() {
       addSourceRouteActive:
         new URL(location.href).searchParams.get("addSource") === "true",
       sourcePanelFound: sourcePanel instanceof Element,
+      sourcePanelTag:
+        sourcePanel instanceof Element
+          ? String(sourcePanel.tagName || "").toLowerCase()
+          : null,
+      sourcePanelClass:
+        sourcePanel instanceof Element
+          ? String(sourcePanel.className || "").slice(0, 220)
+          : null,
+      sourcePickerFound: sourcePicker instanceof Element,
       sourceAncestorPath,
+      sourceSurfaceCandidateCount: sourceSurfaceCandidates.length,
+      sourceSurfaceCandidates,
       overlayRootCount: overlayRoots.length,
       bodyText: scopedText,
       headingCount: headings.length,
