@@ -3,7 +3,7 @@
 // Historical source-order composition was:
 //
 //   UI liveness -> canonical read v2 -> runtime-tab release -> Gemini Notebook
-//   characterization -> hosted capability -> product state -> base turn
+//   characterization -> URL-source mutation -> hosted capability -> product state -> base turn
 //
 // Preserve that exact outer-to-inner routing without import-time hook reassignment.
 
@@ -24,14 +24,19 @@ async function onNativeMessage(message, port) {
                 releaseMessage,
                 releasePort,
                 (notebookMessage, notebookPort) =>
-                  _cwaOnNativeMessageWithGoogleTranslate(
+                  _cwaOnNativeMessageWithGeminiNotebookUrlSource(
                     notebookMessage,
                     notebookPort,
-                    (capabilityMessage, capabilityPort) =>
-                      _cwaOnNativeMessageWithProductState(
-                        capabilityMessage,
-                        capabilityPort,
-                        _cwaBaseOnNativeMessage
+                    (notebookMutationMessage, notebookMutationPort) =>
+                      _cwaOnNativeMessageWithGoogleTranslate(
+                        notebookMutationMessage,
+                        notebookMutationPort,
+                        (capabilityMessage, capabilityPort) =>
+                          _cwaOnNativeMessageWithProductState(
+                            capabilityMessage,
+                            capabilityPort,
+                            _cwaBaseOnNativeMessage
+                          )
                       )
                   )
               )

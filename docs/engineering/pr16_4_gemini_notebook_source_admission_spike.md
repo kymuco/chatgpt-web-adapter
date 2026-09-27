@@ -418,3 +418,39 @@ PR16.4 does not add:
 
 Shared core changes are forbidden unless the product evidence demonstrates a
 requirement that cannot remain product-local.
+
+
+## Characterization closure and first production mutation slice
+
+The before/after ordinary page-reload experiment preserved the same persisted source
+row reference:
+
+    title = Example Domain
+    observed row ref = 77aeae5b-b106-44dd-add7-64f6037a3914
+    source row count = 1
+
+The notebook document title changed after reload while the canonical notebook route and
+observed source-row reference remained stable. Document title is therefore explicitly
+not part of notebook identity.
+
+PR16.4 now freezes reconciliation as:
+
+    canonical notebook route
+    + pre-commit persisted source-row refs
+    -> possible source commit
+    + post-commit persisted source-row refs
+    -> exactly one new stable observed row ref
+    -> PAGE_DOM_DURABLE_SOURCE_ADMISSION
+
+The opaque row ref remains observed product DOM identity, not an assumed official
+Google source ID.
+
+The first production add_url_source(...) slice remains product-local and uses the
+shared Browser Authority lane. It targets one exact already-open notebook route,
+snapshots existing source-row refs, follows the observed Add sources -> Sites -> URL
+path, and crosses an explicit commitment boundary only around the product Add action.
+Any failure after that action may have executed requires reconciliation and never
+authorizes blind automatic replay.
+
+The characterization CLI and temporary live gate remain only until one automated live
+source-admission PASS is recorded. They must then be removed before PR16.4 closure.
