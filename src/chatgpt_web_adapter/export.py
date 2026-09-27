@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from .artifact_manifest import (
     EXPORT_ARTIFACT_KIND,
@@ -54,7 +54,9 @@ def _normalize_export_format(format: str) -> str:
     export_format = EXPORT_FORMAT_ALIASES.get(normalized)
     if export_format is None:
         supported = ", ".join(sorted(set(EXPORT_FORMAT_ALIASES.values())))
-        raise ValueError(f"unsupported export format: {format!r}; supported: {supported}")
+        raise ValueError(
+            f"unsupported export format: {format!r}; supported: {supported}"
+        )
     return export_format
 
 
@@ -66,8 +68,13 @@ def _normalize_export_name(name: str) -> str:
         raise ValueError("export name is required")
     if normalized in {".", ".."}:
         raise ValueError("export name must be a file-name component")
-    if any(character in _SAFE_NAME_FORBIDDEN or ord(character) < 32 for character in normalized):
-        raise ValueError("export name contains characters that are invalid in file names")
+    if any(
+        character in _SAFE_NAME_FORBIDDEN or ord(character) < 32
+        for character in normalized
+    ):
+        raise ValueError(
+            "export name contains characters that are invalid in file names"
+        )
     return normalized
 
 
@@ -92,6 +99,37 @@ def _next_export_index(output_dir: Path, name: str) -> int:
             if match is not None:
                 latest = max(latest, int(match.group(1)))
     return latest + 1
+
+
+def _reserve_export_bundle(
+    directory: Path,
+    name: str,
+    index: int,
+    *,
+    extension: str,
+    automatic: bool,
+) -> tuple[int, Path, Path, TextIO]:
+    while True:
+        export_path = directory / f"{name}_chat_export_{index}.{extension}"
+        manifest_path = directory / f"{name}_chat_export_{index}.manifest.json"
+        try:
+            export_file = export_path.open("x", encoding="utf-8", newline="\n")
+        except FileExistsError:
+            if not automatic:
+                raise FileExistsError(
+                    f"conversation export already exists: {export_path}"
+                )
+            index += 1
+            continue
+        if not manifest_path.exists():
+            return index, export_path, manifest_path, export_file
+        export_file.close()
+        export_path.unlink()
+        if not automatic:
+            raise FileExistsError(
+                f"conversation export manifest already exists: {manifest_path}"
+            )
+        index += 1
 
 
 def _role_label(role: str | None) -> str:
@@ -129,7 +167,9 @@ def _format_jsonl(messages: list[ChatMessage]) -> str:
     )
 
 
-def render_conversation_export(messages: list[ChatMessage], *, format: str = "markdown") -> str:
+def render_conversation_export(
+    messages: list[ChatMessage], *, format: str = "markdown"
+) -> str:
     export_format = _normalize_export_format(format)
     if export_format == "markdown":
         return _format_markdown(messages)
@@ -169,38 +209,44 @@ def write_conversation_export(
     directory = Path(output_dir)
     directory.mkdir(parents=True, exist_ok=True)
 
+    automatic_index = normalized_index is None
     if normalized_index is None:
         normalized_index = _next_export_index(directory, normalized_name)
-
     extension = EXPORT_EXTENSIONS[export_format]
-    export_path = directory / f"{normalized_name}_chat_export_{normalized_index}.{extension}"
-    manifest_path = directory / f"{normalized_name}_chat_export_{normalized_index}.manifest.json"
-
-    if export_path.exists():
-        raise FileExistsError(f"conversation export already exists: {export_path}")
-    if manifest_path.exists():
-        raise FileExistsError(f"conversation export manifest already exists: {manifest_path}")
-
-    ref = ConversationRef.from_any(conversation)
-    messages = list(client.get_messages(ref, limit=None, include_empty=True))
-    export_text = render_conversation_export(messages, format=export_format)
-    export_path.write_text(export_text, encoding="utf-8", newline="\n")
-
-    manifest = build_artifact_manifest(
-        artifact_kind=EXPORT_ARTIFACT_KIND,
-        contract=EXPORT_CONTRACT,
-        conversation_id=ref.conversation_id,
-        index=normalized_index,
-        format=export_format,
-        files=(
-            artifact_file_entry(
-                export_path,
-                role="export",
-                media_type=EXPORT_MEDIA_TYPES[export_format],
-            ),
-        ),
+    normalized_index, export_path, manifest_path, export_file = _reserve_export_bundle(
+        directory,
+        normalized_name,
+        normalized_index,
+        extension=extension,
+        automatic=automatic_index,
     )
-    write_artifact_manifest(manifest_path, manifest)
+
+    try:
+        ref = ConversationRef.from_any(conversation)
+        messages = list(client.get_messages(ref, limit=None, include_empty=True))
+        export_text = render_conversation_export(messages, format=export_format)
+        export_file.write(export_text)
+        export_file.close()
+
+        manifest = build_artifact_manifest(
+            artifact_kind=EXPORT_ARTIFACT_KIND,
+            contract=EXPORT_CONTRACT,
+            conversation_id=ref.conversation_id,
+            index=normalized_index,
+            format=export_format,
+            files=(
+                artifact_file_entry(
+                    export_path,
+                    role="export",
+                    media_type=EXPORT_MEDIA_TYPES[export_format],
+                ),
+            ),
+        )
+        write_artifact_manifest(manifest_path, manifest)
+    except Exception:
+        export_file.close()
+        export_path.unlink(missing_ok=True)
+        raise
 
     return ConversationExportArtifact(
         conversation_id=ref.conversation_id,
