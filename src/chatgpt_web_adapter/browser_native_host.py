@@ -377,7 +377,6 @@ class BrowserNativeBroker:
         if operation not in {
             "turn",
             "translate_text",
-            "characterize_gemini_notebook",
             "gemini_notebook_add_url_source",
             "canonical_read",
             "canonical_read_complete",
@@ -411,7 +410,6 @@ class BrowserNativeBroker:
             default_timeout_ms = {
                 "turn": 120_000,
                 "translate_text": 30_000,
-                "characterize_gemini_notebook": 10_000,
                 "gemini_notebook_add_url_source": 60_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,

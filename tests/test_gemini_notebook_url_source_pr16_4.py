@@ -191,7 +191,7 @@ def test_gemini_notebook_mutation_worker_is_valid_javascript() -> None:
     if node is None:
         pytest.skip("node is unavailable")
 
-    worker = EXT / "service_worker_gemini_notebook_url_source.js"
+    worker = EXT / "service_worker_gemini_notebook_capability.js"
     subprocess.run(
         [node, "--check", str(worker)],
         check=True,
@@ -202,7 +202,7 @@ def test_gemini_notebook_mutation_worker_is_valid_javascript() -> None:
 
 
 def test_gemini_notebook_worker_freezes_commit_and_reconciliation() -> None:
-    worker = (EXT / "service_worker_gemini_notebook_url_source.js").read_text(
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
 
@@ -239,7 +239,7 @@ def test_gemini_notebook_mutation_is_explicit_runtime_layer() -> None:
     )
 
     characterization = 'importScripts("service_worker_gemini_notebook_capability.js");'
-    mutation = 'importScripts("service_worker_gemini_notebook_url_source.js");'
+    mutation = 'importScripts("service_worker_gemini_notebook_capability.js");'
     translate = 'importScripts("service_worker_google_translate_capability.js");'
 
     assert characterization in runtime
@@ -260,14 +260,17 @@ def test_gemini_notebook_native_host_admits_mutation_on_shared_lane() -> None:
     assert "_claim_authority_lane(operation, lease_id)" in host
 
 
-def test_gemini_notebook_temporary_live_gate_exists_until_live_pass() -> None:
-    gate = (
-        ROOT
-        / "src"
-        / "chatgpt_web_adapter"
-        / "gemini_notebook_web_live_gate.py"
-    ).read_text(encoding="utf-8")
+def test_gemini_notebook_temporary_acceptance_surfaces_are_absent_after_closure() -> (
+    None
+):
+    package = ROOT / "src" / "chatgpt_web_adapter"
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
+        encoding="utf-8"
+    )
+    host = (package / "browser_native_host.py").read_text(encoding="utf-8")
 
-    assert "GeminiNotebookWebCapability" in gate
-    assert "--notebook" in gate
-    assert "--source-url" in gate
+    assert "characterize_gemini_notebook" not in worker
+    assert "characterize_gemini_notebook" not in host
+    assert not (package / "gemini_notebook_web_characterization.py").exists()
+    assert not (package / "gemini_notebook_web_live_gate.py").exists()
+    assert not (EXT / "service_worker_gemini_notebook_url_source.js").exists()

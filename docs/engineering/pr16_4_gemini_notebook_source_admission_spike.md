@@ -1,6 +1,6 @@
 # PR16.4 — Gemini Notebook consumer source-admission spike
 
-Status: active characterization-first experiment.
+Status: closed bounded capability proof.
 
 ## Question
 
@@ -452,5 +452,40 @@ path, and crosses an explicit commitment boundary only around the product Add ac
 Any failure after that action may have executed requires reconciliation and never
 authorizes blind automatic replay.
 
-The characterization CLI and temporary live gate remain only until one automated live
-source-admission PASS is recorded. They must then be removed before PR16.4 closure.
+The temporary characterization CLI and live gate were removed after the automated live
+PASS. The production capability remains module-only and experimental.
+
+
+## Automated live acceptance
+
+The first fully CWA-owned live run completed successfully against the same owned
+consumer notebook:
+
+    source URL = https://www.iana.org/help/example-domains
+    source row count before = 1
+    source row count after = 2
+    elapsed = 1583 ms
+    finality = PAGE_DOM_DURABLE_SOURCE_ADMISSION
+    automatic retry = false
+
+The admitted row initially exposed the observed DOM reference:
+
+    pending_upload_doc_id_68A29CF4-EAC3-4E8E-8339-1E12B3A86B5E
+
+That value is preserved only as product-observed opaque identity. It is not documented
+or promoted as an official Google source identifier.
+
+This live PASS closes the experiment's central question: CWA can drive a bounded
+durable mutation in an authenticated persistent hosted workspace while preserving an
+explicit commitment boundary, post-commit reconciliation, and no automatic replay.
+
+## Closure
+
+PR16.4 closes with one production Gemini Notebook capability:
+
+    GeminiNotebookWebCapability.add_url_source(...)
+
+The final runtime keeps one Gemini Notebook Native Messaging layer. Temporary
+characterization code, characterization CLI, and live-gate tooling are absent from the
+closed production topology. No generic HostedCapabilityRuntime or capability registry
+is introduced.

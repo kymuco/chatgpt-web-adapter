@@ -4,15 +4,49 @@ const CWA_GEMINI_NOTEBOOK_ORIGINS = new Set([
   "https://notebooklm.google.com"
 ]);
 
-function _cwaGeminiNotebookIsUrl(url) {
+const CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_OPERATION =
+  "gemini_notebook_add_url_source";
+const CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_CAPABILITY_ID = "add_url_source";
+const CWA_GEMINI_NOTEBOOK_FINALITY =
+  "PAGE_DOM_DURABLE_SOURCE_ADMISSION";
+const CWA_GEMINI_NOTEBOOK_SOURCE_ROW_STABLE_MS = 1200;
+
+function _cwaGeminiNotebookCanonicalNotebookUrl(value) {
   try {
-    return CWA_GEMINI_NOTEBOOK_ORIGINS.has(new URL(url).origin);
+    const parsed = new URL(value);
+    if (!CWA_GEMINI_NOTEBOOK_ORIGINS.has(parsed.origin)) return null;
+    if (!/^\/notebook\/[A-Za-z0-9_-]{8,200}\/?$/.test(parsed.pathname)) {
+      return null;
+    }
+    return parsed.origin + parsed.pathname.replace(/\/$/, "");
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function _cwaGeminiNotebookFindOpenTabForCharacterization() {
+function _cwaGeminiNotebookSourceUrl(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error("GEMINI_NOTEBOOK_SOURCE_URL_REQUIRED");
+  }
+  if (value.length > 2048) {
+    throw new Error("GEMINI_NOTEBOOK_SOURCE_URL_TOO_LARGE");
+  }
+  let parsed;
+  try {
+    parsed = new URL(value.trim());
+  } catch {
+    throw new Error("GEMINI_NOTEBOOK_SOURCE_URL_INVALID");
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error("GEMINI_NOTEBOOK_SOURCE_URL_SCHEME_UNSUPPORTED");
+  }
+  if (!parsed.hostname || parsed.username || parsed.password) {
+    throw new Error("GEMINI_NOTEBOOK_SOURCE_URL_INVALID");
+  }
+  return parsed.toString();
+}
+
+async function _cwaGeminiNotebookFindExactOpenTab(notebookUrl) {
   const tabs = (
     await chrome.tabs.query({
       url: [
@@ -23,24 +57,34 @@ async function _cwaGeminiNotebookFindOpenTabForCharacterization() {
   ).filter(
     (tab) =>
       Number.isInteger(tab?.id) &&
-      _cwaGeminiNotebookIsUrl(tab?.url || "")
+      _cwaGeminiNotebookCanonicalNotebookUrl(tab?.url || "") === notebookUrl
   );
 
   if (tabs.length === 0) {
-    throw new Error("GEMINI_NOTEBOOK_CHARACTERIZATION_TAB_MISSING");
+    throw new Error("GEMINI_NOTEBOOK_TARGET_TAB_MISSING");
   }
   if (tabs.length > 1) {
     throw new Error(
-      "GEMINI_NOTEBOOK_CHARACTERIZATION_TAB_AMBIGUOUS:" +
-      String(tabs.length)
+      "GEMINI_NOTEBOOK_TARGET_TAB_AMBIGUOUS:" + String(tabs.length)
     );
   }
   return tabs[0];
 }
 
-function _cwaGeminiNotebookCharacterizationExpression() {
+async function _cwaGeminiNotebookMutationEvaluate(debuggee, expression) {
+  const result = await _cwaBaseSendCommand(debuggee, "Runtime.evaluate", {
+    expression,
+    returnByValue: true,
+    awaitPromise: true
+  });
+  if (result?.exceptionDetails) {
+    throw new Error("GEMINI_NOTEBOOK_PAGE_EVALUATION_FAILED");
+  }
+  return result?.result?.value;
+}
+
+function _cwaGeminiNotebookSourceRowsExpression() {
   return `(() => {
-    const normalize = (value) => String(value || "").replace(/\\s+/g, " ").trim();
     const visible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -52,81 +96,17 @@ function _cwaGeminiNotebookCharacterizationExpression() {
         style.visibility !== "hidden"
       );
     };
-    const summarize = (element, index) => {
-      const rect = element.getBoundingClientRect();
-      const parent = element.parentElement;
-      return {
-        index,
-        tag: String(element.tagName || "").toLowerCase(),
-        id: String(element.id || "").slice(0, 120),
-        className: String(element.className || "").slice(0, 220),
-        role: element.getAttribute("role"),
-        ariaLabel: String(element.getAttribute("aria-label") || "").slice(0, 220),
-        placeholder: String(element.getAttribute("placeholder") || "").slice(0, 220),
-        type: String(element.getAttribute("type") || "").slice(0, 80),
-        name: String(element.getAttribute("name") || "").slice(0, 120),
-        jsname: element.getAttribute("jsname"),
-        dataTestId: element.getAttribute("data-testid"),
-        disabled:
-          "disabled" in element ? Boolean(element.disabled) : null,
-        ariaDisabled: element.getAttribute("aria-disabled"),
-        valuePresent:
-          "value" in element ? String(element.value || "").length > 0 : null,
-        valueLength:
-          "value" in element ? String(element.value || "").length : null,
-        text: normalize(element.innerText || element.textContent).slice(0, 420),
-        childElementCount: element.childElementCount,
-        parentTag: parent ? String(parent.tagName || "").toLowerCase() : null,
-        parentRole: parent ? parent.getAttribute("role") : null,
-        parentClass: parent ? String(parent.className || "").slice(0, 180) : null,
-        left: Math.round(rect.left),
-        top: Math.round(rect.top),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
-      };
-    };
-    const sourceTrigger = document.querySelector(".add-source-button");
-    const sourcePanel =
-      sourceTrigger?.closest("section.source-panel") ||
-      sourceTrigger?.closest("nav") ||
-      sourceTrigger?.closest("aside") ||
-      null;
-    const sourcePicker = sourcePanel?.querySelector("source-picker") || null;
-
-    const sourceAncestorPath = [];
-    let sourceAncestor = sourceTrigger?.parentElement || null;
-    for (let depth = 0; sourceAncestor && depth < 6; depth += 1) {
-      if (!visible(sourceAncestor)) break;
-      const rect = sourceAncestor.getBoundingClientRect();
-      if (rect.width > 760) break;
-      sourceAncestorPath.push({
-        depth,
-        tag: String(sourceAncestor.tagName || "").toLowerCase(),
-        className: String(sourceAncestor.className || "").slice(0, 220),
-        role: sourceAncestor.getAttribute("role"),
-        text: normalize(
-          sourceAncestor.innerText || sourceAncestor.textContent
-        ).slice(0, 420),
-        checkboxCount: sourceAncestor.querySelectorAll(
-          "input[type='checkbox'],[role='checkbox'],mat-checkbox"
-        ).length,
-        buttonCount: sourceAncestor.querySelectorAll(
-          "button,[role='button'],nb-button,nb-icon-button"
-        ).length,
-        left: Math.round(rect.left),
-        top: Math.round(rect.top),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
-      });
-      sourceAncestor = sourceAncestor.parentElement;
-    }
-
-    const sourceRows = [];
-    if (sourcePicker instanceof Element) {
-      for (const row of sourcePicker.querySelectorAll(".single-source-container")) {
-        if (sourceRows.length >= 100) break;
+    const normalize = (value) =>
+      String(value || "").replace(/\\s+/g, " ").trim();
+    const notebookUrl =
+      location.origin + location.pathname.replace(/\\/$/, "");
+    const panel = document.querySelector("section.source-panel");
+    const picker = panel?.querySelector("source-picker") || null;
+    const rows = [];
+    if (picker instanceof Element) {
+      for (const row of picker.querySelectorAll(".single-source-container")) {
+        if (rows.length >= 100) break;
         if (!visible(row)) continue;
-
         const titleElement =
           row.querySelector(".source-title") ||
           row.querySelector(".source-stretched-button");
@@ -136,9 +116,9 @@ function _cwaGeminiNotebookCharacterizationExpression() {
           "[id^='source-item-more-button-']"
         );
         const moreButtonId = String(moreButton?.id || "");
-        const observedRowRefPrefix = "source-item-more-button-";
-        const observedRowRef = moreButtonId.startsWith(observedRowRefPrefix)
-          ? moreButtonId.slice(observedRowRefPrefix.length)
+        const prefix = "source-item-more-button-";
+        const observedRowRef = moreButtonId.startsWith(prefix)
+          ? moreButtonId.slice(prefix.length)
           : null;
         const title = normalize(
           titleElement?.getAttribute("aria-label") ||
@@ -147,179 +127,578 @@ function _cwaGeminiNotebookCharacterizationExpression() {
             stretchedButton?.getAttribute("aria-label") ||
             ""
         );
-
-        sourceRows.push({
-          index: sourceRows.length,
+        rows.push({
           title: title.slice(0, 220),
-          rowClass: String(row.className || "").slice(0, 220),
-          titleClass: titleElement
-            ? String(titleElement.className || "").slice(0, 220)
-            : null,
-          stretchedButtonPresent: stretchedButton instanceof Element,
           selected:
-            checkbox && "checked" in checkbox ? Boolean(checkbox.checked) : null,
-          observedRowRefPresent: Boolean(observedRowRef),
+            checkbox && "checked" in checkbox
+              ? Boolean(checkbox.checked)
+              : null,
           observedRowRef
         });
       }
     }
-
-    const overlayCandidates = Array.from(
-      document.querySelectorAll(
-        "[role='dialog'],mat-dialog-container,.mat-mdc-dialog-container,.cdk-overlay-pane"
-      )
-    ).filter(visible);
-    const overlayRoots = overlayCandidates.filter(
-      (element) =>
-        !overlayCandidates.some(
-          (other) => other !== element && element.contains(other)
-        )
-    );
-    const roots = [sourcePanel, ...overlayRoots].filter(
-      (element, index, values) =>
-        element instanceof Element && values.indexOf(element) === index
-    );
-
-    const selectors = [
-      "button",
-      "[role='button']",
-      "[role='dialog']",
-      "[role='list']",
-      "[role='listitem']",
-      "[role='menuitem']",
-      "input",
-      "textarea",
-      "[contenteditable='true']",
-      "[aria-label]",
-      "[data-testid]"
-    ];
-    const seen = new Set();
-    const candidates = [];
-    for (const root of roots) {
-      for (const selector of selectors) {
-        const elements = [
-          ...(root.matches(selector) ? [root] : []),
-          ...root.querySelectorAll(selector)
-        ];
-        for (const element of elements) {
-          if (candidates.length >= 180) break;
-          if (seen.has(element) || !visible(element)) continue;
-          seen.add(element);
-          const text = normalize(element.innerText || element.textContent);
-          const aria = normalize(element.getAttribute("aria-label"));
-          const placeholder = normalize(element.getAttribute("placeholder"));
-          if (
-            !text &&
-            !aria &&
-            !placeholder &&
-            element.tagName !== "INPUT" &&
-            element.tagName !== "TEXTAREA"
-          ) {
-            continue;
-          }
-          candidates.push(summarize(element, candidates.length));
-        }
-        if (candidates.length >= 180) break;
-      }
-      if (candidates.length >= 180) break;
-    }
-
-    const headingSeen = new Set();
-    const headings = [];
-    for (const root of roots) {
-      for (const element of root.querySelectorAll("h1,h2,h3,[role='heading']")) {
-        if (headings.length >= 60) break;
-        if (headingSeen.has(element) || !visible(element)) continue;
-        headingSeen.add(element);
-        headings.push(summarize(element, headings.length));
-      }
-      if (headings.length >= 60) break;
-    }
-
-    const scopedText = roots
-      .map((root) => normalize(root.innerText || root.textContent))
-      .filter(Boolean)
-      .join(" | ")
-      .slice(0, 5000);
-
     return {
-      url: location.href,
-      origin: location.origin,
-      title: document.title,
-      addSourceRouteActive:
-        new URL(location.href).searchParams.get("addSource") === "true",
-      sourcePanelFound: sourcePanel instanceof Element,
-      sourcePanelTag:
-        sourcePanel instanceof Element
-          ? String(sourcePanel.tagName || "").toLowerCase()
-          : null,
-      sourcePanelClass:
-        sourcePanel instanceof Element
-          ? String(sourcePanel.className || "").slice(0, 220)
-          : null,
-      sourcePickerFound: sourcePicker instanceof Element,
-      sourceAncestorPath,
-      sourceRowCount: sourceRows.length,
-      sourceRows,
-      overlayRootCount: overlayRoots.length,
-      bodyText: scopedText,
-      headingCount: headings.length,
-      headings,
-      candidateCount: candidates.length,
-      candidates
+      notebookUrl,
+      sourcePanelFound: panel instanceof Element,
+      sourcePickerFound: picker instanceof Element,
+      rows
     };
   })()`;
 }
 
-async function _cwaGeminiNotebookCharacterizeCurrentPage() {
-  const tab = await _cwaGeminiNotebookFindOpenTabForCharacterization();
+function _cwaGeminiNotebookClickAddSourceExpression() {
+  return `(() => {
+    const panel = document.querySelector("section.source-panel");
+    const trigger = panel?.querySelector(".add-source-button") || null;
+    const button =
+      trigger instanceof HTMLButtonElement
+        ? trigger
+        : trigger?.querySelector("button") || null;
+    if (!(button instanceof HTMLButtonElement)) {
+      return { clicked: false, reason: "ADD_SOURCE_CONTROL_MISSING" };
+    }
+    if (button.disabled || button.getAttribute("aria-disabled") === "true") {
+      return { clicked: false, reason: "ADD_SOURCE_CONTROL_DISABLED" };
+    }
+    button.click();
+    return { clicked: true };
+  })()`;
+}
+
+function _cwaGeminiNotebookDialogStateExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    ).filter(visible);
+    const dialog =
+      dialogs.find(
+        (candidate) =>
+          !dialogs.some(
+            (other) => other !== candidate && candidate.contains(other)
+          )
+      ) || dialogs[0] || null;
+    if (!(dialog instanceof Element)) {
+      return {
+        dialogFound: false,
+        directUrlState: false,
+        sitesActionCount: 0
+      };
+    }
+
+    const textareas = Array.from(dialog.querySelectorAll("textarea")).filter(
+      visible
+    );
+    const commitButtons = Array.from(
+      dialog.querySelectorAll(".mat-mdc-dialog-actions button")
+    ).filter(visible);
+    const sourceActionButtons = Array.from(
+      dialog.querySelectorAll("button.source-action-button")
+    ).filter(visible);
+    const sitesActions = sourceActionButtons.filter((button) => {
+      const icons = Array.from(button.querySelectorAll("mat-icon")).map(
+        (icon) => String(icon.textContent || "").trim()
+      );
+      return icons.includes("link_2") && icons.includes("video_youtube");
+    });
+
+    return {
+      dialogFound: true,
+      directUrlState: textareas.length === 1 && commitButtons.length === 1,
+      sitesActionCount: sitesActions.length
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookClickSitesExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    ).filter(visible);
+    const dialog =
+      dialogs.find(
+        (candidate) =>
+          !dialogs.some(
+            (other) => other !== candidate && candidate.contains(other)
+          )
+      ) || dialogs[0] || null;
+    if (!(dialog instanceof Element)) {
+      return { clicked: false, reason: "SOURCE_DIALOG_MISSING" };
+    }
+    const candidates = Array.from(
+      dialog.querySelectorAll("button.source-action-button")
+    ).filter((button) => {
+      if (!visible(button)) return false;
+      const icons = Array.from(button.querySelectorAll("mat-icon")).map(
+        (icon) => String(icon.textContent || "").trim()
+      );
+      return icons.includes("link_2") && icons.includes("video_youtube");
+    });
+    if (candidates.length !== 1) {
+      return {
+        clicked: false,
+        reason: "SITES_ACTION_IDENTITY_UNRESOLVED",
+        candidateCount: candidates.length
+      };
+    }
+    candidates[0].click();
+    return { clicked: true };
+  })()`;
+}
+
+function _cwaGeminiNotebookUrlInputExpression(sourceUrl, write) {
+  const encodedSourceUrl = JSON.stringify(sourceUrl);
+  return `(() => {
+    const requestedUrl = ${encodedSourceUrl};
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    ).filter(visible);
+    const dialog =
+      dialogs.find(
+        (candidate) =>
+          !dialogs.some(
+            (other) => other !== candidate && candidate.contains(other)
+          )
+      ) || dialogs[0] || null;
+    if (!(dialog instanceof Element)) {
+      return { identityResolved: false, reason: "SOURCE_DIALOG_MISSING" };
+    }
+    const textareas = Array.from(dialog.querySelectorAll("textarea")).filter(
+      visible
+    );
+    const commitButtons = Array.from(
+      dialog.querySelectorAll(".mat-mdc-dialog-actions button")
+    ).filter(visible);
+    if (textareas.length !== 1 || commitButtons.length !== 1) {
+      return {
+        identityResolved: false,
+        reason: "URL_SOURCE_CONTROL_IDENTITY_UNRESOLVED",
+        textareaCount: textareas.length,
+        commitButtonCount: commitButtons.length
+      };
+    }
+    const input = textareas[0];
+    const commit = commitButtons[0];
+    if (${write ? "true" : "false"}) {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set;
+      if (typeof setter === "function") {
+        setter.call(input, requestedUrl);
+      } else {
+        input.value = requestedUrl;
+      }
+      input.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          inputType: "insertText",
+          data: requestedUrl
+        })
+      );
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return {
+      identityResolved: true,
+      inputMatchesRequested: input.value === requestedUrl,
+      commitDisabled:
+        Boolean(commit.disabled) ||
+        commit.getAttribute("aria-disabled") === "true" ||
+        commit.classList.contains("mat-mdc-button-disabled")
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookCommitExpression(sourceUrl) {
+  const encodedSourceUrl = JSON.stringify(sourceUrl);
+  return `(() => {
+    const requestedUrl = ${encodedSourceUrl};
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    ).filter(visible);
+    const dialog =
+      dialogs.find(
+        (candidate) =>
+          !dialogs.some(
+            (other) => other !== candidate && candidate.contains(other)
+          )
+      ) || dialogs[0] || null;
+    if (!(dialog instanceof Element)) {
+      return { clicked: false, reason: "SOURCE_DIALOG_MISSING" };
+    }
+    const textareas = Array.from(dialog.querySelectorAll("textarea")).filter(
+      visible
+    );
+    const commitButtons = Array.from(
+      dialog.querySelectorAll(".mat-mdc-dialog-actions button")
+    ).filter(visible);
+    if (textareas.length !== 1 || commitButtons.length !== 1) {
+      return {
+        clicked: false,
+        reason: "URL_SOURCE_CONTROL_IDENTITY_UNRESOLVED"
+      };
+    }
+    const input = textareas[0];
+    const commit = commitButtons[0];
+    if (input.value !== requestedUrl) {
+      return { clicked: false, reason: "URL_SOURCE_INPUT_MISMATCH" };
+    }
+    if (
+      commit.disabled ||
+      commit.getAttribute("aria-disabled") === "true" ||
+      commit.classList.contains("mat-mdc-button-disabled")
+    ) {
+      return { clicked: false, reason: "URL_SOURCE_COMMIT_DISABLED" };
+    }
+    commit.click();
+    return { clicked: true };
+  })()`;
+}
+
+function _cwaGeminiNotebookAmbiguousError(error) {
+  const message = String(error?.message || error || "UNKNOWN");
+  if (
+    message.startsWith(
+      "GEMINI_NOTEBOOK_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:"
+    )
+  ) {
+    return error;
+  }
+  return new Error(
+    "GEMINI_NOTEBOOK_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+      message
+  );
+}
+
+async function _cwaGeminiNotebookWaitForDialogState(
+  debuggee,
+  predicate,
+  deadlineAt,
+  timeoutCode
+) {
+  while (performance.now() < deadlineAt) {
+    const state = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookDialogStateExpression()
+    );
+    if (predicate(state)) return state;
+    await sleep(100);
+  }
+  throw new Error(timeoutCode);
+}
+
+async function _cwaGeminiNotebookWaitForCommitEnabled(
+  debuggee,
+  sourceUrl,
+  deadlineAt
+) {
+  while (performance.now() < deadlineAt) {
+    const state = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookUrlInputExpression(sourceUrl, false)
+    );
+    if (
+      state?.identityResolved === true &&
+      state?.inputMatchesRequested === true &&
+      state?.commitDisabled === false
+    ) {
+      return state;
+    }
+    await sleep(100);
+  }
+  throw new Error("GEMINI_NOTEBOOK_PRECOMMIT_ENABLE_TIMEOUT");
+}
+
+async function _cwaGeminiNotebookWaitForDurableSourceRow(
+  debuggee,
+  notebookUrl,
+  preRefs,
+  deadlineAt
+) {
+  let stableRef = null;
+  let stableSince = null;
+  let lastSnapshot = null;
+
+  while (performance.now() < deadlineAt) {
+    const snapshot = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookSourceRowsExpression()
+    );
+    lastSnapshot = snapshot;
+    if (snapshot?.notebookUrl !== notebookUrl) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+          "NOTEBOOK_ROUTE_CHANGED"
+      );
+    }
+    const rows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
+    if (rows.some((row) => !row?.observedRowRef)) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+          "POSTCOMMIT_ROW_IDENTITY_UNRESOLVED"
+      );
+    }
+    const newRows = rows.filter(
+      (row) => !preRefs.has(String(row.observedRowRef))
+    );
+    if (newRows.length > 1) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+          "MULTIPLE_NEW_SOURCE_ROWS"
+      );
+    }
+    if (newRows.length === 1 && String(newRows[0]?.title || "").trim()) {
+      const candidateRef = String(newRows[0].observedRowRef);
+      if (candidateRef !== stableRef) {
+        stableRef = candidateRef;
+        stableSince = performance.now();
+      } else if (
+        stableSince !== null &&
+        performance.now() - stableSince >=
+          CWA_GEMINI_NOTEBOOK_SOURCE_ROW_STABLE_MS
+      ) {
+        return {
+          row: newRows[0],
+          rowCount: rows.length
+        };
+      }
+    } else {
+      stableRef = null;
+      stableSince = null;
+    }
+    await sleep(200);
+  }
+
+  const observedCount = Array.isArray(lastSnapshot?.rows)
+    ? lastSnapshot.rows.length
+    : -1;
+  throw new Error(
+    "GEMINI_NOTEBOOK_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED:" +
+      "DURABLE_SOURCE_ROW_TIMEOUT:rows=" +
+      String(observedCount)
+  );
+}
+
+async function _cwaGeminiNotebookAddUrlSource(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+  if (
+    message?.capabilityId !==
+    CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_CAPABILITY_ID
+  ) {
+    throw new Error("GEMINI_NOTEBOOK_CAPABILITY_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+  const sourceUrl = _cwaGeminiNotebookSourceUrl(message?.sourceUrl);
+  const timeoutMs = Math.max(
+    5000,
+    Math.min(Number(message?.timeoutMs) || 60000, 120000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
   const debuggee = { tabId: tab.id };
   let attached = false;
+  let commitMayHaveExecuted = false;
 
   try {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-    const evaluation = await _cwaBaseSendCommand(
+
+    const before = await _cwaGeminiNotebookMutationEvaluate(
       debuggee,
-      "Runtime.evaluate",
-      {
-        expression: _cwaGeminiNotebookCharacterizationExpression(),
-        returnByValue: true,
-        awaitPromise: true
-      }
+      _cwaGeminiNotebookSourceRowsExpression()
     );
-    if (evaluation?.exceptionDetails) {
-      throw new Error("GEMINI_NOTEBOOK_CHARACTERIZATION_EVALUATION_FAILED");
+    if (
+      before?.notebookUrl !== notebookUrl ||
+      before?.sourcePanelFound !== true ||
+      before?.sourcePickerFound !== true
+    ) {
+      throw new Error("GEMINI_NOTEBOOK_SOURCE_PANEL_NOT_READY");
     }
-    const value = evaluation?.result?.value;
-    if (!value || typeof value !== "object") {
-      throw new Error("GEMINI_NOTEBOOK_CHARACTERIZATION_RESULT_MISSING");
+    const beforeRows = Array.isArray(before?.rows) ? before.rows : [];
+    if (beforeRows.some((row) => !row?.observedRowRef)) {
+      throw new Error("GEMINI_NOTEBOOK_PRECOMMIT_ROW_IDENTITY_UNRESOLVED");
     }
-    if (!_cwaGeminiNotebookIsUrl(value.url || "")) {
-      throw new Error("GEMINI_NOTEBOOK_CHARACTERIZATION_ROUTE_CHANGED");
+    const preRefs = new Set(
+      beforeRows.map((row) => String(row.observedRowRef))
+    );
+
+    const addSource = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickAddSourceExpression()
+    );
+    if (addSource?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_ADD_SOURCE_OPEN_FAILED:" +
+          String(addSource?.reason || "UNKNOWN")
+      );
     }
+
+    const firstDialogState = await _cwaGeminiNotebookWaitForDialogState(
+      debuggee,
+      (state) =>
+        state?.directUrlState === true || state?.sitesActionCount === 1,
+      deadlineAt,
+      "GEMINI_NOTEBOOK_SOURCE_CHOOSER_TIMEOUT"
+    );
+
+    if (firstDialogState?.directUrlState !== true) {
+      const sites = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookClickSitesExpression()
+      );
+      if (sites?.clicked !== true) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_SITES_OPEN_FAILED:" +
+            String(sites?.reason || "UNKNOWN")
+        );
+      }
+      await _cwaGeminiNotebookWaitForDialogState(
+        debuggee,
+        (state) => state?.directUrlState === true,
+        deadlineAt,
+        "GEMINI_NOTEBOOK_URL_SOURCE_DIALOG_TIMEOUT"
+      );
+    }
+
+    const written = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookUrlInputExpression(sourceUrl, true)
+    );
+    if (
+      written?.identityResolved !== true ||
+      written?.inputMatchesRequested !== true
+    ) {
+      throw new Error("GEMINI_NOTEBOOK_URL_SOURCE_WRITE_FAILED");
+    }
+
+    await _cwaGeminiNotebookWaitForCommitEnabled(
+      debuggee,
+      sourceUrl,
+      deadlineAt
+    );
+
+    commitMayHaveExecuted = true;
+    const committed = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookCommitExpression(sourceUrl)
+    );
+    if (committed?.clicked !== true) {
+      commitMayHaveExecuted = false;
+      throw new Error(
+        "GEMINI_NOTEBOOK_URL_SOURCE_COMMIT_FAILED:" +
+          String(committed?.reason || "UNKNOWN")
+      );
+    }
+
+    const durable = await _cwaGeminiNotebookWaitForDurableSourceRow(
+      debuggee,
+      notebookUrl,
+      preRefs,
+      deadlineAt
+    );
+    const row = durable.row;
+
     return {
       productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
-      readOnly: true,
+      capabilityId: CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_CAPABILITY_ID,
+      notebookUrl,
+      sourceUrl,
+      sourceTitle: String(row.title || "").trim(),
+      observedRowRef: String(row.observedRowRef),
+      sourceRowCountBefore: beforeRows.length,
+      sourceRowCountAfter: durable.rowCount,
       tabId: tab.id,
-      ...value
+      elapsedMs: Math.round(performance.now() - startedAt),
+      finalityEvidence: CWA_GEMINI_NOTEBOOK_FINALITY,
+      canonicalCompletionProven: false,
+      automaticRetry: false
     };
+  } catch (error) {
+    if (commitMayHaveExecuted) {
+      throw _cwaGeminiNotebookAmbiguousError(error);
+    }
+    throw error;
   } finally {
     if (attached) {
       try {
         await chrome.debugger.detach(debuggee);
       } catch {
-        // Read-only characterization cleanup must not replace the observed result.
+        // Detach cannot alter the already-classified product outcome.
       }
     }
   }
 }
 
-async function _cwaOnNativeMessageWithGeminiNotebook(message, port, next) {
+async function _cwaOnNativeMessageWithGeminiNotebook(
+  message,
+  port,
+  next
+) {
   if (
     message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
-    message?.type !== "characterize_gemini_notebook"
+    message?.type !== CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_OPERATION
   ) {
     return next(message, port);
   }
@@ -328,10 +707,10 @@ async function _cwaOnNativeMessageWithGeminiNotebook(message, port, next) {
   if (typeof requestId !== "string" || !requestId) return;
 
   try {
-    const result = await _cwaGeminiNotebookCharacterizeCurrentPage();
+    const result = await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "characterize_gemini_notebook_result",
+      type: "gemini_notebook_add_url_source_result",
       request_id: requestId,
       ok: true,
       ...result
@@ -339,7 +718,7 @@ async function _cwaOnNativeMessageWithGeminiNotebook(message, port, next) {
   } catch (error) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "characterize_gemini_notebook_result",
+      type: "gemini_notebook_add_url_source_result",
       request_id: requestId,
       ok: false,
       error: error instanceof Error ? error.message : String(error)
