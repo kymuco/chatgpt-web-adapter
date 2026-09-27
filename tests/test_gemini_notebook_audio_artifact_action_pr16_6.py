@@ -105,7 +105,7 @@ def test_worker_probe_is_exact_row_scoped_and_read_only() -> None:
     assert "const expectedArtifactRef = ${encodedArtifactRef};" in expression
     assert "const expectedArtifactRef = \\${encodedArtifactRef};" not in expression
     assert "matches.length !== 1" in expression
-    assert 'row.querySelectorAll("button,[role=\'button\']")' in expression
+    assert "row.querySelectorAll(\"button,[role='button']\")" in expression
     assert 'control.icons.includes("more_vert")' in expression
     assert ".slice(0, 16)" in expression
 

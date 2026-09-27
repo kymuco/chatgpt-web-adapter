@@ -98,9 +98,7 @@ def probe_gemini_notebook_audio_artifact_action(
         "elapsed_ms": response.get("elapsedMs")
         if isinstance(response.get("elapsedMs"), int)
         else None,
-        "row": response.get("row")
-        if isinstance(response.get("row"), dict)
-        else {},
+        "row": response.get("row") if isinstance(response.get("row"), dict) else {},
         "controls": response.get("controls")
         if isinstance(response.get("controls"), list)
         else [],
