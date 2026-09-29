@@ -115,7 +115,8 @@ def test_download_click_identity_is_save_alt_and_not_localized() -> None:
     assert 'icons.includes("save_alt")' in click
     assert "candidates.length !== 1" in click
     assert click.count(".click()") == 1
-    assert "Download" not in click
+    assert "item.innerText" not in click
+    assert "item.textContent" not in click
     assert "Скачать" not in click
 
 
