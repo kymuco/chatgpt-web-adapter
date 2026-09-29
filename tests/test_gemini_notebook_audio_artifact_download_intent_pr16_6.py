@@ -17,7 +17,7 @@ from chatgpt_web_adapter.gemini_notebook_web import (
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PACKAGE / "browser_native_extension"
-NOTEBOOK = "https://notebook.google.com/notebook/564ab6b8-c253-4f1a-b104-6f802d67c76"
+NOTEBOOK = "https://notebook.google.com/notebook/564ab6b8-c253-4f1a-b104-6f8026d67c76"
 ARTIFACT_REF = "261a5005-1c03-44d7-9aa9-ecfb5bcef8f2"
 
 

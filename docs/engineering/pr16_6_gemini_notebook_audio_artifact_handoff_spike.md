@@ -142,3 +142,77 @@ become the future Download identity.
 
 The next gate requires one unambiguous menu and structural evidence for a Download
 action before any Download click is implemented.
+
+## Live result — exact Download action in the artifact menu
+
+The PR16.6b live menu probe observed one visible `mat-mdc-menu-panel` with five
+enabled `button[role=menuitem]` actions. Their product-icon identities were:
+
+```text
+share
+edit
+save_alt
+info_spark
+delete
+```
+
+The Download candidate is therefore structurally unique:
+
+```text
+one visible menu
+→ button.mat-mdc-menu-item[role=menuitem]
+→ mat-icon save_alt
+→ enabled
+```
+
+Localized menu text was not admitted as identity authority. In the live terminal the
+localized text was not decoded reliably, while the product-icon identities remained
+stable.
+
+The menu trigger's post-click `aria-controls` / `aria-expanded` values were empty /
+false and are explicitly rejected as menu identity/finality evidence.
+
+No menu item was activated. No download, navigation, product write, or raw DOM export
+occurred. This closes slice 16.6b.
+
+## Slice 16.6c1 — identity-bound denied download intent
+
+Temporary operation:
+
+```text
+gemini_notebook_audio_artifact_download_intent_probe
+```
+
+This slice tests browser acquisition correlation without materializing bytes.
+
+```text
+exact notebook + exact observedArtifactRef
+→ require zero visible menus
+→ Page download behavior = deny
+→ arm tab-scoped debugger download observer
+→ open exact row-scoped more_vert menu
+→ prove exactly one enabled save_alt menuitem
+→ potential download-effect boundary
+→ click save_alt exactly once
+→ require exactly one Page.downloadWillBegin event
+→ observe bounded Page.downloadProgress states
+→ restore default download behavior
+```
+
+The raw download URL is never exported. Characterization may expose only browser
+`guid`, `frameId`, `suggestedFilename`, URL origin, and whether a query string was
+present. Filename remains descriptive metadata, not artifact identity.
+
+The browser is configured to deny the download before the effect boundary. Therefore
+this slice does not claim acquired bytes or a filesystem artifact:
+
+```text
+downloadCompletedProven = false
+filesystemArtifactProven = false
+automaticRetry = false
+```
+
+If the exact Download click may have executed but event correlation cannot be proven,
+the outcome is ambiguous and automatic retry remains forbidden.
+
+No `downloads` extension permission and no private Google transport are introduced.
