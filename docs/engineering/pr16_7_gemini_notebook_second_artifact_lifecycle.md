@@ -460,3 +460,107 @@ opaque octet-stream responses.
 The characterization remains bounded to 64 MiB. No raw signed URL or private protocol
 body is exported. No final caller destination is written and automatic retry remains
 false after the Download effect boundary.
+
+
+## Live 16.7g result — authenticated Video bytes and verified temporary staging
+
+The exact completed Video artifact repeated the full Audio byte-retrieval path.
+
+Observed identity:
+
+```text
+observedArtifactRef =
+b2c41cbb-470f-46fb-8b39-578303b50c25
+```
+
+Authenticated browser-owned retrieval:
+
+```text
+locatorOriginClass = GOOGLEUSERCONTENT
+HTTP status = 200
+Content-Type = application/octet-stream
+mediaFamily = video
+```
+
+Verified payload evidence:
+
+```text
+sizeBytes = 11,204,155
+SHA-256 =
+c3a35f6f1457aa3d31745f1ccadabfd2b52e49667b585d64d53d99d7cd6b6595
+chunkCount = 25
+```
+
+Browser-side proof:
+
+```text
+browserBytesProven = true
+networkResourceLoadProven = true
+authenticatedBrowserRequestProven = true
+acquisitionTabCreated = false
+```
+
+Python-side staging proof:
+
+```text
+stagingMaterializedProven = true
+stagingIntegrityVerified = true
+stagingDeleted = true
+```
+
+Negative authority boundaries remained intact:
+
+```text
+rawDownloadUrlExported = false
+privateProtocolBodyRead = false
+finalDestinationWritten = false
+automaticRetry = false
+```
+
+This closes 16.7g.
+
+## PR16.7 closure — second complete generated-artifact lifecycle
+
+Audio and Video have now independently proven the same bounded lifecycle:
+
+```text
+structural create identity
+→ bounded configuration surface
+→ one generation effect boundary
+→ background hosted acceptance
+→ stable artifact identity
+→ pending/re-entry
+→ durable completion after reload
+→ exact row-local Download action
+→ product-created Googleusercontent locator
+→ authenticated browser-owned bytes
+→ SHA-256
+→ verified temporary staging
+→ staging retirement
+```
+
+The repeated primitives are now evidence-backed rather than hypothetical.
+
+The strongest candidates for a small **internal** extraction are:
+
+```text
+exact-ref artifact observation among multiple rows
+row-local more_vert + save_alt action identity
+product-created window.open locator capture
+authenticated Network.loadNetworkResource byte retrieval
+chunked native transfer + temporary staging integrity
+```
+
+This evidence still does **not** justify:
+
+```text
+public HostedArtifactLifecycle
+public artifact registry/factory
+universal generated-artifact schema
+generic hosted-capability runtime
+caller filesystem publication authority
+```
+
+Those abstractions remain deferred until further product/capability diversity proves
+that their semantics are stable beyond the current Gemini Notebook generated-artifact
+family.
