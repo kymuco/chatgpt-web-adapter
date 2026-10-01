@@ -124,3 +124,52 @@ automaticRetry = false
 Only the next live result may identify a generation-capable control inside the dialog.
 Localized dialog text is evidence only; no generation selector is implemented in this
 slice.
+
+
+## Slice 16.7c — one default Video generation acceptance proof
+
+The 16.7b live dialog proves a Video-owned configuration surface whose icon inventory
+contains `subscriptions`. Its visible button set contains one enabled
+`mat-tonal-button`; the localized "generate now" text is not used as identity.
+
+Temporary operation:
+
+```text
+gemini_notebook_video_generation_probe
+```
+
+The operation leaves all Video configuration at product defaults.
+
+Unlike the original Audio proof, the artifact library is already non-empty. Therefore
+acceptance is not based on an empty-to-one transition. Instead:
+
+```text
+before artifact refs
+→ open exact videocam config
+→ prove one subscriptions-owned dialog
+→ prove exactly one enabled mat-tonal-button
+→ generation effect boundary
+→ click exactly once
+→ observe artifact library
+→ require exactly one new stable artifact ref
+```
+
+The new row must stabilize as either pending or non-pending candidate under the same
+artifact-row observation contract already proven by PR16.5/16.6.
+
+Success proves background generation acceptance, not completion:
+
+```text
+generationCommitMayHaveExecuted = true
+generationAcceptedProven = true
+startEvidence = PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_ACCEPTED
+canonicalCompletionProven = false
+automaticRetry = false
+```
+
+Any failure after the tonal-button effect boundary is ambiguous and automatic retry
+remains forbidden.
+
+This is intentionally a one-shot live experiment because Video generation can consume
+hosted-product quota. The returned artifact ref becomes the identity input for the
+next re-entry/finality slice; c1 does not start a second generation.

@@ -25,6 +25,8 @@ const CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION =
   "gemini_notebook_studio_creation_controls_probe";
 const CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION =
   "gemini_notebook_video_config_probe";
+const CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION =
+  "gemini_notebook_video_generation_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE =
   "gemini_notebook_audio_artifact_byte_chunk";
 const CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS = 600_000;
@@ -588,6 +590,359 @@ async function _cwaGeminiNotebookProbeVideoConfig(message) {
         await chrome.debugger.detach(debuggee);
       } catch {
         // Detach cannot change the already-classified config observation.
+      }
+    }
+  }
+}
+
+
+function _cwaGeminiNotebookVideoConfigReadinessExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    ).filter(visible);
+    if (dialogs.length !== 1) {
+      return {
+        ready: false,
+        dialogCount: dialogs.length,
+        tonalCandidateCount: 0
+      };
+    }
+
+    const dialog = dialogs[0];
+    const icons = Array.from(dialog.querySelectorAll("mat-icon")).map(
+      (icon) => String(icon.textContent || "").trim()
+    );
+    if (!icons.includes("subscriptions")) {
+      return {
+        ready: false,
+        dialogCount: 1,
+        dialogOwnerProven: false,
+        tonalCandidateCount: 0
+      };
+    }
+
+    const actualButtons = Array.from(
+      dialog.querySelectorAll("button")
+    ).filter(visible);
+    const tonalCandidates = actualButtons.filter(
+      (button) =>
+        button.classList.contains("mat-tonal-button") &&
+        !button.disabled &&
+        button.getAttribute("aria-disabled") !== "true"
+    );
+    return {
+      ready: tonalCandidates.length === 1,
+      dialogCount: 1,
+      dialogOwnerProven: true,
+      actualButtonCount: actualButtons.length,
+      tonalCandidateCount: tonalCandidates.length
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookClickVideoGenerateNowExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    ).filter(visible);
+    if (dialogs.length !== 1) {
+      return {
+        clicked: false,
+        reason: "VIDEO_CONFIG_DIALOG_IDENTITY_UNRESOLVED",
+        dialogCount: dialogs.length
+      };
+    }
+
+    const dialog = dialogs[0];
+    const icons = Array.from(dialog.querySelectorAll("mat-icon")).map(
+      (icon) => String(icon.textContent || "").trim()
+    );
+    if (!icons.includes("subscriptions")) {
+      return {
+        clicked: false,
+        reason: "VIDEO_CONFIG_DIALOG_OWNER_UNRESOLVED"
+      };
+    }
+
+    const actualButtons = Array.from(
+      dialog.querySelectorAll("button")
+    ).filter(visible);
+    const tonalCandidates = actualButtons.filter(
+      (button) =>
+        button.classList.contains("mat-tonal-button") &&
+        !button.disabled &&
+        button.getAttribute("aria-disabled") !== "true"
+    );
+    if (tonalCandidates.length !== 1) {
+      return {
+        clicked: false,
+        reason: "VIDEO_GENERATE_NOW_IDENTITY_UNRESOLVED",
+        actualButtonCount: actualButtons.length,
+        tonalCandidateCount: tonalCandidates.length
+      };
+    }
+
+    tonalCandidates[0].click();
+    return { clicked: true };
+  })()`;
+}
+
+async function _cwaGeminiNotebookWaitForVideoConfig(debuggee, deadlineAt) {
+  while (performance.now() < deadlineAt) {
+    const state = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookVideoConfigReadinessExpression()
+    );
+    if (state?.ready === true) return state;
+    await sleep(100);
+  }
+  throw new Error("GEMINI_NOTEBOOK_VIDEO_CONFIG_TIMEOUT");
+}
+
+async function _cwaGeminiNotebookWaitForStableArtifactDelta(
+  debuggee,
+  notebookUrl,
+  beforeRefs,
+  deadlineAt
+) {
+  const before = new Set(beforeRefs);
+  let stableSignature = null;
+  let stableSince = null;
+  let lastNewCount = -1;
+
+  while (performance.now() < deadlineAt) {
+    const state = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioArtifactItemsExpression()
+    );
+    if (state?.notebookUrl !== notebookUrl) {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_NOTEBOOK_ROUTE_CHANGED");
+    }
+    if (
+      state?.studioFound !== true ||
+      state?.containerFound !== true ||
+      state?.libraryFound !== true
+    ) {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_LIBRARY_NOT_READY");
+    }
+
+    const rows = Array.isArray(state?.rows) ? state.rows : [];
+    const newRows = rows.filter(
+      (row) =>
+        row?.observedArtifactRef &&
+        !before.has(String(row.observedArtifactRef))
+    );
+    lastNewCount = newRows.length;
+
+    if (newRows.length > 1) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DELTA_AMBIGUOUS:" +
+          String(newRows.length)
+      );
+    }
+    if (newRows.length === 0) {
+      stableSignature = null;
+      stableSince = null;
+      await sleep(200);
+      continue;
+    }
+
+    const row = newRows[0];
+    if (
+      row.statusCandidate !== "PENDING_CANDIDATE" &&
+      row.statusCandidate !== "NON_PENDING_CANDIDATE"
+    ) {
+      stableSignature = null;
+      stableSince = null;
+      await sleep(200);
+      continue;
+    }
+
+    const signature = JSON.stringify({
+      observedArtifactRef: row.observedArtifactRef,
+      statusCandidate: row.statusCandidate,
+      actionDisabled: row.actionDisabled,
+      icons: row.icons
+    });
+    if (signature !== stableSignature) {
+      stableSignature = signature;
+      stableSince = performance.now();
+    } else if (
+      stableSince !== null &&
+      performance.now() - stableSince >=
+        CWA_GEMINI_NOTEBOOK_AUDIO_OBSERVATION_STABLE_MS
+    ) {
+      return { state, row };
+    }
+    await sleep(200);
+  }
+
+  throw new Error(
+    "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DELTA_TIMEOUT:new=" +
+      String(lastNewCount)
+  );
+}
+
+async function _cwaGeminiNotebookProbeVideoGeneration(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const timeoutMs = Math.max(
+    5000,
+    Math.min(Number(message?.timeoutMs) || 60000, 120000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+  let generationCommitMayHaveExecuted = false;
+
+  const artifactRefs = (state) =>
+    Array.isArray(state?.rows)
+      ? state.rows
+          .map((row) => String(row?.observedArtifactRef || ""))
+          .filter(Boolean)
+          .sort()
+      : [];
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const initialDialogs = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookVisibleDialogInventoryExpression()
+    );
+    const initialDialogList = Array.isArray(initialDialogs?.dialogs)
+      ? initialDialogs.dialogs
+      : [];
+    if (initialDialogList.length !== 0) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_GENERATION_PRESTATE_DIALOG_OPEN:" +
+          String(initialDialogList.length)
+      );
+    }
+
+    const before = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioArtifactItemsExpression()
+    );
+    if (
+      before?.notebookUrl !== notebookUrl ||
+      before?.studioFound !== true ||
+      before?.containerFound !== true ||
+      before?.libraryFound !== true
+    ) {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_GENERATION_PRESTATE_INVALID");
+    }
+    const beforeArtifactRefs = artifactRefs(before);
+
+    const opened = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickVideoOverviewExpression()
+    );
+    if (opened?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_CONFIG_OPEN_FAILED:" +
+          String(opened?.reason || "UNKNOWN")
+      );
+    }
+
+    await _cwaGeminiNotebookWaitForVideoConfig(debuggee, deadlineAt);
+
+    generationCommitMayHaveExecuted = true;
+    const committed = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickVideoGenerateNowExpression()
+    );
+    if (committed?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_GENERATE_CLICK_FAILED:" +
+          String(committed?.reason || "UNKNOWN")
+      );
+    }
+
+    const accepted = await _cwaGeminiNotebookWaitForStableArtifactDelta(
+      debuggee,
+      notebookUrl,
+      beforeArtifactRefs,
+      deadlineAt
+    );
+    const row = accepted.row;
+    const afterArtifactRefs = artifactRefs(accepted.state);
+
+    return {
+      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+      notebookUrl,
+      tabId: tab.id,
+      elapsedMs: Math.round(performance.now() - startedAt),
+      beforeArtifactRefs,
+      afterArtifactRefs,
+      generationCommitMayHaveExecuted: true,
+      generationAcceptedProven: true,
+      observedArtifactRef: String(row.observedArtifactRef),
+      artifactStatus:
+        row.statusCandidate === "PENDING_CANDIDATE"
+          ? "PENDING"
+          : "COMPLETION_CANDIDATE",
+      artifactTitle: String(row.title || ""),
+      artifactDetails: String(row.details || ""),
+      artifactIcons: Array.isArray(row.icons) ? row.icons : [],
+      startEvidence: "PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_ACCEPTED",
+      canonicalCompletionProven: false,
+      automaticRetry: false,
+      navigationPerformed: false
+    };
+  } catch (error) {
+    if (generationCommitMayHaveExecuted) {
+      throw _cwaGeminiNotebookAmbiguousError(error);
+    }
+    throw error;
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Detach cannot change the already-classified generation outcome.
       }
     }
   }
@@ -3414,7 +3769,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -3440,7 +3796,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                   ? "gemini_notebook_studio_creation_controls_probe_result"
                   : operation === CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
                     ? "gemini_notebook_video_config_probe_result"
-                    : "gemini_notebook_add_url_source_result";
+                    : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
+                      ? "gemini_notebook_video_generation_probe_result"
+                      : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -3460,7 +3818,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                     ? await _cwaGeminiNotebookProbeStudioCreationControls(message)
                     : operation === CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
                       ? await _cwaGeminiNotebookProbeVideoConfig(message)
-                      : await _cwaGeminiNotebookAddUrlSource(message);
+                      : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
+                        ? await _cwaGeminiNotebookProbeVideoGeneration(message)
+                        : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,
