@@ -326,3 +326,84 @@ rawDomExported = false
 ```
 
 Only a live unique `save_alt` result may authorize a later Video download/byte proof.
+
+
+## Live 16.7e result — Video repeats the exact artifact-local Download action
+
+The completed Video artifact menu contained five enabled actions:
+
+```text
+share
+edit
+save_alt
+info_spark
+delete
+```
+
+Exactly one item satisfied the structural Download identity:
+
+```text
+button
++ role=menuitem
++ mat-mdc-menu-item
++ enabled
++ icon save_alt
+```
+
+The localized text was observed as "Скачать" but is not used as identity authority.
+
+The characterization returned:
+
+```text
+downloadCandidateCount = 1
+downloadActionStructurallyProven = true
+downloadPerformed = false
+productWritePerformed = false
+navigationPerformed = false
+```
+
+This closes 16.7e and proves that Audio and Video share the same artifact-local menu
+and structural Download-action primitive.
+
+## Slice 16.7f — Video Download handoff characterization
+
+Temporary operation:
+
+```text
+gemini_notebook_video_artifact_download_intent_probe
+```
+
+The slice asks whether Video also repeats the browser handoff primitive proven for
+Audio, without assuming a transport, origin, or media MIME type in advance.
+
+It requires the exact Video ref to remain completed, opens the exact row-local menu,
+requires the unique structural `save_alt` item, installs the existing bounded
+browser-sink probe plus response-stage Fetch observation, then crosses the Download
+effect boundary and clicks exactly once.
+
+Direct response payload candidates are Video-specific:
+
+```text
+video/*
+or application/octet-stream
+or binary/octet-stream
+or a non-control-plane attachment
+```
+
+JSON/XHR attachment-like control traffic is continued and recorded only as bounded
+metadata. The implementation contains no private endpoint name.
+
+In parallel, page-facing handoff sinks remain suppressed and sanitized:
+
+```text
+anchor
+form
+window.open
+URL.createObjectURL
+```
+
+No response body is read, no filesystem artifact is created, raw locator URLs are not
+exported, and automatic retry remains false after the Download effect boundary.
+
+A live result determines whether Video repeats the Audio `window.open` /
+Googleusercontent handoff or uses a different browser transport.
