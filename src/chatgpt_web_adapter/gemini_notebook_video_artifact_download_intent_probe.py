@@ -77,8 +77,7 @@ def probe_gemini_notebook_video_artifact_download_intent(
             "BROWSER_NATIVE_HOST_SHUTDOWN",
         }:
             raise GeminiNotebookOutcomeAmbiguousError(
-                "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_FAILED: "
-                + error,
+                "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_FAILED: " + error,
                 request_stage="gemini_notebook_video_artifact_download_intent_probe",
             )
         raise RequestError(

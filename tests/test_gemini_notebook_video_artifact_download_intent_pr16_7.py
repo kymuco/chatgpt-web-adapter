@@ -117,7 +117,9 @@ def test_video_download_response_loss_is_ambiguous() -> None:
     assert captured.value.automatic_retry_allowed is False
 
 
-def test_video_download_intent_uses_exact_completed_ref_and_structural_save_alt() -> None:
+def test_video_download_intent_uses_exact_completed_ref_and_structural_save_alt() -> (
+    None
+):
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -185,8 +187,5 @@ def test_video_direct_payload_classifier_is_video_specific() -> None:
 def test_video_download_intent_uses_existing_authority_lane() -> None:
     host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
     assert '"gemini_notebook_video_artifact_download_intent_probe",' in host
-    assert (
-        '"gemini_notebook_video_artifact_download_intent_probe": 15_000'
-        in host
-    )
+    assert '"gemini_notebook_video_artifact_download_intent_probe": 15_000' in host
     assert "_claim_authority_lane(operation, lease_id)" in host
