@@ -811,6 +811,182 @@ function _cwaGeminiNotebookClickVisibleArtifactDownloadExpression() {
   })()`;
 }
 
+
+function _cwaGeminiNotebookInstallDownloadSinkProbeExpression() {
+  return `(() => {
+    const key = "__cwaGeminiNotebookDownloadSinkProbeV1";
+    if (window[key]?.installed === true) {
+      return { installed: false, reason: "ALREADY_INSTALLED" };
+    }
+
+    const clip = (value, limit = 160) =>
+      String(value || "").replace(/\\s+/g, " ").trim().slice(0, limit);
+    const sanitizeUrl = (value) => {
+      try {
+        const parsed = new URL(String(value || ""), location.href);
+        return {
+          scheme: clip(parsed.protocol, 24),
+          origin: clip(parsed.origin, 160),
+          hasQuery: Boolean(parsed.search),
+          pathSuffix: String(parsed.pathname || "")
+            .split("/")
+            .filter(Boolean)
+            .slice(-3)
+            .map((part) => clip(part, 100))
+        };
+      } catch {
+        return {
+          scheme: "",
+          origin: "",
+          hasQuery: false,
+          pathSuffix: []
+        };
+      }
+    };
+
+    const state = {
+      installed: true,
+      events: [],
+      originalWindowOpen: window.open,
+      originalCreateObjectURL:
+        typeof URL.createObjectURL === "function"
+          ? URL.createObjectURL
+          : null,
+      windowOpenPatched: false,
+      objectUrlPatched: false,
+      onClick: null,
+      onSubmit: null
+    };
+    const pushEvent = (entry) => {
+      if (state.events.length < 12) state.events.push(entry);
+    };
+
+    state.onClick = (event) => {
+      const target =
+        event?.target instanceof Element ? event.target : null;
+      const anchor = target?.closest?.("a[href]") || null;
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+
+      pushEvent({
+        kind: "anchor_click",
+        url: sanitizeUrl(anchor.href),
+        downloadPresent: anchor.hasAttribute("download"),
+        downloadValue: clip(anchor.getAttribute("download") || "", 160),
+        target: clip(anchor.getAttribute("target") || "", 48),
+        trusted: event.isTrusted === true
+      });
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+
+    state.onSubmit = (event) => {
+      const form =
+        event?.target instanceof HTMLFormElement ? event.target : null;
+      if (!(form instanceof HTMLFormElement)) return;
+      pushEvent({
+        kind: "form_submit",
+        url: sanitizeUrl(form.action || location.href),
+        method: clip(form.method || "", 24),
+        target: clip(form.target || "", 48),
+        trusted: event.isTrusted === true
+      });
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+
+    document.addEventListener("click", state.onClick, true);
+    document.addEventListener("submit", state.onSubmit, true);
+
+    try {
+      window.open = function(url, target) {
+        pushEvent({
+          kind: "window_open",
+          url: sanitizeUrl(url || ""),
+          target: clip(target || "", 48)
+        });
+        return null;
+      };
+      state.windowOpenPatched = true;
+    } catch {
+      state.windowOpenPatched = false;
+    }
+
+    if (state.originalCreateObjectURL) {
+      try {
+        URL.createObjectURL = function(value) {
+          const result = state.originalCreateObjectURL.call(URL, value);
+          pushEvent({
+            kind: "object_url_created",
+            url: sanitizeUrl(result),
+            blobType: clip(value?.type || "", 120),
+            blobSize: Number.isFinite(value?.size)
+              ? Number(value.size)
+              : null
+          });
+          return result;
+        };
+        state.objectUrlPatched = true;
+      } catch {
+        state.objectUrlPatched = false;
+      }
+    }
+
+    window[key] = state;
+    return {
+      installed: true,
+      windowOpenPatched: state.windowOpenPatched,
+      objectUrlPatched: state.objectUrlPatched
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookReadDownloadSinkProbeExpression() {
+  return `(() => {
+    const state =
+      window["__cwaGeminiNotebookDownloadSinkProbeV1"] || null;
+    if (!state?.installed) {
+      return { installed: false, events: [] };
+    }
+    return {
+      installed: true,
+      events: Array.isArray(state.events)
+        ? state.events.slice(0, 12)
+        : []
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookRestoreDownloadSinkProbeExpression() {
+  return `(() => {
+    const key = "__cwaGeminiNotebookDownloadSinkProbeV1";
+    const state = window[key] || null;
+    if (!state?.installed) return { restored: false };
+
+    try {
+      document.removeEventListener("click", state.onClick, true);
+    } catch {}
+    try {
+      document.removeEventListener("submit", state.onSubmit, true);
+    } catch {}
+    if (state.windowOpenPatched) {
+      try {
+        window.open = state.originalWindowOpen;
+      } catch {}
+    }
+    if (state.objectUrlPatched && state.originalCreateObjectURL) {
+      try {
+        URL.createObjectURL = state.originalCreateObjectURL;
+      } catch {}
+    }
+    try {
+      delete window[key];
+    } catch {
+      window[key] = null;
+    }
+    return { restored: true };
+  })()`;
+}
+
 async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
   if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
     throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
@@ -843,6 +1019,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
   let attached = false;
   let listenerInstalled = false;
   let fetchEnabled = false;
+  let sinkProbeInstalled = false;
   let downloadAttemptMayHaveExecuted = false;
   const observedResponses = [];
   const payloadCandidates = [];
@@ -1038,6 +1215,17 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       );
     }
 
+    const sinkInstall = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookInstallDownloadSinkProbeExpression()
+    );
+    if (sinkInstall?.installed !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_SINK_PROBE_INSTALL_FAILED"
+      );
+    }
+    sinkProbeInstalled = true;
+
     chrome.debugger.onEvent.addListener(observer);
     listenerInstalled = true;
     await _cwaBaseSendCommand(debuggee, "Fetch.enable", {
@@ -1057,14 +1245,28 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       );
     }
 
-    while (
-      performance.now() < deadlineAt &&
-      payloadCandidates.length === 0
-    ) {
+    let sinkState = { installed: true, events: [] };
+    while (performance.now() < deadlineAt) {
+      sinkState = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookReadDownloadSinkProbeExpression()
+      );
+      const sinkEvents = Array.isArray(sinkState?.events)
+        ? sinkState.events
+        : [];
+      if (payloadCandidates.length > 0 || sinkEvents.length > 0) break;
       await sleep(50);
     }
 
     await Promise.allSettled(Array.from(pendingHandlers));
+
+    sinkState = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookReadDownloadSinkProbeExpression()
+    );
+    const sinkEvents = Array.isArray(sinkState?.events)
+      ? sinkState.events
+      : [];
 
     if (payloadCandidates.length > 1) {
       throw new Error(
@@ -1104,6 +1306,10 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       downloadUrlHasQuery: candidate ? candidate.urlHasQuery : false,
       downloadUrlPathSuffix: candidate ? candidate.urlPathSuffix : [],
       observedResponses,
+      downloadSinkObserved: sinkEvents.length > 0,
+      downloadSinkEvents: sinkEvents,
+      downloadSinkWindowOpenPatched: sinkInstall.windowOpenPatched === true,
+      downloadSinkObjectUrlPatched: sinkInstall.objectUrlPatched === true,
       responseBlockedBeforeBody: candidate !== null,
       responseBodyRead: false,
       filesystemArtifactProven: false,
@@ -1118,6 +1324,16 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
     }
     throw error;
   } finally {
+    if (sinkProbeInstalled && attached) {
+      try {
+        await _cwaGeminiNotebookMutationEvaluate(
+          debuggee,
+          _cwaGeminiNotebookRestoreDownloadSinkProbeExpression()
+        );
+      } catch {
+        // Probe cleanup cannot grant retry authority.
+      }
+    }
     if (fetchEnabled) {
       try {
         await _cwaBaseSendCommand(debuggee, "Fetch.disable");

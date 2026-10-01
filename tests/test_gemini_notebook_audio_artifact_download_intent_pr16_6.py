@@ -65,6 +65,24 @@ class _FakeBridge:
                     "blocked": True,
                 },
             ],
+            "downloadSinkObserved": True,
+            "downloadSinkEvents": [
+                {
+                    "kind": "anchor_click",
+                    "url": {
+                        "scheme": "https:",
+                        "origin": "https://example.invalid",
+                        "hasQuery": True,
+                        "pathSuffix": ["audio", "artifact"],
+                    },
+                    "downloadPresent": True,
+                    "downloadValue": "artifact.wav",
+                    "target": "",
+                    "trusted": False,
+                }
+            ],
+            "downloadSinkWindowOpenPatched": True,
+            "downloadSinkObjectUrlPatched": True,
             "responseBlockedBeforeBody": True,
             "responseBodyRead": False,
             "filesystemArtifactProven": False,
@@ -99,6 +117,8 @@ def test_download_intent_probe_contract_is_denied_and_non_retryable() -> None:
     assert result["normalized_content_type"] == "audio/mpeg"
     assert len(result["observed_responses"]) == 2
     assert result["observed_responses"][0]["controlPlaneLikely"] is True
+    assert result["download_sink_observed"] is True
+    assert result["download_sink_events"][0]["kind"] == "anchor_click"
     assert result["content_disposition_attachment"] is True
     assert result["response_blocked_before_body"] is True
     assert result["response_body_read"] is False
@@ -256,6 +276,54 @@ def test_download_intent_allows_incomplete_characterization_without_retry() -> N
     assert result["response_blocked_before_body"] is False
     assert result["automatic_retry"] is False
     assert result["observed_responses"][0]["controlPlaneLikely"] is True
+
+
+def test_download_sink_probe_blocks_page_facing_sinks_and_restores() -> None:
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
+        encoding="utf-8"
+    )
+
+    install = worker.split(
+        "function _cwaGeminiNotebookInstallDownloadSinkProbeExpression()",
+        1,
+    )[1].split(
+        "function _cwaGeminiNotebookReadDownloadSinkProbeExpression()",
+        1,
+    )[0]
+    restore = worker.split(
+        "function _cwaGeminiNotebookRestoreDownloadSinkProbeExpression()",
+        1,
+    )[1].split(
+        "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
+        1,
+    )[0]
+    probe = worker.split(
+        "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
+        1,
+    )[1].split(
+        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        1,
+    )[0]
+
+    assert 'document.addEventListener("click", state.onClick, true)' in install
+    assert 'document.addEventListener("submit", state.onSubmit, true)' in install
+    assert "event.preventDefault()" in install
+    assert "event.stopImmediatePropagation()" in install
+    assert "window.open = function" in install
+    assert "URL.createObjectURL = function" in install
+    assert "raw" not in install.lower()
+    assert 'document.removeEventListener("click", state.onClick, true)' in restore
+    assert 'document.removeEventListener("submit", state.onSubmit, true)' in restore
+    assert "window.open = state.originalWindowOpen" in restore
+    assert "URL.createObjectURL = state.originalCreateObjectURL" in restore
+
+    install_call = probe.index(
+        "_cwaGeminiNotebookInstallDownloadSinkProbeExpression()"
+    )
+    boundary = probe.index("downloadAttemptMayHaveExecuted = true;")
+    click = probe.index("_cwaGeminiNotebookClickVisibleArtifactDownloadExpression()")
+    assert install_call < boundary < click
+    assert "_cwaGeminiNotebookRestoreDownloadSinkProbeExpression()" in probe
 
 
 def test_download_intent_does_not_add_downloads_permission() -> None:

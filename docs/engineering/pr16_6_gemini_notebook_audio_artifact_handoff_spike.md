@@ -311,3 +311,33 @@ JSON-like Content-Type
 The bounded URL path suffix may still be returned as observational telemetry, but it
 does not participate in classification. This preserves the existing invariant that the
 Gemini Notebook worker contains no private Google `batchexecute` protocol coupling.
+
+
+## Live c1 result — no media response in the original tab target
+
+A 15-second live observation after the exact `save_alt` click produced only:
+
+```text
+JSON XHR attachment-like control-plane response
+play.google.com telemetry Ping/XHR
+```
+
+No `audio/*`, octet-stream, or other non-control-plane attachment response appeared
+in the original tab target.
+
+The project therefore does not read the JSON control-plane body to discover a private
+download URL. Instead, c1 now also instruments the page-facing browser sinks used by a
+product after its control-plane RPC:
+
+- anchor click;
+- form submit;
+- `window.open`;
+- `URL.createObjectURL`.
+
+The hooks are temporary and restored in `finally`. Anchor and form events are
+prevented, and `window.open` returns null, so a detected page-facing handoff is
+characterized before browser acquisition. Returned URL metadata is sanitized to
+scheme/origin/query-presence/path suffix; raw URLs are never exported.
+
+Fetch response characterization remains armed in parallel, so a direct media response
+in the original target is still blocked before body read.

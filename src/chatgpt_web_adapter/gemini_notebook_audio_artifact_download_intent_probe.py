@@ -165,6 +165,18 @@ def probe_gemini_notebook_audio_artifact_download_intent(
             else []
         ),
         "observed_responses": observed_responses,
+        "download_sink_observed": response.get("downloadSinkObserved") is True,
+        "download_sink_events": (
+            response.get("downloadSinkEvents")
+            if isinstance(response.get("downloadSinkEvents"), list)
+            else []
+        ),
+        "download_sink_window_open_patched": (
+            response.get("downloadSinkWindowOpenPatched") is True
+        ),
+        "download_sink_object_url_patched": (
+            response.get("downloadSinkObjectUrlPatched") is True
+        ),
         "download_attempt_may_have_executed": True,
         "download_click_performed": True,
         "response_blocked_before_body": (
