@@ -32,8 +32,8 @@ GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION = (
 GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE = (
     "gemini_notebook_video_artifact_byte_chunk"
 )
-DEFAULT_AUDIO_ARTIFACT_MAX_BYTES = 64 * 1024 * 1024
-_MAX_AUDIO_ARTIFACT_BYTES = 64 * 1024 * 1024
+DEFAULT_VIDEO_ARTIFACT_MAX_BYTES = 64 * 1024 * 1024
+_MAX_VIDEO_ARTIFACT_BYTES = 64 * 1024 * 1024
 
 
 class _VideoArtifactByteChunkCollector:
@@ -57,7 +57,7 @@ class _VideoArtifactByteChunkCollector:
 
     def add(self, frame: dict[str, Any]) -> None:
         if frame.get("request_id") != self.request_id:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_REQUEST_MISMATCH")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_CHUNK_REQUEST_MISMATCH")
 
         index = frame.get("chunkIndex")
         count = frame.get("chunkCount")
@@ -73,22 +73,22 @@ class _VideoArtifactByteChunkCollector:
             or index != self.next_index
             or not 0 <= index < count
         ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_INDEX_INVALID")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_CHUNK_INDEX_INVALID")
         if (
             isinstance(total_bytes, bool)
             or not isinstance(total_bytes, int)
             or total_bytes < 0
             or total_bytes > self.max_bytes
         ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_TOTAL_INVALID")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_TOTAL_INVALID")
         if (
             not isinstance(digest, str)
             or len(digest) != 64
             or any(char not in "0123456789abcdef" for char in digest.lower())
         ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_DIGEST_INVALID")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_DIGEST_INVALID")
         if not isinstance(data, str):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_DATA_INVALID")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_CHUNK_DATA_INVALID")
 
         manifest = (count, total_bytes, digest.lower())
         if self.chunk_count is not None and manifest != (
@@ -96,16 +96,16 @@ class _VideoArtifactByteChunkCollector:
             self.total_bytes,
             self.sha256,
         ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_MANIFEST_MISMATCH")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_CHUNK_MANIFEST_MISMATCH")
 
         try:
             decoded = base64.b64decode(data, validate=True)
         except (ValueError, TypeError) as error:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_BASE64_INVALID") from error
+            raise ValueError("VIDEO_ARTIFACT_BYTE_CHUNK_BASE64_INVALID") from error
 
         self.received_bytes += len(decoded)
         if self.received_bytes > self.max_bytes:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_LIMIT_EXCEEDED")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_LIMIT_EXCEEDED")
 
         self.chunk_count, self.total_bytes, self.sha256 = manifest
         self.handle.write(decoded)
@@ -120,11 +120,11 @@ class _VideoArtifactByteChunkCollector:
         )
         expected_manifest = (self.chunk_count, self.total_bytes, self.sha256)
         if final_manifest != expected_manifest:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_FINAL_MANIFEST_MISMATCH")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_FINAL_MANIFEST_MISMATCH")
         if self.chunk_count is None or self.next_index != self.chunk_count:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_MISSING")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_CHUNK_MISSING")
         if self.total_bytes != self.received_bytes:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_TOTAL_MISMATCH")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_TOTAL_MISMATCH")
 
         self.handle.flush()
         os.fsync(self.handle.fileno())
@@ -133,7 +133,7 @@ class _VideoArtifactByteChunkCollector:
             actual_digest,
             self.sha256,
         ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_DIGEST_MISMATCH")
+            raise ValueError("VIDEO_ARTIFACT_BYTE_DIGEST_MISMATCH")
 
         file_digest = hashlib.sha256()
         file_size = 0
@@ -145,9 +145,9 @@ class _VideoArtifactByteChunkCollector:
                 file_size += len(chunk)
                 file_digest.update(chunk)
         if file_size != self.received_bytes:
-            raise ValueError("AUDIO_ARTIFACT_STAGING_SIZE_MISMATCH")
+            raise ValueError("VIDEO_ARTIFACT_STAGING_SIZE_MISMATCH")
         if not hmac.compare_digest(file_digest.hexdigest(), actual_digest):
-            raise ValueError("AUDIO_ARTIFACT_STAGING_DIGEST_MISMATCH")
+            raise ValueError("VIDEO_ARTIFACT_STAGING_DIGEST_MISMATCH")
         return file_size, actual_digest
 
     def close(self) -> None:
@@ -158,8 +158,8 @@ class _VideoArtifactByteChunkCollector:
 def _normalize_max_bytes(value: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("max_bytes must be a positive integer")
-    if value > _MAX_AUDIO_ARTIFACT_BYTES:
-        raise ValueError(f"max_bytes must be <= {_MAX_AUDIO_ARTIFACT_BYTES}")
+    if value > _MAX_VIDEO_ARTIFACT_BYTES:
+        raise ValueError(f"max_bytes must be <= {_MAX_VIDEO_ARTIFACT_BYTES}")
     return value
 
 
@@ -168,7 +168,7 @@ def probe_gemini_notebook_video_artifact_bytes(
     notebook: str,
     expected_artifact_ref: str,
     timeout: float = 120.0,
-    max_bytes: int = DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
+    max_bytes: int = DEFAULT_VIDEO_ARTIFACT_MAX_BYTES,
     bridge: BrowserNativeTurnProvider | None = None,
 ) -> dict[str, Any]:
     """Acquire exact product-created Video bytes into verified temporary staging."""
@@ -329,6 +329,7 @@ def probe_gemini_notebook_video_artifact_bytes(
             "staging_integrity_verified": True,
             "network_resource_load_proven": True,
             "authenticated_browser_request_proven": True,
+            "media_family": "video",
             "acquisition_tab_created": False,
             "raw_download_url_exported": False,
             "private_protocol_body_read": False,
@@ -383,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--max-bytes",
         type=int,
-        default=DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
+        default=DEFAULT_VIDEO_ARTIFACT_MAX_BYTES,
     )
     args = parser.parse_args(argv)
 
