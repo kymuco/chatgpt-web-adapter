@@ -2421,7 +2421,11 @@ async function _cwaGeminiNotebookLoadLocatorBytes(
   }
 }
 
-async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
+async function _cwaGeminiNotebookProbeArtifactBytes(
+  message,
+  port,
+  profile
+) {
   if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
     throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
   }
@@ -2439,7 +2443,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       ? message.expectedArtifactRef
       : null;
   if (!expectedArtifactRef) {
-    throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_REF_INVALID");
+    throw new Error(profile.errorPrefix + "_REF_INVALID");
   }
 
   const maxBytes = Math.max(
@@ -2466,6 +2470,18 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
 
+    if (profile.requireCompletedExactRef === true) {
+      const exact = await _cwaGeminiNotebookWaitForStableExactArtifact(
+        debuggee,
+        notebookUrl,
+        expectedArtifactRef,
+        deadlineAt
+      );
+      if (exact?.row?.statusCandidate !== "NON_PENDING_CANDIDATE") {
+        throw new Error(profile.errorPrefix + "_NOT_COMPLETED");
+      }
+    }
+
     const beforeMenus = await _cwaGeminiNotebookMutationEvaluate(
       debuggee,
       _cwaGeminiNotebookVisibleArtifactMenusExpression()
@@ -2475,7 +2491,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       : [];
     if (beforePanels.length !== 0) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PRESTATE_MENU_OPEN:" +
+        profile.errorPrefix +
+          "_BYTE_PRESTATE_MENU_OPEN:" +
           String(beforePanels.length)
       );
     }
@@ -2488,7 +2505,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
     );
     if (opened?.clicked !== true) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_CLICK_FAILED:" +
+        profile.errorPrefix +
+          "_MENU_CLICK_FAILED:" +
           String(opened?.reason || "UNKNOWN")
       );
     }
@@ -2502,7 +2520,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       const panels = Array.isArray(state?.panels) ? state.panels : [];
       if (panels.length > 1) {
         throw new Error(
-          "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_IDENTITY_AMBIGUOUS:" +
+          profile.errorPrefix +
+            "_MENU_IDENTITY_AMBIGUOUS:" +
             String(panels.length)
         );
       }
@@ -2513,7 +2532,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       await sleep(100);
     }
     if (!menu) {
-      throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_TIMEOUT");
+      throw new Error(profile.errorPrefix + "_MENU_TIMEOUT");
     }
 
     const downloadCandidates = Array.isArray(menu?.items)
@@ -2529,7 +2548,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       : [];
     if (downloadCandidates.length !== 1) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_ACTION_IDENTITY_UNRESOLVED:" +
+        profile.errorPrefix +
+          "_DOWNLOAD_ACTION_IDENTITY_UNRESOLVED:" +
           String(downloadCandidates.length)
       );
     }
@@ -2543,7 +2563,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       sinkInstall?.windowOpenPatched !== true
     ) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_SINK_PROBE_INSTALL_FAILED"
+        profile.errorPrefix + "_BYTE_SINK_PROBE_INSTALL_FAILED"
       );
     }
     sinkProbeInstalled = true;
@@ -2555,7 +2575,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
     );
     if (clicked?.clicked !== true) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_CLICK_FAILED:" +
+        profile.errorPrefix +
+          "_DOWNLOAD_CLICK_FAILED:" +
           String(clicked?.reason || "UNKNOWN")
       );
     }
@@ -2579,7 +2600,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
     );
     if (locatorState?.resolved !== true) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_WINDOW_OPEN_LOCATOR_UNRESOLVED:" +
+        profile.errorPrefix +
+          "_WINDOW_OPEN_LOCATOR_UNRESOLVED:" +
           String(locatorState?.reason || "UNKNOWN")
       );
     }
@@ -2592,7 +2614,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       debuggee,
       policy.locator,
       maxBytes,
-      "audio"
+      profile.mediaFamily
     );
 
     const bodyBase64 = acquired.bodyBase64;
@@ -2601,28 +2623,24 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       !/^[0-9a-f]{64}$/.test(acquired.sha256 || "")
     ) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_TRANSFER_SOURCE_INVALID"
+        profile.errorPrefix + "_BYTE_TRANSFER_SOURCE_INVALID"
       );
     }
+
     const chunkCount = Math.max(
       1,
-      Math.ceil(
-        bodyBase64.length /
-          CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS
-      )
+      Math.ceil(bodyBase64.length / profile.chunkBase64Chars)
     );
 
     for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
       const data = bodyBase64.slice(
-        chunkIndex *
-          CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS,
-        (chunkIndex + 1) *
-          CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS
+        chunkIndex * profile.chunkBase64Chars,
+        (chunkIndex + 1) * profile.chunkBase64Chars
       );
       if (
         !safePortPost(port, {
           protocol: BRIDGE_PROTOCOL_VERSION,
-          type: CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE,
+          type: profile.chunkType,
           request_id: message.request_id,
           chunkIndex,
           chunkCount,
@@ -2632,12 +2650,12 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
         })
       ) {
         throw new Error(
-          "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_DELIVERY_FAILED"
+          profile.errorPrefix + "_BYTE_CHUNK_DELIVERY_FAILED"
         );
       }
     }
 
-    return {
+    const result = {
       productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
       notebookUrl,
       tabId: tab.id,
@@ -2661,6 +2679,10 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       finalDestinationWritten: false,
       automaticRetry: false
     };
+    if (profile.includeMediaFamily === true) {
+      result.mediaFamily = profile.mediaFamily;
+    }
+    return result;
   } catch (error) {
     if (downloadAttemptMayHaveExecuted) {
       throw _cwaGeminiNotebookAmbiguousError(error);
@@ -2681,6 +2703,17 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       } catch {}
     }
   }
+}
+
+async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
+  return _cwaGeminiNotebookProbeArtifactBytes(message, port, {
+    mediaFamily: "audio",
+    errorPrefix: "GEMINI_NOTEBOOK_AUDIO_ARTIFACT",
+    chunkType: CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE,
+    chunkBase64Chars: CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS,
+    requireCompletedExactRef: false,
+    includeMediaFamily: false
+  });
 }
 
 async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
@@ -3440,277 +3473,14 @@ async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message) {
 }
 
 async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port) {
-  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
-    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
-  }
-
-  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
-    message?.notebookUrl
-  );
-  if (!notebookUrl) {
-    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
-  }
-
-  const expectedArtifactRef =
-    typeof message?.expectedArtifactRef === "string" &&
-    /^[A-Za-z0-9_-]{8,200}$/.test(message.expectedArtifactRef)
-      ? message.expectedArtifactRef
-      : null;
-  if (!expectedArtifactRef) {
-    throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_REF_INVALID");
-  }
-
-  const maxBytes = Math.max(
-    1,
-    Math.min(
-      Number(message?.maxBytes) || 67_108_864,
-      67_108_864
-    )
-  );
-  const timeoutMs = Math.max(
-    5000,
-    Math.min(Number(message?.timeoutMs) || 120000, 180000)
-  );
-  const startedAt = performance.now();
-  const deadlineAt = startedAt + timeoutMs;
-  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
-  const debuggee = { tabId: tab.id };
-  let attached = false;
-  let sinkProbeInstalled = false;
-  let downloadAttemptMayHaveExecuted = false;
-
-  try {
-    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
-    attached = true;
-    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-
-    const exact = await _cwaGeminiNotebookWaitForStableExactArtifact(
-      debuggee,
-      notebookUrl,
-      expectedArtifactRef,
-      deadlineAt
-    );
-    if (exact?.row?.statusCandidate !== "NON_PENDING_CANDIDATE") {
-      throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_NOT_COMPLETED");
-    }
-
-    const beforeMenus = await _cwaGeminiNotebookMutationEvaluate(
-      debuggee,
-      _cwaGeminiNotebookVisibleArtifactMenusExpression()
-    );
-    const beforePanels = Array.isArray(beforeMenus?.panels)
-      ? beforeMenus.panels
-      : [];
-    if (beforePanels.length !== 0) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PRESTATE_MENU_OPEN:" +
-          String(beforePanels.length)
-      );
-    }
-
-    const opened = await _cwaGeminiNotebookMutationEvaluate(
-      debuggee,
-      _cwaGeminiNotebookClickExactArtifactMoreMenuExpression(
-        expectedArtifactRef
-      )
-    );
-    if (opened?.clicked !== true) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_CLICK_FAILED:" +
-          String(opened?.reason || "UNKNOWN")
-      );
-    }
-
-    let menu = null;
-    while (performance.now() < deadlineAt) {
-      const state = await _cwaGeminiNotebookMutationEvaluate(
-        debuggee,
-        _cwaGeminiNotebookVisibleArtifactMenusExpression()
-      );
-      const panels = Array.isArray(state?.panels) ? state.panels : [];
-      if (panels.length > 1) {
-        throw new Error(
-          "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_IDENTITY_AMBIGUOUS:" +
-            String(panels.length)
-        );
-      }
-      if (panels.length === 1) {
-        menu = panels[0];
-        break;
-      }
-      await sleep(100);
-    }
-    if (!menu) {
-      throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_TIMEOUT");
-    }
-
-    const downloadCandidates = Array.isArray(menu?.items)
-      ? menu.items.filter(
-          (item) =>
-            item?.tag === "button" &&
-            item?.role === "menuitem" &&
-            item?.disabled === false &&
-            String(item?.className || "").includes("mat-mdc-menu-item") &&
-            Array.isArray(item?.icons) &&
-            item.icons.includes("save_alt")
-        )
-      : [];
-    if (downloadCandidates.length !== 1) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_ACTION_IDENTITY_UNRESOLVED:" +
-          String(downloadCandidates.length)
-      );
-    }
-
-    const sinkInstall = await _cwaGeminiNotebookMutationEvaluate(
-      debuggee,
-      _cwaGeminiNotebookInstallDownloadSinkProbeExpression()
-    );
-    if (
-      sinkInstall?.installed !== true ||
-      sinkInstall?.windowOpenPatched !== true
-    ) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_SINK_PROBE_INSTALL_FAILED"
-      );
-    }
-    sinkProbeInstalled = true;
-
-    downloadAttemptMayHaveExecuted = true;
-    const clicked = await _cwaGeminiNotebookMutationEvaluate(
-      debuggee,
-      _cwaGeminiNotebookClickVisibleArtifactDownloadExpression()
-    );
-    if (clicked?.clicked !== true) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_CLICK_FAILED:" +
-          String(clicked?.reason || "UNKNOWN")
-      );
-    }
-
-    let sinkState = { installed: true, events: [] };
-    while (performance.now() < deadlineAt) {
-      sinkState = await _cwaGeminiNotebookMutationEvaluate(
-        debuggee,
-        _cwaGeminiNotebookReadDownloadSinkProbeExpression()
-      );
-      const events = Array.isArray(sinkState?.events)
-        ? sinkState.events
-        : [];
-      if (events.some((event) => event?.kind === "window_open")) break;
-      await sleep(50);
-    }
-
-    const locatorState = await _cwaGeminiNotebookMutationEvaluate(
-      debuggee,
-      _cwaGeminiNotebookTakeUniqueWindowOpenLocatorExpression()
-    );
-    if (locatorState?.resolved !== true) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_WINDOW_OPEN_LOCATOR_UNRESOLVED:" +
-          String(locatorState?.reason || "UNKNOWN")
-      );
-    }
-
-    const policy = _cwaGeminiNotebookAudioLocatorPolicy(
-      locatorState.locator
-    );
-
-    const acquired = await _cwaGeminiNotebookLoadLocatorBytes(
-      debuggee,
-      policy.locator,
-      maxBytes,
-      "video"
-    );
-
-    const bodyBase64 = acquired.bodyBase64;
-    if (
-      typeof bodyBase64 !== "string" ||
-      !/^[0-9a-f]{64}$/.test(acquired.sha256 || "")
-    ) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_TRANSFER_SOURCE_INVALID"
-      );
-    }
-
-    const chunkCount = Math.max(
-      1,
-      Math.ceil(
-        bodyBase64.length /
-          CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS
-      )
-    );
-
-    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
-      const data = bodyBase64.slice(
-        chunkIndex *
-          CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS,
-        (chunkIndex + 1) *
-          CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS
-      );
-      if (
-        !safePortPost(port, {
-          protocol: BRIDGE_PROTOCOL_VERSION,
-          type: CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE,
-          request_id: message.request_id,
-          chunkIndex,
-          chunkCount,
-          totalBytes: acquired.totalBytes,
-          sha256: acquired.sha256,
-          data
-        })
-      ) {
-        throw new Error(
-          "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_DELIVERY_FAILED"
-        );
-      }
-    }
-
-    return {
-      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
-      notebookUrl,
-      tabId: tab.id,
-      elapsedMs: Math.round(performance.now() - startedAt),
-      observedArtifactRef: expectedArtifactRef,
-      locatorOriginClass: policy.originClass,
-      responseStatusCode: acquired.responseStatusCode,
-      contentType: acquired.contentType,
-      normalizedContentType: acquired.normalizedContentType,
-      contentDispositionPresent: acquired.contentDispositionPresent,
-      totalBytes: acquired.totalBytes,
-      sha256: acquired.sha256,
-      chunkCount,
-      browserBytesProven: true,
-      networkResourceLoadProven:
-        acquired.networkResourceLoadProven === true,
-      authenticatedBrowserRequestProven: true,
-      mediaFamily: "video",
-      acquisitionTabCreated: false,
-      rawDownloadUrlExported: false,
-      privateProtocolBodyRead: false,
-      finalDestinationWritten: false,
-      automaticRetry: false
-    };
-  } catch (error) {
-    if (downloadAttemptMayHaveExecuted) {
-      throw _cwaGeminiNotebookAmbiguousError(error);
-    }
-    throw error;
-  } finally {
-    if (sinkProbeInstalled && attached) {
-      try {
-        await _cwaGeminiNotebookMutationEvaluate(
-          debuggee,
-          _cwaGeminiNotebookRestoreDownloadSinkProbeExpression()
-        );
-      } catch {}
-    }
-    if (attached) {
-      try {
-        await chrome.debugger.detach(debuggee);
-      } catch {}
-    }
-  }
+  return _cwaGeminiNotebookProbeArtifactBytes(message, port, {
+    mediaFamily: "video",
+    errorPrefix: "GEMINI_NOTEBOOK_VIDEO_ARTIFACT",
+    chunkType: CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE,
+    chunkBase64Chars: CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS,
+    requireCompletedExactRef: true,
+    includeMediaFamily: true
+  });
 }
 
 function _cwaGeminiNotebookAudioConfigReadinessExpression() {

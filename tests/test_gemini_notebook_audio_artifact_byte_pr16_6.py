@@ -191,7 +191,14 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
-    probe = worker.split(
+    shared = worker.split(
+        "async function _cwaGeminiNotebookProbeArtifactBytes(",
+        1,
+    )[1].split(
+        "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
+        1,
+    )[0]
+    audio = worker.split(
         "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
         1,
     )[1].split(
@@ -199,30 +206,38 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
         1,
     )[0]
 
-    assert "CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS" in probe
-    assert "CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE" in probe
-    assert "safePortPost(port" in probe
-    assert "browserBytesProven: true" in probe
-    assert "networkResourceLoadProven:" in probe
-    assert "authenticatedBrowserRequestProven: true" in probe
-    assert "acquisitionTabCreated: false" in probe
+    assert "safePortPost(port" in shared
+    assert "browserBytesProven: true" in shared
+    assert "networkResourceLoadProven:" in shared
+    assert "authenticatedBrowserRequestProven: true" in shared
+    assert "acquisitionTabCreated: false" in shared
+    assert "rawDownloadUrlExported: false" in shared
+    assert "privateProtocolBodyRead: false" in shared
+    assert "finalDestinationWritten: false" in shared
+    assert "automaticRetry: false" in shared
+
+    assert 'mediaFamily: "audio"' in audio
+    assert 'errorPrefix: "GEMINI_NOTEBOOK_AUDIO_ARTIFACT"' in audio
+    assert "CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE" in audio
+    assert "CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS" in audio
+    assert "requireCompletedExactRef: false" in audio
+    assert "includeMediaFamily: false" in audio
+
     module = (PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py").read_text(
         encoding="utf-8"
     )
     assert "authenticatedBrowserRequestProven" in module
     assert '"authenticated_browser_request_proven": True' in module
 
-    load_call = probe.index("_cwaGeminiNotebookLoadLocatorBytes(")
-    finally_start = probe.index("} finally {")
-    restore_call = probe.index(
+    boundary = shared.index("downloadAttemptMayHaveExecuted = true;")
+    click = shared.index("_cwaGeminiNotebookClickVisibleArtifactDownloadExpression()")
+    load = shared.index("_cwaGeminiNotebookLoadLocatorBytes(")
+    finally_start = shared.index("} finally {")
+    restore_call = shared.index(
         "_cwaGeminiNotebookRestoreDownloadSinkProbeExpression()",
         finally_start,
     )
-    assert load_call < finally_start < restore_call
-    assert "rawDownloadUrlExported: false" in probe
-    assert "privateProtocolBodyRead: false" in probe
-    assert "finalDestinationWritten: false" in probe
-    assert "automaticRetry: false" in probe
+    assert boundary < click < load < finally_start < restore_call
 
 
 def test_byte_probe_host_forwards_chunks_on_existing_authority_lane() -> None:

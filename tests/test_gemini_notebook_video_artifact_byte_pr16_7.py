@@ -99,11 +99,18 @@ def test_worker_network_loader_is_media_family_bound() -> None:
     assert "Page.navigate" not in acquire
 
 
-def test_video_byte_probe_reuses_exact_ref_handoff_and_video_media_family() -> None:
+def test_video_byte_probe_reuses_shared_core_with_video_profile() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
-    probe = worker.split(
+    shared = worker.split(
+        "async function _cwaGeminiNotebookProbeArtifactBytes(",
+        1,
+    )[1].split(
+        "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
+        1,
+    )[0]
+    video = worker.split(
         "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
         1,
     )[1].split(
@@ -111,43 +118,45 @@ def test_video_byte_probe_reuses_exact_ref_handoff_and_video_media_family() -> N
         1,
     )[0]
 
-    assert "_cwaGeminiNotebookWaitForStableExactArtifact(" in probe
-    assert 'statusCandidate !== "NON_PENDING_CANDIDATE"' in probe
-    assert "_cwaGeminiNotebookClickExactArtifactMoreMenuExpression(" in probe
-    assert 'item.icons.includes("save_alt")' in probe
-    assert "_cwaGeminiNotebookInstallDownloadSinkProbeExpression()" in probe
-    assert "_cwaGeminiNotebookTakeUniqueWindowOpenLocatorExpression()" in probe
-    assert "_cwaGeminiNotebookAudioLocatorPolicy(" in probe
-    assert "_cwaGeminiNotebookLoadLocatorBytes(" in probe
-    assert '"video"' in probe
-    assert "CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE" in probe
-    assert "safePortPost(port" in probe
-    assert 'mediaFamily: "video"' in probe
-    assert "rawDownloadUrlExported: false" in probe
-    assert "privateProtocolBodyRead: false" in probe
-    assert "finalDestinationWritten: false" in probe
-    assert "automaticRetry: false" in probe
+    assert "_cwaGeminiNotebookClickExactArtifactMoreMenuExpression(" in shared
+    assert 'item.icons.includes("save_alt")' in shared
+    assert "_cwaGeminiNotebookInstallDownloadSinkProbeExpression()" in shared
+    assert "_cwaGeminiNotebookTakeUniqueWindowOpenLocatorExpression()" in shared
+    assert "_cwaGeminiNotebookAudioLocatorPolicy(" in shared
+    assert "_cwaGeminiNotebookLoadLocatorBytes(" in shared
+    assert "safePortPost(port" in shared
+    assert "rawDownloadUrlExported: false" in shared
+    assert "privateProtocolBodyRead: false" in shared
+    assert "finalDestinationWritten: false" in shared
+    assert "automaticRetry: false" in shared
+
+    assert 'mediaFamily: "video"' in video
+    assert 'errorPrefix: "GEMINI_NOTEBOOK_VIDEO_ARTIFACT"' in video
+    assert "CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE" in video
+    assert "CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS" in video
+    assert "requireCompletedExactRef: true" in video
+    assert "includeMediaFamily: true" in video
 
 
-def test_video_byte_effect_boundary_precedes_download_click_and_retrieval() -> None:
+def test_shared_byte_effect_boundary_precedes_download_click_and_retrieval() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
-    probe = worker.split(
-        "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
+    shared = worker.split(
+        "async function _cwaGeminiNotebookProbeArtifactBytes(",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
         1,
     )[0]
 
-    sink = probe.index("_cwaGeminiNotebookInstallDownloadSinkProbeExpression()")
-    boundary = probe.index("downloadAttemptMayHaveExecuted = true;")
-    click = probe.index("_cwaGeminiNotebookClickVisibleArtifactDownloadExpression()")
-    load = probe.index("_cwaGeminiNotebookLoadLocatorBytes(")
+    sink = shared.index("_cwaGeminiNotebookInstallDownloadSinkProbeExpression()")
+    boundary = shared.index("downloadAttemptMayHaveExecuted = true;")
+    click = shared.index("_cwaGeminiNotebookClickVisibleArtifactDownloadExpression()")
+    load = shared.index("_cwaGeminiNotebookLoadLocatorBytes(")
     assert sink < boundary < click < load
-    assert probe.count("downloadAttemptMayHaveExecuted = false") == 1
-    assert "if (downloadAttemptMayHaveExecuted)" in probe
+    assert shared.count("downloadAttemptMayHaveExecuted = false") == 1
+    assert "if (downloadAttemptMayHaveExecuted)" in shared
 
 
 def test_video_byte_host_forwards_chunks_on_existing_authority_lane() -> None:
