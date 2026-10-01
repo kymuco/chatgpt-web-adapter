@@ -19,6 +19,11 @@ const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION =
   "gemini_notebook_audio_artifact_menu_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION =
   "gemini_notebook_audio_artifact_download_intent_probe";
+const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION =
+  "gemini_notebook_audio_artifact_byte_probe";
+const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE =
+  "gemini_notebook_audio_artifact_byte_chunk";
+const CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS = 600_000;
 const CWA_GEMINI_NOTEBOOK_AUDIO_ACCEPTED_EVIDENCE =
   "PAGE_DOM_BACKGROUND_ARTIFACT_ACCEPTED";
 const CWA_GEMINI_NOTEBOOK_AUDIO_PENDING_EVIDENCE =
@@ -847,6 +852,7 @@ function _cwaGeminiNotebookInstallDownloadSinkProbeExpression() {
     const state = {
       installed: true,
       events: [],
+      privateWindowOpenLocators: [],
       originalWindowOpen: window.open,
       originalCreateObjectURL:
         typeof URL.createObjectURL === "function"
@@ -899,9 +905,16 @@ function _cwaGeminiNotebookInstallDownloadSinkProbeExpression() {
 
     try {
       window.open = function(url, target) {
+        const privateLocator = String(url || "");
+        if (
+          privateLocator &&
+          state.privateWindowOpenLocators.length < 4
+        ) {
+          state.privateWindowOpenLocators.push(privateLocator);
+        }
         pushEvent({
           kind: "window_open",
-          url: sanitizeUrl(url || ""),
+          url: sanitizeUrl(privateLocator),
           target: clip(target || "", 48)
         });
         return null;
@@ -985,6 +998,671 @@ function _cwaGeminiNotebookRestoreDownloadSinkProbeExpression() {
     }
     return { restored: true };
   })()`;
+}
+
+
+function _cwaGeminiNotebookTakeUniqueWindowOpenLocatorExpression() {
+  return `(() => {
+    const state =
+      window["__cwaGeminiNotebookDownloadSinkProbeV1"] || null;
+    if (!state?.installed) {
+      return { resolved: false, reason: "SINK_PROBE_NOT_INSTALLED" };
+    }
+    const events = Array.isArray(state.events) ? state.events : [];
+    const windowOpenEvents = events.filter(
+      (event) => event?.kind === "window_open"
+    );
+    const locators = Array.isArray(state.privateWindowOpenLocators)
+      ? state.privateWindowOpenLocators
+      : [];
+    if (windowOpenEvents.length !== 1 || locators.length !== 1) {
+      return {
+        resolved: false,
+        reason: "WINDOW_OPEN_LOCATOR_IDENTITY_UNRESOLVED",
+        eventCount: windowOpenEvents.length,
+        locatorCount: locators.length
+      };
+    }
+    const locator = String(locators[0] || "");
+    state.privateWindowOpenLocators = [];
+    return {
+      resolved: Boolean(locator),
+      locator
+    };
+  })()`;
+}
+
+function _cwaGeminiNotebookAudioLocatorPolicy(value) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_REQUIRED");
+  }
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_INVALID");
+  }
+  const hostname = String(parsed.hostname || "").toLowerCase();
+  const googleusercontent =
+    hostname === "googleusercontent.com" ||
+    hostname.endsWith(".googleusercontent.com");
+  if (
+    parsed.protocol !== "https:" ||
+    !googleusercontent ||
+    parsed.username ||
+    parsed.password ||
+    parsed.hash ||
+    (parsed.port && parsed.port !== "443")
+  ) {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_REJECTED");
+  }
+  return {
+    locator: parsed.toString(),
+    originClass: "GOOGLEUSERCONTENT"
+  };
+}
+
+async function _cwaGeminiNotebookConfirmTabAbsent(tabId) {
+  if (!Number.isInteger(tabId)) return true;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      await chrome.tabs.get(tabId);
+    } catch {
+      return true;
+    }
+    await sleep(50);
+  }
+  return false;
+}
+
+async function _cwaGeminiNotebookRetireOwnedAcquisitionTab(tabId) {
+  if (!Number.isInteger(tabId)) return true;
+  try {
+    await chrome.tabs.remove(tabId);
+  } catch {
+    // Removal errors are ambiguous; absence is proven separately below.
+  }
+  return _cwaGeminiNotebookConfirmTabAbsent(tabId);
+}
+
+function _cwaGeminiNotebookDecodeIoBytes(data, base64Encoded) {
+  const text = String(data || "");
+  if (base64Encoded === true) {
+    const binary = atob(text);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  }
+  return new TextEncoder().encode(text);
+}
+
+function _cwaGeminiNotebookBytesToBase64(bytes) {
+  let result = "";
+  const blockBytes = 24_576;
+  for (let offset = 0; offset < bytes.length; offset += blockBytes) {
+    const block = bytes.subarray(offset, offset + blockBytes);
+    let binary = "";
+    for (let index = 0; index < block.length; index += 1) {
+      binary += String.fromCharCode(block[index]);
+    }
+    result += btoa(binary);
+  }
+  return result;
+}
+
+async function _cwaGeminiNotebookAcquireLocatorBytes(
+  locator,
+  maxBytes,
+  timeoutMs
+) {
+  let acquisitionTabId = null;
+  let attached = false;
+  let fetchEnabled = false;
+  let listenerInstalled = false;
+  let streamHandle = null;
+  let exactPaused = null;
+  let resolvePaused;
+  let rejectPaused;
+  const pausedPromise = new Promise((resolve, reject) => {
+    resolvePaused = resolve;
+    rejectPaused = reject;
+  });
+
+  const responseHeader = (params, name) => {
+    const wanted = String(name || "").toLowerCase();
+    const headers = Array.isArray(params?.responseHeaders)
+      ? params.responseHeaders
+      : [];
+    return headers
+      .filter(
+        (header) =>
+          String(header?.name || "").toLowerCase() === wanted
+      )
+      .map((header) => String(header?.value || ""))
+      .join("\n");
+  };
+
+  const observer = (source, method, params) => {
+    if (
+      source?.tabId !== acquisitionTabId ||
+      method !== "Fetch.requestPaused"
+    ) {
+      return;
+    }
+
+    const requestUrl = String(params?.request?.url || "");
+    if (requestUrl !== locator) {
+      _cwaBaseSendCommand(source, "Fetch.continueResponse", {
+        requestId: params?.requestId
+      }).catch(() =>
+        _cwaBaseSendCommand(source, "Fetch.continueRequest", {
+          requestId: params?.requestId
+        }).catch(() => {})
+      );
+      return;
+    }
+
+    if (exactPaused !== null) {
+      try {
+        rejectPaused(
+          new Error(
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_RESPONSE_AMBIGUOUS"
+          )
+        );
+      } catch {}
+      return;
+    }
+    exactPaused = params;
+    resolvePaused(params);
+  };
+
+  try {
+    const tab = await chrome.tabs.create({
+      url: "about:blank",
+      active: false
+    });
+    if (!Number.isInteger(tab?.id)) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACQUISITION_TAB_CREATE_FAILED"
+      );
+    }
+    acquisitionTabId = tab.id;
+    const debuggee = { tabId: acquisitionTabId };
+
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Fetch.enable", {
+      patterns: [{ urlPattern: "*", requestStage: "Response" }]
+    });
+    fetchEnabled = true;
+    chrome.debugger.onEvent.addListener(observer);
+    listenerInstalled = true;
+
+    await _cwaBaseSendCommand(debuggee, "Page.navigate", {
+      url: locator
+    });
+
+    const paused = await Promise.race([
+      pausedPromise,
+      new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_RESPONSE_TIMEOUT"
+              )
+            ),
+          Math.max(1000, timeoutMs)
+        )
+      )
+    ]);
+
+    const status = Number.isFinite(paused?.responseStatusCode)
+      ? Number(paused.responseStatusCode)
+      : null;
+    if (status === null || status < 200 || status >= 300) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_RESPONSE_STATUS_INVALID"
+      );
+    }
+
+    const contentType = responseHeader(paused, "content-type");
+    const normalizedContentType = String(contentType || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const mediaLike =
+      normalizedContentType.startsWith("audio/") ||
+      normalizedContentType === "application/octet-stream" ||
+      normalizedContentType === "binary/octet-stream";
+    if (!mediaLike) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_MEDIA_TYPE_UNPROVEN"
+      );
+    }
+
+    const contentLengthText = responseHeader(paused, "content-length").trim();
+    const contentLength = /^\d+$/.test(contentLengthText)
+      ? Number(contentLengthText)
+      : null;
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength !== null &&
+      contentLength > maxBytes
+    ) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_LIMIT_EXCEEDED"
+      );
+    }
+
+    const stream = await _cwaBaseSendCommand(
+      debuggee,
+      "Fetch.takeResponseBodyAsStream",
+      { requestId: paused.requestId }
+    );
+    streamHandle =
+      typeof stream?.stream === "string" && stream.stream
+        ? stream.stream
+        : null;
+    if (!streamHandle) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_STREAM_MISSING"
+      );
+    }
+
+    const chunks = [];
+    let totalBytes = 0;
+    while (true) {
+      const part = await _cwaBaseSendCommand(debuggee, "IO.read", {
+        handle: streamHandle,
+        size: 262_144
+      });
+      const bytes = _cwaGeminiNotebookDecodeIoBytes(
+        part?.data,
+        part?.base64Encoded === true
+      );
+      totalBytes += bytes.length;
+      if (totalBytes > maxBytes) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_LIMIT_EXCEEDED"
+        );
+      }
+      if (bytes.length > 0) chunks.push(bytes);
+      if (part?.eof === true) break;
+    }
+
+    const combined = new Uint8Array(totalBytes);
+    let cursor = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, cursor);
+      cursor += chunk.length;
+    }
+
+    const digestBytes = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", combined)
+    );
+    const sha256 = Array.from(
+      digestBytes,
+      (value) => value.toString(16).padStart(2, "0")
+    ).join("");
+    const bodyBase64 = _cwaGeminiNotebookBytesToBase64(combined);
+
+    if (streamHandle) {
+      try {
+        await _cwaBaseSendCommand(debuggee, "IO.close", {
+          handle: streamHandle
+        });
+      } catch {}
+      streamHandle = null;
+    }
+    if (fetchEnabled) {
+      try {
+        await _cwaBaseSendCommand(debuggee, "Fetch.disable");
+      } catch {}
+      fetchEnabled = false;
+    }
+    if (listenerInstalled) {
+      try {
+        chrome.debugger.onEvent.removeListener(observer);
+      } catch {}
+      listenerInstalled = false;
+    }
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {}
+      attached = false;
+    }
+
+    const retired = await _cwaGeminiNotebookRetireOwnedAcquisitionTab(
+      acquisitionTabId
+    );
+    if (!retired) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACQUISITION_TAB_RETIRE_UNPROVEN"
+      );
+    }
+    acquisitionTabId = null;
+
+    return {
+      responseStatusCode: status,
+      contentType: String(contentType || "").slice(0, 160),
+      normalizedContentType,
+      contentDispositionPresent: Boolean(
+        responseHeader(paused, "content-disposition")
+      ),
+      totalBytes,
+      sha256,
+      bodyBase64,
+      acquisitionTabRetired: true
+    };
+  } finally {
+    const debuggee = Number.isInteger(acquisitionTabId)
+      ? { tabId: acquisitionTabId }
+      : null;
+    if (streamHandle && debuggee) {
+      try {
+        await _cwaBaseSendCommand(debuggee, "IO.close", {
+          handle: streamHandle
+        });
+      } catch {}
+    }
+    if (fetchEnabled && debuggee) {
+      try {
+        await _cwaBaseSendCommand(debuggee, "Fetch.disable");
+      } catch {}
+    }
+    if (listenerInstalled) {
+      try {
+        chrome.debugger.onEvent.removeListener(observer);
+      } catch {}
+    }
+    if (attached && debuggee) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {}
+    }
+    if (Number.isInteger(acquisitionTabId)) {
+      await _cwaGeminiNotebookRetireOwnedAcquisitionTab(acquisitionTabId);
+    }
+  }
+}
+
+async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const expectedArtifactRef =
+    typeof message?.expectedArtifactRef === "string" &&
+    /^[A-Za-z0-9_-]{8,200}$/.test(message.expectedArtifactRef)
+      ? message.expectedArtifactRef
+      : null;
+  if (!expectedArtifactRef) {
+    throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_REF_INVALID");
+  }
+
+  const maxBytes = Math.max(
+    1,
+    Math.min(
+      Number(message?.maxBytes) || 67_108_864,
+      134_217_728
+    )
+  );
+  const timeoutMs = Math.max(
+    5000,
+    Math.min(Number(message?.timeoutMs) || 120000, 180000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+  let sinkProbeInstalled = false;
+  let downloadAttemptMayHaveExecuted = false;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const beforeMenus = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookVisibleArtifactMenusExpression()
+    );
+    const beforePanels = Array.isArray(beforeMenus?.panels)
+      ? beforeMenus.panels
+      : [];
+    if (beforePanels.length !== 0) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PRESTATE_MENU_OPEN:" +
+          String(beforePanels.length)
+      );
+    }
+
+    const opened = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickExactArtifactMoreMenuExpression(
+        expectedArtifactRef
+      )
+    );
+    if (opened?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_CLICK_FAILED:" +
+          String(opened?.reason || "UNKNOWN")
+      );
+    }
+
+    let menu = null;
+    while (performance.now() < deadlineAt) {
+      const state = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookVisibleArtifactMenusExpression()
+      );
+      const panels = Array.isArray(state?.panels) ? state.panels : [];
+      if (panels.length > 1) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_IDENTITY_AMBIGUOUS:" +
+            String(panels.length)
+        );
+      }
+      if (panels.length === 1) {
+        menu = panels[0];
+        break;
+      }
+      await sleep(100);
+    }
+    if (!menu) {
+      throw new Error("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_TIMEOUT");
+    }
+
+    const downloadCandidates = Array.isArray(menu?.items)
+      ? menu.items.filter(
+          (item) =>
+            item?.tag === "button" &&
+            item?.role === "menuitem" &&
+            item?.disabled === false &&
+            String(item?.className || "").includes("mat-mdc-menu-item") &&
+            Array.isArray(item?.icons) &&
+            item.icons.includes("save_alt")
+        )
+      : [];
+    if (downloadCandidates.length !== 1) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_ACTION_IDENTITY_UNRESOLVED:" +
+          String(downloadCandidates.length)
+      );
+    }
+
+    const sinkInstall = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookInstallDownloadSinkProbeExpression()
+    );
+    if (
+      sinkInstall?.installed !== true ||
+      sinkInstall?.windowOpenPatched !== true
+    ) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_SINK_PROBE_INSTALL_FAILED"
+      );
+    }
+    sinkProbeInstalled = true;
+
+    downloadAttemptMayHaveExecuted = true;
+    const clicked = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickVisibleArtifactDownloadExpression()
+    );
+    if (clicked?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_CLICK_FAILED:" +
+          String(clicked?.reason || "UNKNOWN")
+      );
+    }
+
+    let sinkState = { installed: true, events: [] };
+    while (performance.now() < deadlineAt) {
+      sinkState = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookReadDownloadSinkProbeExpression()
+      );
+      const events = Array.isArray(sinkState?.events)
+        ? sinkState.events
+        : [];
+      if (events.some((event) => event?.kind === "window_open")) break;
+      await sleep(50);
+    }
+
+    const locatorState = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookTakeUniqueWindowOpenLocatorExpression()
+    );
+    if (locatorState?.resolved !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_WINDOW_OPEN_LOCATOR_UNRESOLVED:" +
+          String(locatorState?.reason || "UNKNOWN")
+      );
+    }
+
+    const policy = _cwaGeminiNotebookAudioLocatorPolicy(
+      locatorState.locator
+    );
+
+    if (sinkProbeInstalled) {
+      await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookRestoreDownloadSinkProbeExpression()
+      );
+      sinkProbeInstalled = false;
+    }
+    if (attached) {
+      await chrome.debugger.detach(debuggee);
+      attached = false;
+    }
+
+    const remainingMs = Math.max(
+      3000,
+      deadlineAt - performance.now()
+    );
+    const acquired = await _cwaGeminiNotebookAcquireLocatorBytes(
+      policy.locator,
+      maxBytes,
+      remainingMs
+    );
+
+    const bodyBase64 = acquired.bodyBase64;
+    if (
+      typeof bodyBase64 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(acquired.sha256 || "")
+    ) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_TRANSFER_SOURCE_INVALID"
+      );
+    }
+    const chunkCount = Math.max(
+      1,
+      Math.ceil(
+        bodyBase64.length /
+          CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS
+      )
+    );
+
+    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+      const data = bodyBase64.slice(
+        chunkIndex *
+          CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS,
+        (chunkIndex + 1) *
+          CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS
+      );
+      if (
+        !safePortPost(port, {
+          protocol: BRIDGE_PROTOCOL_VERSION,
+          type: CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE,
+          request_id: message.request_id,
+          chunkIndex,
+          chunkCount,
+          totalBytes: acquired.totalBytes,
+          sha256: acquired.sha256,
+          data
+        })
+      ) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_DELIVERY_FAILED"
+        );
+      }
+    }
+
+    return {
+      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+      notebookUrl,
+      tabId: tab.id,
+      elapsedMs: Math.round(performance.now() - startedAt),
+      observedArtifactRef: expectedArtifactRef,
+      locatorOriginClass: policy.originClass,
+      responseStatusCode: acquired.responseStatusCode,
+      contentType: acquired.contentType,
+      normalizedContentType: acquired.normalizedContentType,
+      contentDispositionPresent: acquired.contentDispositionPresent,
+      totalBytes: acquired.totalBytes,
+      sha256: acquired.sha256,
+      chunkCount,
+      browserBytesProven: true,
+      acquisitionTabRetired: acquired.acquisitionTabRetired === true,
+      rawDownloadUrlExported: false,
+      privateProtocolBodyRead: false,
+      finalDestinationWritten: false,
+      automaticRetry: false
+    };
+  } catch (error) {
+    if (downloadAttemptMayHaveExecuted) {
+      throw _cwaGeminiNotebookAmbiguousError(error);
+    }
+    throw error;
+  } finally {
+    if (sinkProbeInstalled && attached) {
+      try {
+        await _cwaGeminiNotebookMutationEvaluate(
+          debuggee,
+          _cwaGeminiNotebookRestoreDownloadSinkProbeExpression()
+        );
+      } catch {}
+    }
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {}
+    }
+  }
 }
 
 async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
@@ -2453,7 +3131,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_OBSERVE_AUDIO_OVERVIEW_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACTION_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -2473,7 +3152,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
             ? "gemini_notebook_audio_artifact_menu_probe_result"
             : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
               ? "gemini_notebook_audio_artifact_download_intent_probe_result"
-              : "gemini_notebook_add_url_source_result";
+              : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
+                ? "gemini_notebook_audio_artifact_byte_probe_result"
+                : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -2487,7 +3168,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
               ? await _cwaGeminiNotebookProbeAudioArtifactMenu(message)
               : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
                 ? await _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)
-                : await _cwaGeminiNotebookAddUrlSource(message);
+                : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
+                  ? await _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)
+                  : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,

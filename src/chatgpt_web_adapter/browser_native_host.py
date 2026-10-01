@@ -46,7 +46,10 @@ class _BrokerHandler(socketserver.BaseRequestHandler):
                 request,
                 event_sink=emit_event
                 if request.get("streamTextObservations") is True
-                or operation == "canonical_read"
+                or operation in {
+                    "canonical_read",
+                    "gemini_notebook_audio_artifact_byte_probe",
+                }
                 else None,
             )
         except Exception as error:
@@ -383,6 +386,7 @@ class BrowserNativeBroker:
             "gemini_notebook_audio_artifact_action_probe",
             "gemini_notebook_audio_artifact_menu_probe",
             "gemini_notebook_audio_artifact_download_intent_probe",
+            "gemini_notebook_audio_artifact_byte_probe",
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
@@ -421,6 +425,7 @@ class BrowserNativeBroker:
                 "gemini_notebook_audio_artifact_action_probe": 15_000,
                 "gemini_notebook_audio_artifact_menu_probe": 15_000,
                 "gemini_notebook_audio_artifact_download_intent_probe": 15_000,
+                "gemini_notebook_audio_artifact_byte_probe": 120_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,
             }[operation]
@@ -447,7 +452,11 @@ class BrowserNativeBroker:
                             "ok": False,
                             "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT",
                         }
-                    if message.get("type") in {"turn_event", "canonical_read_chunk"}:
+                    if message.get("type") in {
+                        "turn_event",
+                        "canonical_read_chunk",
+                        "gemini_notebook_audio_artifact_byte_chunk",
+                    }:
                         if event_sink is not None:
                             event_sink(message)
                         continue
