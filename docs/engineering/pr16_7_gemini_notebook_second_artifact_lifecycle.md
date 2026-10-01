@@ -256,3 +256,73 @@ PAGE_DOM_DURABLE_BACKGROUND_VIDEO_ARTIFACT_COMPLETION
 
 Observation performs no product write and never starts another generation.
 `canonicalCompletionProven` remains false and `automaticRetry` remains false.
+
+
+## Live 16.7d result — durable Video completion
+
+The exact Video artifact completed and survived ordinary Notebook reload:
+
+```text
+observedArtifactRef = b2c41cbb-470f-46fb-8b39-578303b50c25
+artifactStatus = COMPLETED
+title = Для чего на самом деле нужен example.com
+details = 1:21 · Краткое описание · 2 источника
+icons = videocam / play_arrow / more_vert
+
+completionProven = true
+reloadVerified = true
+finalityEvidence = PAGE_DOM_DURABLE_BACKGROUND_VIDEO_ARTIFACT_COMPLETION
+writePerformed = false
+navigationPerformed = true
+automaticRetry = false
+```
+
+This closes 16.7d and proves that the second artifact type reaches the same durable
+re-entry/finality boundary as Audio while coexisting with another artifact row.
+
+## Slice 16.7e — exact Video artifact menu characterization
+
+The completed Video row exposes `more_vert`, but PR16.7 must not assume that its
+artifact-local actions are identical to Audio.
+
+Temporary operation:
+
+```text
+gemini_notebook_video_artifact_menu_probe
+```
+
+This slice reuses the already-proven exact-ref row/menu primitives:
+
+```text
+exact completed Video ref
+→ stabilize exact row among multiple artifacts
+→ click exact row-local more_vert
+→ read exactly one visible menu
+→ identify structural save_alt candidates
+→ STOP
+```
+
+No menu item is activated. In particular, Download is not clicked.
+
+A unique Download candidate requires:
+
+```text
+button
++ role=menuitem
++ mat-mdc-menu-item
++ enabled
++ mat-icon save_alt
+```
+
+Localized menu text is characterization evidence only.
+
+The slice remains non-durable:
+
+```text
+productWritePerformed = false
+navigationPerformed = false
+downloadPerformed = false
+rawDomExported = false
+```
+
+Only a live unique `save_alt` result may authorize a later Video download/byte proof.

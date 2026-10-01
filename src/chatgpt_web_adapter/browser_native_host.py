@@ -392,6 +392,7 @@ class BrowserNativeBroker:
             "gemini_notebook_video_config_probe",
             "gemini_notebook_video_generation_probe",
             "gemini_notebook_video_artifact_observe_probe",
+            "gemini_notebook_video_artifact_menu_probe",
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
@@ -435,6 +436,7 @@ class BrowserNativeBroker:
                 "gemini_notebook_video_config_probe": 15_000,
                 "gemini_notebook_video_generation_probe": 60_000,
                 "gemini_notebook_video_artifact_observe_probe": 60_000,
+                "gemini_notebook_video_artifact_menu_probe": 15_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,
             }[operation]
