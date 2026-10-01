@@ -19,9 +19,7 @@ def test_audio_and_video_byte_wrappers_delegate_to_one_internal_core() -> None:
         encoding="utf-8"
     )
 
-    assert worker.count(
-        "async function _cwaGeminiNotebookProbeArtifactBytes("
-    ) == 1
+    assert worker.count("async function _cwaGeminiNotebookProbeArtifactBytes(") == 1
 
     audio = worker.split(
         "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
