@@ -57,6 +57,8 @@ def probe_gemini_notebook_video_artifact_bytes(
 ) -> dict[str, Any]:
     """Acquire exact product-created Video bytes into verified temporary staging."""
 
+    if timeout < 5.0:
+        raise ValueError("timeout must be at least 5 seconds")
     max_bytes = _normalize_max_bytes(max_bytes)
     return _probe_gemini_notebook_artifact_bytes(
         notebook=notebook,
@@ -73,6 +75,7 @@ def probe_gemini_notebook_video_artifact_bytes(
         collector_factory=_VideoArtifactByteChunkCollector,
         media_family="video",
     )
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
