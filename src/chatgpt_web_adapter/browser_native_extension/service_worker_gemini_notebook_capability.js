@@ -21,6 +21,8 @@ const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION =
   "gemini_notebook_audio_artifact_download_intent_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION =
   "gemini_notebook_audio_artifact_byte_probe";
+const CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION =
+  "gemini_notebook_studio_creation_controls_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE =
   "gemini_notebook_audio_artifact_byte_chunk";
 const CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS = 600_000;
@@ -171,6 +173,141 @@ function _cwaGeminiNotebookSourceRowsExpression() {
 }
 
 
+
+
+function _cwaGeminiNotebookStudioCreationControlsExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const normalize = (value) =>
+      String(value || "").replace(/\\s+/g, " ").trim();
+    const clip = (value, limit = 180) => normalize(value).slice(0, limit);
+    const classText = (element) =>
+      clip(
+        typeof element?.className === "string"
+          ? element.className
+          : element?.getAttribute?.("class") || "",
+        180
+      );
+    const iconTexts = (element) =>
+      Array.from(element?.querySelectorAll?.("mat-icon") || [])
+        .slice(0, 12)
+        .map((icon) => clip(icon.textContent, 48))
+        .filter(Boolean);
+
+    const notebookUrl =
+      location.origin + location.pathname.replace(/\\/$/, "");
+    const studio = document.querySelector("section.studio-panel");
+    const controls = [];
+
+    if (studio instanceof Element && visible(studio)) {
+      const owners = Array.from(
+        studio.querySelectorAll("basic-create-artifact-button")
+      ).slice(0, 24);
+
+      for (let index = 0; index < owners.length; index += 1) {
+        const owner = owners[index];
+        if (!visible(owner)) continue;
+        const control =
+          owner.querySelector("[role='button']") ||
+          owner.querySelector("button") ||
+          null;
+        if (!(control instanceof Element) || !visible(control)) continue;
+
+        controls.push({
+          index,
+          ownerTag: String(owner.tagName || "").toLowerCase(),
+          ownerClassName: classText(owner),
+          controlTag: String(control.tagName || "").toLowerCase(),
+          controlClassName: classText(control),
+          role: clip(control.getAttribute("role") || "", 48),
+          ariaLabel: clip(control.getAttribute("aria-label") || "", 180),
+          title: clip(control.getAttribute("title") || "", 180),
+          text: clip(control.innerText || control.textContent || "", 180),
+          disabled:
+            "disabled" in control
+              ? Boolean(control.disabled)
+              : control.getAttribute("aria-disabled") === "true",
+          icons: iconTexts(control)
+        });
+      }
+    }
+
+    return {
+      notebookUrl,
+      studioFound: studio instanceof Element && visible(studio),
+      controls
+    };
+  })()`;
+}
+
+async function _cwaGeminiNotebookProbeStudioCreationControls(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const startedAt = performance.now();
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const state = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookStudioCreationControlsExpression()
+    );
+    if (state?.notebookUrl !== notebookUrl) {
+      throw new Error("GEMINI_NOTEBOOK_STUDIO_PROBE_ROUTE_MISMATCH");
+    }
+    if (state?.studioFound !== true) {
+      throw new Error("GEMINI_NOTEBOOK_STUDIO_OWNER_MISSING");
+    }
+
+    const controls = Array.isArray(state?.controls)
+      ? state.controls.slice(0, 24)
+      : [];
+
+    return {
+      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+      notebookUrl,
+      tabId: tab.id,
+      elapsedMs: Math.round(performance.now() - startedAt),
+      studioFound: true,
+      creationControls: controls,
+      writePerformed: false,
+      navigationPerformed: false,
+      rawDomExported: false
+    };
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Read-only characterization cleanup has no product effect.
+      }
+    }
+  }
+}
 
 function _cwaGeminiNotebookAudioArtifactItemsExpression() {
   return `(() => {
@@ -2991,7 +3128,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACTION_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -3013,7 +3151,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
               ? "gemini_notebook_audio_artifact_download_intent_probe_result"
               : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
                 ? "gemini_notebook_audio_artifact_byte_probe_result"
-                : "gemini_notebook_add_url_source_result";
+                : operation === CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
+                  ? "gemini_notebook_studio_creation_controls_probe_result"
+                  : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -3029,7 +3169,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                 ? await _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)
                 : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
                   ? await _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)
-                  : await _cwaGeminiNotebookAddUrlSource(message);
+                  : operation === CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
+                    ? await _cwaGeminiNotebookProbeStudioCreationControls(message)
+                    : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,
