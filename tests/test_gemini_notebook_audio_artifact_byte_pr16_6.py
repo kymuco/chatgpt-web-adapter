@@ -223,11 +223,11 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     assert "requireCompletedExactRef: false" in audio
     assert "includeMediaFamily: false" in audio
 
-    module = (PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py").read_text(
-        encoding="utf-8"
-    )
-    assert "authenticatedBrowserRequestProven" in module
-    assert '"authenticated_browser_request_proven": True' in module
+    orchestration = (
+        PACKAGE / "_gemini_notebook_artifact_byte_orchestration.py"
+    ).read_text(encoding="utf-8")
+    assert "authenticatedBrowserRequestProven" in orchestration
+    assert '"authenticated_browser_request_proven": True' in orchestration
 
     boundary = shared.index("downloadAttemptMayHaveExecuted = true;")
     click = shared.index("_cwaGeminiNotebookClickVisibleArtifactDownloadExpression()")
