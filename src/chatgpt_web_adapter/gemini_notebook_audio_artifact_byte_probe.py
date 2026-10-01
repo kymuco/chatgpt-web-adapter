@@ -274,9 +274,13 @@ def probe_gemini_notebook_audio_artifact_bytes(
             raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_ORIGIN_UNPROVEN")
         if response.get("browserBytesProven") is not True:
             raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BROWSER_BYTES_UNPROVEN")
-        if response.get("acquisitionTabRetired") is not True:
+        if response.get("networkResourceLoadProven") is not True:
             raise RequestError(
-                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACQUISITION_TAB_RETIRE_UNPROVEN"
+                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_NETWORK_RESOURCE_LOAD_UNPROVEN"
+            )
+        if response.get("acquisitionTabCreated") is not False:
+            raise RequestError(
+                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACQUISITION_TAB_UNEXPECTED"
             )
         if response.get("rawDownloadUrlExported") is not False:
             raise RequestError(
@@ -317,7 +321,8 @@ def probe_gemini_notebook_audio_artifact_bytes(
             "browser_bytes_proven": True,
             "staging_materialized_proven": True,
             "staging_integrity_verified": True,
-            "acquisition_tab_retired": True,
+            "network_resource_load_proven": True,
+            "acquisition_tab_created": False,
             "raw_download_url_exported": False,
             "private_protocol_body_read": False,
             "final_destination_written": False,

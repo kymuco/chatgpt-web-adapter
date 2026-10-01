@@ -1113,166 +1113,119 @@ function _cwaGeminiNotebookBytesToBase64(bytes) {
   return result;
 }
 
-async function _cwaGeminiNotebookAcquireLocatorBytes(
+async function _cwaGeminiNotebookLoadLocatorBytes(
+  debuggee,
   locator,
-  maxBytes,
-  timeoutMs
+  maxBytes
 ) {
-  let acquisitionTabId = null;
-  let attached = false;
-  let fetchEnabled = false;
-  let listenerInstalled = false;
   let streamHandle = null;
-  let exactPaused = null;
-  let resolvePaused;
-  let rejectPaused;
-  const pausedPromise = new Promise((resolve, reject) => {
-    resolvePaused = resolve;
-    rejectPaused = reject;
-  });
 
-  const responseHeader = (params, name) => {
+  const headerValue = (headers, name) => {
+    if (!headers || typeof headers !== "object") return "";
     const wanted = String(name || "").toLowerCase();
-    const headers = Array.isArray(params?.responseHeaders)
-      ? params.responseHeaders
-      : [];
-    return headers
-      .filter(
-        (header) =>
-          String(header?.name || "").toLowerCase() === wanted
-      )
-      .map((header) => String(header?.value || ""))
-      .join("\n");
+    for (const [key, value] of Object.entries(headers)) {
+      if (String(key || "").toLowerCase() === wanted) {
+        return String(value || "");
+      }
+    }
+    return "";
   };
 
-  const observer = (source, method, params) => {
-    if (
-      source?.tabId !== acquisitionTabId ||
-      method !== "Fetch.requestPaused"
-    ) {
-      return;
-    }
+  const frameTree = await _cwaBaseSendCommand(
+    debuggee,
+    "Page.getFrameTree"
+  );
+  const frameId =
+    typeof frameTree?.frameTree?.frame?.id === "string" &&
+    frameTree.frameTree.frame.id
+      ? frameTree.frameTree.frame.id
+      : null;
+  if (!frameId) {
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_FRAME_ID_UNRESOLVED"
+    );
+  }
 
-    const requestUrl = String(params?.request?.url || "");
-    if (requestUrl !== locator) {
-      _cwaBaseSendCommand(source, "Fetch.continueResponse", {
-        requestId: params?.requestId
-      }).catch(() =>
-        _cwaBaseSendCommand(source, "Fetch.continueRequest", {
-          requestId: params?.requestId
-        }).catch(() => {})
-      );
-      return;
+  const loaded = await _cwaBaseSendCommand(
+    debuggee,
+    "Network.loadNetworkResource",
+    {
+      frameId,
+      url: locator,
+      options: {
+        disableCache: true,
+        includeCredentials: false
+      }
     }
+  );
+  const resource =
+    loaded?.resource && typeof loaded.resource === "object"
+      ? loaded.resource
+      : null;
+  if (!resource || resource.success !== true) {
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_NETWORK_RESOURCE_LOAD_FAILED:" +
+        String(resource?.netErrorName || resource?.netError || "UNKNOWN")
+    );
+  }
 
-    if (exactPaused !== null) {
-      try {
-        rejectPaused(
-          new Error(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_RESPONSE_AMBIGUOUS"
-          )
-        );
-      } catch {}
-      return;
-    }
-    exactPaused = params;
-    resolvePaused(params);
-  };
+  const status = Number.isFinite(resource?.httpStatusCode)
+    ? Number(resource.httpStatusCode)
+    : null;
+  if (status === null || status < 200 || status >= 300) {
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_RESPONSE_STATUS_INVALID"
+    );
+  }
+
+  const headers =
+    resource?.headers && typeof resource.headers === "object"
+      ? resource.headers
+      : {};
+  const contentType = headerValue(headers, "content-type");
+  const normalizedContentType = String(contentType || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  const mediaLike =
+    normalizedContentType.startsWith("audio/") ||
+    normalizedContentType === "application/octet-stream" ||
+    normalizedContentType === "binary/octet-stream";
+  if (!mediaLike) {
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_MEDIA_TYPE_UNPROVEN:" +
+        normalizedContentType
+    );
+  }
+
+  const contentLengthText = headerValue(
+    headers,
+    "content-length"
+  ).trim();
+  const contentLength = /^\d+$/.test(contentLengthText)
+    ? Number(contentLengthText)
+    : null;
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength !== null &&
+    contentLength > maxBytes
+  ) {
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_LIMIT_EXCEEDED"
+    );
+  }
+
+  streamHandle =
+    typeof resource?.stream === "string" && resource.stream
+      ? resource.stream
+      : null;
+  if (!streamHandle) {
+    throw new Error(
+      "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_STREAM_MISSING"
+    );
+  }
 
   try {
-    const tab = await chrome.tabs.create({
-      url: "about:blank",
-      active: false
-    });
-    if (!Number.isInteger(tab?.id)) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACQUISITION_TAB_CREATE_FAILED"
-      );
-    }
-    acquisitionTabId = tab.id;
-    const debuggee = { tabId: acquisitionTabId };
-
-    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
-    attached = true;
-    await _cwaBaseSendCommand(debuggee, "Fetch.enable", {
-      patterns: [{ urlPattern: "*", requestStage: "Response" }]
-    });
-    fetchEnabled = true;
-    chrome.debugger.onEvent.addListener(observer);
-    listenerInstalled = true;
-
-    await _cwaBaseSendCommand(debuggee, "Page.navigate", {
-      url: locator
-    });
-
-    const paused = await Promise.race([
-      pausedPromise,
-      new Promise((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_RESPONSE_TIMEOUT"
-              )
-            ),
-          Math.max(1000, timeoutMs)
-        )
-      )
-    ]);
-
-    const status = Number.isFinite(paused?.responseStatusCode)
-      ? Number(paused.responseStatusCode)
-      : null;
-    if (status === null || status < 200 || status >= 300) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_RESPONSE_STATUS_INVALID"
-      );
-    }
-
-    const contentType = responseHeader(paused, "content-type");
-    const normalizedContentType = String(contentType || "")
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-    const mediaLike =
-      normalizedContentType.startsWith("audio/") ||
-      normalizedContentType === "application/octet-stream" ||
-      normalizedContentType === "binary/octet-stream";
-    if (!mediaLike) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_MEDIA_TYPE_UNPROVEN"
-      );
-    }
-
-    const contentLengthText = responseHeader(paused, "content-length").trim();
-    const contentLength = /^\d+$/.test(contentLengthText)
-      ? Number(contentLengthText)
-      : null;
-    if (
-      Number.isFinite(contentLength) &&
-      contentLength !== null &&
-      contentLength > maxBytes
-    ) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_LIMIT_EXCEEDED"
-      );
-    }
-
-    const stream = await _cwaBaseSendCommand(
-      debuggee,
-      "Fetch.takeResponseBodyAsStream",
-      { requestId: paused.requestId }
-    );
-    streamHandle =
-      typeof stream?.stream === "string" && stream.stream
-        ? stream.stream
-        : null;
-    if (!streamHandle) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_STREAM_MISSING"
-      );
-    }
-
     const chunks = [];
     let totalBytes = 0;
     while (true) {
@@ -1310,83 +1263,25 @@ async function _cwaGeminiNotebookAcquireLocatorBytes(
     ).join("");
     const bodyBase64 = _cwaGeminiNotebookBytesToBase64(combined);
 
+    return {
+      responseStatusCode: status,
+      contentType: String(contentType || "").slice(0, 160),
+      normalizedContentType,
+      contentDispositionPresent: Boolean(
+        headerValue(headers, "content-disposition")
+      ),
+      totalBytes,
+      sha256,
+      bodyBase64,
+      networkResourceLoadProven: true
+    };
+  } finally {
     if (streamHandle) {
       try {
         await _cwaBaseSendCommand(debuggee, "IO.close", {
           handle: streamHandle
         });
       } catch {}
-      streamHandle = null;
-    }
-    if (fetchEnabled) {
-      try {
-        await _cwaBaseSendCommand(debuggee, "Fetch.disable");
-      } catch {}
-      fetchEnabled = false;
-    }
-    if (listenerInstalled) {
-      try {
-        chrome.debugger.onEvent.removeListener(observer);
-      } catch {}
-      listenerInstalled = false;
-    }
-    if (attached) {
-      try {
-        await chrome.debugger.detach(debuggee);
-      } catch {}
-      attached = false;
-    }
-
-    const retired = await _cwaGeminiNotebookRetireOwnedAcquisitionTab(
-      acquisitionTabId
-    );
-    if (!retired) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACQUISITION_TAB_RETIRE_UNPROVEN"
-      );
-    }
-    acquisitionTabId = null;
-
-    return {
-      responseStatusCode: status,
-      contentType: String(contentType || "").slice(0, 160),
-      normalizedContentType,
-      contentDispositionPresent: Boolean(
-        responseHeader(paused, "content-disposition")
-      ),
-      totalBytes,
-      sha256,
-      bodyBase64,
-      acquisitionTabRetired: true
-    };
-  } finally {
-    const debuggee = Number.isInteger(acquisitionTabId)
-      ? { tabId: acquisitionTabId }
-      : null;
-    if (streamHandle && debuggee) {
-      try {
-        await _cwaBaseSendCommand(debuggee, "IO.close", {
-          handle: streamHandle
-        });
-      } catch {}
-    }
-    if (fetchEnabled && debuggee) {
-      try {
-        await _cwaBaseSendCommand(debuggee, "Fetch.disable");
-      } catch {}
-    }
-    if (listenerInstalled) {
-      try {
-        chrome.debugger.onEvent.removeListener(observer);
-      } catch {}
-    }
-    if (attached && debuggee) {
-      try {
-        await chrome.debugger.detach(debuggee);
-      } catch {}
-    }
-    if (Number.isInteger(acquisitionTabId)) {
-      await _cwaGeminiNotebookRetireOwnedAcquisitionTab(acquisitionTabId);
     }
   }
 }
@@ -1565,19 +1460,11 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       );
       sinkProbeInstalled = false;
     }
-    if (attached) {
-      await chrome.debugger.detach(debuggee);
-      attached = false;
-    }
 
-    const remainingMs = Math.max(
-      3000,
-      deadlineAt - performance.now()
-    );
-    const acquired = await _cwaGeminiNotebookAcquireLocatorBytes(
+    const acquired = await _cwaGeminiNotebookLoadLocatorBytes(
+      debuggee,
       policy.locator,
-      maxBytes,
-      remainingMs
+      maxBytes
     );
 
     const bodyBase64 = acquired.bodyBase64;
@@ -1637,7 +1524,9 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       sha256: acquired.sha256,
       chunkCount,
       browserBytesProven: true,
-      acquisitionTabRetired: acquired.acquisitionTabRetired === true,
+      networkResourceLoadProven:
+        acquired.networkResourceLoadProven === true,
+      acquisitionTabCreated: false,
       rawDownloadUrlExported: false,
       privateProtocolBodyRead: false,
       finalDestinationWritten: false,

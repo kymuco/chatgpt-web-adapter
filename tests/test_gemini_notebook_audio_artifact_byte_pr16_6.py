@@ -158,29 +158,29 @@ def test_worker_byte_probe_uses_product_created_googleusercontent_locator() -> N
     assert "batchexecute" not in policy
 
 
-def test_worker_byte_probe_reads_controlled_response_stream() -> None:
+def test_worker_byte_probe_uses_network_resource_stream_without_navigation() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
     acquire = worker.split(
-        "async function _cwaGeminiNotebookAcquireLocatorBytes(",
+        "async function _cwaGeminiNotebookLoadLocatorBytes(",
         1,
     )[1].split(
         "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
         1,
     )[0]
 
-    assert 'url: "about:blank"' in acquire
-    assert "active: false" in acquire
-    assert '"Fetch.enable"' in acquire
-    assert 'requestStage: "Response"' in acquire
-    assert '"Page.navigate"' in acquire
-    assert '"Fetch.takeResponseBodyAsStream"' in acquire
+    assert '"Page.getFrameTree"' in acquire
+    assert '"Network.loadNetworkResource"' in acquire
+    assert "includeCredentials: false" in acquire
+    assert "disableCache: true" in acquire
     assert '"IO.read"' in acquire
     assert '"IO.close"' in acquire
     assert 'crypto.subtle.digest("SHA-256", combined)' in acquire
     assert "totalBytes > maxBytes" in acquire
-    assert "_cwaGeminiNotebookRetireOwnedAcquisitionTab" in acquire
+    assert "Page.navigate" not in acquire
+    assert "chrome.tabs.create" not in acquire
+    assert "Fetch.takeResponseBodyAsStream" not in acquire
     assert "fetch(" not in acquire
     assert "XMLHttpRequest" not in acquire
 
@@ -201,7 +201,8 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     assert "CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE" in probe
     assert "safePortPost(port" in probe
     assert "browserBytesProven: true" in probe
-    assert "acquisitionTabRetired: acquired.acquisitionTabRetired === true" in probe
+    assert "networkResourceLoadProven:" in probe
+    assert "acquisitionTabCreated: false" in probe
     assert "rawDownloadUrlExported: false" in probe
     assert "privateProtocolBodyRead: false" in probe
     assert "finalDestinationWritten: false" in probe
@@ -213,6 +214,7 @@ def test_byte_probe_host_forwards_chunks_on_existing_authority_lane() -> None:
     assert '"gemini_notebook_audio_artifact_byte_probe",' in host
     assert '"gemini_notebook_audio_artifact_byte_probe": 120_000' in host
     assert '"gemini_notebook_audio_artifact_byte_chunk"' in host
+    assert 'message.get("type") in {"turn_event", "canonical_read_chunk"}' in host
     assert (
         '"gemini_notebook_audio_artifact_byte_probe",'
         in host.split("event_sink=emit_event", 1)[1]

@@ -439,3 +439,36 @@ The CWA-owned acquisition tab must also be confirmed absent before success.
 
 This slice deliberately stops before caller destination authority, overwrite policy,
 and atomic final publish. Those remain separate from browser/product retrieval.
+
+
+## PR16.6c2 correction — avoid browser download navigation entirely
+
+The first c2 live attempt repeatedly timed out while a CWA-owned `about:blank` tab
+remained loading. The Notebook tab itself was already open and healthy.
+
+The failed design navigated the owned tab to the signed Googleusercontent locator and
+then waited for a response-stage Fetch pause. That assumes a download locator behaves
+like an ordinary page navigation. The live behavior showed that assumption is not
+reliable.
+
+c2 now uses the browser network loader directly on the already-authorized Notebook
+debugger target:
+
+```text
+product-created signed locator
+→ Page.getFrameTree
+→ Network.loadNetworkResource
+   disableCache = true
+   includeCredentials = false
+→ resource stream
+→ IO.read
+→ bounded bytes
+→ SHA-256
+```
+
+No acquisition tab is created and `Page.navigate` is not used. The signed locator
+remains internal to the page/extension boundary and is still restricted to HTTPS
+Googleusercontent origin class.
+
+This keeps the operation in browser-owned network semantics while avoiding Chrome's
+special download-navigation behavior entirely.

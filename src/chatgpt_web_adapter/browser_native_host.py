@@ -453,11 +453,14 @@ class BrowserNativeBroker:
                             "ok": False,
                             "error": "BROWSER_NATIVE_EXTENSION_TIMEOUT",
                         }
-                    if message.get("type") in {
-                        "turn_event",
-                        "canonical_read_chunk",
-                        "gemini_notebook_audio_artifact_byte_chunk",
-                    }:
+                    if message.get("type") in {"turn_event", "canonical_read_chunk"}:
+                        if event_sink is not None:
+                            event_sink(message)
+                        continue
+                    if (
+                        message.get("type")
+                        == "gemini_notebook_audio_artifact_byte_chunk"
+                    ):
                         if event_sink is not None:
                             event_sink(message)
                         continue
