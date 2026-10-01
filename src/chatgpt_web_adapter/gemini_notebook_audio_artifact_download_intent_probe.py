@@ -183,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Characterize one identity-bound Gemini Notebook Audio download intent "
-            "while browser download behavior is denied."
+            "while the candidate payload response is blocked before body read."
         )
     )
     parser.add_argument("--notebook", required=True)
