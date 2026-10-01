@@ -34,16 +34,37 @@ class _FakeBridge:
             "observedArtifactRef": payload["expectedArtifactRef"],
             "downloadAttemptMayHaveExecuted": True,
             "downloadClickPerformed": True,
-            "attachmentResponseObserved": True,
-            "fetchRequestId": "interception-job-1",
+            "payloadResponseObserved": True,
+            "fetchRequestId": "interception-job-2",
             "responseStatusCode": 200,
             "resourceType": "Other",
             "contentDispositionPresent": True,
             "contentDispositionAttachment": True,
             "contentType": "audio/mpeg",
+            "normalizedContentType": "audio/mpeg",
             "downloadUrlOrigin": "https://notebook.google.com",
             "downloadUrlHasQuery": True,
             "downloadUrlPathSuffix": ["artifact", "download"],
+            "observedResponses": [
+                {
+                    "requestId": "interception-job-1",
+                    "contentType": "application/json; charset=utf-8",
+                    "normalizedContentType": "application/json",
+                    "urlPathSuffix": ["data", "batchexecute"],
+                    "controlPlaneLikely": True,
+                    "payloadCandidate": False,
+                    "blocked": False,
+                },
+                {
+                    "requestId": "interception-job-2",
+                    "contentType": "audio/mpeg",
+                    "normalizedContentType": "audio/mpeg",
+                    "urlPathSuffix": ["artifact", "download"],
+                    "controlPlaneLikely": False,
+                    "payloadCandidate": True,
+                    "blocked": True,
+                },
+            ],
             "responseBlockedBeforeBody": True,
             "responseBodyRead": False,
             "filesystemArtifactProven": False,
@@ -73,8 +94,11 @@ def test_download_intent_probe_contract_is_denied_and_non_retryable() -> None:
     )
 
     assert result["observed_artifact_ref"] == ARTIFACT_REF
-    assert result["fetch_request_id"] == "interception-job-1"
-    assert result["attachment_response_observed"] is True
+    assert result["fetch_request_id"] == "interception-job-2"
+    assert result["payload_response_observed"] is True
+    assert result["normalized_content_type"] == "audio/mpeg"
+    assert len(result["observed_responses"]) == 2
+    assert result["observed_responses"][0]["controlPlaneLikely"] is True
     assert result["content_disposition_attachment"] is True
     assert result["response_blocked_before_body"] is True
     assert result["response_body_read"] is False
@@ -155,7 +179,7 @@ def test_download_intent_uses_fetch_response_blocking_after_identity() -> None:
     assert "_cwaGeminiNotebookAmbiguousError(error)" in probe
 
 
-def test_download_intent_attachment_identity_uses_response_headers() -> None:
+def test_download_intent_separates_batchexecute_control_plane_from_payload() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -169,11 +193,67 @@ def test_download_intent_attachment_identity_uses_response_headers() -> None:
 
     assert 'responseHeader(params, "content-disposition")' in probe
     assert 'responseHeader(params, "content-type")' in probe
-    assert "/attachment/i.test(contentDisposition)" in probe
-    assert "attachmentResponses.length !== 1" in probe
+    assert 'lastPathPart === "batchexecute"' in probe
+    assert 'String(params?.resourceType || "") === "XHR"' in probe
+    assert "controlPlaneLikely" in probe
+    assert 'normalizedContentType.startsWith("audio/")' in probe
+    assert 'normalizedContentType === "application/octet-stream"' in probe
+    assert "payloadCandidate" in probe
+    assert "payloadCandidates.length > 1" in probe
+    assert "observedResponses.length < 16" in probe
     assert "rawDownloadUrlExported: false" in probe
     assert "responseBodyRead: false" in probe
     assert "filesystemArtifactProven: false" in probe
+
+
+def test_download_intent_allows_incomplete_characterization_without_retry() -> None:
+    class _NoPayloadBridge(_FakeBridge):
+        def _rpc(self, payload, *, timeout, on_event=None, **kwargs):
+            response = super()._rpc(
+                payload,
+                timeout=timeout,
+                on_event=on_event,
+                **kwargs,
+            )
+            response.update(
+                {
+                    "payloadResponseObserved": False,
+                    "fetchRequestId": "",
+                    "responseStatusCode": None,
+                    "resourceType": "",
+                    "contentDispositionPresent": False,
+                    "contentDispositionAttachment": False,
+                    "contentType": "",
+                    "normalizedContentType": "",
+                    "downloadUrlOrigin": "",
+                    "downloadUrlHasQuery": False,
+                    "downloadUrlPathSuffix": [],
+                    "responseBlockedBeforeBody": False,
+                    "observedResponses": [
+                        {
+                            "requestId": "interception-job-1",
+                            "normalizedContentType": "application/json",
+                            "urlPathSuffix": ["data", "batchexecute"],
+                            "controlPlaneLikely": True,
+                            "payloadCandidate": False,
+                            "blocked": False,
+                        }
+                    ],
+                }
+            )
+            return response
+
+    result = probe_gemini_notebook_audio_artifact_download_intent(
+        notebook=NOTEBOOK,
+        expected_artifact_ref=ARTIFACT_REF,
+        bridge=_NoPayloadBridge(),
+    )
+
+    assert result["payload_response_observed"] is False
+    assert result["fetch_request_id"] == ""
+    assert result["response_blocked_before_body"] is False
+    assert result["automatic_retry"] is False
+    assert result["observed_responses"][0]["controlPlaneLikely"] is True
 
 
 def test_download_intent_does_not_add_downloads_permission() -> None:
@@ -192,8 +272,5 @@ def test_download_intent_does_not_add_downloads_permission() -> None:
 def test_download_intent_host_uses_existing_authority_lane() -> None:
     host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
     assert '"gemini_notebook_audio_artifact_download_intent_probe",' in host
-    assert (
-        '"gemini_notebook_audio_artifact_download_intent_probe": 15_000'
-        in host
-    )
+    assert '"gemini_notebook_audio_artifact_download_intent_probe": 15_000' in host
     assert "_claim_authority_lane(operation, lease_id)" in host

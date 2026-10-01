@@ -844,7 +844,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
   let listenerInstalled = false;
   let fetchEnabled = false;
   let downloadAttemptMayHaveExecuted = false;
-  const attachmentResponses = [];
+  const observedResponses = [];
+  const payloadCandidates = [];
   const pendingHandlers = new Set();
 
   const responseHeader = (params, name) => {
@@ -852,13 +853,13 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
     const headers = Array.isArray(params?.responseHeaders)
       ? params.responseHeaders
       : [];
-    const values = headers
+    return headers
       .filter(
         (header) =>
           String(header?.name || "").toLowerCase() === wanted
       )
-      .map((header) => String(header?.value || ""));
-    return values.join("\n");
+      .map((header) => String(header?.value || ""))
+      .join("\n");
   };
 
   const sanitizeUrl = (value) => {
@@ -867,10 +868,25 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       return {
         origin: parsed.origin,
         hasQuery: Boolean(parsed.search),
-        pathSuffix: String(parsed.pathname || "").split("/").filter(Boolean).slice(-2)
+        pathSuffix: String(parsed.pathname || "")
+          .split("/")
+          .filter(Boolean)
+          .slice(-2)
       };
     } catch {
       return { origin: "", hasQuery: false, pathSuffix: [] };
+    }
+  };
+
+  const continuePaused = async (requestId) => {
+    try {
+      await _cwaBaseSendCommand(debuggee, "Fetch.continueResponse", {
+        requestId
+      });
+    } catch {
+      await _cwaBaseSendCommand(debuggee, "Fetch.continueRequest", {
+        requestId
+      });
     }
   };
 
@@ -878,49 +894,71 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
     const requestId = String(params?.requestId || "");
     if (!requestId) return;
 
-    const contentDisposition = responseHeader(params, "content-disposition");
-    const contentType = responseHeader(params, "content-type");
-    const attachmentLike = /attachment/i.test(contentDisposition);
-    if (!downloadAttemptMayHaveExecuted || !attachmentLike) {
-      try {
-        await _cwaBaseSendCommand(debuggee, "Fetch.continueResponse", {
-          requestId
-        });
-      } catch {
-        try {
-          await _cwaBaseSendCommand(debuggee, "Fetch.continueRequest", {
-            requestId
-          });
-        } catch {
-          // Cleanup failure is handled by Fetch.disable in finally.
-        }
-      }
+    if (!downloadAttemptMayHaveExecuted) {
+      await continuePaused(requestId);
       return;
     }
 
+    const contentDisposition = responseHeader(params, "content-disposition");
+    const contentType = responseHeader(params, "content-type");
+    const normalizedContentType = String(contentType || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const attachmentLike = /attachment/i.test(contentDisposition);
     const url = sanitizeUrl(params?.request?.url || "");
-    attachmentResponses.push({
+    const lastPathPart =
+      url.pathSuffix.length > 0
+        ? String(url.pathSuffix[url.pathSuffix.length - 1])
+        : "";
+    const jsonLike =
+      normalizedContentType === "application/json" ||
+      normalizedContentType.endsWith("+json");
+    const controlPlaneLikely =
+      jsonLike &&
+      lastPathPart === "batchexecute" &&
+      String(params?.resourceType || "") === "XHR";
+    const mediaLike =
+      normalizedContentType.startsWith("audio/") ||
+      normalizedContentType === "application/octet-stream" ||
+      normalizedContentType === "binary/octet-stream";
+    const payloadCandidate =
+      !controlPlaneLikely && (mediaLike || attachmentLike);
+
+    const summary = {
       requestId,
       responseStatusCode: Number.isFinite(params?.responseStatusCode)
         ? Number(params.responseStatusCode)
         : null,
       resourceType: String(params?.resourceType || ""),
       contentDispositionPresent: Boolean(contentDisposition),
-      contentDispositionAttachment: true,
+      contentDispositionAttachment: attachmentLike,
       contentType: String(contentType || "").slice(0, 160),
+      normalizedContentType,
       urlOrigin: url.origin,
       urlHasQuery: url.hasQuery,
-      urlPathSuffix: url.pathSuffix
-    });
+      urlPathSuffix: url.pathSuffix,
+      controlPlaneLikely,
+      payloadCandidate,
+      blocked: payloadCandidate
+    };
+    if (observedResponses.length < 16) {
+      observedResponses.push(summary);
+    }
 
+    if (!payloadCandidate) {
+      await continuePaused(requestId);
+      return;
+    }
+
+    payloadCandidates.push(summary);
     try {
       await _cwaBaseSendCommand(debuggee, "Fetch.failRequest", {
         requestId,
         errorReason: "Aborted"
       });
     } catch {
-      // The request is already classified as effect-bearing; outer ambiguity
-      // handling forbids retry if blocking cannot be proven.
+      // Outer ambiguity handling forbids retry after the effect boundary.
     }
   };
 
@@ -1025,27 +1063,23 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
 
     while (
       performance.now() < deadlineAt &&
-      attachmentResponses.length === 0
+      payloadCandidates.length === 0
     ) {
       await sleep(50);
     }
 
-    if (attachmentResponses.length === 0) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_RESPONSE_NOT_OBSERVED"
-      );
-    }
-
     await Promise.allSettled(Array.from(pendingHandlers));
 
-    if (attachmentResponses.length !== 1) {
+    if (payloadCandidates.length > 1) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_RESPONSE_AMBIGUOUS:" +
-          String(attachmentResponses.length)
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_PAYLOAD_RESPONSE_AMBIGUOUS:" +
+          String(payloadCandidates.length)
       );
     }
 
-    const response = attachmentResponses[0];
+    const candidate =
+      payloadCandidates.length === 1 ? payloadCandidates[0] : null;
+
     return {
       productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
       notebookUrl,
@@ -1054,17 +1088,27 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       observedArtifactRef: expectedArtifactRef,
       downloadAttemptMayHaveExecuted: true,
       downloadClickPerformed: true,
-      attachmentResponseObserved: true,
-      fetchRequestId: response.requestId,
-      responseStatusCode: response.responseStatusCode,
-      resourceType: response.resourceType,
-      contentDispositionPresent: response.contentDispositionPresent,
-      contentDispositionAttachment: response.contentDispositionAttachment,
-      contentType: response.contentType,
-      downloadUrlOrigin: response.urlOrigin,
-      downloadUrlHasQuery: response.urlHasQuery,
-      downloadUrlPathSuffix: response.urlPathSuffix,
-      responseBlockedBeforeBody: true,
+      payloadResponseObserved: candidate !== null,
+      fetchRequestId: candidate ? candidate.requestId : "",
+      responseStatusCode: candidate
+        ? candidate.responseStatusCode
+        : null,
+      resourceType: candidate ? candidate.resourceType : "",
+      contentDispositionPresent: candidate
+        ? candidate.contentDispositionPresent
+        : false,
+      contentDispositionAttachment: candidate
+        ? candidate.contentDispositionAttachment
+        : false,
+      contentType: candidate ? candidate.contentType : "",
+      normalizedContentType: candidate
+        ? candidate.normalizedContentType
+        : "",
+      downloadUrlOrigin: candidate ? candidate.urlOrigin : "",
+      downloadUrlHasQuery: candidate ? candidate.urlHasQuery : false,
+      downloadUrlPathSuffix: candidate ? candidate.urlPathSuffix : [],
+      observedResponses,
+      responseBlockedBeforeBody: candidate !== null,
       responseBodyRead: false,
       filesystemArtifactProven: false,
       productWritePerformed: false,

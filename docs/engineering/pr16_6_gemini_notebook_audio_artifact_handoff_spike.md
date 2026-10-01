@@ -254,3 +254,40 @@ permission is added. No filesystem artifact is claimed.
 This also creates a better path for c2: once response identity is proven, the same
 paused authenticated response can later be read through Fetch/IO into bounded staging
 without relying on the browser's Downloads folder.
+
+
+## Live c1 evidence — Content-Disposition alone is not payload identity
+
+The first corrected Fetch live run observed:
+
+```text
+resourceType = XHR
+contentType = application/json; charset=utf-8
+path suffix = data / batchexecute
+Content-Disposition attachment = true
+```
+
+That response is control-plane traffic, not the Audio Overview media payload.
+Therefore `Content-Disposition: attachment` alone is explicitly rejected as artifact
+byte identity.
+
+The next c1 characterization keeps Fetch interception active but distinguishes:
+
+```text
+known control plane:
+  application/json + XHR + final path component batchexecute
+  → record bounded metadata
+  → continue response
+
+payload candidate:
+  audio/*
+  OR application/octet-stream / binary/octet-stream
+  OR non-control-plane Content-Disposition attachment
+  → record bounded metadata
+  → abort before body read
+```
+
+At most 16 bounded response summaries are returned. Raw URLs and bodies remain
+unexported. If no payload candidate appears within the bounded observation window, the
+probe returns an incomplete characterization with `automaticRetry = false` instead of
+inventing byte identity.

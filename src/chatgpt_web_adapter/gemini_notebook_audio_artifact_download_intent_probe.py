@@ -27,7 +27,7 @@ def probe_gemini_notebook_audio_artifact_download_intent(
     timeout: float = 15.0,
     bridge: BrowserNativeTurnProvider | None = None,
 ) -> dict[str, Any]:
-    """Click one exact Download action while browser download behavior is denied."""
+    """Characterize the exact Download action without reading response bytes."""
 
     if timeout < 3.0:
         raise ValueError("timeout must be at least 3 seconds")
@@ -77,13 +77,11 @@ def probe_gemini_notebook_audio_artifact_download_intent(
             "BROWSER_NATIVE_HOST_SHUTDOWN",
         }:
             raise GeminiNotebookOutcomeAmbiguousError(
-                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_FAILED: "
-                + error,
+                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_FAILED: " + error,
                 request_stage="gemini_notebook_audio_artifact_download_intent_probe",
             )
         raise RequestError(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_FAILED: "
-            + error,
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_FAILED: " + error,
             request_stage="gemini_notebook_audio_artifact_download_intent_probe",
         )
 
@@ -99,18 +97,7 @@ def probe_gemini_notebook_audio_artifact_download_intent(
         )
     if response.get("downloadClickPerformed") is not True:
         raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_CLICK_UNPROVEN")
-    if response.get("attachmentResponseObserved") is not True:
-        raise RequestError(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_RESPONSE_UNPROVEN"
-        )
-    if response.get("contentDispositionAttachment") is not True:
-        raise RequestError(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_IDENTITY_UNPROVEN"
-        )
-    if response.get("responseBlockedBeforeBody") is not True:
-        raise RequestError(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_BLOCK_UNPROVEN"
-        )
+    payload_observed = response.get("payloadResponseObserved") is True
     if response.get("responseBodyRead") is not False:
         raise RequestError(
             "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_BODY_READ_FORBIDDEN"
@@ -126,15 +113,19 @@ def probe_gemini_notebook_audio_artifact_download_intent(
     if response.get("automaticRetry") is not False:
         raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_AUTOMATIC_RETRY_FORBIDDEN")
     if response.get("rawDownloadUrlExported") is not False:
-        raise RequestError(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RAW_DOWNLOAD_URL_EXPORTED"
-        )
+        raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RAW_DOWNLOAD_URL_EXPORTED")
 
     request_id = response.get("fetchRequestId")
-    if not isinstance(request_id, str) or not request_id:
+    if payload_observed and (not isinstance(request_id, str) or not request_id):
+        raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_FETCH_REQUEST_ID_INVALID")
+    if payload_observed and response.get("responseBlockedBeforeBody") is not True:
         raise RequestError(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_FETCH_REQUEST_ID_INVALID"
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_BLOCK_UNPROVEN"
         )
+
+    observed_responses = response.get("observedResponses")
+    if not isinstance(observed_responses, list):
+        observed_responses = []
 
     return {
         "product_id": GEMINI_NOTEBOOK_WEB_PRODUCT_ID,
@@ -148,7 +139,8 @@ def probe_gemini_notebook_audio_artifact_download_intent(
             if isinstance(response.get("elapsedMs"), int)
             else None
         ),
-        "fetch_request_id": request_id,
+        "payload_response_observed": payload_observed,
+        "fetch_request_id": str(request_id or ""),
         "response_status_code": (
             response.get("responseStatusCode")
             if isinstance(response.get("responseStatusCode"), int)
@@ -158,8 +150,13 @@ def probe_gemini_notebook_audio_artifact_download_intent(
         "content_disposition_present": (
             response.get("contentDispositionPresent") is True
         ),
-        "content_disposition_attachment": True,
+        "content_disposition_attachment": (
+            response.get("contentDispositionAttachment") is True
+        ),
         "content_type": str(response.get("contentType") or ""),
+        "normalized_content_type": str(
+            response.get("normalizedContentType") or ""
+        ),
         "download_url_origin": str(response.get("downloadUrlOrigin") or ""),
         "download_url_has_query": response.get("downloadUrlHasQuery") is True,
         "download_url_path_suffix": (
@@ -167,10 +164,12 @@ def probe_gemini_notebook_audio_artifact_download_intent(
             if isinstance(response.get("downloadUrlPathSuffix"), list)
             else []
         ),
+        "observed_responses": observed_responses,
         "download_attempt_may_have_executed": True,
         "download_click_performed": True,
-        "attachment_response_observed": True,
-        "response_blocked_before_body": True,
+        "response_blocked_before_body": (
+            response.get("responseBlockedBeforeBody") is True
+        ),
         "response_body_read": False,
         "filesystem_artifact_proven": False,
         "product_write_performed": False,
