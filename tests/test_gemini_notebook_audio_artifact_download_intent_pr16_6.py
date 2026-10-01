@@ -193,7 +193,9 @@ def test_download_intent_separates_batchexecute_control_plane_from_payload() -> 
 
     assert 'responseHeader(params, "content-disposition")' in probe
     assert 'responseHeader(params, "content-type")' in probe
-    assert 'lastPathPart === "batchexecute"' in probe
+    assert '"batchexecute"' not in probe
+    assert "jsonLike &&" in probe
+    assert "attachmentLike &&" in probe
     assert 'String(params?.resourceType || "") === "XHR"' in probe
     assert "controlPlaneLikely" in probe
     assert 'normalizedContentType.startsWith("audio/")' in probe

@@ -291,3 +291,23 @@ At most 16 bounded response summaries are returned. Raw URLs and bodies remain
 unexported. If no payload candidate appears within the bounded observation window, the
 probe returns an incomplete characterization with `automaticRetry = false` instead of
 inventing byte identity.
+
+
+## Private-endpoint invariant correction
+
+The live response path ended in `batchexecute`, but production characterization must
+not encode that private endpoint name as protocol knowledge.
+
+The classifier is therefore endpoint-agnostic:
+
+```text
+JSON-like Content-Type
++ XHR resource type
++ Content-Disposition attachment
+→ controlPlaneLikely
+→ continue response
+```
+
+The bounded URL path suffix may still be returned as observational telemetry, but it
+does not participate in classification. This preserves the existing invariant that the
+Gemini Notebook worker contains no private Google `batchexecute` protocol coupling.

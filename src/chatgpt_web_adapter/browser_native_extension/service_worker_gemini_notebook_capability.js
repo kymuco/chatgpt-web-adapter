@@ -907,16 +907,12 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       .toLowerCase();
     const attachmentLike = /attachment/i.test(contentDisposition);
     const url = sanitizeUrl(params?.request?.url || "");
-    const lastPathPart =
-      url.pathSuffix.length > 0
-        ? String(url.pathSuffix[url.pathSuffix.length - 1])
-        : "";
     const jsonLike =
       normalizedContentType === "application/json" ||
       normalizedContentType.endsWith("+json");
     const controlPlaneLikely =
       jsonLike &&
-      lastPathPart === "batchexecute" &&
+      attachmentLike &&
       String(params?.resourceType || "") === "XHR";
     const mediaLike =
       normalizedContentType.startsWith("audio/") ||
