@@ -206,9 +206,9 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     assert "networkResourceLoadProven:" in probe
     assert "authenticatedBrowserRequestProven: true" in probe
     assert "acquisitionTabCreated: false" in probe
-    module = (
-        PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py"
-    ).read_text(encoding="utf-8")
+    module = (PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py").read_text(
+        encoding="utf-8"
+    )
     assert "authenticatedBrowserRequestProven" in module
     assert '"authenticated_browser_request_proven": True' in module
 

@@ -508,3 +508,67 @@ Python.
 Keeping the hook live through retrieval also ensures that any late product
 `window.open` call remains suppressed rather than creating an uncontrolled browser
 tab.
+
+
+## Live c2 success — authenticated browser bytes and verified temporary staging
+
+The authenticated c2 live proof succeeded for the already-proven Audio Overview
+artifact:
+
+```text
+observedArtifactRef =
+261a5005-1c03-44d7-9aa9-ecfb5bcef8f2
+
+locatorOriginClass = GOOGLEUSERCONTENT
+HTTP status = 200
+Content-Type = application/octet-stream
+
+sizeBytes = 34,882,933
+SHA-256 =
+9cef3aed24cff1322e6c46bed6bb968ab4a30cfc284fc9582c07d9c8294da87c
+
+chunkCount = 78
+```
+
+The browser-side retrieval proof returned:
+
+```text
+browserBytesProven = true
+networkResourceLoadProven = true
+authenticatedBrowserRequestProven = true
+acquisitionTabCreated = false
+```
+
+The Python-side staging proof returned:
+
+```text
+stagingMaterializedProven = true
+stagingIntegrityVerified = true
+stagingDeleted = true
+```
+
+The negative authority boundaries also remained intact:
+
+```text
+rawDownloadUrlExported = false
+privateProtocolBodyRead = false
+finalDestinationWritten = false
+automaticRetry = false
+```
+
+This closes PR16.6c2. The retrieval half is now proven end to end:
+
+```text
+exact completed artifact identity
+→ exact row-scoped Download action
+→ product-created browser locator
+→ authenticated browser-owned resource load
+→ bounded bytes
+→ SHA-256 identity
+→ chunked native transfer
+→ verified temporary staging
+→ staging retirement
+```
+
+Caller-owned destination authority, overwrite policy, atomic final publish, and durable
+local handoff remain deliberately outside this characterization slice.
