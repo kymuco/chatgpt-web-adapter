@@ -23,6 +23,8 @@ const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION =
   "gemini_notebook_audio_artifact_byte_probe";
 const CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION =
   "gemini_notebook_studio_creation_controls_probe";
+const CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION =
+  "gemini_notebook_video_config_probe";
 const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE =
   "gemini_notebook_audio_artifact_byte_chunk";
 const CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS = 600_000;
@@ -304,6 +306,288 @@ async function _cwaGeminiNotebookProbeStudioCreationControls(message) {
         await chrome.debugger.detach(debuggee);
       } catch {
         // Read-only characterization cleanup has no product effect.
+      }
+    }
+  }
+}
+
+
+function _cwaGeminiNotebookClickVideoOverviewExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+
+    const studio = document.querySelector("section.studio-panel");
+    if (!(studio instanceof Element) || !visible(studio)) {
+      return { clicked: false, reason: "STUDIO_OWNER_MISSING" };
+    }
+
+    const candidates = Array.from(
+      studio.querySelectorAll("basic-create-artifact-button")
+    )
+      .map((owner) => {
+        const control =
+          owner.querySelector("[role='button']") ||
+          owner.querySelector("button") ||
+          null;
+        const icons =
+          control instanceof Element
+            ? Array.from(control.querySelectorAll("mat-icon")).map(
+                (icon) => String(icon.textContent || "").trim()
+              )
+            : [];
+        return { control, icons };
+      })
+      .filter(
+        (entry) =>
+          entry.control instanceof Element &&
+          visible(entry.control) &&
+          entry.icons.includes("videocam")
+      );
+
+    if (candidates.length !== 1) {
+      return {
+        clicked: false,
+        reason: "VIDEO_CREATE_CONTROL_IDENTITY_UNRESOLVED",
+        candidateCount: candidates.length
+      };
+    }
+
+    const control = candidates[0].control;
+    if (
+      control.getAttribute("aria-disabled") === "true" ||
+      ("disabled" in control && Boolean(control.disabled))
+    ) {
+      return { clicked: false, reason: "VIDEO_CREATE_CONTROL_DISABLED" };
+    }
+
+    control.click();
+    return { clicked: true };
+  })()`;
+}
+
+function _cwaGeminiNotebookVisibleDialogInventoryExpression() {
+  return `(() => {
+    const visible = (element) => {
+      if (!(element instanceof Element)) return false;
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
+    };
+    const normalize = (value) =>
+      String(value || "").replace(/\\s+/g, " ").trim();
+    const clip = (value, limit = 220) => normalize(value).slice(0, limit);
+    const classText = (element) =>
+      clip(
+        typeof element?.className === "string"
+          ? element.className
+          : element?.getAttribute?.("class") || "",
+        180
+      );
+    const iconTexts = (element, limit = 12) =>
+      Array.from(element?.querySelectorAll?.("mat-icon") || [])
+        .slice(0, limit)
+        .map((icon) => clip(icon.textContent, 48))
+        .filter(Boolean);
+
+    const dialogs = Array.from(
+      document.querySelectorAll(
+        "mat-dialog-container[role='dialog'],[role='dialog']"
+      )
+    )
+      .filter(visible)
+      .slice(0, 4)
+      .map((dialog, index) => {
+        const controls = Array.from(
+          dialog.querySelectorAll("button,[role='button']")
+        )
+          .filter(visible)
+          .slice(0, 20)
+          .map((control, controlIndex) => ({
+            index: controlIndex,
+            tag: String(control.tagName || "").toLowerCase(),
+            className: classText(control),
+            role: clip(control.getAttribute("role") || "", 48),
+            ariaLabel: clip(control.getAttribute("aria-label") || "", 180),
+            title: clip(control.getAttribute("title") || "", 180),
+            text: clip(control.innerText || control.textContent || "", 220),
+            disabled:
+              "disabled" in control
+                ? Boolean(control.disabled)
+                : control.getAttribute("aria-disabled") === "true",
+            icons: iconTexts(control, 8)
+          }));
+
+        return {
+          index,
+          tag: String(dialog.tagName || "").toLowerCase(),
+          className: classText(dialog),
+          role: clip(dialog.getAttribute("role") || "", 48),
+          ariaLabel: clip(dialog.getAttribute("aria-label") || "", 180),
+          title: clip(dialog.getAttribute("title") || "", 180),
+          text: clip(dialog.innerText || dialog.textContent || "", 600),
+          icons: iconTexts(dialog, 16),
+          controls
+        };
+      });
+
+    return { dialogs };
+  })()`;
+}
+
+async function _cwaGeminiNotebookProbeVideoConfig(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const timeoutMs = Math.max(
+    3000,
+    Math.min(Number(message?.timeoutMs) || 15000, 30000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+  let configurationOpenMayHaveExecuted = false;
+
+  const artifactRefs = (state) =>
+    Array.isArray(state?.rows)
+      ? state.rows
+          .map((row) => String(row?.observedArtifactRef || ""))
+          .filter(Boolean)
+          .sort()
+      : [];
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const initialDialogs = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookVisibleDialogInventoryExpression()
+    );
+    const initialDialogList = Array.isArray(initialDialogs?.dialogs)
+      ? initialDialogs.dialogs
+      : [];
+    if (initialDialogList.length !== 0) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_CONFIG_PRESTATE_DIALOG_OPEN:" +
+          String(initialDialogList.length)
+      );
+    }
+
+    const beforeArtifacts = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioArtifactItemsExpression()
+    );
+    if (beforeArtifacts?.notebookUrl !== notebookUrl) {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_CONFIG_ROUTE_MISMATCH");
+    }
+    const beforeArtifactRefs = artifactRefs(beforeArtifacts);
+
+    configurationOpenMayHaveExecuted = true;
+    const clicked = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickVideoOverviewExpression()
+    );
+    if (clicked?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_CREATE_CONTROL_CLICK_FAILED:" +
+          String(clicked?.reason || "UNKNOWN")
+      );
+    }
+
+    let dialog = null;
+    while (performance.now() < deadlineAt) {
+      const state = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookVisibleDialogInventoryExpression()
+      );
+      const dialogs = Array.isArray(state?.dialogs) ? state.dialogs : [];
+      if (dialogs.length > 1) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_VIDEO_CONFIG_DIALOG_AMBIGUOUS:" +
+            String(dialogs.length)
+        );
+      }
+      if (dialogs.length === 1) {
+        dialog = dialogs[0];
+        break;
+      }
+      await sleep(100);
+    }
+    if (!dialog) {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_CONFIG_DIALOG_TIMEOUT");
+    }
+
+    const afterArtifacts = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioArtifactItemsExpression()
+    );
+    if (afterArtifacts?.notebookUrl !== notebookUrl) {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_CONFIG_ROUTE_MISMATCH");
+    }
+    const afterArtifactRefs = artifactRefs(afterArtifacts);
+    const artifactLibraryUnchanged =
+      JSON.stringify(beforeArtifactRefs) === JSON.stringify(afterArtifactRefs);
+    if (!artifactLibraryUnchanged) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_CONFIG_ARTIFACT_LIBRARY_CHANGED"
+      );
+    }
+
+    return {
+      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+      notebookUrl,
+      tabId: tab.id,
+      elapsedMs: Math.round(performance.now() - startedAt),
+      createControlIcon: "videocam",
+      configurationSurfaceObserved: true,
+      dialog,
+      beforeArtifactRefs,
+      afterArtifactRefs,
+      artifactLibraryUnchanged: true,
+      configurationOpenClickPerformed: true,
+      generationStartedProven: false,
+      durableProductWriteProven: false,
+      navigationPerformed: false,
+      automaticRetry: false,
+      rawDomExported: false
+    };
+  } catch (error) {
+    if (configurationOpenMayHaveExecuted) {
+      throw _cwaGeminiNotebookAmbiguousError(error);
+    }
+    throw error;
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Detach cannot change the already-classified config observation.
       }
     }
   }
@@ -3129,7 +3413,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -3153,7 +3438,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                 ? "gemini_notebook_audio_artifact_byte_probe_result"
                 : operation === CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
                   ? "gemini_notebook_studio_creation_controls_probe_result"
-                  : "gemini_notebook_add_url_source_result";
+                  : operation === CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
+                    ? "gemini_notebook_video_config_probe_result"
+                    : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -3171,7 +3458,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                   ? await _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)
                   : operation === CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
                     ? await _cwaGeminiNotebookProbeStudioCreationControls(message)
-                    : await _cwaGeminiNotebookAddUrlSource(message);
+                    : operation === CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
+                      ? await _cwaGeminiNotebookProbeVideoConfig(message)
+                      : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,

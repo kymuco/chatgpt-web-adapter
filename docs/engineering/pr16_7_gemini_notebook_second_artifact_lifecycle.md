@@ -77,3 +77,50 @@ rawDomExported = false
 ```
 
 This closes slice 16.7a.
+
+
+## Slice 16.7b — exact Video config-surface characterization
+
+The live 16.7a inventory authorizes one structural create identity: the unique visible
+enabled Studio control whose icon set contains `videocam`.
+
+Temporary operation:
+
+```text
+gemini_notebook_video_config_probe
+```
+
+The operation:
+
+```text
+exact notebook
+→ require zero visible dialogs
+→ snapshot current artifact refs
+→ potential config-open effect boundary
+→ click exactly one videocam create control
+→ require exactly one visible dialog
+→ export only bounded dialog/control metadata
+→ re-read artifact refs
+→ require exact pre/post equality
+```
+
+No dialog action is activated. In particular, no tonal/generate/confirm control is
+clicked.
+
+Because Video creation semantics have not yet been proven, the config-open click is
+treated conservatively as an effect boundary. Any failure after that point becomes
+ambiguous and automatic retry remains false.
+
+A successful characterization may claim:
+
+```text
+configurationSurfaceObserved = true
+artifactLibraryUnchanged = true
+generationStartedProven = false
+durableProductWriteProven = false
+automaticRetry = false
+```
+
+Only the next live result may identify a generation-capable control inside the dialog.
+Localized dialog text is evidence only; no generation selector is implemented in this
+slice.
