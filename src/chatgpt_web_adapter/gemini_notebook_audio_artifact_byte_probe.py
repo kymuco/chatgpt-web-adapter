@@ -278,6 +278,10 @@ def probe_gemini_notebook_audio_artifact_bytes(
             raise RequestError(
                 "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_NETWORK_RESOURCE_LOAD_UNPROVEN"
             )
+        if response.get("authenticatedBrowserRequestProven") is not True:
+            raise RequestError(
+                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_AUTHENTICATED_REQUEST_UNPROVEN"
+            )
         if response.get("acquisitionTabCreated") is not False:
             raise RequestError(
                 "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACQUISITION_TAB_UNEXPECTED"
@@ -322,6 +326,7 @@ def probe_gemini_notebook_audio_artifact_bytes(
             "staging_materialized_proven": True,
             "staging_integrity_verified": True,
             "network_resource_load_proven": True,
+            "authenticated_browser_request_proven": True,
             "acquisition_tab_created": False,
             "raw_download_url_exported": False,
             "private_protocol_body_read": False,
