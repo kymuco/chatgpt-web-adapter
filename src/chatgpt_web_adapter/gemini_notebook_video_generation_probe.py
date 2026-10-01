@@ -87,9 +87,7 @@ def probe_gemini_notebook_video_generation(
     if response.get("automaticRetry") is not False:
         raise RequestError("GEMINI_NOTEBOOK_VIDEO_GENERATION_RETRY_POLICY_INVALID")
     if response.get("canonicalCompletionProven") is not False:
-        raise RequestError(
-            "GEMINI_NOTEBOOK_VIDEO_GENERATION_COMPLETION_STATE_INVALID"
-        )
+        raise RequestError("GEMINI_NOTEBOOK_VIDEO_GENERATION_COMPLETION_STATE_INVALID")
 
     before_refs = response.get("beforeArtifactRefs")
     after_refs = response.get("afterArtifactRefs")
