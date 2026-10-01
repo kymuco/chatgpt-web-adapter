@@ -1063,29 +1063,6 @@ function _cwaGeminiNotebookAudioLocatorPolicy(value) {
   };
 }
 
-async function _cwaGeminiNotebookConfirmTabAbsent(tabId) {
-  if (!Number.isInteger(tabId)) return true;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    try {
-      await chrome.tabs.get(tabId);
-    } catch {
-      return true;
-    }
-    await sleep(50);
-  }
-  return false;
-}
-
-async function _cwaGeminiNotebookRetireOwnedAcquisitionTab(tabId) {
-  if (!Number.isInteger(tabId)) return true;
-  try {
-    await chrome.tabs.remove(tabId);
-  } catch {
-    // Removal errors are ambiguous; absence is proven separately below.
-  }
-  return _cwaGeminiNotebookConfirmTabAbsent(tabId);
-}
-
 function _cwaGeminiNotebookDecodeIoBytes(data, base64Encoded) {
   const text = String(data || "");
   if (base64Encoded === true) {

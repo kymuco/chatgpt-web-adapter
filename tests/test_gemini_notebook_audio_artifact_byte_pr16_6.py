@@ -148,7 +148,7 @@ def test_worker_byte_probe_uses_product_created_googleusercontent_locator() -> N
         "function _cwaGeminiNotebookAudioLocatorPolicy(value)",
         1,
     )[1].split(
-        "async function _cwaGeminiNotebookConfirmTabAbsent(tabId)",
+        "function _cwaGeminiNotebookDecodeIoBytes(data, base64Encoded)",
         1,
     )[0]
 
@@ -156,6 +156,8 @@ def test_worker_byte_probe_uses_product_created_googleusercontent_locator() -> N
     assert 'hostname.endsWith(".googleusercontent.com")' in policy
     assert 'originClass: "GOOGLEUSERCONTENT"' in policy
     assert "batchexecute" not in policy
+    assert "_cwaGeminiNotebookConfirmTabAbsent" not in worker
+    assert "_cwaGeminiNotebookRetireOwnedAcquisitionTab" not in worker
 
 
 def test_worker_byte_probe_uses_network_resource_stream_without_navigation() -> None:
