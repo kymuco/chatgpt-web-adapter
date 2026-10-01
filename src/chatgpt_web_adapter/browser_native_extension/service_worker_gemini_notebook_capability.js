@@ -1131,7 +1131,7 @@ async function _cwaGeminiNotebookLoadLocatorBytes(
       url: locator,
       options: {
         disableCache: true,
-        includeCredentials: false
+        includeCredentials: true
       }
     }
   );
@@ -1430,14 +1430,6 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       locatorState.locator
     );
 
-    if (sinkProbeInstalled) {
-      await _cwaGeminiNotebookMutationEvaluate(
-        debuggee,
-        _cwaGeminiNotebookRestoreDownloadSinkProbeExpression()
-      );
-      sinkProbeInstalled = false;
-    }
-
     const acquired = await _cwaGeminiNotebookLoadLocatorBytes(
       debuggee,
       policy.locator,
@@ -1503,6 +1495,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       browserBytesProven: true,
       networkResourceLoadProven:
         acquired.networkResourceLoadProven === true,
+      authenticatedBrowserRequestProven: true,
       acquisitionTabCreated: false,
       rawDownloadUrlExported: false,
       privateProtocolBodyRead: false,

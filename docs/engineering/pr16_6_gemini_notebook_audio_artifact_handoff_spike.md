@@ -472,3 +472,39 @@ Googleusercontent origin class.
 
 This keeps the operation in browser-owned network semantics while avoiding Chrome's
 special download-navigation behavior entirely.
+
+
+## Live c2 evidence — authenticated locator context is required
+
+The first `Network.loadNetworkResource` live attempt returned immediately with:
+
+```text
+net::ERR_HTTP_RESPONSE_CODE_FAILURE
+```
+
+and the browser also exposed a late product-side Google media/download URL that
+returned HTTP 403 when opened outside the original handoff context.
+
+Two assumptions in the first c2 implementation were therefore rejected:
+
+1. the product-created locator is not safely retrievable with
+   `includeCredentials = false`;
+2. restoring the temporary `window.open` hook immediately after the first locator
+   event is too early, because the product can perform later asynchronous handoff work.
+
+The corrected c2 keeps the sink hook installed until the operation's `finally`
+cleanup and uses:
+
+```text
+Network.loadNetworkResource
+  includeCredentials = true
+  disableCache = true
+```
+
+The request still uses only the exact product-created locator and browser-owned
+credentials. No cookies, auth headers, signed URL, or private RPC body are exported to
+Python.
+
+Keeping the hook live through retrieval also ensures that any late product
+`window.open` call remains suppressed rather than creating an uncontrolled browser
+tab.

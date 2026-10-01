@@ -174,7 +174,7 @@ def test_worker_byte_probe_uses_network_resource_stream_without_navigation() -> 
 
     assert '"Page.getFrameTree"' in acquire
     assert '"Network.loadNetworkResource"' in acquire
-    assert "includeCredentials: false" in acquire
+    assert "includeCredentials: true" in acquire
     assert "disableCache: true" in acquire
     assert '"IO.read"' in acquire
     assert '"IO.close"' in acquire
@@ -204,7 +204,16 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     assert "safePortPost(port" in probe
     assert "browserBytesProven: true" in probe
     assert "networkResourceLoadProven:" in probe
+    assert "authenticatedBrowserRequestProven: true" in probe
     assert "acquisitionTabCreated: false" in probe
+
+    load_call = probe.index("_cwaGeminiNotebookLoadLocatorBytes(")
+    finally_start = probe.index("} finally {")
+    restore_call = probe.index(
+        "_cwaGeminiNotebookRestoreDownloadSinkProbeExpression()",
+        finally_start,
+    )
+    assert load_call < finally_start < restore_call
     assert "rawDownloadUrlExported: false" in probe
     assert "privateProtocolBodyRead: false" in probe
     assert "finalDestinationWritten: false" in probe
