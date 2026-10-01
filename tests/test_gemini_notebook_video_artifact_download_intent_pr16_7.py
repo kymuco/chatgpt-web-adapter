@@ -127,7 +127,7 @@ def test_video_download_intent_uses_exact_completed_ref_and_structural_save_alt(
         "async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
         1,
     )[0]
 
@@ -147,7 +147,7 @@ def test_video_download_effect_boundary_and_sink_precede_click() -> None:
         "async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
         1,
     )[0]
 
@@ -170,7 +170,7 @@ def test_video_direct_payload_classifier_is_video_specific() -> None:
         "async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
         1,
     )[0]
 

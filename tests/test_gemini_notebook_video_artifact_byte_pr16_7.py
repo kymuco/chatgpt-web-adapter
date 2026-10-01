@@ -11,8 +11,8 @@ from chatgpt_web_adapter.gemini_notebook_video_artifact_byte_probe import (
     DEFAULT_VIDEO_ARTIFACT_MAX_BYTES,
     GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE,
     GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION,
-    _VideoArtifactByteChunkCollector,
     _normalize_max_bytes,
+    _VideoArtifactByteChunkCollector,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -118,7 +118,7 @@ def test_video_byte_probe_reuses_exact_ref_handoff_and_video_media_family() -> N
     assert "_cwaGeminiNotebookInstallDownloadSinkProbeExpression()" in probe
     assert "_cwaGeminiNotebookTakeUniqueWindowOpenLocatorExpression()" in probe
     assert "_cwaGeminiNotebookAudioLocatorPolicy(" in probe
-    assert '_cwaGeminiNotebookLoadLocatorBytes(' in probe
+    assert "_cwaGeminiNotebookLoadLocatorBytes(" in probe
     assert '"video"' in probe
     assert "CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE" in probe
     assert "safePortPost(port" in probe
