@@ -99,13 +99,21 @@ def probe_gemini_notebook_audio_artifact_download_intent(
         )
     if response.get("downloadClickPerformed") is not True:
         raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_CLICK_UNPROVEN")
-    if response.get("downloadWillBeginObserved") is not True:
-        raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_EVENT_UNPROVEN")
-    if response.get("downloadBehavior") != "deny":
-        raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_DENY_UNPROVEN")
-    if response.get("downloadCompletedProven") is not False:
+    if response.get("attachmentResponseObserved") is not True:
         raise RequestError(
-            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_COMPLETION_FORBIDDEN"
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_RESPONSE_UNPROVEN"
+        )
+    if response.get("contentDispositionAttachment") is not True:
+        raise RequestError(
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_IDENTITY_UNPROVEN"
+        )
+    if response.get("responseBlockedBeforeBody") is not True:
+        raise RequestError(
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_BLOCK_UNPROVEN"
+        )
+    if response.get("responseBodyRead") is not False:
+        raise RequestError(
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RESPONSE_BODY_READ_FORBIDDEN"
         )
     if response.get("filesystemArtifactProven") is not False:
         raise RequestError(
@@ -122,9 +130,11 @@ def probe_gemini_notebook_audio_artifact_download_intent(
             "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RAW_DOWNLOAD_URL_EXPORTED"
         )
 
-    guid = response.get("downloadGuid")
-    if not isinstance(guid, str) or not guid:
-        raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_GUID_INVALID")
+    request_id = response.get("fetchRequestId")
+    if not isinstance(request_id, str) or not request_id:
+        raise RequestError(
+            "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_FETCH_REQUEST_ID_INVALID"
+        )
 
     return {
         "product_id": GEMINI_NOTEBOOK_WEB_PRODUCT_ID,
@@ -138,21 +148,30 @@ def probe_gemini_notebook_audio_artifact_download_intent(
             if isinstance(response.get("elapsedMs"), int)
             else None
         ),
-        "download_guid": guid,
-        "frame_id": str(response.get("frameId") or ""),
-        "suggested_filename": str(response.get("suggestedFilename") or ""),
+        "fetch_request_id": request_id,
+        "response_status_code": (
+            response.get("responseStatusCode")
+            if isinstance(response.get("responseStatusCode"), int)
+            else None
+        ),
+        "resource_type": str(response.get("resourceType") or ""),
+        "content_disposition_present": (
+            response.get("contentDispositionPresent") is True
+        ),
+        "content_disposition_attachment": True,
+        "content_type": str(response.get("contentType") or ""),
         "download_url_origin": str(response.get("downloadUrlOrigin") or ""),
         "download_url_has_query": response.get("downloadUrlHasQuery") is True,
-        "download_progress_states": (
-            response.get("downloadProgressStates")
-            if isinstance(response.get("downloadProgressStates"), list)
+        "download_url_path_suffix": (
+            response.get("downloadUrlPathSuffix")
+            if isinstance(response.get("downloadUrlPathSuffix"), list)
             else []
         ),
         "download_attempt_may_have_executed": True,
         "download_click_performed": True,
-        "download_will_begin_observed": True,
-        "download_behavior": "deny",
-        "download_completed_proven": False,
+        "attachment_response_observed": True,
+        "response_blocked_before_body": True,
+        "response_body_read": False,
         "filesystem_artifact_proven": False,
         "product_write_performed": False,
         "navigation_performed": False,

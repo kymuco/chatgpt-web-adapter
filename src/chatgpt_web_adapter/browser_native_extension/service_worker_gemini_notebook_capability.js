@@ -842,61 +842,99 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
   const debuggee = { tabId: tab.id };
   let attached = false;
   let listenerInstalled = false;
-  let denyConfigured = false;
+  let fetchEnabled = false;
   let downloadAttemptMayHaveExecuted = false;
-  const willBeginEvents = [];
-  const progressEvents = [];
+  const attachmentResponses = [];
+  const pendingHandlers = new Set();
+
+  const responseHeader = (params, name) => {
+    const wanted = String(name || "").toLowerCase();
+    const headers = Array.isArray(params?.responseHeaders)
+      ? params.responseHeaders
+      : [];
+    const values = headers
+      .filter(
+        (header) =>
+          String(header?.name || "").toLowerCase() === wanted
+      )
+      .map((header) => String(header?.value || ""));
+    return values.join("\n");
+  };
+
+  const sanitizeUrl = (value) => {
+    try {
+      const parsed = new URL(String(value || ""));
+      return {
+        origin: parsed.origin,
+        hasQuery: Boolean(parsed.search),
+        pathSuffix: String(parsed.pathname || "").split("/").filter(Boolean).slice(-2)
+      };
+    } catch {
+      return { origin: "", hasQuery: false, pathSuffix: [] };
+    }
+  };
+
+  const handlePaused = async (params) => {
+    const requestId = String(params?.requestId || "");
+    if (!requestId) return;
+
+    const contentDisposition = responseHeader(params, "content-disposition");
+    const contentType = responseHeader(params, "content-type");
+    const attachmentLike = /attachment/i.test(contentDisposition);
+    if (!downloadAttemptMayHaveExecuted || !attachmentLike) {
+      try {
+        await _cwaBaseSendCommand(debuggee, "Fetch.continueResponse", {
+          requestId
+        });
+      } catch {
+        try {
+          await _cwaBaseSendCommand(debuggee, "Fetch.continueRequest", {
+            requestId
+          });
+        } catch {
+          // Cleanup failure is handled by Fetch.disable in finally.
+        }
+      }
+      return;
+    }
+
+    const url = sanitizeUrl(params?.request?.url || "");
+    attachmentResponses.push({
+      requestId,
+      responseStatusCode: Number.isFinite(params?.responseStatusCode)
+        ? Number(params.responseStatusCode)
+        : null,
+      resourceType: String(params?.resourceType || ""),
+      contentDispositionPresent: Boolean(contentDisposition),
+      contentDispositionAttachment: true,
+      contentType: String(contentType || "").slice(0, 160),
+      urlOrigin: url.origin,
+      urlHasQuery: url.hasQuery,
+      urlPathSuffix: url.pathSuffix
+    });
+
+    try {
+      await _cwaBaseSendCommand(debuggee, "Fetch.failRequest", {
+        requestId,
+        errorReason: "Aborted"
+      });
+    } catch {
+      // The request is already classified as effect-bearing; outer ambiguity
+      // handling forbids retry if blocking cannot be proven.
+    }
+  };
 
   const observer = (source, method, params) => {
-    try {
-      if (source?.tabId !== tab.id) return;
-      if (method === "Page.downloadWillBegin") {
-        let urlOrigin = "";
-        let urlHasQuery = false;
-        try {
-          const parsed = new URL(String(params?.url || ""));
-          urlOrigin = parsed.origin;
-          urlHasQuery = Boolean(parsed.search);
-        } catch {
-          urlOrigin = "";
-          urlHasQuery = false;
-        }
-        willBeginEvents.push({
-          guid: String(params?.guid || ""),
-          frameId: String(params?.frameId || ""),
-          suggestedFilename: String(params?.suggestedFilename || ""),
-          urlOrigin,
-          urlHasQuery
-        });
-        return;
-      }
-      if (method === "Page.downloadProgress") {
-        progressEvents.push({
-          guid: String(params?.guid || ""),
-          state: String(params?.state || ""),
-          receivedBytes: Number.isFinite(params?.receivedBytes)
-            ? Number(params.receivedBytes)
-            : null,
-          totalBytes: Number.isFinite(params?.totalBytes)
-            ? Number(params.totalBytes)
-            : null
-        });
-      }
-    } catch {
-      // Download event observation must never perturb the product action.
-    }
+    if (source?.tabId !== tab.id || method !== "Fetch.requestPaused") return;
+    const promise = handlePaused(params);
+    pendingHandlers.add(promise);
+    void promise.finally(() => pendingHandlers.delete(promise));
   };
 
   try {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-    await _cwaBaseSendCommand(debuggee, "Page.enable");
-
-    await _cwaBaseSendCommand(debuggee, "Page.setDownloadBehavior", {
-      behavior: "deny"
-    });
-    denyConfigured = true;
 
     const beforeMenus = await _cwaGeminiNotebookMutationEvaluate(
       debuggee,
@@ -911,9 +949,6 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
           String(beforePanels.length)
       );
     }
-
-    chrome.debugger.onEvent.addListener(observer);
-    listenerInstalled = true;
 
     const opened = await _cwaGeminiNotebookMutationEvaluate(
       debuggee,
@@ -969,6 +1004,13 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       );
     }
 
+    chrome.debugger.onEvent.addListener(observer);
+    listenerInstalled = true;
+    await _cwaBaseSendCommand(debuggee, "Fetch.enable", {
+      patterns: [{ urlPattern: "*", requestStage: "Response" }]
+    });
+    fetchEnabled = true;
+
     downloadAttemptMayHaveExecuted = true;
     const clicked = await _cwaGeminiNotebookMutationEvaluate(
       debuggee,
@@ -983,43 +1025,27 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
 
     while (
       performance.now() < deadlineAt &&
-      willBeginEvents.length === 0
+      attachmentResponses.length === 0
     ) {
       await sleep(50);
     }
-    if (willBeginEvents.length === 0) {
+
+    if (attachmentResponses.length === 0) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_WILL_BEGIN_NOT_OBSERVED"
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_RESPONSE_NOT_OBSERVED"
       );
     }
 
-    await sleep(300);
+    await Promise.allSettled(Array.from(pendingHandlers));
 
-    if (willBeginEvents.length !== 1) {
+    if (attachmentResponses.length !== 1) {
       throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_EVENT_AMBIGUOUS:" +
-          String(willBeginEvents.length)
+        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ATTACHMENT_RESPONSE_AMBIGUOUS:" +
+          String(attachmentResponses.length)
       );
     }
 
-    const event = willBeginEvents[0];
-    if (!event.guid) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_GUID_UNRESOLVED"
-      );
-    }
-
-    const sameGuidProgress = progressEvents.filter(
-      (progress) => progress.guid === event.guid
-    );
-    if (
-      sameGuidProgress.some((progress) => progress.state === "completed")
-    ) {
-      throw new Error(
-        "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DENIED_DOWNLOAD_COMPLETED_UNEXPECTEDLY"
-      );
-    }
-
+    const response = attachmentResponses[0];
     return {
       productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
       notebookUrl,
@@ -1028,17 +1054,18 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
       observedArtifactRef: expectedArtifactRef,
       downloadAttemptMayHaveExecuted: true,
       downloadClickPerformed: true,
-      downloadWillBeginObserved: true,
-      downloadGuid: event.guid,
-      frameId: event.frameId,
-      suggestedFilename: event.suggestedFilename,
-      downloadUrlOrigin: event.urlOrigin,
-      downloadUrlHasQuery: event.urlHasQuery,
-      downloadProgressStates: sameGuidProgress.map(
-        (progress) => progress.state
-      ),
-      downloadBehavior: "deny",
-      downloadCompletedProven: false,
+      attachmentResponseObserved: true,
+      fetchRequestId: response.requestId,
+      responseStatusCode: response.responseStatusCode,
+      resourceType: response.resourceType,
+      contentDispositionPresent: response.contentDispositionPresent,
+      contentDispositionAttachment: response.contentDispositionAttachment,
+      contentType: response.contentType,
+      downloadUrlOrigin: response.urlOrigin,
+      downloadUrlHasQuery: response.urlHasQuery,
+      downloadUrlPathSuffix: response.urlPathSuffix,
+      responseBlockedBeforeBody: true,
+      responseBodyRead: false,
       filesystemArtifactProven: false,
       productWritePerformed: false,
       navigationPerformed: false,
@@ -1051,20 +1078,18 @@ async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message) {
     }
     throw error;
   } finally {
+    if (fetchEnabled) {
+      try {
+        await _cwaBaseSendCommand(debuggee, "Fetch.disable");
+      } catch {
+        // Cleanup cannot grant retry authority.
+      }
+    }
     if (listenerInstalled) {
       try {
         chrome.debugger.onEvent.removeListener(observer);
       } catch {
         // Listener cleanup cannot change the already-classified outcome.
-      }
-    }
-    if (attached && denyConfigured) {
-      try {
-        await _cwaBaseSendCommand(debuggee, "Page.setDownloadBehavior", {
-          behavior: "default"
-        });
-      } catch {
-        // Best-effort restoration only; retry authority stays false.
       }
     }
     if (attached) {

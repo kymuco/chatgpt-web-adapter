@@ -34,15 +34,18 @@ class _FakeBridge:
             "observedArtifactRef": payload["expectedArtifactRef"],
             "downloadAttemptMayHaveExecuted": True,
             "downloadClickPerformed": True,
-            "downloadWillBeginObserved": True,
-            "downloadGuid": "guid-1",
-            "frameId": "frame-1",
-            "suggestedFilename": "audio.wav",
+            "attachmentResponseObserved": True,
+            "fetchRequestId": "interception-job-1",
+            "responseStatusCode": 200,
+            "resourceType": "Other",
+            "contentDispositionPresent": True,
+            "contentDispositionAttachment": True,
+            "contentType": "audio/mpeg",
             "downloadUrlOrigin": "https://notebook.google.com",
             "downloadUrlHasQuery": True,
-            "downloadProgressStates": ["canceled"],
-            "downloadBehavior": "deny",
-            "downloadCompletedProven": False,
+            "downloadUrlPathSuffix": ["artifact", "download"],
+            "responseBlockedBeforeBody": True,
+            "responseBodyRead": False,
             "filesystemArtifactProven": False,
             "productWritePerformed": False,
             "navigationPerformed": False,
@@ -70,10 +73,11 @@ def test_download_intent_probe_contract_is_denied_and_non_retryable() -> None:
     )
 
     assert result["observed_artifact_ref"] == ARTIFACT_REF
-    assert result["download_guid"] == "guid-1"
-    assert result["download_behavior"] == "deny"
-    assert result["download_will_begin_observed"] is True
-    assert result["download_completed_proven"] is False
+    assert result["fetch_request_id"] == "interception-job-1"
+    assert result["attachment_response_observed"] is True
+    assert result["content_disposition_attachment"] is True
+    assert result["response_blocked_before_body"] is True
+    assert result["response_body_read"] is False
     assert result["filesystem_artifact_proven"] is False
     assert result["automatic_retry"] is False
     assert result["raw_download_url_exported"] is False
@@ -120,7 +124,7 @@ def test_download_click_identity_is_save_alt_and_not_localized() -> None:
     assert "Скачать" not in click
 
 
-def test_download_intent_uses_page_deny_and_arms_listener_before_click() -> None:
+def test_download_intent_uses_fetch_response_blocking_after_identity() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -132,20 +136,44 @@ def test_download_intent_uses_page_deny_and_arms_listener_before_click() -> None
         1,
     )[0]
 
-    assert '"Page.enable"' in probe
-    assert '"Page.setDownloadBehavior"' in probe
-    assert 'behavior: "deny"' in probe
-    assert 'behavior: "default"' in probe
-    assert '"Page.downloadWillBegin"' in probe
-    assert '"Page.downloadProgress"' in probe
+    assert '"Fetch.enable"' in probe
+    assert '"Fetch.requestPaused"' in probe
+    assert '"Fetch.continueResponse"' in probe
+    assert '"Fetch.failRequest"' in probe
+    assert 'errorReason: "Aborted"' in probe
+    assert '"Fetch.disable"' in probe
+    assert "Page.setDownloadBehavior" not in probe
+    assert "Page.downloadWillBegin" not in probe
 
     listener = probe.index("chrome.debugger.onEvent.addListener(observer)")
+    fetch_enable = probe.index('"Fetch.enable"')
     boundary = probe.index("downloadAttemptMayHaveExecuted = true;")
     click = probe.index("_cwaGeminiNotebookClickVisibleArtifactDownloadExpression()")
-    assert listener < boundary < click
+    assert listener < fetch_enable < boundary < click
     assert probe.count("downloadAttemptMayHaveExecuted = false") == 1
     assert "if (downloadAttemptMayHaveExecuted)" in probe
     assert "_cwaGeminiNotebookAmbiguousError(error)" in probe
+
+
+def test_download_intent_attachment_identity_uses_response_headers() -> None:
+    worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
+        encoding="utf-8"
+    )
+    probe = worker.split(
+        "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
+        1,
+    )[1].split(
+        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        1,
+    )[0]
+
+    assert 'responseHeader(params, "content-disposition")' in probe
+    assert 'responseHeader(params, "content-type")' in probe
+    assert "/attachment/i.test(contentDisposition)" in probe
+    assert "attachmentResponses.length !== 1" in probe
+    assert "rawDownloadUrlExported: false" in probe
+    assert "responseBodyRead: false" in probe
+    assert "filesystemArtifactProven: false" in probe
 
 
 def test_download_intent_does_not_add_downloads_permission() -> None:
@@ -156,8 +184,8 @@ def test_download_intent_does_not_add_downloads_permission() -> None:
 
     assert '"downloads"' not in manifest
     assert "chrome.downloads" not in worker
-    assert "fetch(" not in worker
-    assert "XMLHttpRequest" not in worker
+    assert "Page.setDownloadBehavior" not in worker
+    assert "Browser.setDownloadBehavior" not in worker
     assert "rawDownloadUrlExported: false" in worker
 
 

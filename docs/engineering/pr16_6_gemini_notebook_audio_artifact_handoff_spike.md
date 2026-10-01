@@ -216,3 +216,41 @@ If the exact Download click may have executed but event correlation cannot be pr
 the outcome is ambiguous and automatic retry remains forbidden.
 
 No `downloads` extension permission and no private Google transport are introduced.
+
+
+## PR16.6c1 correction — tab debugger cannot own download behavior
+
+The first live c1 attempt failed before the Download click with:
+
+```text
+Cannot not access browser-level commands
+```
+
+The failure occurred at the deprecated `Page.setDownloadBehavior` command. The
+extension debugger remains tab-attached, and browser-level download control is not a
+supported authority surface for this integration.
+
+The c1 design is therefore corrected rather than worked around:
+
+```text
+exact artifact ref
+→ exact row-scoped more_vert
+→ exact enabled save_alt action
+→ arm Fetch response interception
+→ potential download-effect boundary
+→ one save_alt click
+→ require exactly one attachment response
+→ fail that response before body consumption
+```
+
+The corrected characterization uses only the already-admitted `Fetch` debugger
+domain. Non-attachment paused responses are continued. The single attachment-like
+response is identified by response `Content-Disposition: attachment`, recorded with
+bounded metadata, and aborted with `Fetch.failRequest(..., Aborted)`.
+
+No raw download URL is exported. No response body is read in c1. No browser Downloads
+permission is added. No filesystem artifact is claimed.
+
+This also creates a better path for c2: once response identity is proven, the same
+paused authenticated response can later be read through Fetch/IO into bounded staging
+without relying on the browser's Downloads folder.
