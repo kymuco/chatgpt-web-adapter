@@ -1416,7 +1416,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
     1,
     Math.min(
       Number(message?.maxBytes) || 67_108_864,
-      134_217_728
+      67_108_864
     )
   );
   const timeoutMs = Math.max(

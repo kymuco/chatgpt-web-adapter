@@ -341,3 +341,101 @@ scheme/origin/query-presence/path suffix; raw URLs are never exported.
 
 Fetch response characterization remains armed in parallel, so a direct media response
 in the original target is still blocked before body read.
+
+
+## Live c1 closure — product-created Googleusercontent locator
+
+The page-facing sink characterization observed exactly one suppressed sink:
+
+```text
+kind = window_open
+target = _blank
+scheme = https
+origin = https://lh3.googleusercontent.com
+query present = true
+```
+
+The raw signed URL was not exported. The hook returned `null`, so the product-created
+`window.open` did not create a browser tab or download.
+
+This closes c1 with the following evidence:
+
+```text
+exact observedArtifactRef
+→ exact row-scoped more_vert
+→ exact enabled save_alt
+→ product control-plane activity
+→ one product-created window.open locator
+→ googleusercontent origin class
+```
+
+The locator is browser/product output, not a URL reverse-engineered from private Google
+RPC data.
+
+## Slice 16.6c2 — bounded byte acquisition and temporary staging proof
+
+Temporary operation:
+
+```text
+gemini_notebook_audio_artifact_byte_probe
+```
+
+The operation repeats the proven exact-artifact Download lane, but keeps the raw
+`window.open` locator only inside the page/extension boundary. The public sink-read
+surface remains sanitized.
+
+The internal locator policy requires:
+
+```text
+https
++ no username/password
++ no fragment
++ standard TLS port
++ googleusercontent.com or a subdomain
+```
+
+The worker then creates one CWA-owned inactive `about:blank` tab, attaches the
+existing debugger authority, enables Fetch at response stage, and navigates the owned
+tab to the exact product-created locator.
+
+The exact locator response must be 2xx and prove an Audio-compatible response type:
+
+```text
+audio/*
+or application/octet-stream
+or binary/octet-stream
+```
+
+Bytes are consumed through:
+
+```text
+Fetch.takeResponseBodyAsStream
+→ IO.read
+→ bounded Uint8Array
+→ SHA-256
+→ existing Native Messaging chunk pattern
+```
+
+The characterization limit is 64 MiB. No arbitrary locator is accepted and no private
+Google protocol body is read.
+
+Python receives ordered chunk frames over the existing broker socket, writes them only
+to a temporary staging file, computes SHA-256 while writing, fsyncs the staging file,
+re-reads it, and requires the same size and digest as the browser manifest.
+
+The staging path is never returned. On success it is deleted before the operation
+returns:
+
+```text
+browserBytesProven = true
+stagingMaterializedProven = true
+stagingIntegrityVerified = true
+stagingDeleted = true
+finalDestinationWritten = false
+automaticRetry = false
+```
+
+The CWA-owned acquisition tab must also be confirmed absent before success.
+
+This slice deliberately stops before caller destination authority, overwrite policy,
+and atomic final publish. Those remain separate from browser/product retrieval.
