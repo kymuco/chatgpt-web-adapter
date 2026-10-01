@@ -176,7 +176,7 @@ def test_download_intent_uses_fetch_response_blocking_after_identity() -> None:
         "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)",
         1,
     )[0]
 
@@ -207,7 +207,7 @@ def test_download_intent_separates_batchexecute_control_plane_from_payload() -> 
         "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)",
         1,
     )[0]
 
@@ -301,7 +301,7 @@ def test_download_sink_probe_blocks_page_facing_sinks_and_restores() -> None:
         "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)",
         1,
     )[0]
 
