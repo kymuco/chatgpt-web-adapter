@@ -131,9 +131,9 @@ def test_staging_core_is_not_exported_from_package_root() -> None:
 
 
 def test_audio_and_video_python_probes_share_one_private_orchestration_core() -> None:
-    shared = (
-        PACKAGE / "_gemini_notebook_artifact_byte_orchestration.py"
-    ).read_text(encoding="utf-8")
+    shared = (PACKAGE / "_gemini_notebook_artifact_byte_orchestration.py").read_text(
+        encoding="utf-8"
+    )
     audio = (PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py").read_text(
         encoding="utf-8"
     )
