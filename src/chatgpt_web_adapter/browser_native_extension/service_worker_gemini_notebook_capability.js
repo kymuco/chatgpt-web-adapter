@@ -33,6 +33,11 @@ const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_PROBE_OPERATION =
   "gemini_notebook_video_artifact_menu_probe";
 const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION =
   "gemini_notebook_video_artifact_download_intent_probe";
+const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION =
+  "gemini_notebook_video_artifact_byte_probe";
+const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE =
+  "gemini_notebook_video_artifact_byte_chunk";
+const CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS = 600_000;
 const CWA_GEMINI_NOTEBOOK_VIDEO_PENDING_EVIDENCE =
   "PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_PENDING";
 const CWA_GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY =
@@ -2243,7 +2248,8 @@ function _cwaGeminiNotebookBytesToBase64(bytes) {
 async function _cwaGeminiNotebookLoadLocatorBytes(
   debuggee,
   locator,
-  maxBytes
+  maxBytes,
+  mediaFamily = "audio"
 ) {
   let streamHandle = null;
 
@@ -2314,8 +2320,10 @@ async function _cwaGeminiNotebookLoadLocatorBytes(
     .split(";")[0]
     .trim()
     .toLowerCase();
+  const expectedMediaPrefix =
+    mediaFamily === "video" ? "video/" : "audio/";
   const mediaLike =
-    normalizedContentType.startsWith("audio/") ||
+    normalizedContentType.startsWith(expectedMediaPrefix) ||
     normalizedContentType === "application/octet-stream" ||
     normalizedContentType === "binary/octet-stream";
   if (!mediaLike) {
@@ -2583,7 +2591,8 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
     const acquired = await _cwaGeminiNotebookLoadLocatorBytes(
       debuggee,
       policy.locator,
-      maxBytes
+      maxBytes,
+      "audio"
     );
 
     const bodyBase64 = acquired.bodyBase64;
@@ -3426,6 +3435,280 @@ async function _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message) {
       } catch {
         // Detach cannot change the already-classified download intent.
       }
+    }
+  }
+}
+
+async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const expectedArtifactRef =
+    typeof message?.expectedArtifactRef === "string" &&
+    /^[A-Za-z0-9_-]{8,200}$/.test(message.expectedArtifactRef)
+      ? message.expectedArtifactRef
+      : null;
+  if (!expectedArtifactRef) {
+    throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_REF_INVALID");
+  }
+
+  const maxBytes = Math.max(
+    1,
+    Math.min(
+      Number(message?.maxBytes) || 67_108_864,
+      67_108_864
+    )
+  );
+  const timeoutMs = Math.max(
+    5000,
+    Math.min(Number(message?.timeoutMs) || 120000, 180000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+  let sinkProbeInstalled = false;
+  let downloadAttemptMayHaveExecuted = false;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const exact = await _cwaGeminiNotebookWaitForStableExactArtifact(
+      debuggee,
+      notebookUrl,
+      expectedArtifactRef,
+      deadlineAt
+    );
+    if (exact?.row?.statusCandidate !== "NON_PENDING_CANDIDATE") {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_NOT_COMPLETED");
+    }
+
+    const beforeMenus = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookVisibleArtifactMenusExpression()
+    );
+    const beforePanels = Array.isArray(beforeMenus?.panels)
+      ? beforeMenus.panels
+      : [];
+    if (beforePanels.length !== 0) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PRESTATE_MENU_OPEN:" +
+          String(beforePanels.length)
+      );
+    }
+
+    const opened = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickExactArtifactMoreMenuExpression(
+        expectedArtifactRef
+      )
+    );
+    if (opened?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_CLICK_FAILED:" +
+          String(opened?.reason || "UNKNOWN")
+      );
+    }
+
+    let menu = null;
+    while (performance.now() < deadlineAt) {
+      const state = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookVisibleArtifactMenusExpression()
+      );
+      const panels = Array.isArray(state?.panels) ? state.panels : [];
+      if (panels.length > 1) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_IDENTITY_AMBIGUOUS:" +
+            String(panels.length)
+        );
+      }
+      if (panels.length === 1) {
+        menu = panels[0];
+        break;
+      }
+      await sleep(100);
+    }
+    if (!menu) {
+      throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_TIMEOUT");
+    }
+
+    const downloadCandidates = Array.isArray(menu?.items)
+      ? menu.items.filter(
+          (item) =>
+            item?.tag === "button" &&
+            item?.role === "menuitem" &&
+            item?.disabled === false &&
+            String(item?.className || "").includes("mat-mdc-menu-item") &&
+            Array.isArray(item?.icons) &&
+            item.icons.includes("save_alt")
+        )
+      : [];
+    if (downloadCandidates.length !== 1) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_ACTION_IDENTITY_UNRESOLVED:" +
+          String(downloadCandidates.length)
+      );
+    }
+
+    const sinkInstall = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookInstallDownloadSinkProbeExpression()
+    );
+    if (
+      sinkInstall?.installed !== true ||
+      sinkInstall?.windowOpenPatched !== true
+    ) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_SINK_PROBE_INSTALL_FAILED"
+      );
+    }
+    sinkProbeInstalled = true;
+
+    downloadAttemptMayHaveExecuted = true;
+    const clicked = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookClickVisibleArtifactDownloadExpression()
+    );
+    if (clicked?.clicked !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_CLICK_FAILED:" +
+          String(clicked?.reason || "UNKNOWN")
+      );
+    }
+
+    let sinkState = { installed: true, events: [] };
+    while (performance.now() < deadlineAt) {
+      sinkState = await _cwaGeminiNotebookMutationEvaluate(
+        debuggee,
+        _cwaGeminiNotebookReadDownloadSinkProbeExpression()
+      );
+      const events = Array.isArray(sinkState?.events)
+        ? sinkState.events
+        : [];
+      if (events.some((event) => event?.kind === "window_open")) break;
+      await sleep(50);
+    }
+
+    const locatorState = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookTakeUniqueWindowOpenLocatorExpression()
+    );
+    if (locatorState?.resolved !== true) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_WINDOW_OPEN_LOCATOR_UNRESOLVED:" +
+          String(locatorState?.reason || "UNKNOWN")
+      );
+    }
+
+    const policy = _cwaGeminiNotebookAudioLocatorPolicy(
+      locatorState.locator
+    );
+
+    const acquired = await _cwaGeminiNotebookLoadLocatorBytes(
+      debuggee,
+      policy.locator,
+      maxBytes,
+      "video"
+    );
+
+    const bodyBase64 = acquired.bodyBase64;
+    if (
+      typeof bodyBase64 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(acquired.sha256 || "")
+    ) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_TRANSFER_SOURCE_INVALID"
+      );
+    }
+
+    const chunkCount = Math.max(
+      1,
+      Math.ceil(
+        bodyBase64.length /
+          CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS
+      )
+    );
+
+    for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+      const data = bodyBase64.slice(
+        chunkIndex *
+          CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS,
+        (chunkIndex + 1) *
+          CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS
+      );
+      if (
+        !safePortPost(port, {
+          protocol: BRIDGE_PROTOCOL_VERSION,
+          type: CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE,
+          request_id: message.request_id,
+          chunkIndex,
+          chunkCount,
+          totalBytes: acquired.totalBytes,
+          sha256: acquired.sha256,
+          data
+        })
+      ) {
+        throw new Error(
+          "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_DELIVERY_FAILED"
+        );
+      }
+    }
+
+    return {
+      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+      notebookUrl,
+      tabId: tab.id,
+      elapsedMs: Math.round(performance.now() - startedAt),
+      observedArtifactRef: expectedArtifactRef,
+      locatorOriginClass: policy.originClass,
+      responseStatusCode: acquired.responseStatusCode,
+      contentType: acquired.contentType,
+      normalizedContentType: acquired.normalizedContentType,
+      contentDispositionPresent: acquired.contentDispositionPresent,
+      totalBytes: acquired.totalBytes,
+      sha256: acquired.sha256,
+      chunkCount,
+      browserBytesProven: true,
+      networkResourceLoadProven:
+        acquired.networkResourceLoadProven === true,
+      authenticatedBrowserRequestProven: true,
+      mediaFamily: "video",
+      acquisitionTabCreated: false,
+      rawDownloadUrlExported: false,
+      privateProtocolBodyRead: false,
+      finalDestinationWritten: false,
+      automaticRetry: false
+    };
+  } catch (error) {
+    if (downloadAttemptMayHaveExecuted) {
+      throw _cwaGeminiNotebookAmbiguousError(error);
+    }
+    throw error;
+  } finally {
+    if (sinkProbeInstalled && attached) {
+      try {
+        await _cwaGeminiNotebookMutationEvaluate(
+          debuggee,
+          _cwaGeminiNotebookRestoreDownloadSinkProbeExpression()
+        );
+      } catch {}
+    }
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {}
     }
   }
 }
@@ -4532,7 +4815,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -4566,7 +4850,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                           ? "gemini_notebook_video_artifact_menu_probe_result"
                           : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
                             ? "gemini_notebook_video_artifact_download_intent_probe_result"
-                            : "gemini_notebook_add_url_source_result";
+                            : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION
+                              ? "gemini_notebook_video_artifact_byte_probe_result"
+                              : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -4594,7 +4880,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                             ? await _cwaGeminiNotebookProbeVideoArtifactMenu(message)
                             : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
                               ? await _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)
-                              : await _cwaGeminiNotebookAddUrlSource(message);
+                              : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION
+                                ? await _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)
+                                : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,

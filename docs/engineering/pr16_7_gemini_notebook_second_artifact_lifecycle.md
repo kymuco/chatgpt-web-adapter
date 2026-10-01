@@ -407,3 +407,56 @@ exported, and automatic retry remains false after the Download effect boundary.
 
 A live result determines whether Video repeats the Audio `window.open` /
 Googleusercontent handoff or uses a different browser transport.
+
+
+## Live 16.7f result — Video repeats the product-created browser locator
+
+The exact completed Video Download action produced one suppressed page-facing sink:
+
+```text
+kind = window_open
+target = _blank
+scheme = https
+origin = https://lh3.googleusercontent.com
+query present = true
+path class = notebooklm/...
+```
+
+The direct Notebook-tab response observer saw no Video payload response. The raw signed
+locator was not exported, no filesystem artifact was created, and the product-created
+`window.open` was suppressed.
+
+This closes 16.7f and independently reproduces the Audio retrieval handoff:
+
+```text
+exact durable artifact ref
+→ exact row-local save_alt
+→ product-created Googleusercontent browser locator
+```
+
+## Slice 16.7g — authenticated Video bytes and verified temporary staging
+
+The byte proof now tests whether the second artifact type also repeats the lower
+browser-owned retrieval primitive:
+
+```text
+exact completed Video ref
+→ exact save_alt
+→ unique product-created Googleusercontent locator
+→ authenticated Network.loadNetworkResource
+→ video/* or application/octet-stream
+→ IO.read
+→ SHA-256
+→ chunked native transfer
+→ temporary staging
+→ second size/hash verification
+→ staging deletion
+```
+
+The existing internal network loader is generalized only by media family:
+`audio` remains bound to `audio/*`, while Video is bound to `video/*`; both allow
+opaque octet-stream responses.
+
+The characterization remains bounded to 64 MiB. No raw signed URL or private protocol
+body is exported. No final caller destination is written and automatic retry remains
+false after the Download effect boundary.

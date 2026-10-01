@@ -195,7 +195,7 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
         "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
         1,
     )[1].split(
-        "function _cwaGeminiNotebookAudioConfigReadinessExpression()",
+        "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
         1,
     )[0]
 
