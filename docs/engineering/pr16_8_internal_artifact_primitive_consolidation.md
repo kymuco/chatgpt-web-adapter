@@ -67,3 +67,44 @@ bounded byte count + SHA-256
 This remains an internal Notebook implementation detail. No public
 `HostedArtifactLifecycle`, registry/factory, universal artifact schema, or caller
 filesystem publication authority is introduced.
+
+
+## Slice 16.8b — one internal Python temporary-staging core
+
+Audio and Video Python byte probes also duplicated the same staging implementation:
+
+```text
+ordered chunk admission
+→ manifest consistency
+→ base64 decode
+→ max-byte enforcement
+→ sequential staging write
+→ incremental SHA-256
+→ fsync
+→ full staging re-read
+→ size/hash verification
+```
+
+That implementation now lives in the private module:
+
+```text
+_gemini_notebook_artifact_staging.py
+```
+
+with one internal collector and one max-byte normalizer.
+
+The existing private compatibility names remain in their artifact-specific modules:
+
+```text
+_AudioArtifactByteChunkCollector
+_VideoArtifactByteChunkCollector
+_normalize_max_bytes
+```
+
+Each collector supplies only its historical error namespace
+(`AUDIO_ARTIFACT` or `VIDEO_ARTIFACT`) to the shared core, preserving the existing
+diagnostic strings and tests.
+
+RPC orchestration, operation names, result contracts, temporary-file lifecycle, and
+public/module-only surfaces remain separate in this slice. No public staging API is
+introduced.

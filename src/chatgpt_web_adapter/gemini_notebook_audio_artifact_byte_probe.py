@@ -1,11 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import base64
-import hashlib
-import hmac
 import json
-import os
 import socket
 import tempfile
 import time
@@ -13,6 +9,10 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from ._gemini_notebook_artifact_staging import (
+    _ArtifactByteChunkCollector,
+    _normalize_artifact_max_bytes,
+)
 from .browser_native_protocol import (
     PROTOCOL_VERSION,
     recv_local_message,
@@ -36,7 +36,7 @@ DEFAULT_AUDIO_ARTIFACT_MAX_BYTES = 64 * 1024 * 1024
 _MAX_AUDIO_ARTIFACT_BYTES = 64 * 1024 * 1024
 
 
-class _AudioArtifactByteChunkCollector:
+class _AudioArtifactByteChunkCollector(_ArtifactByteChunkCollector):
     def __init__(
         self,
         *,
@@ -44,123 +44,19 @@ class _AudioArtifactByteChunkCollector:
         staging_path: Path,
         max_bytes: int,
     ) -> None:
-        self.request_id = request_id
-        self.staging_path = staging_path
-        self.max_bytes = max_bytes
-        self.chunk_count: int | None = None
-        self.total_bytes: int | None = None
-        self.sha256: str | None = None
-        self.next_index = 0
-        self.received_bytes = 0
-        self.digest = hashlib.sha256()
-        self.handle = staging_path.open("wb")
-
-    def add(self, frame: dict[str, Any]) -> None:
-        if frame.get("request_id") != self.request_id:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_REQUEST_MISMATCH")
-
-        index = frame.get("chunkIndex")
-        count = frame.get("chunkCount")
-        total_bytes = frame.get("totalBytes")
-        digest = frame.get("sha256")
-        data = frame.get("data")
-        if (
-            isinstance(index, bool)
-            or not isinstance(index, int)
-            or isinstance(count, bool)
-            or not isinstance(count, int)
-            or count <= 0
-            or index != self.next_index
-            or not 0 <= index < count
-        ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_INDEX_INVALID")
-        if (
-            isinstance(total_bytes, bool)
-            or not isinstance(total_bytes, int)
-            or total_bytes < 0
-            or total_bytes > self.max_bytes
-        ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_TOTAL_INVALID")
-        if (
-            not isinstance(digest, str)
-            or len(digest) != 64
-            or any(char not in "0123456789abcdef" for char in digest.lower())
-        ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_DIGEST_INVALID")
-        if not isinstance(data, str):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_DATA_INVALID")
-
-        manifest = (count, total_bytes, digest.lower())
-        if self.chunk_count is not None and manifest != (
-            self.chunk_count,
-            self.total_bytes,
-            self.sha256,
-        ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_MANIFEST_MISMATCH")
-
-        try:
-            decoded = base64.b64decode(data, validate=True)
-        except (ValueError, TypeError) as error:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_BASE64_INVALID") from error
-
-        self.received_bytes += len(decoded)
-        if self.received_bytes > self.max_bytes:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_LIMIT_EXCEEDED")
-
-        self.chunk_count, self.total_bytes, self.sha256 = manifest
-        self.handle.write(decoded)
-        self.digest.update(decoded)
-        self.next_index += 1
-
-    def finish(self, response: dict[str, Any]) -> tuple[int, str]:
-        final_manifest = (
-            response.get("chunkCount"),
-            response.get("totalBytes"),
-            response.get("sha256"),
+        super().__init__(
+            request_id=request_id,
+            staging_path=staging_path,
+            max_bytes=max_bytes,
+            error_prefix="AUDIO_ARTIFACT",
         )
-        expected_manifest = (self.chunk_count, self.total_bytes, self.sha256)
-        if final_manifest != expected_manifest:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_FINAL_MANIFEST_MISMATCH")
-        if self.chunk_count is None or self.next_index != self.chunk_count:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_CHUNK_MISSING")
-        if self.total_bytes != self.received_bytes:
-            raise ValueError("AUDIO_ARTIFACT_BYTE_TOTAL_MISMATCH")
-
-        self.handle.flush()
-        os.fsync(self.handle.fileno())
-        actual_digest = self.digest.hexdigest()
-        if self.sha256 is None or not hmac.compare_digest(
-            actual_digest,
-            self.sha256,
-        ):
-            raise ValueError("AUDIO_ARTIFACT_BYTE_DIGEST_MISMATCH")
-
-        file_digest = hashlib.sha256()
-        file_size = 0
-        with self.staging_path.open("rb") as staged:
-            while True:
-                chunk = staged.read(1024 * 1024)
-                if not chunk:
-                    break
-                file_size += len(chunk)
-                file_digest.update(chunk)
-        if file_size != self.received_bytes:
-            raise ValueError("AUDIO_ARTIFACT_STAGING_SIZE_MISMATCH")
-        if not hmac.compare_digest(file_digest.hexdigest(), actual_digest):
-            raise ValueError("AUDIO_ARTIFACT_STAGING_DIGEST_MISMATCH")
-        return file_size, actual_digest
-
-    def close(self) -> None:
-        if not self.handle.closed:
-            self.handle.close()
 
 
 def _normalize_max_bytes(value: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-        raise ValueError("max_bytes must be a positive integer")
-    if value > _MAX_AUDIO_ARTIFACT_BYTES:
-        raise ValueError(f"max_bytes must be <= {_MAX_AUDIO_ARTIFACT_BYTES}")
-    return value
+    return _normalize_artifact_max_bytes(
+        value,
+        maximum=_MAX_AUDIO_ARTIFACT_BYTES,
+    )
 
 
 def probe_gemini_notebook_audio_artifact_bytes(
