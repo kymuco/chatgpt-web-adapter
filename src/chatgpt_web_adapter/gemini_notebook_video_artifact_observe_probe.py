@@ -72,9 +72,7 @@ def probe_gemini_notebook_video_artifact_observation(
     if response.get("observedArtifactRef") != observed_artifact_ref:
         raise RequestError("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_REF_MISMATCH")
     if response.get("canonicalCompletionProven") is not False:
-        raise RequestError(
-            "GEMINI_NOTEBOOK_CANONICAL_COMPLETION_MUST_REMAIN_UNPROVEN"
-        )
+        raise RequestError("GEMINI_NOTEBOOK_CANONICAL_COMPLETION_MUST_REMAIN_UNPROVEN")
     if response.get("automaticRetry") is not False:
         raise RequestError("GEMINI_NOTEBOOK_AUTOMATIC_RETRY_FORBIDDEN")
     if response.get("writePerformed") is not False:
