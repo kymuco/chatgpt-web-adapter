@@ -159,9 +159,7 @@ def _normalize_max_bytes(value: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("max_bytes must be a positive integer")
     if value > _MAX_AUDIO_ARTIFACT_BYTES:
-        raise ValueError(
-            f"max_bytes must be <= {_MAX_AUDIO_ARTIFACT_BYTES}"
-        )
+        raise ValueError(f"max_bytes must be <= {_MAX_AUDIO_ARTIFACT_BYTES}")
     return value
 
 
@@ -273,9 +271,7 @@ def probe_gemini_notebook_audio_artifact_bytes(
         if response.get("observedArtifactRef") != artifact_ref:
             raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_REF_MISMATCH")
         if response.get("locatorOriginClass") != "GOOGLEUSERCONTENT":
-            raise RequestError(
-                "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_ORIGIN_UNPROVEN"
-            )
+            raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_LOCATOR_ORIGIN_UNPROVEN")
         if response.get("browserBytesProven") is not True:
             raise RequestError("GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BROWSER_BYTES_UNPROVEN")
         if response.get("acquisitionTabRetired") is not True:
@@ -311,9 +307,7 @@ def probe_gemini_notebook_audio_artifact_bytes(
                 else None
             ),
             "content_type": str(response.get("contentType") or ""),
-            "normalized_content_type": str(
-                response.get("normalizedContentType") or ""
-            ),
+            "normalized_content_type": str(response.get("normalizedContentType") or ""),
             "content_disposition_present": (
                 response.get("contentDispositionPresent") is True
             ),

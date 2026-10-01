@@ -213,9 +213,10 @@ def test_byte_probe_host_forwards_chunks_on_existing_authority_lane() -> None:
     assert '"gemini_notebook_audio_artifact_byte_probe",' in host
     assert '"gemini_notebook_audio_artifact_byte_probe": 120_000' in host
     assert '"gemini_notebook_audio_artifact_byte_chunk"' in host
-    assert '"gemini_notebook_audio_artifact_byte_probe",' in host.split(
-        "event_sink=emit_event", 1
-    )[1]
+    assert (
+        '"gemini_notebook_audio_artifact_byte_probe",'
+        in host.split("event_sink=emit_event", 1)[1]
+    )
     assert "_claim_authority_lane(operation, lease_id)" in host
 
 

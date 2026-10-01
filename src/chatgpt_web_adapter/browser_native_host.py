@@ -46,7 +46,8 @@ class _BrokerHandler(socketserver.BaseRequestHandler):
                 request,
                 event_sink=emit_event
                 if request.get("streamTextObservations") is True
-                or operation in {
+                or operation
+                in {
                     "canonical_read",
                     "gemini_notebook_audio_artifact_byte_probe",
                 }
