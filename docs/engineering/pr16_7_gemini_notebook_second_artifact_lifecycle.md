@@ -34,3 +34,46 @@ identity must prefer a unique structural/icon signal proven by this live invento
 
 The next slice is gated on the live result. No Video-specific mutation is implemented
 until one exact create control is independently identified.
+
+
+## Live 16.7a result — Video Overview has one exact structural create control
+
+The read-only Studio inventory observed nine visible enabled
+`basic-create-artifact-button` controls. Their primary product icons were:
+
+```text
+audio_spark
+tablet
+videocam
+flowchart
+auto_tab_group
+copy
+quiz
+stacked_bar_chart
+format_list_bulleted
+```
+
+The Video Overview control was the only visible control whose icon set contained
+`videocam`; its second icon was the common `chevron_forward`.
+
+The localized label was observed as "Видеопересказ", but localized text and DOM index
+are not admitted as identity authority. The next slice uses:
+
+```text
+section.studio-panel
+→ visible basic-create-artifact-button owner
+→ visible role/button control
+→ enabled
+→ icons include videocam
+→ exactly one match
+```
+
+The live inventory itself remained read-only:
+
+```text
+writePerformed = false
+navigationPerformed = false
+rawDomExported = false
+```
+
+This closes slice 16.7a.

@@ -89,9 +89,10 @@ def test_worker_studio_inventory_is_bounded_and_read_only() -> None:
     assert 'document.querySelector("section.studio-panel")' in expression
     assert 'studio.querySelectorAll("basic-create-artifact-button")' in expression
     assert ".slice(0, 24)" in expression
-    assert 'owner.querySelector("[role=\'button\']")' in expression
+    assert "owner.querySelector(\"[role='button']\")" in expression
     assert 'owner.querySelector("button")' in expression
-    assert 'control.querySelectorAll?.("mat-icon")' in expression
+    assert 'element?.querySelectorAll?.("mat-icon")' in expression
+    assert "icons: iconTexts(control)" in expression
     assert ".click()" not in expression
     assert "dispatchEvent(" not in expression
     assert "InputEvent(" not in expression

@@ -61,9 +61,7 @@ def probe_gemini_notebook_studio_creation_controls(
         raise RequestError("GEMINI_NOTEBOOK_STUDIO_OWNER_MISSING")
     for key in ("writePerformed", "navigationPerformed", "rawDomExported"):
         if response.get(key) is not False:
-            raise RequestError(
-                f"GEMINI_NOTEBOOK_STUDIO_PROBE_SAFETY_MISMATCH:{key}"
-            )
+            raise RequestError(f"GEMINI_NOTEBOOK_STUDIO_PROBE_SAFETY_MISMATCH:{key}")
 
     controls = response.get("creationControls")
     if not isinstance(controls, list):
@@ -73,9 +71,7 @@ def probe_gemini_notebook_studio_creation_controls(
         "product_id": GEMINI_NOTEBOOK_WEB_PRODUCT_ID,
         "notebook_url": notebook_url,
         "tab_id": (
-            response.get("tabId")
-            if isinstance(response.get("tabId"), int)
-            else None
+            response.get("tabId") if isinstance(response.get("tabId"), int) else None
         ),
         "elapsed_ms": (
             response.get("elapsedMs")
