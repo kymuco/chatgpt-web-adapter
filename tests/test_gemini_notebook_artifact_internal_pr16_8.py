@@ -128,3 +128,35 @@ def test_audio_and_video_staging_collectors_share_one_internal_core() -> None:
 def test_staging_core_is_not_exported_from_package_root() -> None:
     assert not hasattr(adapter, "_ArtifactByteChunkCollector")
     assert not hasattr(adapter, "_normalize_artifact_max_bytes")
+
+
+def test_audio_and_video_python_probes_share_one_private_orchestration_core() -> None:
+    shared = (
+        PACKAGE / "_gemini_notebook_artifact_byte_orchestration.py"
+    ).read_text(encoding="utf-8")
+    audio = (PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py").read_text(
+        encoding="utf-8"
+    )
+    video = (PACKAGE / "gemini_notebook_video_artifact_byte_probe.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "def _probe_gemini_notebook_artifact_bytes(" in shared
+    assert "send_local_message(sock, request)" in shared
+    assert "recv_local_message(sock)" in shared
+    assert "collector.finish(response)" in shared
+    assert 'result["staging_deleted"] = True' in shared
+
+    assert "_probe_gemini_notebook_artifact_bytes(" in audio
+    assert 'error_prefix="GEMINI_NOTEBOOK_AUDIO_ARTIFACT"' in audio
+    assert 'staging_prefix=".cwa-notebook-audio-"' in audio
+    assert "media_family=" not in audio
+
+    assert "_probe_gemini_notebook_artifact_bytes(" in video
+    assert 'error_prefix="GEMINI_NOTEBOOK_VIDEO_ARTIFACT"' in video
+    assert 'staging_prefix=".cwa-notebook-video-"' in video
+    assert 'media_family="video"' in video
+
+
+def test_python_orchestration_core_is_not_exported_from_package_root() -> None:
+    assert not hasattr(adapter, "_probe_gemini_notebook_artifact_bytes")

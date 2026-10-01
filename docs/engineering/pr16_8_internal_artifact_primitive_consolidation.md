@@ -108,3 +108,52 @@ diagnostic strings and tests.
 RPC orchestration, operation names, result contracts, temporary-file lifecycle, and
 public/module-only surfaces remain separate in this slice. No public staging API is
 introduced.
+
+
+## Slice 16.8c — one private Python byte-probe orchestration core
+
+After browser retrieval and staging integrity were separately consolidated, the
+remaining Audio and Video Python probe bodies were still effectively identical:
+
+```text
+normalize exact notebook/artifact identity
+→ build native-host request
+→ connect to the existing authority lane
+→ admit ordered chunk frames
+→ map post-delegation failures to ambiguous outcome
+→ validate browser proof fields
+→ finalize staging integrity
+→ retire staging
+→ return artifact-specific result contract
+```
+
+That repeated control flow now lives in:
+
+```text
+_gemini_notebook_artifact_byte_orchestration.py
+```
+
+under the private function:
+
+```text
+_probe_gemini_notebook_artifact_bytes(...)
+```
+
+The existing Audio and Video functions remain the callable surfaces and provide the
+historical profile values:
+
+```text
+operation / chunk / result type
+request-stage and diagnostic namespace
+staging filename prefix
+collector compatibility wrapper
+Video-only media_family validation/result field
+```
+
+Thus the refactor removes duplicated transport/error/staging-retirement logic without
+normalizing away the observable differences that were actually proven.
+
+PR16.8 intentionally stops at this boundary. Generation configuration, artifact
+finality, and other higher lifecycle semantics remain artifact-specific because their
+current contracts still contain meaningful differences. No public lifecycle API is
+introduced.
