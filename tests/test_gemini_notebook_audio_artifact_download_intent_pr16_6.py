@@ -317,9 +317,7 @@ def test_download_sink_probe_blocks_page_facing_sinks_and_restores() -> None:
     assert "window.open = state.originalWindowOpen" in restore
     assert "URL.createObjectURL = state.originalCreateObjectURL" in restore
 
-    install_call = probe.index(
-        "_cwaGeminiNotebookInstallDownloadSinkProbeExpression()"
-    )
+    install_call = probe.index("_cwaGeminiNotebookInstallDownloadSinkProbeExpression()")
     boundary = probe.index("downloadAttemptMayHaveExecuted = true;")
     click = probe.index("_cwaGeminiNotebookClickVisibleArtifactDownloadExpression()")
     assert install_call < boundary < click
