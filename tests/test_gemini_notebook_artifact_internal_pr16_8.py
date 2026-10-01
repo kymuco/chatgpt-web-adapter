@@ -101,15 +101,15 @@ def test_media_family_and_historical_completion_contracts_remain_distinct() -> N
 
 
 def test_audio_and_video_staging_collectors_share_one_internal_core() -> None:
-    shared = (
-        PACKAGE / "_gemini_notebook_artifact_staging.py"
-    ).read_text(encoding="utf-8")
-    audio = (
-        PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py"
-    ).read_text(encoding="utf-8")
-    video = (
-        PACKAGE / "gemini_notebook_video_artifact_byte_probe.py"
-    ).read_text(encoding="utf-8")
+    shared = (PACKAGE / "_gemini_notebook_artifact_staging.py").read_text(
+        encoding="utf-8"
+    )
+    audio = (PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py").read_text(
+        encoding="utf-8"
+    )
+    video = (PACKAGE / "gemini_notebook_video_artifact_byte_probe.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "class _ArtifactByteChunkCollector:" in shared
     assert "def _normalize_artifact_max_bytes(" in shared
@@ -117,8 +117,12 @@ def test_audio_and_video_staging_collectors_share_one_internal_core() -> None:
     assert "hmac.compare_digest(" in shared
     assert 'error_prefix="AUDIO_ARTIFACT"' in audio
     assert 'error_prefix="VIDEO_ARTIFACT"' in video
-    assert "class _AudioArtifactByteChunkCollector(_ArtifactByteChunkCollector)" in audio
-    assert "class _VideoArtifactByteChunkCollector(_ArtifactByteChunkCollector)" in video
+    assert (
+        "class _AudioArtifactByteChunkCollector(_ArtifactByteChunkCollector)" in audio
+    )
+    assert (
+        "class _VideoArtifactByteChunkCollector(_ArtifactByteChunkCollector)" in video
+    )
 
 
 def test_staging_core_is_not_exported_from_package_root() -> None:
