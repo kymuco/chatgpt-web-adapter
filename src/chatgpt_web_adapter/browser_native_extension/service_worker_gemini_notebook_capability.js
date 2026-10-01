@@ -27,6 +27,12 @@ const CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION =
   "gemini_notebook_video_config_probe";
 const CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION =
   "gemini_notebook_video_generation_probe";
+const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION =
+  "gemini_notebook_video_artifact_observe_probe";
+const CWA_GEMINI_NOTEBOOK_VIDEO_PENDING_EVIDENCE =
+  "PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_PENDING";
+const CWA_GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY =
+  "PAGE_DOM_DURABLE_BACKGROUND_VIDEO_ARTIFACT_COMPLETION";
 const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE =
   "gemini_notebook_audio_artifact_byte_chunk";
 const CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS = 600_000;
@@ -943,6 +949,219 @@ async function _cwaGeminiNotebookProbeVideoGeneration(message) {
         await chrome.debugger.detach(debuggee);
       } catch {
         // Detach cannot change the already-classified generation outcome.
+      }
+    }
+  }
+}
+
+
+async function _cwaGeminiNotebookWaitForStableExactArtifact(
+  debuggee,
+  notebookUrl,
+  expectedArtifactRef,
+  deadlineAt
+) {
+  let stableSignature = null;
+  let stableSince = null;
+  let lastRowCount = -1;
+  let lastMatchCount = -1;
+
+  while (performance.now() < deadlineAt) {
+    const state = await _cwaGeminiNotebookMutationEvaluate(
+      debuggee,
+      _cwaGeminiNotebookAudioArtifactItemsExpression()
+    );
+    if (state?.notebookUrl !== notebookUrl) {
+      throw new Error("GEMINI_NOTEBOOK_EXACT_ARTIFACT_ROUTE_CHANGED");
+    }
+    if (
+      state?.studioFound !== true ||
+      state?.containerFound !== true ||
+      state?.libraryFound !== true
+    ) {
+      throw new Error("GEMINI_NOTEBOOK_EXACT_ARTIFACT_LIBRARY_NOT_READY");
+    }
+
+    const rows = Array.isArray(state?.rows) ? state.rows : [];
+    lastRowCount = rows.length;
+    const matches = rows.filter(
+      (row) =>
+        String(row?.observedArtifactRef || "") === expectedArtifactRef
+    );
+    lastMatchCount = matches.length;
+
+    if (matches.length > 1) {
+      throw new Error(
+        "GEMINI_NOTEBOOK_EXACT_ARTIFACT_IDENTITY_AMBIGUOUS:" +
+          String(matches.length)
+      );
+    }
+    if (matches.length === 0) {
+      stableSignature = null;
+      stableSince = null;
+      await sleep(200);
+      continue;
+    }
+
+    const row = matches[0];
+    if (
+      row.statusCandidate !== "PENDING_CANDIDATE" &&
+      row.statusCandidate !== "NON_PENDING_CANDIDATE"
+    ) {
+      stableSignature = null;
+      stableSince = null;
+      await sleep(200);
+      continue;
+    }
+
+    const signature = JSON.stringify({
+      observedArtifactRef: row.observedArtifactRef,
+      statusCandidate: row.statusCandidate,
+      actionDisabled: row.actionDisabled,
+      icons: row.icons
+    });
+    if (signature !== stableSignature) {
+      stableSignature = signature;
+      stableSince = performance.now();
+    } else if (
+      stableSince !== null &&
+      performance.now() - stableSince >=
+        CWA_GEMINI_NOTEBOOK_AUDIO_OBSERVATION_STABLE_MS
+    ) {
+      return { state, row };
+    }
+    await sleep(200);
+  }
+
+  throw new Error(
+    "GEMINI_NOTEBOOK_EXACT_ARTIFACT_STABLE_TIMEOUT:rows=" +
+      String(lastRowCount) +
+      ":matches=" +
+      String(lastMatchCount)
+  );
+}
+
+async function _cwaGeminiNotebookProbeVideoArtifactObservation(message) {
+  if (message?.productId !== CWA_GEMINI_NOTEBOOK_PRODUCT_ID) {
+    throw new Error("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH");
+  }
+
+  const notebookUrl = _cwaGeminiNotebookCanonicalNotebookUrl(
+    message?.notebookUrl
+  );
+  if (!notebookUrl) {
+    throw new Error("GEMINI_NOTEBOOK_NOTEBOOK_URL_INVALID");
+  }
+
+  const observedArtifactRef =
+    typeof message?.observedArtifactRef === "string" &&
+    /^[A-Za-z0-9_-]{8,200}$/.test(message.observedArtifactRef)
+      ? message.observedArtifactRef
+      : null;
+  if (!observedArtifactRef) {
+    throw new Error("GEMINI_NOTEBOOK_VIDEO_ARTIFACT_REF_INVALID");
+  }
+
+  const timeoutMs = Math.max(
+    5000,
+    Math.min(Number(message?.timeoutMs) || 60000, 120000)
+  );
+  const startedAt = performance.now();
+  const deadlineAt = startedAt + timeoutMs;
+  const tab = await _cwaGeminiNotebookFindExactOpenTab(notebookUrl);
+  const debuggee = { tabId: tab.id };
+  let attached = false;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const beforeReload = await _cwaGeminiNotebookWaitForStableExactArtifact(
+      debuggee,
+      notebookUrl,
+      observedArtifactRef,
+      deadlineAt
+    );
+    const firstRow = beforeReload.row;
+
+    if (firstRow.statusCandidate === "PENDING_CANDIDATE") {
+      return {
+        productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+        notebookUrl,
+        tabId: tab.id,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        observedArtifactRef,
+        artifactStatus: "PENDING",
+        artifactTitle: String(firstRow.title || ""),
+        artifactDetails: String(firstRow.details || ""),
+        artifactIcons: Array.isArray(firstRow.icons) ? firstRow.icons : [],
+        completionProven: false,
+        reloadVerified: false,
+        finalityEvidence: CWA_GEMINI_NOTEBOOK_VIDEO_PENDING_EVIDENCE,
+        canonicalCompletionProven: false,
+        automaticRetry: false,
+        writePerformed: false,
+        navigationPerformed: false
+      };
+    }
+
+    await chrome.debugger.detach(debuggee);
+    attached = false;
+
+    const reloadBudget = Math.max(
+      3000,
+      Math.min(45000, deadlineAt - performance.now())
+    );
+    await _cwaGeminiNotebookReloadExactNotebookTab(
+      tab.id,
+      notebookUrl,
+      reloadBudget
+    );
+
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+
+    const afterReload = await _cwaGeminiNotebookWaitForStableExactArtifact(
+      debuggee,
+      notebookUrl,
+      observedArtifactRef,
+      deadlineAt
+    );
+    const durableRow = afterReload.row;
+    if (durableRow.statusCandidate !== "NON_PENDING_CANDIDATE") {
+      throw new Error(
+        "GEMINI_NOTEBOOK_VIDEO_DURABLE_COMPLETION_NOT_CONFIRMED"
+      );
+    }
+
+    return {
+      productId: CWA_GEMINI_NOTEBOOK_PRODUCT_ID,
+      notebookUrl,
+      tabId: tab.id,
+      elapsedMs: Math.round(performance.now() - startedAt),
+      observedArtifactRef,
+      artifactStatus: "COMPLETED",
+      artifactTitle: String(durableRow.title || ""),
+      artifactDetails: String(durableRow.details || ""),
+      artifactIcons: Array.isArray(durableRow.icons)
+        ? durableRow.icons
+        : [],
+      completionProven: true,
+      reloadVerified: true,
+      finalityEvidence: CWA_GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY,
+      canonicalCompletionProven: false,
+      automaticRetry: false,
+      writePerformed: false,
+      navigationPerformed: true
+    };
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        // Observation is read-only; detach cannot change product finality.
       }
     }
   }
@@ -3770,7 +3989,8 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION,
       CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -3798,7 +4018,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                     ? "gemini_notebook_video_config_probe_result"
                     : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
                       ? "gemini_notebook_video_generation_probe_result"
-                      : "gemini_notebook_add_url_source_result";
+                      : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION
+                        ? "gemini_notebook_video_artifact_observe_probe_result"
+                        : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -3820,7 +4042,9 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
                       ? await _cwaGeminiNotebookProbeVideoConfig(message)
                       : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
                         ? await _cwaGeminiNotebookProbeVideoGeneration(message)
-                        : await _cwaGeminiNotebookAddUrlSource(message);
+                        : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION
+                          ? await _cwaGeminiNotebookProbeVideoArtifactObservation(message)
+                          : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,

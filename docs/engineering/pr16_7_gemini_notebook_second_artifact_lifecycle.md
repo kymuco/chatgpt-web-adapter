@@ -173,3 +173,86 @@ remains forbidden.
 This is intentionally a one-shot live experiment because Video generation can consume
 hosted-product quota. The returned artifact ref becomes the identity input for the
 next re-entry/finality slice; c1 does not start a second generation.
+
+
+## Live 16.7c result — exact Video generation acceptance
+
+The one-shot Video generation proof succeeded with an already non-empty artifact
+library.
+
+Before generation:
+
+```text
+261a5005-1c03-44d7-9aa9-ecfb5bcef8f2
+```
+
+After the exact tonal-button commit:
+
+```text
+261a5005-1c03-44d7-9aa9-ecfb5bcef8f2
+b2c41cbb-470f-46fb-8b39-578303b50c25
+```
+
+Exactly one new stable artifact ref was admitted:
+
+```text
+observedArtifactRef = b2c41cbb-470f-46fb-8b39-578303b50c25
+artifactStatus = PENDING
+artifactIcons = progress_activity
+generationCommitMayHaveExecuted = true
+generationAcceptedProven = true
+startEvidence = PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_ACCEPTED
+canonicalCompletionProven = false
+automaticRetry = false
+```
+
+This closes 16.7c. The Video generation must not be repeated.
+
+## Slice 16.7d — exact Video re-entry and durable finality
+
+Temporary operation:
+
+```text
+gemini_notebook_video_artifact_observe_probe
+```
+
+The Audio observer was originally written for a one-row artifact library. The Video
+proof now has at least two rows, so 16.7d introduces a narrower reusable internal
+primitive: stabilize one exact artifact ref among any bounded set of observed rows.
+
+The observer:
+
+```text
+exact notebook
++ exact observedArtifactRef
+→ scan current artifact rows
+→ require exactly one matching ref
+→ stabilize only that row
+
+if pending:
+  return PENDING
+  no reload
+  completionProven = false
+
+if non-pending:
+  ordinary reload exact Notebook tab
+  re-enter
+  require the same exact ref
+  require NON_PENDING_CANDIDATE
+  completionProven = true
+```
+
+Pending evidence:
+
+```text
+PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_PENDING
+```
+
+Durable completion evidence:
+
+```text
+PAGE_DOM_DURABLE_BACKGROUND_VIDEO_ARTIFACT_COMPLETION
+```
+
+Observation performs no product write and never starts another generation.
+`canonicalCompletionProven` remains false and `automaticRetry` remains false.
