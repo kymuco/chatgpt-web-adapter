@@ -33,6 +33,8 @@ def _validate_no_write_contract(response: dict[str, Any]) -> None:
         "focusPerformed",
         "clickPerformed",
         "submitAttempted",
+        "navigationPerformed",
+        "tabCreated",
         "automaticWriteRetry",
     )
     if response.get("diagnosticOnly") is not True:
@@ -80,6 +82,10 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
         {
             "ok": True,
             "runtime_tab_present": response.get("runtimeTabPresent") is True,
+            "diagnostic_tab_present": response.get("diagnosticTabPresent") is True,
+            "diagnostic_tab_source": response.get("diagnosticTabSource"),
+            "diagnostic_tab_selection_state": response.get("diagnosticTabSelectionState"),
+            "chatgpt_tab_candidate_count": response.get("chatgptTabCandidateCount"),
             "composer_candidate_count": response.get("composerCandidateCount"),
             "scoped_control_count": response.get("scopedControlCount"),
             "legacy_control_count": response.get("legacyControlCount"),
@@ -96,6 +102,8 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
             "focus_performed": response.get("focusPerformed"),
             "click_performed": response.get("clickPerformed"),
             "submit_attempted": response.get("submitAttempted"),
+            "navigation_performed": response.get("navigationPerformed"),
+            "tab_created": response.get("tabCreated"),
             "automatic_write_retry": response.get("automaticWriteRetry"),
             "fallback_transport": response.get("fallbackTransport"),
             "debugger_attached_after": response.get("debuggerAttachedAfter"),
