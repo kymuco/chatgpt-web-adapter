@@ -384,7 +384,7 @@ class BrowserNativeBroker:
             "gemini_notebook_add_url_source",
             "gemini_notebook_generate_audio_overview",
             "gemini_notebook_observe_audio_overview",
-            "gemini_notebook_audio_artifact_byte_probe",
+            "gemini_notebook_audio_artifact_retrieval",
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
