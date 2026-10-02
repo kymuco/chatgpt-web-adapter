@@ -632,7 +632,8 @@ async function _cwaBaseExecuteOfficialPageTurn({
           `CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}` +
           `:owner=base` +
           `:selector=${submit.selector || "none"}` +
-          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}`
+          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}` +
+          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}`
         )),
         Math.min(remainingMs(startedAt, timeoutMs), DEFAULT_SUBMIT_ACK_TIMEOUT_MS)
       ))
