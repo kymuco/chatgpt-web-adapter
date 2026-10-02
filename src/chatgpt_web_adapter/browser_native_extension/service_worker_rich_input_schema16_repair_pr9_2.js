@@ -171,7 +171,8 @@ async function _pr92Schema16ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, 
           `CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}` +
           `:owner=schema16` +
           `:selector=${submit.selector || "none"}` +
-          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}`
+          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}` +
+          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}`
         )),
         Math.min(remainingMs(startedAt, timeoutMs), DEFAULT_SUBMIT_ACK_TIMEOUT_MS)
       ))
