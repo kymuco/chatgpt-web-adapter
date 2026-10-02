@@ -255,8 +255,12 @@ function _pr88InstantEffortRelaxedSliderExpression(action) {
       const modes=Array.from(new Set(fields(el).map(effort).filter(Boolean)));
       return modes.length===1?modes[0]:null;
     };
-    const composer=['#prompt-textarea','[contenteditable="true"][data-lexical-editor="true"]','textarea[placeholder]']
+    const historicalComposer=['#prompt-textarea','[contenteditable="true"][data-lexical-editor="true"]','textarea[placeholder]']
       .map((s)=>document.querySelector(s)).find((el)=>el&&visible(el));
+    const semanticCandidates=historicalComposer?[]:Array.from(document.querySelectorAll(
+      '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+    )).filter((candidate)=>visible(candidate)&&candidate.closest('main')&&candidate.closest('form'));
+    const composer=historicalComposer||(semanticCandidates.length===1?semanticCandidates[0]:null);
     if(!composer) return {found:false,reason:'composer_missing',candidateCount:0,currentControlCount:0};
     const cr=composer.getBoundingClientRect();
     const controls=[];
