@@ -130,7 +130,9 @@ def test_staging_core_is_not_exported_from_package_root() -> None:
     assert not hasattr(adapter, "_normalize_artifact_max_bytes")
 
 
-def test_audio_and_video_python_retrieval_wrappers_share_one_private_orchestration_core() -> None:
+def test_audio_and_video_python_retrieval_wrappers_share_one_private_orchestration_core() -> (
+    None
+):
     shared = (PACKAGE / "_gemini_notebook_artifact_byte_orchestration.py").read_text(
         encoding="utf-8"
     )
