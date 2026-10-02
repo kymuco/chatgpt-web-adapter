@@ -70,9 +70,7 @@ def test_pr17_1_submit_point_is_refreshed_after_foreground_activation() -> None:
     hardening = _source(HARDENING)
 
     prepare_index = hardening.index("await _pr113PrepareMouseCommitTab(debuggee)")
-    refresh_index = hardening.index(
-        "commitPoint = await _pr113WaitForSubmitPoint("
-    )
+    refresh_index = hardening.index("commitPoint = await _pr113WaitForSubmitPoint(")
     probe_index = hardening.index("await _pr113InstallSubmitEventProbe(")
     moved_index = hardening.index('type: "mouseMoved"')
 
