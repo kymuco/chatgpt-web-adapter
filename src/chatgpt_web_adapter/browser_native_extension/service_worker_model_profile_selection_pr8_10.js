@@ -5,7 +5,7 @@
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
-const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = 8000;
+const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = PR88_INSTANT_PROBE_TIMEOUT_MS;
 
 let _pr810ModelProfileContext = null;
 
@@ -93,9 +93,22 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   const targetIndex = PR810_MODEL_MODE_INDEX[targetMode];
 
   const initialModeStartedAt = performance.now();
-  const before = await _pr88InstantWaitForSelectedMode(
+  await waitForComposerReady(
     debuggee,
     PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS
+  );
+  context.initialModeComposerReadyElapsedMs = Math.max(
+    0,
+    Math.round(performance.now() - initialModeStartedAt)
+  );
+  const initialModeRemainingMs = Math.max(
+    0,
+    PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS -
+      (performance.now() - initialModeStartedAt)
+  );
+  const before = await _pr88InstantWaitForSelectedMode(
+    debuggee,
+    initialModeRemainingMs
   );
   context.initialModeAcquisitionElapsedMs = Math.max(
     0,
@@ -208,6 +221,11 @@ function _pr810Record(context) {
     initialModeAcquisitionTimeoutMs: PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS,
     initialModeAcquisitionElapsedMs: Number.isFinite(context.initialModeAcquisitionElapsedMs)
       ? context.initialModeAcquisitionElapsedMs
+      : null,
+    initialModeComposerReadyElapsedMs: Number.isFinite(
+      context.initialModeComposerReadyElapsedMs
+    )
+      ? context.initialModeComposerReadyElapsedMs
       : null,
     initialModeComposerReady: context.initialModeComposerReady === true,
     selectedModeBefore: context.selectedModeBefore,
