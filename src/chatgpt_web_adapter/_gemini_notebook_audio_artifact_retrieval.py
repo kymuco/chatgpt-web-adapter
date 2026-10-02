@@ -234,7 +234,10 @@ def _retrieve_gemini_notebook_audio_artifact_bytes(
                         "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_RESPONSE_MISMATCH",
                         request_stage="gemini_notebook_audio_artifact_retrieval",
                     )
-                if frame.get("type") == _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE:
+                if (
+                    frame.get("type")
+                    == _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE
+                ):
                     collector.add(frame)
                     continue
                 response = frame
