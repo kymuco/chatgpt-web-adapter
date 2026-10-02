@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter._gemini_notebook_video_generation import (
     _GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION,
     _generate_gemini_notebook_video,
 )
+from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.gemini_notebook_web import (
     GeminiNotebookOutcomeAmbiguousError,
 )
