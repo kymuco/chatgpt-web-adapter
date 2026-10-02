@@ -120,7 +120,7 @@ def test_video_retrieval_reuses_exact_ref_handoff_and_video_media_family() -> No
     assert "_cwaGeminiNotebookAudioLocatorPolicy(" in probe
     assert "_cwaGeminiNotebookLoadLocatorBytes(" in probe
     assert '"video"' in probe
-    assert "CWA__GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in probe
+    assert "CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in probe
     assert "safePortPost(port" in probe
     assert 'mediaFamily: "video"' in probe
     assert "rawDownloadUrlExported: false" in probe
