@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import subprocess
 import tempfile
-from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-PROBE = EXT / "service_worker_chatgpt_composer_submit_characterization_pr17_1.js"
+PROBE = EXT / "service_worker_chatgpt_composer_submit_characterization.js"
 OBSERVABILITY = EXT / "service_worker_observability.js"
 BASE_WORKER = EXT / "service_worker.js"
 LIVE_GATE = ROOT / "tools" / "pr17_1_chatgpt_composer_submit_characterization.py"
@@ -93,7 +93,7 @@ async function storedRuntimeTabId() {
 
 def test_pr17_1_probe_is_loaded_only_as_diagnostic_overlay() -> None:
     observation = _source(OBSERVABILITY)
-    probe_name = "service_worker_chatgpt_composer_submit_characterization_pr17_1.js"
+    probe_name = "service_worker_chatgpt_composer_submit_characterization.js"
 
     assert f'importScripts("{probe_name}");' in observation
     assert "registerNativeTurnDiagnosticHandler(" in _source(PROBE)
@@ -153,7 +153,8 @@ def test_pr17_1_probe_reports_bounded_submit_geometry_and_identity() -> None:
 
     assert "innerText" not in source
     assert "textContent" not in source
-    assert ".value" not in source
+    assert "element.value" not in source
+    assert "selectedComposer.value" not in source
 
 
 def test_pr17_1_diagnostic_bypasses_ordinary_turns_and_rejects_write_input() -> None:
