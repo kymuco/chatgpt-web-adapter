@@ -634,7 +634,12 @@ async function _cwaBaseExecuteOfficialPageTurn({
           `:selector=${submit.selector || "none"}` +
           `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}` +
           `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}` +
+          `:point_refreshed=${submit.submitPointRefreshedAfterActivation === true ? "true" : "false"}` +
+          `:point_delta_px=${Number.isFinite(submit.submitPointDeltaPx) ? submit.submitPointDeltaPx : "na"}` +
           `:event_probe=${submit.eventProbeInstalled === true ? "true" : "false"}` +
+          `:probe_reason=${submit.eventProbeInstallReason || "unknown"}` +
+          `:probe_hit=${submit.eventProbeHitTag || "none"}` +
+          `:probe_error=${submit.eventProbeErrorName || "none"}` +
           `:events=${submit.eventProbeSummary || "unavailable"}`
         )),
         Math.min(remainingMs(startedAt, timeoutMs), DEFAULT_SUBMIT_ACK_TIMEOUT_MS)
