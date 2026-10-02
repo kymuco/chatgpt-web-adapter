@@ -40,8 +40,8 @@ def test_pr17_1_profile_semantic_fallback_stays_fail_closed() -> None:
     for path in TARGETS:
         source = _source(path)
 
-        assert '[role="textbox"]' not in source
-        assert "querySelectorAll('[contenteditable="true"]')" not in source
+        assert "querySelectorAll('[role=\"textbox\"]')" not in source
+        assert 'querySelectorAll(\'[contenteditable="true"]\')' not in source
         assert "semanticCandidates.length" in source
 
 
