@@ -84,7 +84,9 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
             "runtime_tab_present": response.get("runtimeTabPresent") is True,
             "diagnostic_tab_present": response.get("diagnosticTabPresent") is True,
             "diagnostic_tab_source": response.get("diagnosticTabSource"),
-            "diagnostic_tab_selection_state": response.get("diagnosticTabSelectionState"),
+            "diagnostic_tab_selection_state": response.get(
+                "diagnosticTabSelectionState"
+            ),
             "chatgpt_tab_candidate_count": response.get("chatgptTabCandidateCount"),
             "composer_candidate_count": response.get("composerCandidateCount"),
             "scoped_control_count": response.get("scopedControlCount"),
