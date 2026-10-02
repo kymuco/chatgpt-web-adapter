@@ -148,7 +148,7 @@ if (scenario === "temporary") {
 
 (async () => {
   try {
-    const result = await _pr113SubmitOfficialTextWithoutPostCommitRetry(\n      {},\n      1000,\n      submitOfficialPageTurn\n    );
+    const result = await _pr113SubmitOfficialTextWithoutPostCommitRetry(\n      { tabId: 77 },\n      1000,\n      submitOfficialPageTurn\n    );
     await new Promise((resolve) => setTimeout(resolve, 0));
     console.log(JSON.stringify({ ok: true, result, log }));
   } catch (error) {
