@@ -71,6 +71,33 @@ const log = [];
 let _pr92ActiveRichInputContext = null;
 let _pr813TemporaryTurnContext = null;
 const DEFAULT_SUBMIT_READY_TIMEOUT_MS = 10000;
+const tabState = new Map([
+  [66, { id: 66, active: scenario !== "already_active", windowId: 1 }],
+  [77, { id: 77, active: scenario === "already_active", windowId: 1 }]
+]);
+const chrome = {
+  tabs: {
+    get: async (tabId) => ({ ...tabState.get(tabId) }),
+    query: async ({ active, windowId }) => Array.from(tabState.values())
+      .filter((tab) => (
+        (active !== true || tab.active === true) &&
+        (!Number.isInteger(windowId) || tab.windowId === windowId)
+      ))
+      .map((tab) => ({ ...tab })),
+    update: async (tabId, patch) => {
+      const target = tabState.get(tabId);
+      if (!target) throw new Error("tab-missing");
+      if (patch?.active === true) {
+        for (const tab of tabState.values()) {
+          if (tab.windowId === target.windowId) tab.active = false;
+        }
+        target.active = true;
+        log.push(`tabs.update:${tabId}:active=true`);
+      }
+      return { ...target };
+    }
+  }
+};
 
 async function submitOfficialPageTurn() {
   log.push("prior_submit");
@@ -174,8 +201,35 @@ def test_successful_click_uses_one_mouse_commit_and_no_enter(tmp_path: Path) -> 
     assert result["result"] == {
         "strategy": "send_button_click",
         "selector": "send-selector",
+        "tabActivatedForCommit": True,
     }
     assert len(_enter_keydowns(result["log"])) == 0
+    assert sum("mouseReleased" in item for item in result["log"]) == 1
+
+
+def test_background_tab_activation_wraps_exactly_one_mouse_commit(
+    tmp_path: Path,
+) -> None:
+    result = _run_node_scenario(tmp_path, "success")
+
+    assert result["ok"] is True
+    log = result["log"]
+    activate = log.index("tabs.update:77:active=true")
+    moved = next(i for i, item in enumerate(log) if "mouseMoved" in item)
+    pressed = next(i for i, item in enumerate(log) if "mousePressed" in item)
+    released = next(i for i, item in enumerate(log) if "mouseReleased" in item)
+    restore = log.index("tabs.update:66:active=true")
+
+    assert activate < moved < pressed < released < restore
+    assert result["result"]["tabActivatedForCommit"] is True
+
+
+def test_already_active_commit_tab_does_not_churn_tab_selection(tmp_path: Path) -> None:
+    result = _run_node_scenario(tmp_path, "already_active")
+
+    assert result["ok"] is True
+    assert result["result"]["tabActivatedForCommit"] is False
+    assert not any(item.startswith("tabs.update:") for item in result["log"])
     assert sum("mouseReleased" in item for item in result["log"]) == 1
 
 
