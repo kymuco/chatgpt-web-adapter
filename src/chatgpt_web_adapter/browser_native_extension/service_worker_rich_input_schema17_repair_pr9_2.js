@@ -237,20 +237,7 @@ async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, 
     await Promise.race([
       requestSeen,
       new Promise((_, reject) => setTimeout(
-        () => reject(new Error(
-          `CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}` +
-          `:owner=schema17` +
-          `:selector=${submit.selector || "none"}` +
-          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}` +
-          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}` +
-          `:point_refreshed=${submit.submitPointRefreshedAfterActivation === true ? "true" : "false"}` +
-          `:point_delta_px=${Number.isFinite(submit.submitPointDeltaPx) ? submit.submitPointDeltaPx : "na"}` +
-          `:event_probe=${submit.eventProbeInstalled === true ? "true" : "false"}` +
-          `:probe_reason=${submit.eventProbeInstallReason || "unknown"}` +
-          `:probe_hit=${submit.eventProbeHitTag || "none"}` +
-          `:probe_error=${submit.eventProbeErrorName || "none"}` +
-          `:events=${submit.eventProbeSummary || "unavailable"}`
-        )),
+        () => reject(new Error(`CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}`)),
         submitAckBudget
       ))
     ]);
