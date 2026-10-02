@@ -200,12 +200,71 @@ function _pr171ComposerSubmitSurfaceExpression() {
   })()`;
 }
 
+async function _pr171ResolveDiagnosticTab() {
+  const storedId = await storedRuntimeTabId();
+  if (Number.isInteger(storedId)) {
+    try {
+      const storedTab = await chrome.tabs.get(storedId);
+      if (isChatGPTUrl(storedTab?.url || '')) {
+        return {
+          tab: storedTab,
+          runtimeTabPresent: true,
+          diagnosticTabSource: 'stored_runtime_tab',
+          chatgptTabCandidateCount: 1,
+          selectionState: 'selected'
+        };
+      }
+    } catch {
+      // Stale stored id is not diagnostic authority; continue to read-only discovery.
+    }
+  }
+
+  const tabs = await chrome.tabs.query({});
+  const chatgptTabs = tabs.filter(
+    (tab) => Number.isInteger(tab?.id) && isChatGPTUrl(tab?.url || '')
+  );
+  if (chatgptTabs.length === 1) {
+    return {
+      tab: chatgptTabs[0],
+      runtimeTabPresent: false,
+      diagnosticTabSource: 'unique_existing_chatgpt_tab',
+      chatgptTabCandidateCount: 1,
+      selectionState: 'selected'
+    };
+  }
+
+  const activeChatgptTabs = chatgptTabs.filter((tab) => tab?.active === true);
+  if (activeChatgptTabs.length === 1) {
+    return {
+      tab: activeChatgptTabs[0],
+      runtimeTabPresent: false,
+      diagnosticTabSource: 'unique_active_chatgpt_tab',
+      chatgptTabCandidateCount: chatgptTabs.length,
+      selectionState: 'selected'
+    };
+  }
+
+  return {
+    tab: null,
+    runtimeTabPresent: false,
+    diagnosticTabSource: null,
+    chatgptTabCandidateCount: chatgptTabs.length,
+    selectionState: chatgptTabs.length === 0
+      ? 'no_existing_chatgpt_tab'
+      : 'ambiguous_existing_chatgpt_tabs'
+  };
+}
+
 async function _pr171CharacterizeComposerSubmitSurface() {
-  const runtimeTabId = await storedRuntimeTabId();
-  if (!Number.isInteger(runtimeTabId)) {
+  const selection = await _pr171ResolveDiagnosticTab();
+  if (!selection.tab || !Number.isInteger(selection.tab.id)) {
     return {
       diagnosticOnly: true,
-      runtimeTabPresent: false,
+      runtimeTabPresent: selection.runtimeTabPresent === true,
+      diagnosticTabPresent: false,
+      diagnosticTabSource: selection.diagnosticTabSource,
+      diagnosticTabSelectionState: selection.selectionState,
+      chatgptTabCandidateCount: selection.chatgptTabCandidateCount,
       composerCandidateCount: 0,
       scopedControlCount: 0,
       legacyControlCount: 0,
@@ -222,18 +281,16 @@ async function _pr171CharacterizeComposerSubmitSurface() {
       focusPerformed: false,
       clickPerformed: false,
       submitAttempted: false,
+      navigationPerformed: false,
+      tabCreated: false,
       automaticWriteRetry: false,
       fallbackTransport: null,
       debuggerAttachedAfter: null
     };
   }
 
-  const tab = await chrome.tabs.get(runtimeTabId);
-  if (!isChatGPTUrl(tab?.url || '')) {
-    throw new Error('PR17_1_COMPOSER_SUBMIT_RUNTIME_TAB_NOT_CHATGPT');
-  }
-
-  const debuggee = { tabId: runtimeTabId };
+  const diagnosticTabId = selection.tab.id;
+  const debuggee = { tabId: diagnosticTabId };
   let attached = false;
   let debuggerAttachedAfter = null;
   let snapshot = null;
@@ -258,7 +315,7 @@ async function _pr171CharacterizeComposerSubmitSurface() {
     try {
       const targets = await chrome.debugger.getTargets();
       debuggerAttachedAfter = Boolean(
-        targets.find((target) => target.tabId === runtimeTabId)?.attached
+        targets.find((target) => target.tabId === diagnosticTabId)?.attached
       );
     } catch {
       debuggerAttachedAfter = null;
@@ -269,7 +326,11 @@ async function _pr171CharacterizeComposerSubmitSurface() {
 
   return {
     diagnosticOnly: true,
-    runtimeTabPresent: true,
+    runtimeTabPresent: selection.runtimeTabPresent === true,
+    diagnosticTabPresent: true,
+    diagnosticTabSource: selection.diagnosticTabSource,
+    diagnosticTabSelectionState: selection.selectionState,
+    chatgptTabCandidateCount: selection.chatgptTabCandidateCount,
     composerCandidateCount: Number(snapshot.composerCandidateCount) || 0,
     scopedControlCount: Number(snapshot.scopedControlCount) || 0,
     legacyControlCount: Number(snapshot.legacyControlCount) || 0,
@@ -292,6 +353,8 @@ async function _pr171CharacterizeComposerSubmitSurface() {
     focusPerformed: false,
     clickPerformed: false,
     submitAttempted: false,
+    navigationPerformed: false,
+    tabCreated: false,
     automaticWriteRetry: false,
     fallbackTransport: null,
     debuggerAttachedAfter
