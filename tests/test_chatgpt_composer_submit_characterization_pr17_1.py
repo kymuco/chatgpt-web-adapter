@@ -161,7 +161,10 @@ def test_pr17_1_probe_reports_bounded_submit_geometry_and_identity() -> None:
         "legacySelector",
         "oldResolverSelected",
         "composerCandidates",
+        "composerHasText",
         "scopedControls",
+        "nearbyControls",
+        "nearbyControlCount",
         "legacyControls",
         "diagnosticTabPresent",
         "diagnosticTabSource",
@@ -170,8 +173,10 @@ def test_pr17_1_probe_reports_bounded_submit_geometry_and_identity() -> None:
     ):
         assert field in source
 
-    assert "innerText" not in source
-    assert "textContent" not in source
+    assert "NodeFilter.SHOW_TEXT" in source
+    assert "composerTextExported: false" in source
+    assert "composerText:" not in source
+    assert "composerTextValue" not in source
     assert "element.value" not in source
     assert "selectedComposer.value" not in source
 
@@ -192,6 +197,9 @@ def test_pr17_1_diagnostic_bypasses_ordinary_turns_and_rejects_write_input() -> 
     assert no_tab["diagnosticTabSource"] is None
     assert no_tab["diagnosticTabSelectionState"] == "no_existing_chatgpt_tab"
     assert no_tab["chatgptTabCandidateCount"] == 0
+    assert no_tab["composerHasText"] is False
+    assert no_tab["nearbyControlCount"] == 0
+    assert no_tab["nearbyControls"] == []
     assert no_tab["writePerformed"] is False
     assert no_tab["textInsertionPerformed"] is False
     assert no_tab["focusPerformed"] is False
@@ -201,6 +209,18 @@ def test_pr17_1_diagnostic_bypasses_ordinary_turns_and_rejects_write_input() -> 
     assert no_tab["tabCreated"] is False
     assert no_tab["automaticWriteRetry"] is False
     assert no_tab["fallbackTransport"] is None
+
+
+def test_pr17_1_nonempty_state_is_reduced_to_boolean_and_bounded_nearby_controls() -> None:
+    source = _source(PROBE)
+
+    assert "composerHasText" in source
+    assert "NodeFilter.SHOW_TEXT" in source
+    assert "nearbyControls" in source
+    assert "distancePx <= 320" in source
+    assert ".slice(0, 64)" in source
+    assert "composerTextExported: false" in source
+    assert "composerText:" not in source
 
 
 def test_pr17_1_existing_tab_fallback_is_read_only_and_fail_closed() -> None:
