@@ -202,7 +202,7 @@ def test_worker_retrieval_chunks_verified_bytes_without_raw_locator_export() -> 
         "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
         1,
     )[1].split(
-        "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
+        "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
         1,
     )[0]
 
