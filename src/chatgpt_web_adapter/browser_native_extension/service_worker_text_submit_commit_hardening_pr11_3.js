@@ -90,7 +90,6 @@ async function _pr113PrepareMouseCommitTab(debuggee) {
   if (tabId === null) {
     return {
       activated: false,
-      tabId: null,
       previousActiveTabId: null
     };
   }
@@ -99,7 +98,6 @@ async function _pr113PrepareMouseCommitTab(debuggee) {
   if (tab?.active === true) {
     return {
       activated: false,
-      tabId,
       previousActiveTabId: null
     };
   }
@@ -134,7 +132,6 @@ async function _pr113PrepareMouseCommitTab(debuggee) {
 
   return {
     activated: true,
-    tabId,
     previousActiveTabId
   };
 }
@@ -146,213 +143,13 @@ async function _pr113RestoreMouseCommitTab(state) {
   ) {
     return;
   }
+
   try {
     await chrome.tabs.update(state.previousActiveTabId, { active: true });
   } catch {
     // Selection restoration is post-commit cleanup only. It must never rewrite
     // a possibly committed product write into a local failure.
   }
-}
-
-
-function _pr113SubmitEventProbeInstallExpression(x, y) {
-  return `(() => {
-    const key = "__cwaPr171SubmitEventProbeV1";
-    try {
-      const previous = globalThis[key];
-      if (previous?.listeners && Array.isArray(previous.listeners)) {
-        for (const item of previous.listeners) {
-          try {
-            window.removeEventListener(item.type, item.listener, item.capture);
-          } catch {}
-        }
-      }
-
-      const hit = document.elementFromPoint(${JSON.stringify(x)}, ${JSON.stringify(y)});
-      if (!hit) return { installed: false, reason: "no_hit" };
-      const button = hit?.closest?.("button") || null;
-      if (!button) {
-        return {
-          installed: false,
-          reason: "no_button",
-          hitTag: String(hit?.tagName || "").toLowerCase() || null
-        };
-      }
-      const form = button?.closest?.("form") || null;
-      if (!form) {
-        return {
-          installed: false,
-          reason: "no_form",
-          hitTag: String(hit?.tagName || "").toLowerCase() || null
-        };
-      }
-      const state = {
-        button,
-        form,
-        listeners: [],
-        pointerDownSeen: false,
-        mouseDownSeen: false,
-        pointerUpSeen: false,
-        mouseUpSeen: false,
-        clickSeen: false,
-        submitSeen: false,
-        allTrusted: true,
-        clickDefaultPrevented: null,
-        submitDefaultPrevented: null,
-        clickTargetWithinButton: null,
-        submitterIsButton: null
-      };
-
-      const observe = (type, capture) => {
-        const listener = (event) => {
-          if (event?.isTrusted !== true) state.allTrusted = false;
-          if (type === "pointerdown") state.pointerDownSeen = true;
-          if (type === "mousedown") state.mouseDownSeen = true;
-          if (type === "pointerup") state.pointerUpSeen = true;
-          if (type === "mouseup") state.mouseUpSeen = true;
-          if (type === "click") {
-            state.clickSeen = true;
-            if (!capture) {
-              state.clickDefaultPrevented = event.defaultPrevented === true;
-              state.clickTargetWithinButton = Boolean(
-                state.button &&
-                event.target instanceof Node &&
-                state.button.contains(event.target)
-              );
-            }
-          }
-          if (type === "submit") {
-            state.submitSeen = true;
-            if (!capture) {
-              state.submitDefaultPrevented = event.defaultPrevented === true;
-              state.submitterIsButton = event.submitter === state.button;
-            }
-          }
-        };
-        window.addEventListener(type, listener, { capture, passive: true });
-        state.listeners.push({ type, listener, capture });
-      };
-
-      for (const type of [
-        "pointerdown",
-        "mousedown",
-        "pointerup",
-        "mouseup",
-        "click",
-        "submit"
-      ]) {
-        observe(type, true);
-        observe(type, false);
-      }
-
-      globalThis[key] = state;
-      return {
-        installed: true,
-        reason: "installed",
-        hitTag: String(hit?.tagName || "").toLowerCase() || null
-      };
-    } catch (error) {
-      return {
-        installed: false,
-        reason: "exception",
-        errorName: typeof error?.name === "string" ? error.name : null
-      };
-    }
-  })()`;
-}
-
-function _pr113SubmitEventProbeReadExpression() {
-  return `(() => {
-    const key = "__cwaPr171SubmitEventProbeV1";
-    const state = globalThis[key];
-    if (!state) return null;
-    try {
-      for (const item of state.listeners || []) {
-        try {
-          window.removeEventListener(item.type, item.listener, item.capture);
-        } catch {}
-      }
-      return {
-        pointerDownSeen: state.pointerDownSeen === true,
-        mouseDownSeen: state.mouseDownSeen === true,
-        pointerUpSeen: state.pointerUpSeen === true,
-        mouseUpSeen: state.mouseUpSeen === true,
-        clickSeen: state.clickSeen === true,
-        submitSeen: state.submitSeen === true,
-        allTrusted: state.allTrusted === true,
-        clickDefaultPrevented: state.clickDefaultPrevented,
-        submitDefaultPrevented: state.submitDefaultPrevented,
-        clickTargetWithinButton: state.clickTargetWithinButton,
-        submitterIsButton: state.submitterIsButton
-      };
-    } finally {
-      try { delete globalThis[key]; } catch {}
-    }
-  })()`;
-}
-
-async function _pr113InstallSubmitEventProbe(debuggee, x, y) {
-  try {
-    const result = await sendCommand(debuggee, "Runtime.evaluate", {
-      expression: _pr113SubmitEventProbeInstallExpression(x, y),
-      returnByValue: true,
-      awaitPromise: true
-    });
-    const value = result?.result?.value;
-    if (!value || typeof value !== "object") {
-      return { installed: false, reason: "invalid_result" };
-    }
-    return {
-      installed: value.installed === true,
-      reason: typeof value.reason === "string" ? value.reason : "unknown",
-      hitTag: typeof value.hitTag === "string" ? value.hitTag : null,
-      errorName: typeof value.errorName === "string" ? value.errorName : null
-    };
-  } catch (error) {
-    return {
-      installed: false,
-      reason: "cdp_error",
-      errorName: typeof error?.name === "string" ? error.name : null
-    };
-  }
-}
-
-async function _pr113ReadSubmitEventProbe(debuggee) {
-  const attempt = Promise.resolve(
-    sendCommand(debuggee, "Runtime.evaluate", {
-      expression: _pr113SubmitEventProbeReadExpression(),
-      returnByValue: true,
-      awaitPromise: true
-    })
-  ).then((result) => result?.result?.value || null).catch(() => null);
-
-  try {
-    return await Promise.race([
-      attempt,
-      sleep(250).then(() => null)
-    ]);
-  } catch {
-    return null;
-  }
-}
-
-function _pr113FormatSubmitEventProbe(probe) {
-  if (!probe || typeof probe !== "object") return "unavailable";
-  const bit = (value) => value === true ? "1" : "0";
-  const tri = (value) => value === true ? "1" : (value === false ? "0" : "n");
-  return [
-    `pd=${bit(probe.pointerDownSeen)}`,
-    `md=${bit(probe.mouseDownSeen)}`,
-    `pu=${bit(probe.pointerUpSeen)}`,
-    `mu=${bit(probe.mouseUpSeen)}`,
-    `click=${bit(probe.clickSeen)}`,
-    `submit=${bit(probe.submitSeen)}`,
-    `trusted=${bit(probe.allTrusted)}`,
-    `click_prevented=${tri(probe.clickDefaultPrevented)}`,
-    `submit_prevented=${tri(probe.submitDefaultPrevented)}`,
-    `click_on_button=${tri(probe.clickTargetWithinButton)}`,
-    `submitter_button=${tri(probe.submitterIsButton)}`
-  ].join(",");
 }
 
 async function _pr113SubmitTextWithMouseOnce(
@@ -366,13 +163,10 @@ async function _pr113SubmitTextWithMouseOnce(
     throw new Error("CHATGPT_SEND_BUTTON_POINT_INVALID");
   }
 
-  // Current ChatGPT may update composer geometry when the browser-owned runtime
-  // tab becomes foreground. Activate first, then re-resolve the product-owned
-  // Send control before the protected mouse commit. The re-resolution is still
-  // pre-commit and therefore cannot authorize or duplicate a product write.
+  // ChatGPT may update composer geometry when the browser-owned runtime tab is
+  // brought to foreground. Activate first, then re-resolve the current
+  // product-owned Send control before the protected click boundary.
   const commitTab = await _pr113PrepareMouseCommitTab(debuggee);
-  let eventProbe = { installed: false, reason: "not_attempted" };
-  let eventProbeConsumed = false;
 
   try {
     let commitPoint = point;
@@ -388,12 +182,6 @@ async function _pr113SubmitTextWithMouseOnce(
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       throw new Error("CHATGPT_SEND_BUTTON_POINT_INVALID_AFTER_ACTIVATION");
     }
-
-    const submitPointDeltaPx = Math.round(
-      Math.hypot(x - initialX, y - initialY)
-    );
-
-    eventProbe = await _pr113InstallSubmitEventProbe(debuggee, x, y);
 
     // move/press are pre-commit for the established CWA click contract. If either
     // fails, Enter remains a single safe fallback because mouseReleased has not
@@ -426,27 +214,11 @@ async function _pr113SubmitTextWithMouseOnce(
       throw new Error(PR113_MOUSE_RELEASE_UNCONFIRMED);
     }
 
-    const eventTrace = eventProbe.installed === true
-      ? await _pr113ReadSubmitEventProbe(debuggee)
-      : null;
-    eventProbeConsumed = eventProbe.installed === true;
-
     return {
       strategy: "send_button_click",
-      selector: commitPoint?.selector ?? null,
-      tabActivatedForCommit: commitTab.activated === true,
-      submitPointRefreshedAfterActivation: commitTab.activated === true,
-      submitPointDeltaPx,
-      eventProbeInstalled: eventProbe.installed === true,
-      eventProbeInstallReason: eventProbe.reason || "unknown",
-      eventProbeHitTag: eventProbe.hitTag || null,
-      eventProbeErrorName: eventProbe.errorName || null,
-      eventProbeSummary: _pr113FormatSubmitEventProbe(eventTrace)
+      selector: commitPoint?.selector ?? null
     };
   } finally {
-    if (eventProbe.installed === true && eventProbeConsumed !== true) {
-      await _pr113ReadSubmitEventProbe(debuggee);
-    }
     await _pr113RestoreMouseCommitTab(commitTab);
   }
 }
