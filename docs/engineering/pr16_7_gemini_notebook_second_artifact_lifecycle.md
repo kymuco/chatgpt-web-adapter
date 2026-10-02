@@ -564,3 +564,50 @@ caller filesystem publication authority
 Those abstractions remain deferred until further product/capability diversity proves
 that their semantics are stable beyond the current Gemini Notebook generated-artifact
 family.
+
+
+## Closure — independent Video proof retained privately
+
+PR16.7 closes as a second independent generated-artifact proof, not as a new public
+Video API.
+
+The live work proved:
+
+```text
+structural Video create identity
+→ bounded default generation commit
+→ exactly one new stable artifact ref
+→ pending / re-entry
+→ reload-verified same-ref completion
+→ exact artifact-local save_alt
+→ product-created Googleusercontent locator
+→ authenticated browser-owned byte retrieval
+→ video media-family admission
+→ SHA-256 verified temporary staging
+→ staging retirement
+```
+
+Closure removes the temporary Studio inventory, config, menu, download-intent, and
+public-looking probe modules from the package surface.
+
+Only three private primitives remain:
+
+```text
+_gemini_notebook_video_generation
+_gemini_notebook_video_artifact_observation
+_gemini_notebook_video_artifact_retrieval
+```
+
+They are intentionally not exported from the root package and have no CLI entrypoints.
+
+This PR does **not** claim:
+
+- a supported public `generate_video_overview(...)` API;
+- caller filesystem publication authority;
+- a public HostedArtifactLifecycle;
+- a generated-artifact registry/factory;
+- a universal artifact schema.
+
+The purpose of the retained implementation is evidence: Audio and Video now
+independently demonstrate which lifecycle and retrieval primitives truly repeat.
+PR16.8 may consolidate only those repeated internals.

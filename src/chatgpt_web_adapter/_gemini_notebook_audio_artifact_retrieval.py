@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import argparse
-import json
 from pathlib import Path
 from typing import Any
 
 from ._gemini_notebook_artifact_byte_orchestration import (
-    _probe_gemini_notebook_artifact_bytes,
+    _retrieve_gemini_notebook_artifact_bytes,
 )
 from ._gemini_notebook_artifact_staging import (
     _ArtifactByteChunkCollector,
@@ -14,11 +12,11 @@ from ._gemini_notebook_artifact_staging import (
 )
 from .browser_native_provider import BrowserNativeTurnProvider
 
-GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION = (
-    "gemini_notebook_audio_artifact_byte_probe"
+_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION = (
+    "gemini_notebook_audio_artifact_retrieval"
 )
-GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE = (
-    "gemini_notebook_audio_artifact_byte_chunk"
+_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE = (
+    "gemini_notebook_audio_artifact_retrieval_chunk"
 )
 DEFAULT_AUDIO_ARTIFACT_MAX_BYTES = 64 * 1024 * 1024
 _MAX_AUDIO_ARTIFACT_BYTES = 64 * 1024 * 1024
@@ -47,7 +45,7 @@ def _normalize_max_bytes(value: int) -> int:
     )
 
 
-def probe_gemini_notebook_audio_artifact_bytes(
+def _retrieve_gemini_notebook_audio_artifact_bytes(
     *,
     notebook: str,
     expected_artifact_ref: str,
@@ -60,48 +58,17 @@ def probe_gemini_notebook_audio_artifact_bytes(
     if timeout < 5.0:
         raise ValueError("timeout must be at least 5 seconds")
     max_bytes = _normalize_max_bytes(max_bytes)
-    return _probe_gemini_notebook_artifact_bytes(
+    return _retrieve_gemini_notebook_artifact_bytes(
         notebook=notebook,
         expected_artifact_ref=expected_artifact_ref,
         timeout=timeout,
         max_bytes=max_bytes,
         bridge=bridge,
-        operation=GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION,
-        chunk_type=GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE,
-        result_type="gemini_notebook_audio_artifact_byte_probe_result",
-        request_stage="gemini_notebook_audio_artifact_byte_probe",
+        operation=_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION,
+        chunk_type=_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
+        result_type="gemini_notebook_audio_artifact_retrieval_result",
+        request_stage="gemini_notebook_audio_artifact_retrieval",
         error_prefix="GEMINI_NOTEBOOK_AUDIO_ARTIFACT",
         staging_prefix=".cwa-notebook-audio-",
         collector_factory=_AudioArtifactByteChunkCollector,
     )
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Acquire one exact Gemini Notebook Audio artifact into bounded temporary "
-            "staging, verify SHA-256, then delete the staging file."
-        )
-    )
-    parser.add_argument("--notebook", required=True)
-    parser.add_argument("--expected-artifact-ref", required=True)
-    parser.add_argument("--timeout", type=float, default=120.0)
-    parser.add_argument(
-        "--max-bytes",
-        type=int,
-        default=DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
-    )
-    args = parser.parse_args(argv)
-
-    result = probe_gemini_notebook_audio_artifact_bytes(
-        notebook=args.notebook,
-        expected_artifact_ref=args.expected_artifact_ref,
-        timeout=args.timeout,
-        max_bytes=args.max_bytes,
-    )
-    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

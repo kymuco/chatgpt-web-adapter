@@ -5,13 +5,13 @@ from pathlib import Path
 import pytest
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter.exceptions import RequestError
-from chatgpt_web_adapter.gemini_notebook_video_artifact_observe_probe import (
-    GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION,
+from chatgpt_web_adapter._gemini_notebook_video_artifact_observation import (
+    _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION,
     GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY,
     GEMINI_NOTEBOOK_VIDEO_PENDING_EVIDENCE,
-    probe_gemini_notebook_video_artifact_observation,
+    _observe_gemini_notebook_video_artifact,
 )
+from chatgpt_web_adapter.exceptions import RequestError
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "chatgpt_web_adapter"
@@ -62,19 +62,19 @@ class _FakeBridge:
         }
 
 
-def test_video_observe_probe_is_temporary_module_only_surface() -> None:
-    assert GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION == (
-        "gemini_notebook_video_artifact_observe_probe"
+def test_video_observation_stays_private() -> None:
+    assert _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION == (
+        "gemini_notebook_video_artifact_observe"
     )
     assert not hasattr(
         adapter,
-        "probe_gemini_notebook_video_artifact_observation",
+        "_observe_gemini_notebook_video_artifact",
     )
 
 
 @pytest.mark.parametrize("completed", [False, True])
-def test_video_observe_probe_contract(completed: bool) -> None:
-    result = probe_gemini_notebook_video_artifact_observation(
+def test_video_observation_contract(completed: bool) -> None:
+    result = _observe_gemini_notebook_video_artifact(
         notebook=NOTEBOOK,
         observed_artifact_ref=VIDEO_REF,
         bridge=_FakeBridge(completed=completed),
@@ -115,7 +115,7 @@ def test_video_observe_rejects_wrong_pending_contract() -> None:
         RequestError,
         match="GEMINI_NOTEBOOK_VIDEO_PENDING_CONTRACT_INVALID",
     ):
-        probe_gemini_notebook_video_artifact_observation(
+        _observe_gemini_notebook_video_artifact(
             notebook=NOTEBOOK,
             observed_artifact_ref=VIDEO_REF,
             bridge=_WrongBridge(),
@@ -188,8 +188,8 @@ def test_video_observe_completed_requires_same_ref_after_reload() -> None:
     assert "navigationPerformed: true" in probe
 
 
-def test_video_observe_probe_uses_existing_authority_lane() -> None:
+def test_video_observation_uses_existing_authority_lane() -> None:
     host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
-    assert '"gemini_notebook_video_artifact_observe_probe",' in host
-    assert '"gemini_notebook_video_artifact_observe_probe": 60_000' in host
+    assert '"gemini_notebook_video_artifact_observe",' in host
+    assert '"gemini_notebook_video_artifact_observe": 60_000' in host
     assert "_claim_authority_lane(operation, lease_id)" in host

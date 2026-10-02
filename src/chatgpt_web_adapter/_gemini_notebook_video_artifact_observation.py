@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import argparse
-import json
 import re
 import uuid
 from typing import Any
@@ -13,8 +11,8 @@ from .gemini_notebook_web import (
     GeminiNotebookWebCapability,
 )
 
-GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION = (
-    "gemini_notebook_video_artifact_observe_probe"
+_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION = (
+    "gemini_notebook_video_artifact_observe"
 )
 GEMINI_NOTEBOOK_VIDEO_PENDING_EVIDENCE = "PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_PENDING"
 GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY = (
@@ -23,7 +21,7 @@ GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY = (
 _ARTIFACT_REF_RE = re.compile(r"^[A-Za-z0-9_-]{8,200}$")
 
 
-def probe_gemini_notebook_video_artifact_observation(
+def _observe_gemini_notebook_video_artifact(
     *,
     notebook: str,
     observed_artifact_ref: str,
@@ -45,7 +43,7 @@ def probe_gemini_notebook_video_artifact_observation(
     )
     notebook_url = GeminiNotebookWebCapability._notebook_url(notebook)
     request = {
-        "type": GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION,
+        "type": _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION,
         "request_id": uuid.uuid4().hex,
         "productId": GEMINI_NOTEBOOK_WEB_PRODUCT_ID,
         "notebookUrl": notebook_url,
@@ -61,9 +59,9 @@ def probe_gemini_notebook_video_artifact_observation(
 
     if response.get("ok") is not True:
         raise RequestError(
-            "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_FAILED: "
+            "GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_FAILED: "
             + str(response.get("error") or "unknown error"),
-            request_stage="gemini_notebook_video_artifact_observe_probe",
+            request_stage="gemini_notebook_video_artifact_observe",
         )
     if response.get("productId") != GEMINI_NOTEBOOK_WEB_PRODUCT_ID:
         raise RequestError("GEMINI_NOTEBOOK_PRODUCT_ID_MISMATCH")
@@ -131,28 +129,3 @@ def probe_gemini_notebook_video_artifact_observation(
         "write_performed": False,
         "navigation_performed": navigated is True,
     }
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Observe exact Gemini Notebook Video artifact pending/completion finality "
-            "without starting a new generation."
-        )
-    )
-    parser.add_argument("--notebook", required=True)
-    parser.add_argument("--observed-artifact-ref", required=True)
-    parser.add_argument("--timeout", type=float, default=60.0)
-    args = parser.parse_args(argv)
-
-    result = probe_gemini_notebook_video_artifact_observation(
-        notebook=args.notebook,
-        observed_artifact_ref=args.observed_artifact_ref,
-        timeout=args.timeout,
-    )
-    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

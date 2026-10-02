@@ -10,7 +10,7 @@ It does not add a new product capability.
 
 ## Slice 16.8a — one internal browser byte-retrieval core
 
-The Audio and Video browser byte probes previously duplicated the same sequence:
+The Audio and Video browser private retrieval wrappers previously duplicated the same sequence:
 
 ```text
 exact artifact-local menu
@@ -71,7 +71,7 @@ filesystem publication authority is introduced.
 
 ## Slice 16.8b — one internal Python temporary-staging core
 
-Audio and Video Python byte probes also duplicated the same staging implementation:
+Audio and Video Python private retrieval wrappers also duplicated the same staging implementation:
 
 ```text
 ordered chunk admission
@@ -110,10 +110,10 @@ public/module-only surfaces remain separate in this slice. No public staging API
 introduced.
 
 
-## Slice 16.8c — one private Python byte-probe orchestration core
+## Slice 16.8c — one private Python retrieval orchestration core
 
 After browser retrieval and staging integrity were separately consolidated, the
-remaining Audio and Video Python probe bodies were still effectively identical:
+remaining Audio and Video Python retrieval bodies were still effectively identical:
 
 ```text
 normalize exact notebook/artifact identity
@@ -136,10 +136,10 @@ _gemini_notebook_artifact_byte_orchestration.py
 under the private function:
 
 ```text
-_probe_gemini_notebook_artifact_bytes(...)
+_retrieve_gemini_notebook_artifact_bytes(...)
 ```
 
-The existing Audio and Video functions remain the callable surfaces and provide the
+The existing private Audio and Video retrieval functions remain the internal callable surfaces and provide the
 historical profile values:
 
 ```text
@@ -157,3 +157,16 @@ PR16.8 intentionally stops at this boundary. Generation configuration, artifact
 finality, and other higher lifecycle semantics remain artifact-specific because their
 current contracts still contain meaningful differences. No public lifecycle API is
 introduced.
+
+
+## Closure
+
+PR16.8 is the abstraction stop line for the Notebook generated-artifact research
+series. It consolidates only primitives independently reproduced by Audio and Video.
+
+All retained surfaces are private implementation details. No public artifact lifecycle,
+registry/factory, universal schema, final filesystem publication authority, or generic
+hosted-capability runtime is introduced.
+
+The next architectural work should require new evidence rather than extending this
+abstraction for symmetry.

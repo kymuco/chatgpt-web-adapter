@@ -1,6 +1,6 @@
 # PR16.6 — Gemini Notebook Audio Artifact Handoff Characterization
 
-_Status: active characterization; stacked on PR16.5._
+_Status: characterization closed; production closure keeps only a private retrieval primitive._
 
 ## Purpose
 
@@ -572,3 +572,36 @@ exact completed artifact identity
 
 Caller-owned destination authority, overwrite policy, atomic final publish, and durable
 local handoff remain deliberately outside this characterization slice.
+
+
+## Closure — private retrieval primitive, no public download API
+
+PR16.6 closes as evidence and internal runtime infrastructure, not as a caller-facing
+download capability.
+
+The live slices proved:
+
+```text
+exact completed artifact ref
+→ exact artifact-local menu
+→ structural save_alt
+→ product-created Googleusercontent locator
+→ authenticated browser-owned Network.loadNetworkResource
+→ bounded bytes + SHA-256
+→ Native Messaging chunks
+→ verified temporary staging
+→ staging retirement
+```
+
+The branch deliberately does **not** claim final filesystem publication authority.
+Because the verified staging file is deleted before return, exposing the old
+`*_probe.py` modules as importable package surfaces would create a misleading API.
+
+Closure therefore removes the temporary action/menu/download-intent Python entrypoints
+and their live operations. The final byte path is retained only as the private
+`_gemini_notebook_audio_artifact_retrieval` primitive with no CLI entrypoint and no
+root-package export.
+
+Caller destination selection, overwrite policy, atomic publication, races, and final
+filesystem authority remain deferred. A future public handoff API must be designed
+around those authorities rather than promoting this internal proof unchanged.

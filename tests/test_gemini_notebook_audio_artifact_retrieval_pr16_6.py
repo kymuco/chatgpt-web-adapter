@@ -9,10 +9,10 @@ from pathlib import Path
 import pytest
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter.gemini_notebook_audio_artifact_byte_probe import (
+from chatgpt_web_adapter._gemini_notebook_audio_artifact_retrieval import (
     DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
-    GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE,
-    GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION,
+    _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
+    _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION,
     _AudioArtifactByteChunkCollector,
     _normalize_max_bytes,
 )
@@ -22,17 +22,17 @@ PACKAGE = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PACKAGE / "browser_native_extension"
 
 
-def test_byte_probe_is_temporary_module_only_surface() -> None:
-    assert GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION == (
-        "gemini_notebook_audio_artifact_byte_probe"
+def test_retrieval_is_temporary_module_only_surface() -> None:
+    assert _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION == (
+        "gemini_notebook_audio_artifact_retrieval"
     )
-    assert GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE == (
-        "gemini_notebook_audio_artifact_byte_chunk"
+    assert _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE == (
+        "gemini_notebook_audio_artifact_retrieval_chunk"
     )
-    assert not hasattr(adapter, "probe_gemini_notebook_audio_artifact_bytes")
+    assert not hasattr(adapter, "_retrieve_gemini_notebook_audio_artifact_bytes")
 
 
-def test_byte_probe_max_bytes_is_bounded() -> None:
+def test_retrieval_max_bytes_is_bounded() -> None:
     assert DEFAULT_AUDIO_ARTIFACT_MAX_BYTES == 64 * 1024 * 1024
     assert _normalize_max_bytes(1) == 1
     assert _normalize_max_bytes(DEFAULT_AUDIO_ARTIFACT_MAX_BYTES) == (
@@ -140,7 +140,7 @@ def test_worker_keeps_private_locator_out_of_sanitized_sink_read() -> None:
     assert "locator" not in read.lower()
 
 
-def test_worker_byte_probe_uses_product_created_googleusercontent_locator() -> None:
+def test_worker_retrieval_uses_product_created_googleusercontent_locator() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -160,7 +160,7 @@ def test_worker_byte_probe_uses_product_created_googleusercontent_locator() -> N
     assert "_cwaGeminiNotebookRetireOwnedAcquisitionTab" not in worker
 
 
-def test_worker_byte_probe_uses_network_resource_stream_without_navigation() -> None:
+def test_worker_retrieval_uses_network_resource_stream_without_navigation() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -187,7 +187,7 @@ def test_worker_byte_probe_uses_network_resource_stream_without_navigation() -> 
     assert "XMLHttpRequest" not in acquire
 
 
-def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() -> None:
+def test_worker_retrieval_chunks_verified_bytes_without_raw_locator_export() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -218,7 +218,7 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
 
     assert 'mediaFamily: "audio"' in audio
     assert 'errorPrefix: "GEMINI_NOTEBOOK_AUDIO_ARTIFACT"' in audio
-    assert "CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE" in audio
+    assert "CWA__GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in audio
     assert "CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS" in audio
     assert "requireCompletedExactRef: false" in audio
     assert "includeMediaFamily: false" in audio
@@ -240,14 +240,14 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     assert boundary < click < load < finally_start < restore_call
 
 
-def test_byte_probe_host_forwards_chunks_on_existing_authority_lane() -> None:
+def test_retrieval_host_forwards_chunks_on_existing_authority_lane() -> None:
     host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
-    assert '"gemini_notebook_audio_artifact_byte_probe",' in host
-    assert '"gemini_notebook_audio_artifact_byte_probe": 120_000' in host
-    assert '"gemini_notebook_audio_artifact_byte_chunk"' in host
+    assert '"gemini_notebook_audio_artifact_retrieval",' in host
+    assert '"gemini_notebook_audio_artifact_retrieval": 120_000' in host
+    assert '"gemini_notebook_audio_artifact_retrieval_chunk"' in host
     assert 'message.get("type") in {"turn_event", "canonical_read_chunk"}' in host
     assert (
-        '"gemini_notebook_audio_artifact_byte_probe",'
+        '"gemini_notebook_audio_artifact_retrieval",'
         in host.split("event_sink=emit_event", 1)[1]
     )
     assert "_claim_authority_lane(operation, lease_id)" in host

@@ -23,7 +23,7 @@ from .gemini_notebook_web import (
 )
 
 
-def _probe_gemini_notebook_artifact_bytes(
+def _retrieve_gemini_notebook_artifact_bytes(
     *,
     notebook: str,
     expected_artifact_ref: str,
@@ -117,11 +117,11 @@ def _probe_gemini_notebook_artifact_bytes(
                 "BROWSER_NATIVE_HOST_SHUTDOWN",
             }:
                 raise GeminiNotebookOutcomeAmbiguousError(
-                    f"{error_prefix}_BYTE_PROBE_FAILED: {error}",
+                    f"{error_prefix}_RETRIEVAL_FAILED: {error}",
                     request_stage=request_stage,
                 )
             raise RequestError(
-                f"{error_prefix}_BYTE_PROBE_FAILED: {error}",
+                f"{error_prefix}_RETRIEVAL_FAILED: {error}",
                 request_stage=request_stage,
             )
 
@@ -194,7 +194,7 @@ def _probe_gemini_notebook_artifact_bytes(
     except (OSError, EOFError, ValueError) as error:
         if request_sent:
             raise GeminiNotebookOutcomeAmbiguousError(
-                f"{error_prefix}_BYTE_PROBE_FAILED: {error}",
+                f"{error_prefix}_RETRIEVAL_FAILED: {error}",
                 request_stage=request_stage,
             ) from error
         raise RequestError(
@@ -214,7 +214,7 @@ def _probe_gemini_notebook_artifact_bytes(
                 staging_deleted = not staging_path.exists()
 
     if result is None:
-        raise AssertionError("unreachable byte-probe result")
+        raise AssertionError("unreachable artifact retrieval result")
     if not staging_deleted:
         raise RequestError(
             f"{error_prefix}_STAGING_RETIRE_UNPROVEN",

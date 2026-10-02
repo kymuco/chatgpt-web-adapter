@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import argparse
-import json
 import uuid
 from typing import Any
 
@@ -13,12 +11,10 @@ from .gemini_notebook_web import (
     GeminiNotebookWebCapability,
 )
 
-GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION = (
-    "gemini_notebook_video_generation_probe"
-)
+_GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION = "gemini_notebook_video_generation"
 
 
-def probe_gemini_notebook_video_generation(
+def _generate_gemini_notebook_video(
     *,
     notebook: str,
     timeout: float = 60.0,
@@ -35,7 +31,7 @@ def probe_gemini_notebook_video_generation(
     )
     notebook_url = GeminiNotebookWebCapability._notebook_url(notebook)
     request = {
-        "type": GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION,
+        "type": _GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION,
         "request_id": uuid.uuid4().hex,
         "productId": GEMINI_NOTEBOOK_WEB_PRODUCT_ID,
         "notebookUrl": notebook_url,
@@ -54,8 +50,8 @@ def probe_gemini_notebook_video_generation(
             "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION:"
         ):
             raise GeminiNotebookOutcomeAmbiguousError(
-                "GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_FAILED: " + str(error),
-                request_stage="gemini_notebook_video_generation_probe",
+                "GEMINI_NOTEBOOK_VIDEO_GENERATION_FAILED: " + str(error),
+                request_stage="gemini_notebook_video_generation",
             ) from error
         raise
 
@@ -68,12 +64,12 @@ def probe_gemini_notebook_video_generation(
             "BROWSER_NATIVE_HOST_SHUTDOWN",
         }:
             raise GeminiNotebookOutcomeAmbiguousError(
-                "GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_FAILED: " + error,
-                request_stage="gemini_notebook_video_generation_probe",
+                "GEMINI_NOTEBOOK_VIDEO_GENERATION_FAILED: " + error,
+                request_stage="gemini_notebook_video_generation",
             )
         raise RequestError(
-            "GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_FAILED: " + error,
-            request_stage="gemini_notebook_video_generation_probe",
+            "GEMINI_NOTEBOOK_VIDEO_GENERATION_FAILED: " + error,
+            request_stage="gemini_notebook_video_generation",
         )
 
     if response.get("productId") != GEMINI_NOTEBOOK_WEB_PRODUCT_ID:
@@ -130,26 +126,3 @@ def probe_gemini_notebook_video_generation(
         "automatic_retry": False,
         "navigation_performed": False,
     }
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Start one default Gemini Notebook Video Overview generation and prove "
-            "stable artifact acceptance."
-        )
-    )
-    parser.add_argument("--notebook", required=True)
-    parser.add_argument("--timeout", type=float, default=60.0)
-    args = parser.parse_args(argv)
-
-    result = probe_gemini_notebook_video_generation(
-        notebook=args.notebook,
-        timeout=args.timeout,
-    )
-    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

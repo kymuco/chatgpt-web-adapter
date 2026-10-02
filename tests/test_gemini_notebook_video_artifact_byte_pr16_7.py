@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter.gemini_notebook_video_artifact_byte_probe import (
+from chatgpt_web_adapter._gemini_notebook_video_artifact_retrieval import (
     DEFAULT_VIDEO_ARTIFACT_MAX_BYTES,
-    GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE,
-    GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION,
+    _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
+    _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_OPERATION,
     _normalize_max_bytes,
     _VideoArtifactByteChunkCollector,
 )
@@ -20,17 +20,17 @@ PACKAGE = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PACKAGE / "browser_native_extension"
 
 
-def test_video_byte_probe_is_temporary_module_only_surface() -> None:
-    assert GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION == (
-        "gemini_notebook_video_artifact_byte_probe"
+def test_video_retrieval_is_temporary_module_only_surface() -> None:
+    assert _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_OPERATION == (
+        "gemini_notebook_video_artifact_retrieval"
     )
-    assert GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE == (
-        "gemini_notebook_video_artifact_byte_chunk"
+    assert _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE == (
+        "gemini_notebook_video_artifact_retrieval_chunk"
     )
-    assert not hasattr(adapter, "probe_gemini_notebook_video_artifact_bytes")
+    assert not hasattr(adapter, "_retrieve_gemini_notebook_video_artifact_bytes")
 
 
-def test_video_byte_probe_max_bytes_is_bounded() -> None:
+def test_video_retrieval_max_bytes_is_bounded() -> None:
     assert DEFAULT_VIDEO_ARTIFACT_MAX_BYTES == 64 * 1024 * 1024
     assert _normalize_max_bytes(1) == 1
     assert _normalize_max_bytes(DEFAULT_VIDEO_ARTIFACT_MAX_BYTES) == (
@@ -99,7 +99,7 @@ def test_worker_network_loader_is_media_family_bound() -> None:
     assert "Page.navigate" not in acquire
 
 
-def test_video_byte_probe_reuses_shared_core_with_video_profile() -> None:
+def test_video_retrieval_reuses_shared_core_with_video_profile() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -132,7 +132,7 @@ def test_video_byte_probe_reuses_shared_core_with_video_profile() -> None:
 
     assert 'mediaFamily: "video"' in video
     assert 'errorPrefix: "GEMINI_NOTEBOOK_VIDEO_ARTIFACT"' in video
-    assert "CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE" in video
+    assert "CWA__GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in video
     assert "CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS" in video
     assert "requireCompletedExactRef: true" in video
     assert "includeMediaFamily: true" in video
@@ -161,11 +161,11 @@ def test_shared_byte_effect_boundary_precedes_download_click_and_retrieval() -> 
 
 def test_video_byte_host_forwards_chunks_on_existing_authority_lane() -> None:
     host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
-    assert '"gemini_notebook_video_artifact_byte_probe",' in host
-    assert '"gemini_notebook_video_artifact_byte_probe": 120_000' in host
-    assert '"gemini_notebook_video_artifact_byte_chunk"' in host
+    assert '"gemini_notebook_video_artifact_retrieval",' in host
+    assert '"gemini_notebook_video_artifact_retrieval": 120_000' in host
+    assert '"gemini_notebook_video_artifact_retrieval_chunk"' in host
     assert (
-        '"gemini_notebook_video_artifact_byte_probe",'
+        '"gemini_notebook_video_artifact_retrieval",'
         in host.split("event_sink=emit_event", 1)[1]
     )
     assert "_claim_authority_lane(operation, lease_id)" in host

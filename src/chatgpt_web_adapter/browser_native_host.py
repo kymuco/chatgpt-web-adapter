@@ -49,8 +49,8 @@ class _BrokerHandler(socketserver.BaseRequestHandler):
                 or operation
                 in {
                     "canonical_read",
-                    "gemini_notebook_audio_artifact_byte_probe",
-                    "gemini_notebook_video_artifact_byte_probe",
+                    "gemini_notebook_audio_artifact_retrieval",
+                    "gemini_notebook_video_artifact_retrieval",
                 }
                 else None,
             )
@@ -385,17 +385,10 @@ class BrowserNativeBroker:
             "gemini_notebook_add_url_source",
             "gemini_notebook_generate_audio_overview",
             "gemini_notebook_observe_audio_overview",
-            "gemini_notebook_audio_artifact_action_probe",
-            "gemini_notebook_audio_artifact_menu_probe",
-            "gemini_notebook_audio_artifact_download_intent_probe",
-            "gemini_notebook_audio_artifact_byte_probe",
-            "gemini_notebook_studio_creation_controls_probe",
-            "gemini_notebook_video_config_probe",
-            "gemini_notebook_video_generation_probe",
-            "gemini_notebook_video_artifact_observe_probe",
-            "gemini_notebook_video_artifact_menu_probe",
-            "gemini_notebook_video_artifact_download_intent_probe",
-            "gemini_notebook_video_artifact_byte_probe",
+            "gemini_notebook_audio_artifact_retrieval",
+            "gemini_notebook_video_generation",
+            "gemini_notebook_video_artifact_observe",
+            "gemini_notebook_video_artifact_retrieval",
             "canonical_read",
             "canonical_read_complete",
             "release_runtime_tab",
@@ -431,17 +424,10 @@ class BrowserNativeBroker:
                 "gemini_notebook_add_url_source": 60_000,
                 "gemini_notebook_generate_audio_overview": 60_000,
                 "gemini_notebook_observe_audio_overview": 60_000,
-                "gemini_notebook_audio_artifact_action_probe": 15_000,
-                "gemini_notebook_audio_artifact_menu_probe": 15_000,
-                "gemini_notebook_audio_artifact_download_intent_probe": 15_000,
-                "gemini_notebook_audio_artifact_byte_probe": 120_000,
-                "gemini_notebook_studio_creation_controls_probe": 15_000,
-                "gemini_notebook_video_config_probe": 15_000,
-                "gemini_notebook_video_generation_probe": 60_000,
-                "gemini_notebook_video_artifact_observe_probe": 60_000,
-                "gemini_notebook_video_artifact_menu_probe": 15_000,
-                "gemini_notebook_video_artifact_download_intent_probe": 15_000,
-                "gemini_notebook_video_artifact_byte_probe": 120_000,
+                "gemini_notebook_audio_artifact_retrieval": 120_000,
+                "gemini_notebook_video_generation": 60_000,
+                "gemini_notebook_video_artifact_observe": 60_000,
+                "gemini_notebook_video_artifact_retrieval": 120_000,
                 "canonical_read": 30_000,
                 "release_runtime_tab": 10_000,
             }[operation]
@@ -474,14 +460,14 @@ class BrowserNativeBroker:
                         continue
                     if (
                         message.get("type")
-                        == "gemini_notebook_audio_artifact_byte_chunk"
+                        == "gemini_notebook_audio_artifact_retrieval_chunk"
                     ):
                         if event_sink is not None:
                             event_sink(message)
                         continue
                     if (
                         message.get("type")
-                        == "gemini_notebook_video_artifact_byte_chunk"
+                        == "gemini_notebook_video_artifact_retrieval_chunk"
                     ):
                         if event_sink is not None:
                             event_sink(message)
