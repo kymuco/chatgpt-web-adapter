@@ -21,7 +21,10 @@ def test_fresh_new_chat_initial_mode_uses_bounded_existing_pr88_acquisition() ->
     source = _source()
     block = _ensure_target_mode_block(source)
 
-    assert "PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = PR88_INSTANT_PROBE_TIMEOUT_MS" in source
+    assert (
+        "PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = PR88_INSTANT_PROBE_TIMEOUT_MS"
+        in source
+    )
     assert "await waitForComposerReady(" in block
     assert "await _pr88InstantWaitForSelectedMode(" in block
     assert "PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS" in block
