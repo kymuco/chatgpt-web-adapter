@@ -118,6 +118,33 @@ async function locateAndFocusComposer() {
 }
 
 async function sendCommand(_debuggee, method, params) {
+  if (method === "Runtime.evaluate") {
+    const expression = String(params?.expression || "");
+    if (expression.includes("globalThis[key] = state")) {
+      log.push("submit_probe_install");
+      return { result: { value: true } };
+    }
+    if (expression.includes("pointerDownSeen: state.pointerDownSeen")) {
+      log.push("submit_probe_read");
+      return {
+        result: {
+          value: {
+            pointerDownSeen: true,
+            mouseDownSeen: true,
+            pointerUpSeen: true,
+            mouseUpSeen: true,
+            clickSeen: true,
+            submitSeen: true,
+            allTrusted: true,
+            clickDefaultPrevented: false,
+            submitDefaultPrevented: false,
+            clickTargetWithinButton: true,
+            submitterIsButton: true
+          }
+        }
+      };
+    }
+  }
   const marker = `${method}:${params?.type || "none"}:${params?.key || "none"}`;
   log.push(marker);
   if (scenario === "move_fail" && params?.type === "mouseMoved") {
@@ -202,6 +229,12 @@ def test_successful_click_uses_one_mouse_commit_and_no_enter(tmp_path: Path) -> 
         "strategy": "send_button_click",
         "selector": "send-selector",
         "tabActivatedForCommit": True,
+        "eventProbeInstalled": True,
+        "eventProbeSummary": (
+            "pd=1,md=1,pu=1,mu=1,click=1,submit=1,trusted=1,"
+            "click_prevented=0,submit_prevented=0,"
+            "click_on_button=1,submitter_button=1"
+        ),
     }
     assert len(_enter_keydowns(result["log"])) == 0
     assert sum("mouseReleased" in item for item in result["log"]) == 1
@@ -229,6 +262,8 @@ def test_already_active_commit_tab_does_not_churn_tab_selection(tmp_path: Path) 
 
     assert result["ok"] is True
     assert result["result"]["tabActivatedForCommit"] is False
+    assert result["result"]["eventProbeInstalled"] is True
+    assert "submit=1" in result["result"]["eventProbeSummary"]
     assert not any(item.startswith("tabs.update:") for item in result["log"])
     assert sum("mouseReleased" in item for item in result["log"]) == 1
 
