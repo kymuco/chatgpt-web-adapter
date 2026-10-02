@@ -132,7 +132,7 @@ def test_video_retrieval_reuses_shared_core_with_video_profile() -> None:
 
     assert 'mediaFamily: "video"' in video
     assert 'errorPrefix: "GEMINI_NOTEBOOK_VIDEO_ARTIFACT"' in video
-    assert "CWA__GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in video
+    assert "CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in video
     assert "CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS" in video
     assert "requireCompletedExactRef: true" in video
     assert "includeMediaFamily: true" in video
