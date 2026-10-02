@@ -30,6 +30,16 @@ function registerNativeTurnDiagnosticHandler(name, matches, handle) {
 async function storedRuntimeTabId() {
   return null;
 }
+
+function isChatGPTUrl(url) {
+  return typeof url === "string" && url.startsWith("https://chatgpt.com/");
+}
+
+globalThis.chrome = {
+  tabs: {
+    query: async () => []
+  }
+};
 """
     epilogue = r"""
 (async () => {
@@ -111,6 +121,7 @@ def test_pr17_1_probe_contains_no_product_write_primitives() -> None:
         ".requestSubmit(",
         ".submit(",
         "chrome.tabs.update",
+        "chrome.tabs.create",
     ):
         assert forbidden not in source
 
@@ -120,6 +131,8 @@ def test_pr17_1_probe_contains_no_product_write_primitives() -> None:
         "focusPerformed: false",
         "clickPerformed: false",
         "submitAttempted: false",
+        "navigationPerformed: false",
+        "tabCreated: false",
         "automaticWriteRetry: false",
         "fallbackTransport: null",
         "rawDomExported: false",
@@ -150,6 +163,10 @@ def test_pr17_1_probe_reports_bounded_submit_geometry_and_identity() -> None:
         "composerCandidates",
         "scopedControls",
         "legacyControls",
+        "diagnosticTabPresent",
+        "diagnosticTabSource",
+        "diagnosticTabSelectionState",
+        "chatgptTabCandidateCount",
     ):
         assert field in source
 
@@ -171,13 +188,33 @@ def test_pr17_1_diagnostic_bypasses_ordinary_turns_and_rejects_write_input() -> 
     assert isinstance(no_tab, dict)
     assert no_tab["diagnosticOnly"] is True
     assert no_tab["runtimeTabPresent"] is False
+    assert no_tab["diagnosticTabPresent"] is False
+    assert no_tab["diagnosticTabSource"] is None
+    assert no_tab["diagnosticTabSelectionState"] == "no_existing_chatgpt_tab"
+    assert no_tab["chatgptTabCandidateCount"] == 0
     assert no_tab["writePerformed"] is False
     assert no_tab["textInsertionPerformed"] is False
     assert no_tab["focusPerformed"] is False
     assert no_tab["clickPerformed"] is False
     assert no_tab["submitAttempted"] is False
+    assert no_tab["navigationPerformed"] is False
+    assert no_tab["tabCreated"] is False
     assert no_tab["automaticWriteRetry"] is False
     assert no_tab["fallbackTransport"] is None
+
+
+def test_pr17_1_existing_tab_fallback_is_read_only_and_fail_closed() -> None:
+    source = _source(PROBE)
+
+    assert "const tabs = await chrome.tabs.query({});" in source
+    assert "'unique_existing_chatgpt_tab'" in source
+    assert "'unique_active_chatgpt_tab'" in source
+    assert "'ambiguous_existing_chatgpt_tabs'" in source
+    assert "'no_existing_chatgpt_tab'" in source
+    assert "chrome.tabs.create" not in source
+    assert "chrome.tabs.update" not in source
+    assert "navigationPerformed: false" in source
+    assert "tabCreated: false" in source
 
 
 def test_pr17_1_live_gate_sends_only_no_write_characterization_flag() -> None:
