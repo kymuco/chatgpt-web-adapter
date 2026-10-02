@@ -218,7 +218,7 @@ def test_worker_retrieval_chunks_verified_bytes_without_raw_locator_export() -> 
 
     assert 'mediaFamily: "audio"' in audio
     assert 'errorPrefix: "GEMINI_NOTEBOOK_AUDIO_ARTIFACT"' in audio
-    assert "CWA__GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in audio
+    assert "CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in audio
     assert "CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS" in audio
     assert "requireCompletedExactRef: false" in audio
     assert "includeMediaFamily: false" in audio
