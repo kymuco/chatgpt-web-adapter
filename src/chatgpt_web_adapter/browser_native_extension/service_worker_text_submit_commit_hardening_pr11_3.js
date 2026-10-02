@@ -319,18 +319,37 @@ function _pr113FormatSubmitEventProbe(probe) {
   ].join(",");
 }
 
-async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
-  const x = Number(point?.x);
-  const y = Number(point?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+async function _pr113SubmitTextWithMouseOnce(
+  debuggee,
+  point,
+  timeoutMs = DEFAULT_SUBMIT_READY_TIMEOUT_MS
+) {
+  const initialX = Number(point?.x);
+  const initialY = Number(point?.y);
+  if (!Number.isFinite(initialX) || !Number.isFinite(initialY)) {
     throw new Error("CHATGPT_SEND_BUTTON_POINT_INVALID");
   }
 
-  // Current ChatGPT may ignore an otherwise valid trusted CDP click while the
-  // browser-owned runtime tab is backgrounded. Make only the selected tab active
-  // in its existing window for the protected commit, then restore the prior
-  // selection as best-effort cleanup. This does not focus another window.
+  // Current ChatGPT may update composer geometry when the browser-owned runtime
+  // tab becomes foreground. Activate first, then re-resolve the product-owned
+  // Send control before the protected mouse commit. The re-resolution is still
+  // pre-commit and therefore cannot authorize or duplicate a product write.
   const commitTab = await _pr113PrepareMouseCommitTab(debuggee);
+  let commitPoint = point;
+  if (commitTab.activated === true) {
+    commitPoint = await _pr113WaitForSubmitPoint(
+      debuggee,
+      Math.min(timeoutMs, DEFAULT_SUBMIT_READY_TIMEOUT_MS)
+    );
+  }
+
+  const x = Number(commitPoint?.x);
+  const y = Number(commitPoint?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    await _pr113RestoreMouseCommitTab(commitTab);
+    throw new Error("CHATGPT_SEND_BUTTON_POINT_INVALID_AFTER_ACTIVATION");
+  }
+
   const eventProbeInstalled = await _pr113InstallSubmitEventProbe(
     debuggee,
     x,
@@ -376,8 +395,9 @@ async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
 
     return {
       strategy: "send_button_click",
-      selector: point?.selector ?? null,
+      selector: commitPoint?.selector ?? null,
       tabActivatedForCommit: commitTab.activated === true,
+      submitPointRefreshedAfterActivation: commitTab.activated === true,
       eventProbeInstalled,
       eventProbeSummary: _pr113FormatSubmitEventProbe(eventProbe)
     };
@@ -409,7 +429,7 @@ async function _pr113SubmitOfficialTextWithoutPostCommitRetry(
   }
 
   try {
-    return await _pr113SubmitTextWithMouseOnce(debuggee, point);
+    return await _pr113SubmitTextWithMouseOnce(debuggee, point, timeoutMs);
   } catch (error) {
     if (_pr113IsMouseReleaseOutcomeUnconfirmed(error)) {
       throw error;
