@@ -25,7 +25,7 @@ def test_audio_and_video_byte_wrappers_delegate_to_one_internal_core() -> None:
         "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
         1,
     )[1].split(
-        "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
+        "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
         1,
     )[0]
     video = worker.split(
@@ -80,7 +80,7 @@ def test_media_family_and_historical_completion_contracts_remain_distinct() -> N
         "async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)",
         1,
     )[1].split(
-        "async function _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)",
+        "async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)",
         1,
     )[0]
     video = worker.split(
