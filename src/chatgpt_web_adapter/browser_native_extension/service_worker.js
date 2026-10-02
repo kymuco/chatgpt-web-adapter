@@ -630,6 +630,7 @@ async function _cwaBaseExecuteOfficialPageTurn({
       new Promise((_, reject) => setTimeout(
         () => reject(new Error(
           `CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}` +
+          `:owner=base` +
           `:selector=${submit.selector || "none"}` +
           `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}`
         )),
