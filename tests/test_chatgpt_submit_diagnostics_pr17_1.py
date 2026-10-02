@@ -5,6 +5,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 BASE = EXT / "service_worker.js"
+RECOVERY = EXT / "service_worker_recovery.js"
+SCHEMA16 = EXT / "service_worker_rich_input_schema16_repair_pr9_2.js"
 SCHEMA17 = EXT / "service_worker_rich_input_schema17_repair_pr9_2.js"
 HARDENING = EXT / "service_worker_text_submit_commit_hardening_pr11_3.js"
 UI_COMPAT = EXT / "service_worker_ui_compat_pr11_7.js"
@@ -14,11 +16,18 @@ def _source(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_pr17_1_submit_timeout_reports_selector_and_initial_tab_activity() -> None:
-    for path in (BASE, SCHEMA17):
+def test_pr17_1_submit_timeout_reports_exact_owner_selector_and_tab_activity() -> None:
+    owners = (
+        (BASE, "base"),
+        (RECOVERY, "recovery"),
+        (SCHEMA16, "schema16"),
+        (SCHEMA17, "schema17"),
+    )
+    for path, owner in owners:
         source = _source(path)
 
         assert "CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}" in source
+        assert f":owner={owner}" in source
         assert ':selector=${submit.selector || "none"}' in source
         assert (
             ':tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}'
