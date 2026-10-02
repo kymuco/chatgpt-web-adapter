@@ -231,12 +231,25 @@ def test_pr17_1_existing_tab_fallback_is_read_only_and_fail_closed() -> None:
     assert "const tabs = await chrome.tabs.query({});" in source
     assert "'unique_existing_chatgpt_tab'" in source
     assert "'unique_active_chatgpt_tab'" in source
+    assert "'last_focused_window_active_chatgpt_tab'" in source
+    assert "chrome.windows.getLastFocused()" in source
     assert "'ambiguous_existing_chatgpt_tabs'" in source
     assert "'no_existing_chatgpt_tab'" in source
     assert "chrome.tabs.create" not in source
     assert "chrome.tabs.update" not in source
     assert "navigationPerformed: false" in source
     assert "tabCreated: false" in source
+
+
+def test_pr17_1_last_focused_window_tiebreak_is_read_only() -> None:
+    source = _source(PROBE)
+
+    assert "chrome.windows.getLastFocused()" in source
+    assert "tab?.windowId === lastFocusedWindowId" in source
+    assert "'last_focused_window_active_chatgpt_tab'" in source
+    assert "chrome.windows.update" not in source
+    assert "chrome.tabs.update" not in source
+    assert "chrome.tabs.create" not in source
 
 
 def test_pr17_1_live_gate_sends_only_no_write_characterization_flag() -> None:
