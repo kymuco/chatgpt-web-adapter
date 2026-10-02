@@ -71,7 +71,9 @@ const log = [];
 let _pr92ActiveRichInputContext = null;
 let _pr813TemporaryTurnContext = null;
 const DEFAULT_SUBMIT_READY_TIMEOUT_MS = 10000;
-async function sleep(_ms) {}
+function sleep(_ms) {
+  return new Promise(() => {});
+}
 const tabState = new Map([
   [66, { id: 66, active: scenario !== "already_active", windowId: 1 }],
   [77, { id: 77, active: scenario === "already_active", windowId: 1 }]
