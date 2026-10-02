@@ -8,9 +8,9 @@ import pytest
 
 import chatgpt_web_adapter as adapter
 from chatgpt_web_adapter._gemini_notebook_video_artifact_retrieval import (
-    DEFAULT_VIDEO_ARTIFACT_MAX_BYTES,
     _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
     _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_OPERATION,
+    DEFAULT_VIDEO_ARTIFACT_MAX_BYTES,
     _normalize_max_bytes,
     _VideoArtifactByteChunkCollector,
 )
