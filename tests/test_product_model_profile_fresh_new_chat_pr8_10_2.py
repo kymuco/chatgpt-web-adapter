@@ -21,9 +21,11 @@ def test_fresh_new_chat_initial_mode_uses_bounded_existing_pr88_acquisition() ->
     source = _source()
     block = _ensure_target_mode_block(source)
 
-    assert "const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = 8000;" in source
+    assert "PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = PR88_INSTANT_PROBE_TIMEOUT_MS" in source
+    assert "await waitForComposerReady(" in block
     assert "await _pr88InstantWaitForSelectedMode(" in block
     assert "PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS" in block
+    assert "initialModeRemainingMs" in block
 
     # The PR8.10 initial-state decision must no longer be a one-shot snapshot.
     acquisition_prefix = block[: block.index("if (before.selectedMode === targetMode)")]
@@ -34,13 +36,14 @@ def test_initial_mode_acquisition_remains_strict_and_prewrite() -> None:
     source = _source()
     block = _ensure_target_mode_block(source)
 
+    composer_wait_index = block.index("await waitForComposerReady(")
     wait_index = block.index("await _pr88InstantWaitForSelectedMode(")
     not_proven_index = block.index("throw new Error(_pr810InitialModeFailure(before));")
     unsupported_index = block.index("PR8_10_MODEL_PROFILE_INITIAL_MODE_UNSUPPORTED")
     write_boundary_index = block.index("_pr810InstallWriteBoundary(debuggee, context);")
 
-    assert wait_index < not_proven_index < write_boundary_index
-    assert wait_index < unsupported_index < write_boundary_index
+    assert composer_wait_index < wait_index < not_proven_index < write_boundary_index
+    assert composer_wait_index < wait_index < unsupported_index < write_boundary_index
     assert "if (_pr810Mode(before.selectedMode) === null)" in block
 
 
@@ -69,6 +72,7 @@ def test_success_record_exposes_initial_mode_acquisition_evidence() -> None:
         in source
     )
     assert "initialModeAcquisitionElapsedMs:" in source
+    assert "initialModeComposerReadyElapsedMs:" in source
     assert "initialModeComposerReady:" in source
     assert "selectedModeBeforeProofKind:" in source
     assert "selectedModeBeforeCandidateCount:" in source
