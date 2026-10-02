@@ -289,6 +289,27 @@ async function _pr171ResolveDiagnosticTab() {
     };
   }
 
+  if (activeChatgptTabs.length > 1 && chrome.windows?.getLastFocused) {
+    try {
+      const lastFocusedWindow = await chrome.windows.getLastFocused();
+      const lastFocusedWindowId = lastFocusedWindow?.id;
+      const lastFocusedCandidates = activeChatgptTabs.filter(
+        (tab) => tab?.windowId === lastFocusedWindowId
+      );
+      if (lastFocusedCandidates.length === 1) {
+        return {
+          tab: lastFocusedCandidates[0],
+          runtimeTabPresent: false,
+          diagnosticTabSource: 'last_focused_window_active_chatgpt_tab',
+          chatgptTabCandidateCount: chatgptTabs.length,
+          selectionState: 'selected'
+        };
+      }
+    } catch {
+      // Last-focused-window lookup is diagnostic-only; ambiguity remains fail-closed.
+    }
+  }
+
   return {
     tab: null,
     runtimeTabPresent: false,
