@@ -11,9 +11,7 @@ from .gemini_notebook_web import (
     GeminiNotebookWebCapability,
 )
 
-_GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION = (
-    "gemini_notebook_video_generation"
-)
+_GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION = "gemini_notebook_video_generation"
 
 
 def _generate_gemini_notebook_video(
