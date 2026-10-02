@@ -154,6 +154,171 @@ async function _pr113RestoreMouseCommitTab(state) {
   }
 }
 
+
+function _pr113SubmitEventProbeInstallExpression(x, y) {
+  return `(() => {
+    const key = "__cwaPr171SubmitEventProbeV1";
+    try {
+      const previous = globalThis[key];
+      if (previous?.listeners && Array.isArray(previous.listeners)) {
+        for (const item of previous.listeners) {
+          try {
+            window.removeEventListener(item.type, item.listener, item.capture);
+          } catch {}
+        }
+      }
+
+      const hit = document.elementFromPoint(${JSON.stringify(x)}, ${JSON.stringify(y)});
+      const button = hit?.closest?.("button") || null;
+      const form = button?.closest?.("form") || null;
+      const state = {
+        button,
+        form,
+        listeners: [],
+        pointerDownSeen: false,
+        mouseDownSeen: false,
+        pointerUpSeen: false,
+        mouseUpSeen: false,
+        clickSeen: false,
+        submitSeen: false,
+        allTrusted: true,
+        clickDefaultPrevented: null,
+        submitDefaultPrevented: null,
+        clickTargetWithinButton: null,
+        submitterIsButton: null
+      };
+
+      const observe = (type, capture) => {
+        const listener = (event) => {
+          if (event?.isTrusted !== true) state.allTrusted = false;
+          if (type === "pointerdown") state.pointerDownSeen = true;
+          if (type === "mousedown") state.mouseDownSeen = true;
+          if (type === "pointerup") state.pointerUpSeen = true;
+          if (type === "mouseup") state.mouseUpSeen = true;
+          if (type === "click") {
+            state.clickSeen = true;
+            if (!capture) {
+              state.clickDefaultPrevented = event.defaultPrevented === true;
+              state.clickTargetWithinButton = Boolean(
+                state.button &&
+                event.target instanceof Node &&
+                state.button.contains(event.target)
+              );
+            }
+          }
+          if (type === "submit") {
+            state.submitSeen = true;
+            if (!capture) {
+              state.submitDefaultPrevented = event.defaultPrevented === true;
+              state.submitterIsButton = event.submitter === state.button;
+            }
+          }
+        };
+        window.addEventListener(type, listener, { capture, passive: true });
+        state.listeners.push({ type, listener, capture });
+      };
+
+      for (const type of [
+        "pointerdown",
+        "mousedown",
+        "pointerup",
+        "mouseup",
+        "click",
+        "submit"
+      ]) {
+        observe(type, true);
+        observe(type, false);
+      }
+
+      globalThis[key] = state;
+      return Boolean(button && form);
+    } catch {
+      return false;
+    }
+  })()`;
+}
+
+function _pr113SubmitEventProbeReadExpression() {
+  return `(() => {
+    const key = "__cwaPr171SubmitEventProbeV1";
+    const state = globalThis[key];
+    if (!state) return null;
+    try {
+      for (const item of state.listeners || []) {
+        try {
+          window.removeEventListener(item.type, item.listener, item.capture);
+        } catch {}
+      }
+      return {
+        pointerDownSeen: state.pointerDownSeen === true,
+        mouseDownSeen: state.mouseDownSeen === true,
+        pointerUpSeen: state.pointerUpSeen === true,
+        mouseUpSeen: state.mouseUpSeen === true,
+        clickSeen: state.clickSeen === true,
+        submitSeen: state.submitSeen === true,
+        allTrusted: state.allTrusted === true,
+        clickDefaultPrevented: state.clickDefaultPrevented,
+        submitDefaultPrevented: state.submitDefaultPrevented,
+        clickTargetWithinButton: state.clickTargetWithinButton,
+        submitterIsButton: state.submitterIsButton
+      };
+    } finally {
+      try { delete globalThis[key]; } catch {}
+    }
+  })()`;
+}
+
+async function _pr113InstallSubmitEventProbe(debuggee, x, y) {
+  try {
+    const result = await sendCommand(debuggee, "Runtime.evaluate", {
+      expression: _pr113SubmitEventProbeInstallExpression(x, y),
+      returnByValue: true,
+      awaitPromise: true
+    });
+    return result?.result?.value === true;
+  } catch {
+    return false;
+  }
+}
+
+async function _pr113ReadSubmitEventProbe(debuggee) {
+  const attempt = Promise.resolve(
+    sendCommand(debuggee, "Runtime.evaluate", {
+      expression: _pr113SubmitEventProbeReadExpression(),
+      returnByValue: true,
+      awaitPromise: true
+    })
+  ).then((result) => result?.result?.value || null).catch(() => null);
+
+  try {
+    return await Promise.race([
+      attempt,
+      sleep(250).then(() => null)
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+function _pr113FormatSubmitEventProbe(probe) {
+  if (!probe || typeof probe !== "object") return "unavailable";
+  const bit = (value) => value === true ? "1" : "0";
+  const tri = (value) => value === true ? "1" : (value === false ? "0" : "n");
+  return [
+    `pd=${bit(probe.pointerDownSeen)}`,
+    `md=${bit(probe.mouseDownSeen)}`,
+    `pu=${bit(probe.pointerUpSeen)}`,
+    `mu=${bit(probe.mouseUpSeen)}`,
+    `click=${bit(probe.clickSeen)}`,
+    `submit=${bit(probe.submitSeen)}`,
+    `trusted=${bit(probe.allTrusted)}`,
+    `click_prevented=${tri(probe.clickDefaultPrevented)}`,
+    `submit_prevented=${tri(probe.submitDefaultPrevented)}`,
+    `click_on_button=${tri(probe.clickTargetWithinButton)}`,
+    `submitter_button=${tri(probe.submitterIsButton)}`
+  ].join(",");
+}
+
 async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
   const x = Number(point?.x);
   const y = Number(point?.y);
@@ -166,6 +331,11 @@ async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
   // in its existing window for the protected commit, then restore the prior
   // selection as best-effort cleanup. This does not focus another window.
   const commitTab = await _pr113PrepareMouseCommitTab(debuggee);
+  const eventProbeInstalled = await _pr113InstallSubmitEventProbe(
+    debuggee,
+    x,
+    y
+  );
   try {
     // move/press are pre-commit for the established CWA click contract. If either
     // fails, Enter remains a single safe fallback because mouseReleased has not
@@ -198,10 +368,16 @@ async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
       throw new Error(PR113_MOUSE_RELEASE_UNCONFIRMED);
     }
 
+    const eventProbe = eventProbeInstalled
+      ? await _pr113ReadSubmitEventProbe(debuggee)
+      : null;
+
     return {
       strategy: "send_button_click",
       selector: point?.selector ?? null,
-      tabActivatedForCommit: commitTab.activated === true
+      tabActivatedForCommit: commitTab.activated === true,
+      eventProbeInstalled,
+      eventProbeSummary: _pr113FormatSubmitEventProbe(eventProbe)
     };
   } finally {
     await _pr113RestoreMouseCommitTab(commitTab);
