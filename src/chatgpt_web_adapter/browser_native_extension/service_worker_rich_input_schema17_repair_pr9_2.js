@@ -239,6 +239,7 @@ async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, 
       new Promise((_, reject) => setTimeout(
         () => reject(new Error(
           `CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}` +
+          `:owner=schema17` +
           `:selector=${submit.selector || "none"}` +
           `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}`
         )),
