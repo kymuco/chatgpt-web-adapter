@@ -336,6 +336,7 @@ async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
     x,
     y
   );
+  let eventProbeConsumed = false;
   try {
     // move/press are pre-commit for the established CWA click contract. If either
     // fails, Enter remains a single safe fallback because mouseReleased has not
@@ -371,6 +372,7 @@ async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
     const eventProbe = eventProbeInstalled
       ? await _pr113ReadSubmitEventProbe(debuggee)
       : null;
+    eventProbeConsumed = eventProbeInstalled === true;
 
     return {
       strategy: "send_button_click",
@@ -380,6 +382,9 @@ async function _pr113SubmitTextWithMouseOnce(debuggee, point) {
       eventProbeSummary: _pr113FormatSubmitEventProbe(eventProbe)
     };
   } finally {
+    if (eventProbeInstalled === true && eventProbeConsumed !== true) {
+      await _pr113ReadSubmitEventProbe(debuggee);
+    }
     await _pr113RestoreMouseCommitTab(commitTab);
   }
 }
