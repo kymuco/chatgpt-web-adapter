@@ -257,7 +257,7 @@ def _retrieve_gemini_notebook_audio_artifact_bytes(
                 request_stage="gemini_notebook_audio_artifact_retrieval",
             )
 
-        if response.get("type") != "gemini_notebook_audio_artifact_byte_probe_result":
+        if response.get("type") != "gemini_notebook_audio_artifact_retrieval_result":
             raise RequestError(
                 "GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_RESULT_TYPE_INVALID",
                 request_stage="gemini_notebook_audio_artifact_retrieval",
