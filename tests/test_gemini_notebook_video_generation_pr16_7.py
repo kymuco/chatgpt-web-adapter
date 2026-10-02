@@ -6,9 +6,9 @@ import pytest
 
 import chatgpt_web_adapter as adapter
 from chatgpt_web_adapter.exceptions import RequestError
-from chatgpt_web_adapter.gemini_notebook_video_generation_probe import (
-    GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION,
-    probe_gemini_notebook_video_generation,
+from chatgpt_web_adapter._gemini_notebook_video_generation import (
+    _GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION,
+    _generate_gemini_notebook_video,
 )
 from chatgpt_web_adapter.gemini_notebook_web import (
     GeminiNotebookOutcomeAmbiguousError,
@@ -44,15 +44,15 @@ class _FakeBridge:
         }
 
 
-def test_video_generation_probe_is_temporary_module_only_surface() -> None:
-    assert GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION == (
-        "gemini_notebook_video_generation_probe"
+def test_video_generation_stays_private() -> None:
+    assert _GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION == (
+        "gemini_notebook_video_generation"
     )
-    assert not hasattr(adapter, "probe_gemini_notebook_video_generation")
+    assert not hasattr(adapter, "_generate_gemini_notebook_video")
 
 
-def test_video_generation_probe_requires_exact_one_artifact_delta() -> None:
-    result = probe_gemini_notebook_video_generation(
+def test_video_generation_requires_exact_one_artifact_delta() -> None:
+    result = _generate_gemini_notebook_video(
         notebook=NOTEBOOK,
         bridge=_FakeBridge(),
     )
@@ -75,7 +75,7 @@ def test_video_generation_response_loss_is_ambiguous() -> None:
             )
 
     with pytest.raises(GeminiNotebookOutcomeAmbiguousError) as captured:
-        probe_gemini_notebook_video_generation(
+        _generate_gemini_notebook_video(
             notebook=NOTEBOOK,
             bridge=_LostBridge(),
         )
@@ -144,8 +144,8 @@ def test_video_generation_acceptance_is_exact_new_ref_delta() -> None:
     assert "CWA_GEMINI_NOTEBOOK_AUDIO_OBSERVATION_STABLE_MS" in wait
 
 
-def test_video_generation_probe_uses_existing_authority_lane() -> None:
+def test_video_generation_uses_existing_authority_lane() -> None:
     host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
-    assert '"gemini_notebook_video_generation_probe",' in host
-    assert '"gemini_notebook_video_generation_probe": 60_000' in host
+    assert '"gemini_notebook_video_generation",' in host
+    assert '"gemini_notebook_video_generation": 60_000' in host
     assert "_claim_authority_lane(operation, lease_id)" in host
