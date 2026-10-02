@@ -89,12 +89,24 @@ function _pr88SelectionPointExpression(kind) {
     ];
 
     if (${JSON.stringify(kind)} === 'picker') {
-      const composer = [
+      const historicalComposer = [
         '#prompt-textarea',
         '[contenteditable="true"][data-lexical-editor="true"]',
         'textarea[placeholder]'
-      ].map((selector) => document.querySelector(selector)).find(Boolean);
-      if (!composer || !visible(composer)) {
+      ].map((selector) => document.querySelector(selector))
+        .find((element) => element && visible(element));
+      const semanticCandidates = historicalComposer ? [] : Array.from(
+        document.querySelectorAll(
+          '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+        )
+      ).filter((candidate) =>
+        visible(candidate) &&
+        candidate.closest('main') &&
+        candidate.closest('form')
+      );
+      const composer = historicalComposer ||
+        (semanticCandidates.length === 1 ? semanticCandidates[0] : null);
+      if (!composer) {
         return { found: false, reason: 'composer_missing', candidateCount: 0 };
       }
       const composerRect = composer.getBoundingClientRect();
