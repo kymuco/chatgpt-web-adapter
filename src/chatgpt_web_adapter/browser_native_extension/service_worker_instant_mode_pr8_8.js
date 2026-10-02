@@ -308,8 +308,20 @@ function _pr88InstantModeSnapshotExpression() {
       '[contenteditable="true"][data-lexical-editor="true"]',
       'textarea[placeholder]'
     ];
-    const composer = selectors.map((selector) => document.querySelector(selector)).find(Boolean);
-    if (!composer || !visible(composer)) {
+    let composer = selectors
+      .map((selector) => document.querySelector(selector))
+      .find((element) => element && visible(element));
+    if (!composer) {
+      const semanticCandidates = Array.from(document.querySelectorAll(
+        '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+      )).filter((candidate) =>
+        visible(candidate) &&
+        candidate.closest('main') &&
+        candidate.closest('form')
+      );
+      composer = semanticCandidates.length === 1 ? semanticCandidates[0] : null;
+    }
+    if (!composer) {
       return { composerReady: false, selectedMode: null, selectedModeProven: false, candidateCount: 0, proofKind: 'composer_missing' };
     }
     const composerRect = composer.getBoundingClientRect();
