@@ -18,7 +18,9 @@ def test_pr17_1_submit_timeout_reports_selector_and_initial_tab_activity() -> No
 
     assert "CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}" in source
     assert ':selector=${submit.selector || "none"}' in source
-    assert ':tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}' in source
+    assert (
+        ':tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}' in source
+    )
 
 
 def test_pr17_1_submit_diagnostics_do_not_add_post_commit_retry() -> None:
