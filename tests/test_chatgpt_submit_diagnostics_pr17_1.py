@@ -37,6 +37,11 @@ def test_pr17_1_submit_timeout_reports_exact_owner_selector_and_tab_activity() -
             ':commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}'
             in source
         )
+        assert (
+            ':event_probe=${submit.eventProbeInstalled === true ? "true" : "false"}'
+            in source
+        )
+        assert ':events=${submit.eventProbeSummary || "unavailable"}' in source
 
 
 def test_pr17_1_foreground_repair_changes_tab_selection_not_window_focus() -> None:
@@ -48,6 +53,23 @@ def test_pr17_1_foreground_repair_changes_tab_selection_not_window_focus() -> No
     )
     assert "chrome.windows.update" not in hardening
     assert "focused: true" not in hardening
+
+
+def test_pr17_1_submit_event_probe_is_bounded_and_text_free() -> None:
+    hardening = _source(HARDENING)
+
+    assert "__cwaPr171SubmitEventProbeV1" in hardening
+    assert '"pointerdown"' in hardening
+    assert '"mousedown"' in hardening
+    assert '"pointerup"' in hardening
+    assert '"mouseup"' in hardening
+    assert '"click"' in hardening
+    assert '"submit"' in hardening
+    assert "isTrusted" in hardening
+    assert "defaultPrevented" in hardening
+    assert "submitterIsButton" in hardening
+    assert "innerText" not in hardening
+    assert "textContent" not in hardening
 
 
 def test_pr17_1_submit_diagnostics_do_not_add_post_commit_retry() -> None:
