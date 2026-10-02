@@ -71,9 +71,6 @@ const log = [];
 let _pr92ActiveRichInputContext = null;
 let _pr813TemporaryTurnContext = null;
 const DEFAULT_SUBMIT_READY_TIMEOUT_MS = 10000;
-function sleep(_ms) {
-  return new Promise(() => {});
-}
 const tabState = new Map([
   [66, { id: 66, active: scenario !== "already_active", windowId: 1 }],
   [77, { id: 77, active: scenario === "already_active", windowId: 1 }]
@@ -126,43 +123,11 @@ async function locateAndFocusComposer() {
 }
 
 async function sendCommand(_debuggee, method, params) {
-  if (method === "Runtime.evaluate") {
-    const expression = String(params?.expression || "");
-    if (expression.includes("globalThis[key] = state")) {
-      log.push("submit_probe_install");
-      return {
-        result: {
-          value: {
-            installed: true,
-            reason: "installed",
-            hitTag: "path"
-          }
-        }
-      };
-    }
-    if (expression.includes("pointerDownSeen: state.pointerDownSeen")) {
-      log.push("submit_probe_read");
-      return {
-        result: {
-          value: {
-            pointerDownSeen: true,
-            mouseDownSeen: true,
-            pointerUpSeen: true,
-            mouseUpSeen: true,
-            clickSeen: true,
-            submitSeen: true,
-            allTrusted: true,
-            clickDefaultPrevented: false,
-            submitDefaultPrevented: false,
-            clickTargetWithinButton: true,
-            submitterIsButton: true
-          }
-        }
-      };
-    }
-  }
   const marker = `${method}:${params?.type || "none"}:${params?.key || "none"}`;
   log.push(marker);
+  if (method === "Input.dispatchMouseEvent") {
+    log.push(`mouse_point:${params?.x}:${params?.y}`);
+  }
   if (scenario === "move_fail" && params?.type === "mouseMoved") {
     throw new Error("move-failed");
   }
@@ -244,56 +209,12 @@ def test_successful_click_uses_one_mouse_commit_and_no_enter(tmp_path: Path) -> 
     assert result["result"] == {
         "strategy": "send_button_click",
         "selector": "send-selector",
-        "tabActivatedForCommit": True,
-        "submitPointRefreshedAfterActivation": True,
-        "submitPointDeltaPx": 5,
-        "eventProbeInstalled": True,
-        "eventProbeInstallReason": "installed",
-        "eventProbeHitTag": "path",
-        "eventProbeErrorName": None,
-        "eventProbeSummary": (
-            "pd=1,md=1,pu=1,mu=1,click=1,submit=1,trusted=1,"
-            "click_prevented=0,submit_prevented=0,"
-            "click_on_button=1,submitter_button=1"
-        ),
     }
     assert len(_enter_keydowns(result["log"])) == 0
     assert sum("mouseReleased" in item for item in result["log"]) == 1
 
 
-def test_background_tab_activation_wraps_exactly_one_mouse_commit(
-    tmp_path: Path,
-) -> None:
-    result = _run_node_scenario(tmp_path, "success")
-
-    assert result["ok"] is True
-    log = result["log"]
-    activate = log.index("tabs.update:77:active=true")
-    moved = next(i for i, item in enumerate(log) if "mouseMoved" in item)
-    pressed = next(i for i, item in enumerate(log) if "mousePressed" in item)
-    released = next(i for i, item in enumerate(log) if "mouseReleased" in item)
-    restore = log.index("tabs.update:66:active=true")
-
-    assert activate < moved < pressed < released < restore
-    assert result["result"]["tabActivatedForCommit"] is True
-    assert result["result"]["submitPointRefreshedAfterActivation"] is True
-    assert result["result"]["submitPointDeltaPx"] == 5
-
-
-def test_already_active_commit_tab_does_not_churn_tab_selection(tmp_path: Path) -> None:
-    result = _run_node_scenario(tmp_path, "already_active")
-
-    assert result["ok"] is True
-    assert result["result"]["tabActivatedForCommit"] is False
-    assert result["result"]["submitPointRefreshedAfterActivation"] is False
-    assert result["result"]["submitPointDeltaPx"] == 0
-    assert result["result"]["eventProbeInstalled"] is True
-    assert "submit=1" in result["result"]["eventProbeSummary"]
-    assert not any(item.startswith("tabs.update:") for item in result["log"])
-    assert sum("mouseReleased" in item for item in result["log"]) == 1
-
-
-def test_foreground_activation_re_resolves_send_point_before_mouse_commit(
+def test_background_tab_activation_refreshes_send_before_single_commit(
     tmp_path: Path,
 ) -> None:
     result = _run_node_scenario(tmp_path, "success")
@@ -303,10 +224,24 @@ def test_foreground_activation_re_resolves_send_point_before_mouse_commit(
     activate = log.index("tabs.update:77:active=true")
     waits = [i for i, item in enumerate(log) if item == "wait_button"]
     moved = next(i for i, item in enumerate(log) if "mouseMoved" in item)
+    released = next(i for i, item in enumerate(log) if "mouseReleased" in item)
+    restore = log.index("tabs.update:66:active=true")
 
     assert len(waits) == 2
-    assert activate < waits[1] < moved
-    assert result["result"]["submitPointDeltaPx"] == 5
+    assert activate < waits[1] < moved < released < restore
+    assert "mouse_point:13:24" in log
+    assert sum("mouseReleased" in item for item in log) == 1
+    assert len(_enter_keydowns(log)) == 0
+
+
+def test_already_active_commit_tab_does_not_churn_or_refresh(tmp_path: Path) -> None:
+    result = _run_node_scenario(tmp_path, "already_active")
+
+    assert result["ok"] is True
+    assert not any(item.startswith("tabs.update:") for item in result["log"])
+    assert result["log"].count("wait_button") == 1
+    assert "mouse_point:10:20" in result["log"]
+    assert sum("mouseReleased" in item for item in result["log"]) == 1
 
 
 def test_enter_keyup_failure_is_post_commit_cleanup_only(tmp_path: Path) -> None:
