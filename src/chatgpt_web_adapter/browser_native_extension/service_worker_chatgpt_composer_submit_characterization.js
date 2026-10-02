@@ -57,7 +57,10 @@ function _pr171ComposerSubmitSurfaceExpression() {
         type: bounded(element.getAttribute('type')),
         id: bounded(element.id),
         contentEditable: bounded(element.getAttribute('contenteditable')),
-        dataLexicalEditor: bounded(element.getAttribute('data-lexical-editor'))
+        ariaMultiline: bounded(element.getAttribute('aria-multiline')),
+        dataLexicalEditor: bounded(element.getAttribute('data-lexical-editor')),
+        nearestMainPresent: Boolean(element.closest?.('main')),
+        nearestFormPresent: Boolean(element.closest?.('form'))
       };
     };
 
@@ -173,8 +176,7 @@ function _pr171ComposerSubmitSurfaceExpression() {
         ...identity(element),
         source,
         rect: rectOf(element),
-        activeElement: document.activeElement === element,
-        nearestFormPresent: Boolean(element.closest?.('form'))
+        activeElement: document.activeElement === element
       })),
       selectedComposer: selectedComposer ? {
         ...identity(selectedComposer),
