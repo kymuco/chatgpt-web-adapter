@@ -230,7 +230,9 @@ async function _executeOfficialPageTurnWithEarlyTerminalBoundary({
           `:owner=recovery` +
           `:selector=${submit.selector || "none"}` +
           `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}` +
-          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}`
+          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}` +
+          `:event_probe=${submit.eventProbeInstalled === true ? "true" : "false"}` +
+          `:events=${submit.eventProbeSummary || "unavailable"}`
         )),
         Math.min(remainingMs(startedAt, timeoutMs), DEFAULT_SUBMIT_ACK_TIMEOUT_MS)
       ))
