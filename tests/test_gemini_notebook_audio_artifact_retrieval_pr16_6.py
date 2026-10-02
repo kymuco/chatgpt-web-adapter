@@ -10,9 +10,9 @@ import pytest
 
 import chatgpt_web_adapter as adapter
 from chatgpt_web_adapter._gemini_notebook_audio_artifact_retrieval import (
-    DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
     _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
     _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION,
+    DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
     _AudioArtifactByteChunkCollector,
     _normalize_max_bytes,
 )
