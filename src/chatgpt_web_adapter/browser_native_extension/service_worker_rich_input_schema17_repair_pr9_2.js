@@ -241,7 +241,8 @@ async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, 
           `CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}` +
           `:owner=schema17` +
           `:selector=${submit.selector || "none"}` +
-          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}`
+          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}` +
+          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}`
         )),
         submitAckBudget
       ))
