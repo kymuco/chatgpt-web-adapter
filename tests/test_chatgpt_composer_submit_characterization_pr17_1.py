@@ -211,7 +211,9 @@ def test_pr17_1_diagnostic_bypasses_ordinary_turns_and_rejects_write_input() -> 
     assert no_tab["fallbackTransport"] is None
 
 
-def test_pr17_1_nonempty_state_is_reduced_to_boolean_and_bounded_nearby_controls() -> None:
+def test_pr17_1_nonempty_state_is_reduced_to_boolean_and_bounded_nearby_controls() -> (
+    None
+):
     source = _source(PROBE)
 
     assert "composerHasText" in source
