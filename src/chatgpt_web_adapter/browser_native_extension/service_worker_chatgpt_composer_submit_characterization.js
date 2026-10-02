@@ -146,6 +146,18 @@ function _pr171ComposerSubmitSurfaceExpression() {
       };
     };
 
+    const composerHasText = (() => {
+      if (!(selectedComposer instanceof Element)) return false;
+      const walker = document.createTreeWalker(
+        selectedComposer,
+        NodeFilter.SHOW_TEXT
+      );
+      while (walker.nextNode()) {
+        if (String(walker.currentNode?.nodeValue || '').trim()) return true;
+      }
+      return false;
+    })();
+
     const controlsRoot = scope || document;
     const scopedControls = Array.from(
       controlsRoot.querySelectorAll('button, [role="button"], input[type="submit"]')
@@ -153,6 +165,36 @@ function _pr171ComposerSubmitSurfaceExpression() {
       .filter(visible)
       .slice(-48)
       .map(controlSnapshot);
+
+    const nearbyControls = (() => {
+      if (!(selectedComposer instanceof Element)) return [];
+      const composerRect = selectedComposer.getBoundingClientRect();
+      const root = selectedComposer.closest('main') || document;
+      return Array.from(
+        root.querySelectorAll('button, [role="button"], input[type="submit"]')
+      )
+        .filter(visible)
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          const dx = Math.max(
+            0,
+            Math.max(composerRect.left - rect.right, rect.left - composerRect.right)
+          );
+          const dy = Math.max(
+            0,
+            Math.max(composerRect.top - rect.bottom, rect.top - composerRect.bottom)
+          );
+          const distancePx = Math.round(Math.sqrt(dx * dx + dy * dy));
+          return { element, distancePx };
+        })
+        .filter((item) => item.distancePx <= 320)
+        .sort((left, right) => left.distancePx - right.distancePx)
+        .slice(0, 64)
+        .map((item) => ({
+          ...controlSnapshot(item.element),
+          distancePx: item.distancePx
+        }));
+    })();
 
     const legacyControls = [];
     const seenLegacyControls = new Set();
@@ -190,11 +232,14 @@ function _pr171ComposerSubmitSurfaceExpression() {
         ...identity(scope),
         rect: rectOf(scope)
       } : null,
+      composerHasText,
       scopedControls,
+      nearbyControls,
       legacyControls,
       oldResolverSelected,
       composerCandidateCount: composerElements.length,
       scopedControlCount: scopedControls.length,
+      nearbyControlCount: nearbyControls.length,
       legacyControlCount: legacyControls.length
     };
   })()`;
@@ -267,11 +312,14 @@ async function _pr171CharacterizeComposerSubmitSurface() {
       chatgptTabCandidateCount: selection.chatgptTabCandidateCount,
       composerCandidateCount: 0,
       scopedControlCount: 0,
+      nearbyControlCount: 0,
       legacyControlCount: 0,
       composerCandidates: [],
       selectedComposer: null,
       derivedScope: null,
+      composerHasText: false,
       scopedControls: [],
+      nearbyControls: [],
       legacyControls: [],
       oldResolverSelected: null,
       rawDomExported: false,
@@ -333,14 +381,19 @@ async function _pr171CharacterizeComposerSubmitSurface() {
     chatgptTabCandidateCount: selection.chatgptTabCandidateCount,
     composerCandidateCount: Number(snapshot.composerCandidateCount) || 0,
     scopedControlCount: Number(snapshot.scopedControlCount) || 0,
+    nearbyControlCount: Number(snapshot.nearbyControlCount) || 0,
     legacyControlCount: Number(snapshot.legacyControlCount) || 0,
     composerCandidates: Array.isArray(snapshot.composerCandidates)
       ? snapshot.composerCandidates.slice(0, 16)
       : [],
     selectedComposer: snapshot.selectedComposer || null,
     derivedScope: snapshot.derivedScope || null,
+    composerHasText: snapshot.composerHasText === true,
     scopedControls: Array.isArray(snapshot.scopedControls)
       ? snapshot.scopedControls.slice(0, 48)
+      : [],
+    nearbyControls: Array.isArray(snapshot.nearbyControls)
+      ? snapshot.nearbyControls.slice(0, 64)
       : [],
     legacyControls: Array.isArray(snapshot.legacyControls)
       ? snapshot.legacyControls.slice(0, 16)
