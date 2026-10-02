@@ -242,7 +242,9 @@ async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, 
           `:owner=schema17` +
           `:selector=${submit.selector || "none"}` +
           `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}` +
-          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}`
+          `:commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}` +
+          `:event_probe=${submit.eventProbeInstalled === true ? "true" : "false"}` +
+          `:events=${submit.eventProbeSummary || "unavailable"}`
         )),
         submitAckBudget
       ))
