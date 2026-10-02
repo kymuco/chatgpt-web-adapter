@@ -16,9 +16,9 @@ def _source(path: Path) -> str:
 def test_pr17_1_submit_timeout_reports_selector_and_initial_tab_activity() -> None:
     source = _source(BASE)
 
-    assert "CHATGPT_SUBMIT_NOT_OBSERVED:\${submit.strategy}" in source
-    assert ':selector=\${submit.selector || "none"}' in source
-    assert ':tab_active=\${diagnostics.tabWasActive === true ? "true" : "false"}' in source
+    assert "CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}" in source
+    assert ':selector=${submit.selector || "none"}' in source
+    assert ':tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}' in source
 
 
 def test_pr17_1_submit_diagnostics_do_not_add_post_commit_retry() -> None:
