@@ -10,9 +10,9 @@ import pytest
 
 import chatgpt_web_adapter as adapter
 from chatgpt_web_adapter._gemini_notebook_audio_artifact_retrieval import (
-    DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
     _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
     _GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION,
+    DEFAULT_AUDIO_ARTIFACT_MAX_BYTES,
     _AudioArtifactByteChunkCollector,
     _normalize_max_bytes,
 )
@@ -140,7 +140,9 @@ def test_worker_keeps_private_locator_out_of_sanitized_sink_read() -> None:
     assert "locator" not in read.lower()
 
 
-def test_worker_private_retrieval_uses_product_created_googleusercontent_locator() -> None:
+def test_worker_private_retrieval_uses_product_created_googleusercontent_locator() -> (
+    None
+):
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -160,7 +162,9 @@ def test_worker_private_retrieval_uses_product_created_googleusercontent_locator
     assert "_cwaGeminiNotebookRetireOwnedAcquisitionTab" not in worker
 
 
-def test_worker_private_retrieval_uses_network_resource_stream_without_navigation() -> None:
+def test_worker_private_retrieval_uses_network_resource_stream_without_navigation() -> (
+    None
+):
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -187,7 +191,9 @@ def test_worker_private_retrieval_uses_network_resource_stream_without_navigatio
     assert "XMLHttpRequest" not in acquire
 
 
-def test_worker_private_retrieval_chunks_verified_bytes_without_raw_locator_export() -> None:
+def test_worker_private_retrieval_chunks_verified_bytes_without_raw_locator_export() -> (
+    None
+):
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
