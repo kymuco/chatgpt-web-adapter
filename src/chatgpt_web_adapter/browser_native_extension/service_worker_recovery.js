@@ -225,7 +225,12 @@ async function _executeOfficialPageTurnWithEarlyTerminalBoundary({
     await Promise.race([
       requestSeen,
       new Promise((_, reject) => setTimeout(
-        () => reject(new Error(`CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}`)),
+        () => reject(new Error(
+          `CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}` +
+          `:owner=recovery` +
+          `:selector=${submit.selector || "none"}` +
+          `:tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}`
+        )),
         Math.min(remainingMs(startedAt, timeoutMs), DEFAULT_SUBMIT_ACK_TIMEOUT_MS)
       ))
     ]);
