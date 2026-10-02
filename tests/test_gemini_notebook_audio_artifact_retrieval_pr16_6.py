@@ -32,7 +32,7 @@ def test_audio_artifact_retrieval_stays_private() -> None:
     assert not hasattr(adapter, "_retrieve_gemini_notebook_audio_artifact_bytes")
 
 
-def test_byte_probe_max_bytes_is_bounded() -> None:
+def test_private_retrieval_max_bytes_is_bounded() -> None:
     assert DEFAULT_AUDIO_ARTIFACT_MAX_BYTES == 64 * 1024 * 1024
     assert _normalize_max_bytes(1) == 1
     assert _normalize_max_bytes(DEFAULT_AUDIO_ARTIFACT_MAX_BYTES) == (
@@ -140,7 +140,7 @@ def test_worker_keeps_private_locator_out_of_sanitized_sink_read() -> None:
     assert "locator" not in read.lower()
 
 
-def test_worker_byte_probe_uses_product_created_googleusercontent_locator() -> None:
+def test_worker_private_retrieval_uses_product_created_googleusercontent_locator() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -160,7 +160,7 @@ def test_worker_byte_probe_uses_product_created_googleusercontent_locator() -> N
     assert "_cwaGeminiNotebookRetireOwnedAcquisitionTab" not in worker
 
 
-def test_worker_byte_probe_uses_network_resource_stream_without_navigation() -> None:
+def test_worker_private_retrieval_uses_network_resource_stream_without_navigation() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -187,7 +187,7 @@ def test_worker_byte_probe_uses_network_resource_stream_without_navigation() -> 
     assert "XMLHttpRequest" not in acquire
 
 
-def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() -> None:
+def test_worker_private_retrieval_chunks_verified_bytes_without_raw_locator_export() -> None:
     worker = (EXT / "service_worker_gemini_notebook_capability.js").read_text(
         encoding="utf-8"
     )
@@ -200,13 +200,13 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     )[0]
 
     assert "CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS" in probe
-    assert "CWA__GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in probe
+    assert "CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE" in probe
     assert "safePortPost(port" in probe
     assert "browserBytesProven: true" in probe
     assert "networkResourceLoadProven:" in probe
     assert "authenticatedBrowserRequestProven: true" in probe
     assert "acquisitionTabCreated: false" in probe
-    module = (PACKAGE / "gemini_notebook_audio_artifact_byte_probe.py").read_text(
+    module = (PACKAGE / "_gemini_notebook_audio_artifact_retrieval.py").read_text(
         encoding="utf-8"
     )
     assert "authenticatedBrowserRequestProven" in module
@@ -225,7 +225,7 @@ def test_worker_byte_probe_chunks_verified_bytes_without_raw_locator_export() ->
     assert "automaticRetry: false" in probe
 
 
-def test_byte_probe_host_forwards_chunks_on_existing_authority_lane() -> None:
+def test_private_retrieval_host_forwards_chunks_on_existing_authority_lane() -> None:
     host = (PACKAGE / "browser_native_host.py").read_text(encoding="utf-8")
     assert '"gemini_notebook_audio_artifact_retrieval",' in host
     assert '"gemini_notebook_audio_artifact_retrieval": 120_000' in host
