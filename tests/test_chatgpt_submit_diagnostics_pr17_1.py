@@ -33,6 +33,19 @@ def test_pr17_1_submit_timeout_reports_exact_owner_selector_and_tab_activity() -
             ':tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}'
             in source
         )
+        assert (
+            ':commit_tab_activated=${submit.tabActivatedForCommit === true ? "true" : "false"}'
+            in source
+        )
+
+
+def test_pr17_1_foreground_repair_changes_tab_selection_not_window_focus() -> None:
+    hardening = _source(HARDENING)
+
+    assert "chrome.tabs.update(tabId, { active: true })" in hardening
+    assert "chrome.tabs.update(state.previousActiveTabId, { active: true })" in hardening
+    assert "chrome.windows.update" not in hardening
+    assert "focused: true" not in hardening
 
 
 def test_pr17_1_submit_diagnostics_do_not_add_post_commit_retry() -> None:
