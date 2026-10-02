@@ -43,7 +43,9 @@ def test_pr17_1_foreground_repair_changes_tab_selection_not_window_focus() -> No
     hardening = _source(HARDENING)
 
     assert "chrome.tabs.update(tabId, { active: true })" in hardening
-    assert "chrome.tabs.update(state.previousActiveTabId, { active: true })" in hardening
+    assert (
+        "chrome.tabs.update(state.previousActiveTabId, { active: true })" in hardening
+    )
     assert "chrome.windows.update" not in hardening
     assert "focused: true" not in hardening
 
