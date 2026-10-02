@@ -38,9 +38,20 @@ def test_pr17_1_submit_timeout_reports_exact_owner_selector_and_tab_activity() -
             in source
         )
         assert (
+            ':point_refreshed=${submit.submitPointRefreshedAfterActivation === true ? "true" : "false"}'
+            in source
+        )
+        assert (
+            ':point_delta_px=${Number.isFinite(submit.submitPointDeltaPx) ? submit.submitPointDeltaPx : "na"}'
+            in source
+        )
+        assert (
             ':event_probe=${submit.eventProbeInstalled === true ? "true" : "false"}'
             in source
         )
+        assert ':probe_reason=${submit.eventProbeInstallReason || "unknown"}' in source
+        assert ':probe_hit=${submit.eventProbeHitTag || "none"}' in source
+        assert ':probe_error=${submit.eventProbeErrorName || "none"}' in source
         assert ':events=${submit.eventProbeSummary || "unavailable"}' in source
 
 
@@ -53,6 +64,20 @@ def test_pr17_1_foreground_repair_changes_tab_selection_not_window_focus() -> No
     )
     assert "chrome.windows.update" not in hardening
     assert "focused: true" not in hardening
+
+
+def test_pr17_1_submit_point_is_refreshed_after_foreground_activation() -> None:
+    hardening = _source(HARDENING)
+
+    prepare_index = hardening.index("await _pr113PrepareMouseCommitTab(debuggee)")
+    refresh_index = hardening.index(
+        "commitPoint = await _pr113WaitForSubmitPoint("
+    )
+    probe_index = hardening.index("await _pr113InstallSubmitEventProbe(")
+    moved_index = hardening.index('type: "mouseMoved"')
+
+    assert prepare_index < refresh_index < probe_index < moved_index
+    assert "submitPointDeltaPx" in hardening
 
 
 def test_pr17_1_submit_event_probe_is_bounded_and_text_free() -> None:
