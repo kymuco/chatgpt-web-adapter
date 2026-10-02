@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 BASE = EXT / "service_worker.js"
+SCHEMA17 = EXT / "service_worker_rich_input_schema17_repair_pr9_2.js"
 HARDENING = EXT / "service_worker_text_submit_commit_hardening_pr11_3.js"
 UI_COMPAT = EXT / "service_worker_ui_compat_pr11_7.js"
 
@@ -14,13 +15,15 @@ def _source(path: Path) -> str:
 
 
 def test_pr17_1_submit_timeout_reports_selector_and_initial_tab_activity() -> None:
-    source = _source(BASE)
+    for path in (BASE, SCHEMA17):
+        source = _source(path)
 
-    assert "CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}" in source
-    assert ':selector=${submit.selector || "none"}' in source
-    assert (
-        ':tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}' in source
-    )
+        assert "CHATGPT_SUBMIT_NOT_OBSERVED:${submit.strategy}" in source
+        assert ':selector=${submit.selector || "none"}' in source
+        assert (
+            ':tab_active=${diagnostics.tabWasActive === true ? "true" : "false"}'
+            in source
+        )
 
 
 def test_pr17_1_submit_diagnostics_do_not_add_post_commit_retry() -> None:
