@@ -5,13 +5,13 @@ from pathlib import Path
 import pytest
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter._gemini_notebook_video_artifact_observation import (
     _GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION,
     GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY,
     GEMINI_NOTEBOOK_VIDEO_PENDING_EVIDENCE,
     _observe_gemini_notebook_video_artifact,
 )
+from chatgpt_web_adapter.exceptions import RequestError
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "chatgpt_web_adapter"
