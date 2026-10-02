@@ -13,37 +13,23 @@ const CWA_GEMINI_NOTEBOOK_GENERATE_AUDIO_OVERVIEW_OPERATION =
   "gemini_notebook_generate_audio_overview";
 const CWA_GEMINI_NOTEBOOK_OBSERVE_AUDIO_OVERVIEW_OPERATION =
   "gemini_notebook_observe_audio_overview";
-const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACTION_PROBE_OPERATION =
-  "gemini_notebook_audio_artifact_action_probe";
-const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION =
-  "gemini_notebook_audio_artifact_menu_probe";
-const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION =
-  "gemini_notebook_audio_artifact_download_intent_probe";
-const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION =
-  "gemini_notebook_audio_artifact_byte_probe";
-const CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION =
-  "gemini_notebook_studio_creation_controls_probe";
-const CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION =
-  "gemini_notebook_video_config_probe";
-const CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION =
-  "gemini_notebook_video_generation_probe";
-const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION =
-  "gemini_notebook_video_artifact_observe_probe";
-const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_PROBE_OPERATION =
-  "gemini_notebook_video_artifact_menu_probe";
-const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION =
-  "gemini_notebook_video_artifact_download_intent_probe";
-const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION =
-  "gemini_notebook_video_artifact_byte_probe";
-const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE =
-  "gemini_notebook_video_artifact_byte_chunk";
+const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION =
+  "gemini_notebook_audio_artifact_retrieval";
+const CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION =
+  "gemini_notebook_video_generation";
+const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION =
+  "gemini_notebook_video_artifact_observe";
+const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_OPERATION =
+  "gemini_notebook_video_artifact_retrieval";
+const CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE =
+  "gemini_notebook_video_artifact_retrieval_chunk";
 const CWA_GEMINI_NOTEBOOK_VIDEO_BYTE_CHUNK_BASE64_CHARS = 600_000;
 const CWA_GEMINI_NOTEBOOK_VIDEO_PENDING_EVIDENCE =
   "PAGE_DOM_BACKGROUND_VIDEO_ARTIFACT_PENDING";
 const CWA_GEMINI_NOTEBOOK_VIDEO_COMPLETION_FINALITY =
   "PAGE_DOM_DURABLE_BACKGROUND_VIDEO_ARTIFACT_COMPLETION";
-const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE =
-  "gemini_notebook_audio_artifact_byte_chunk";
+const CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE =
+  "gemini_notebook_audio_artifact_retrieval_chunk";
 const CWA_GEMINI_NOTEBOOK_AUDIO_BYTE_CHUNK_BASE64_CHARS = 600_000;
 const CWA_GEMINI_NOTEBOOK_AUDIO_ACCEPTED_EVIDENCE =
   "PAGE_DOM_BACKGROUND_ARTIFACT_ACCEPTED";
@@ -2622,7 +2608,7 @@ async function _cwaGeminiNotebookProbeAudioArtifactBytes(message, port) {
       if (
         !safePortPost(port, {
           protocol: BRIDGE_PROTOCOL_VERSION,
-          type: CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_CHUNK_TYPE,
+          type: CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
           request_id: message.request_id,
           chunkIndex,
           chunkCount,
@@ -3651,7 +3637,7 @@ async function _cwaGeminiNotebookProbeVideoArtifactBytes(message, port) {
       if (
         !safePortPost(port, {
           protocol: BRIDGE_PROTOCOL_VERSION,
-          type: CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_CHUNK_TYPE,
+          type: CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_CHUNK_TYPE,
           request_id: message.request_id,
           chunkIndex,
           chunkCount,
@@ -4806,17 +4792,10 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       CWA_GEMINI_NOTEBOOK_ADD_URL_SOURCE_OPERATION,
       CWA_GEMINI_NOTEBOOK_GENERATE_AUDIO_OVERVIEW_OPERATION,
       CWA_GEMINI_NOTEBOOK_OBSERVE_AUDIO_OVERVIEW_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACTION_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION,
-      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION
+      CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION,
+      CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION,
+      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION,
+      CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_OPERATION
     ].includes(operation)
   ) {
     return next(message, port);
@@ -4830,29 +4809,15 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
       ? "gemini_notebook_generate_audio_overview_result"
       : operation === CWA_GEMINI_NOTEBOOK_OBSERVE_AUDIO_OVERVIEW_OPERATION
         ? "gemini_notebook_observe_audio_overview_result"
-        : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACTION_PROBE_OPERATION
-          ? "gemini_notebook_audio_artifact_action_probe_result"
-          : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION
-            ? "gemini_notebook_audio_artifact_menu_probe_result"
-            : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
-              ? "gemini_notebook_audio_artifact_download_intent_probe_result"
-              : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
-                ? "gemini_notebook_audio_artifact_byte_probe_result"
-                : operation === CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
-                  ? "gemini_notebook_studio_creation_controls_probe_result"
-                  : operation === CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
-                    ? "gemini_notebook_video_config_probe_result"
-                    : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
-                      ? "gemini_notebook_video_generation_probe_result"
-                      : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION
-                        ? "gemini_notebook_video_artifact_observe_probe_result"
-                        : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_PROBE_OPERATION
-                          ? "gemini_notebook_video_artifact_menu_probe_result"
-                          : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
-                            ? "gemini_notebook_video_artifact_download_intent_probe_result"
-                            : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION
-                              ? "gemini_notebook_video_artifact_byte_probe_result"
-                              : "gemini_notebook_add_url_source_result";
+        : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION
+          ? "gemini_notebook_audio_artifact_retrieval_result"
+          : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION
+            ? "gemini_notebook_video_generation_result"
+            : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION
+              ? "gemini_notebook_video_artifact_observe_result"
+              : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_OPERATION
+                ? "gemini_notebook_video_artifact_retrieval_result"
+                : "gemini_notebook_add_url_source_result";
 
   try {
     const result =
@@ -4860,29 +4825,15 @@ async function _cwaOnNativeMessageWithGeminiNotebook(
         ? await _cwaGeminiNotebookGenerateAudioOverview(message)
         : operation === CWA_GEMINI_NOTEBOOK_OBSERVE_AUDIO_OVERVIEW_OPERATION
           ? await _cwaGeminiNotebookObserveAudioOverview(message)
-          : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_ACTION_PROBE_OPERATION
-            ? await _cwaGeminiNotebookProbeAudioArtifactAction(message)
-            : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_MENU_PROBE_OPERATION
-              ? await _cwaGeminiNotebookProbeAudioArtifactMenu(message)
-              : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
-                ? await _cwaGeminiNotebookProbeAudioArtifactDownloadIntent(message)
-                : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_BYTE_PROBE_OPERATION
-                  ? await _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)
-                  : operation === CWA_GEMINI_NOTEBOOK_STUDIO_CREATION_CONTROLS_PROBE_OPERATION
-                    ? await _cwaGeminiNotebookProbeStudioCreationControls(message)
-                    : operation === CWA_GEMINI_NOTEBOOK_VIDEO_CONFIG_PROBE_OPERATION
-                      ? await _cwaGeminiNotebookProbeVideoConfig(message)
-                      : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_PROBE_OPERATION
-                        ? await _cwaGeminiNotebookProbeVideoGeneration(message)
-                        : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_PROBE_OPERATION
-                          ? await _cwaGeminiNotebookProbeVideoArtifactObservation(message)
-                          : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_MENU_PROBE_OPERATION
-                            ? await _cwaGeminiNotebookProbeVideoArtifactMenu(message)
-                            : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_DOWNLOAD_INTENT_PROBE_OPERATION
-                              ? await _cwaGeminiNotebookProbeVideoArtifactDownloadIntent(message)
-                              : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_BYTE_PROBE_OPERATION
-                                ? await _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)
-                                : await _cwaGeminiNotebookAddUrlSource(message);
+          : operation === CWA_GEMINI_NOTEBOOK_AUDIO_ARTIFACT_RETRIEVAL_OPERATION
+            ? await _cwaGeminiNotebookProbeAudioArtifactBytes(message, port)
+            : operation === CWA_GEMINI_NOTEBOOK_VIDEO_GENERATION_OPERATION
+              ? await _cwaGeminiNotebookProbeVideoGeneration(message)
+              : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_OBSERVE_OPERATION
+                ? await _cwaGeminiNotebookProbeVideoArtifactObservation(message)
+                : operation === CWA_GEMINI_NOTEBOOK_VIDEO_ARTIFACT_RETRIEVAL_OPERATION
+                  ? await _cwaGeminiNotebookProbeVideoArtifactBytes(message, port)
+                  : await _cwaGeminiNotebookAddUrlSource(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
       type: responseType,
