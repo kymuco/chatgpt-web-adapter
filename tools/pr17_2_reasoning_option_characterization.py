@@ -99,6 +99,10 @@ def run_gate(
             "picker_control_candidate_count": response.get(
                 "pickerControlCandidateCount"
             ),
+            "surface_count": response.get("surfaceCount"),
+            "surfaces": response.get("surfaces"),
+            "surface_actionable_count": response.get("surfaceActionableCount"),
+            "surface_actionables": response.get("surfaceActionables"),
             "option_candidate_count": response.get("optionCandidateCount"),
             "option_counts_by_mode": response.get("optionCountsByMode"),
             "options": response.get("options"),
