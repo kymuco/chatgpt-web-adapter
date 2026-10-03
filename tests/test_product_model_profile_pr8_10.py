@@ -127,6 +127,13 @@ def test_extension_uses_semantic_keyboard_slider_selection_and_no_option_guessin
     assert '"ArrowRight"' in source
     assert "selectedModeAfterProven" in source
     assert "conversationWriteBeforeSelection" in source
+    assert "backgroundSelectionAttempted = true" in source
+    assert "backgroundSelectionProven = true" in source
+    assert "backgroundSelectionSupported: true" in source
+    assert "transientForegroundRequired: false" in source
+    assert "_pr88InstantEffortBeginTransientForeground" not in source
+    assert "_pr88InstantEffortRestorePriorTab" not in source
+    assert "chrome.tabs.update" not in source
     assert "Fetch.enable" not in source
     assert "Network.getResponseBody" not in source
 
