@@ -50,9 +50,7 @@ def test_pr17_2_high_mutation_proves_each_discrete_step() -> None:
     first_arrow = source.index(
         '_pr172StepDispatchKey(debuggee, "ArrowRight", "ArrowRight", 39)'
     )
-    medium_proof = source.index(
-        "PR17_2_BACKGROUND_HIGH_INTERMEDIATE_MEDIUM_NOT_PROVEN"
-    )
+    medium_proof = source.index("PR17_2_BACKGROUND_HIGH_INTERMEDIATE_MEDIUM_NOT_PROVEN")
     second_arrow = source.index(
         '_pr172StepDispatchKey(debuggee, "ArrowRight", "ArrowRight", 39)',
         first_arrow + 1,
