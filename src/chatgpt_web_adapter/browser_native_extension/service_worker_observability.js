@@ -12,6 +12,7 @@ importScripts("service_worker_response_activity.js");
 importScripts("service_worker_response_lifecycle.js");
 importScripts("service_worker_product_observation.js");
 importScripts("service_worker_reasoning_option_characterization.js");
+importScripts("service_worker_reasoning_slider_mutation.js");
 
 // PR15.16: closed PR10.1 artifact-shape characterization remains available in
 // Git history/source-specific tests only; ordinary runtime contains no dormant
