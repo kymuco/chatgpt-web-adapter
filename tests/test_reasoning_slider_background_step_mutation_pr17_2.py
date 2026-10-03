@@ -33,7 +33,7 @@ def test_pr17_2_step_mutation_is_exact_instant_to_medium() -> None:
     assert '"selected_mode_control"' in source
     assert '"exact_slider_value"' in source
     assert '"picker_mode_control"' in source
-    assert 'slider?.now !== 0' in source
+    assert "slider?.now !== 0" in source
     assert 'slider?.currentMode !== "INSTANT"' in source
     assert 'key: "Home"' not in source
     assert '"Home", "Home", 36' in source
