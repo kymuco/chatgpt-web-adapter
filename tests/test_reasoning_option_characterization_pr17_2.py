@@ -220,3 +220,54 @@ def test_pr17_2_live_gate_sends_only_characterization_fields() -> None:
     assert '"text"' not in request
     assert '"conversationId"' not in request
     assert '"browserAuthorityLeaseId"' not in request
+
+
+def test_pr17_2_background_focus_probe_never_activates_or_changes_value() -> None:
+    source = _source(PROBE)
+
+    assert "characterizeBackgroundReasoningSliderFocus" in source
+    assert "_pr172CharacterizeBackgroundSliderFocus" in source
+    assert "PR17_2_BACKGROUND_FOCUS_REQUIRES_INACTIVE_RUNTIME_TAB" in source
+    assert "_pr88InstantEffortDomTriggerClick(" in source
+    assert '_pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus")' in source
+    assert "reasoningValueMutationAttempted: false" in source
+    assert "keyDispatchPerformed: false" in source
+    assert "mouseDispatchPerformed: false" in source
+    assert "conversationWriteAttempted: false" in source
+    assert "tabActivated: false" in source
+    assert "chrome.tabs.update" not in source
+    assert "Input.dispatchKeyEvent" not in source
+    assert "Input.dispatchMouseEvent" not in source
+
+
+def test_pr17_2_background_focus_requires_exact_0_2_slider_and_no_value_drift() -> None:
+    source = _source(PROBE)
+
+    assert "slider?.min === 0" in source
+    assert "slider?.max === 2" in source
+    assert "slider?.stepCount === 3" in source
+    assert "selectedModeUnchanged" in source
+    assert "focused.now === slider.now" in source
+    assert "selectedModeAfterFocus === selectedModeBefore" in source
+
+
+def test_pr17_2_background_focus_restores_ephemeral_picker_state() -> None:
+    source = _source(PROBE)
+
+    assert "openedByProbe" in source
+    assert "uiTriggerRestoreAttempted" in source
+    assert "uiTriggerRestoreProven" in source
+    assert source.count("_pr88InstantEffortDomTriggerClick(") >= 2
+
+
+def test_pr17_2_background_focus_tool_has_zero_value_and_write_budgets() -> None:
+    tool = _source(ROOT / "tools" / "pr17_2_background_reasoning_slider_focus.py")
+
+    assert '"conversation_write_budget": 0' in tool
+    assert '"reasoning_value_mutation_budget": 0' in tool
+    assert '"characterizeBackgroundReasoningSliderFocus": True' in tool
+    assert '"tabActivated"' in tool
+    assert '"reasoningValueMutationAttempted"' in tool
+    assert '"keyDispatchPerformed"' in tool
+    assert '"mouseDispatchPerformed"' in tool
+    assert '"conversationWriteAttempted"' in tool
