@@ -452,12 +452,254 @@ async function _pr172CharacterizeReasoningOptions(message) {
   };
 }
 
+
+async function _pr172WaitForSliderSnapshot(debuggee, expectedMode, timeoutMs = 3000) {
+  const startedAt = performance.now();
+  let last = null;
+  while (performance.now() - startedAt < timeoutMs) {
+    last = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
+    if (
+      last?.found === true &&
+      last?.candidateCount === 1 &&
+      last?.min === 0 &&
+      last?.max === 2 &&
+      last?.stepCount === 3 &&
+      last?.currentMode === expectedMode
+    ) {
+      return last;
+    }
+    await sleep(100);
+  }
+  return last || {
+    found: false,
+    reason: "background_slider_timeout",
+    candidateCount: 0
+  };
+}
+
+async function _pr172CharacterizeBackgroundSliderFocus() {
+  const storedId = await storedRuntimeTabId();
+  if (!Number.isInteger(storedId)) {
+    return {
+      diagnosticOnly: true,
+      backgroundFocusCharacterization: true,
+      runtimeTabPresent: false,
+      tabWasActive: null,
+      documentVisibleBefore: null,
+      selectedModeBefore: null,
+      selectedModeBeforeProven: false,
+      pickerFound: false,
+      pickerCandidateCount: 0,
+      uiTriggerClickPerformed: false,
+      sliderFound: false,
+      sliderCandidateCount: 0,
+      sliderMin: null,
+      sliderMax: null,
+      sliderNowBefore: null,
+      sliderFocusAttempted: false,
+      sliderFocusProven: false,
+      sliderNowAfterFocus: null,
+      selectedModeAfterFocus: null,
+      selectedModeAfterFocusProven: false,
+      selectedModeUnchanged: false,
+      uiTriggerRestoreAttempted: false,
+      uiTriggerRestoreProven: false,
+      tabActivated: false,
+      reasoningValueMutationAttempted: false,
+      keyDispatchPerformed: false,
+      mouseDispatchPerformed: false,
+      conversationWriteAttempted: false,
+      debuggerAttachedAfter: null
+    };
+  }
+
+  const tab = await chrome.tabs.get(storedId);
+  if (!isChatGPTUrl(tab?.url || "")) {
+    throw new Error("PR17_2_BACKGROUND_FOCUS_RUNTIME_TAB_INVALID");
+  }
+  if (tab?.active === true) {
+    throw new Error("PR17_2_BACKGROUND_FOCUS_REQUIRES_INACTIVE_RUNTIME_TAB");
+  }
+
+  const debuggee = { tabId: storedId };
+  let attached = false;
+  let debuggerAttachedAfter = null;
+  let openedByProbe = false;
+  let selectedModeBefore = null;
+  let selectedModeBeforeProven = false;
+  let uiTriggerRestoreAttempted = false;
+  let uiTriggerRestoreProven = false;
+  let result = null;
+
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await chrome.debugger.sendCommand(debuggee, "Runtime.enable");
+
+    const visibility = await chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
+      expression:
+        "(() => ({visible: document.visibilityState === 'visible' && document.hidden !== true}))()",
+      returnByValue: true,
+      awaitPromise: true
+    });
+    const documentVisibleBefore = visibility?.result?.value?.visible === true;
+
+    const before = await _pr88InstantSelectedModeSnapshot(debuggee);
+    selectedModeBefore = typeof before?.selectedMode === "string"
+      ? before.selectedMode
+      : null;
+    selectedModeBeforeProven = before?.selectedModeProven === true;
+    if (!selectedModeBeforeProven || selectedModeBefore === null) {
+      throw new Error("PR17_2_BACKGROUND_FOCUS_INITIAL_MODE_NOT_PROVEN");
+    }
+
+    const picker = await _pr88SelectionPoint(debuggee, "picker");
+    const pickerFound = (
+      picker?.found === true &&
+      picker?.candidateCount === 1 &&
+      picker?.mode === selectedModeBefore
+    );
+
+    let slider = await _pr88InstantEffortResolvedSliderSnapshot(
+      debuggee,
+      "snapshot"
+    );
+    if (slider?.found !== true) {
+      if (!pickerFound) {
+        throw new Error(
+          `PR17_2_BACKGROUND_FOCUS_PICKER_NOT_PROVEN:${picker?.reason || "unknown"}`
+        );
+      }
+      const opened = await _pr88InstantEffortDomTriggerClick(
+        debuggee,
+        selectedModeBefore
+      );
+      if (
+        opened?.clicked !== true ||
+        opened?.candidateCount !== 1 ||
+        opened?.mode !== selectedModeBefore
+      ) {
+        throw new Error(
+          `PR17_2_BACKGROUND_FOCUS_TRIGGER_CLICK_NOT_PROVEN:${opened?.reason || "unknown"}`
+        );
+      }
+      openedByProbe = opened?.openBefore !== true;
+      slider = await _pr172WaitForSliderSnapshot(
+        debuggee,
+        selectedModeBefore,
+        3000
+      );
+    }
+
+    const sliderFound = (
+      slider?.found === true &&
+      slider?.candidateCount === 1 &&
+      slider?.min === 0 &&
+      slider?.max === 2 &&
+      slider?.stepCount === 3 &&
+      slider?.currentMode === selectedModeBefore
+    );
+    if (!sliderFound) {
+      throw new Error(
+        `PR17_2_BACKGROUND_FOCUS_SLIDER_NOT_PROVEN:${slider?.reason || "unknown"}`
+      );
+    }
+
+    const focused = await _pr88InstantEffortResolvedSliderSnapshot(
+      debuggee,
+      "focus"
+    );
+    const after = await _pr88InstantSelectedModeSnapshot(debuggee);
+    const selectedModeAfterFocus =
+      typeof after?.selectedMode === "string" ? after.selectedMode : null;
+    const selectedModeAfterFocusProven = after?.selectedModeProven === true;
+
+    result = {
+      diagnosticOnly: true,
+      backgroundFocusCharacterization: true,
+      runtimeTabPresent: true,
+      tabWasActive: false,
+      documentVisibleBefore,
+      selectedModeBefore,
+      selectedModeBeforeProven,
+      pickerFound,
+      pickerCandidateCount: Number(picker?.candidateCount) || 0,
+      uiTriggerClickPerformed: openedByProbe,
+      sliderFound,
+      sliderCandidateCount: Number(slider?.candidateCount) || 0,
+      sliderMin: Number.isFinite(slider?.min) ? slider.min : null,
+      sliderMax: Number.isFinite(slider?.max) ? slider.max : null,
+      sliderNowBefore: Number.isFinite(slider?.now) ? slider.now : null,
+      sliderFocusAttempted: true,
+      sliderFocusProven: focused?.focusProven === true,
+      sliderNowAfterFocus: Number.isFinite(focused?.now) ? focused.now : null,
+      selectedModeAfterFocus,
+      selectedModeAfterFocusProven,
+      selectedModeUnchanged: (
+        selectedModeAfterFocusProven &&
+        selectedModeAfterFocus === selectedModeBefore &&
+        Number.isFinite(focused?.now) &&
+        focused.now === slider.now
+      ),
+      tabActivated: false,
+      reasoningValueMutationAttempted: false,
+      keyDispatchPerformed: false,
+      mouseDispatchPerformed: false,
+      conversationWriteAttempted: false
+    };
+  } finally {
+    if (attached && openedByProbe && selectedModeBeforeProven) {
+      uiTriggerRestoreAttempted = true;
+      try {
+        const restored = await _pr88InstantEffortDomTriggerClick(
+          debuggee,
+          selectedModeBefore
+        );
+        uiTriggerRestoreProven = restored?.clicked === true;
+      } catch {
+        uiTriggerRestoreProven = false;
+      }
+    }
+
+    if (result) {
+      result.uiTriggerRestoreAttempted = uiTriggerRestoreAttempted;
+      result.uiTriggerRestoreProven = openedByProbe
+        ? uiTriggerRestoreProven
+        : true;
+    }
+
+    if (attached) {
+      try { await chrome.debugger.detach(debuggee); } catch {}
+    }
+    try {
+      const targets = await chrome.debugger.getTargets();
+      debuggerAttachedAfter = Boolean(
+        targets.find((target) => target.tabId === storedId)?.attached
+      );
+    } catch {
+      debuggerAttachedAfter = null;
+    }
+    if (result) result.debuggerAttachedAfter = debuggerAttachedAfter;
+  }
+
+  if (!result) {
+    throw new Error("PR17_2_BACKGROUND_FOCUS_RESULT_MISSING");
+  }
+  return result;
+}
+
 function _pr172ReasoningOptionDiagnosticMatches(message) {
-  return message?.characterizeReasoningOptionSurface === true;
+  return (
+    message?.characterizeReasoningOptionSurface === true ||
+    message?.characterizeBackgroundReasoningSliderFocus === true
+  );
 }
 
 async function _pr172HandleReasoningOptionDiagnostic(message) {
   _pr172RejectWriteBearingMessage(message);
+  if (message?.characterizeBackgroundReasoningSliderFocus === true) {
+    return _pr172CharacterizeBackgroundSliderFocus();
+  }
   return _pr172CharacterizeReasoningOptions(message);
 }
 
