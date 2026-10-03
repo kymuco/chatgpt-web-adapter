@@ -19,9 +19,7 @@ def test_pr17_2_background_mutation_is_separate_from_read_only_probe() -> None:
     characterization_import = (
         'importScripts("service_worker_reasoning_option_characterization.js");'
     )
-    mutation_import = (
-        'importScripts("service_worker_reasoning_slider_mutation.js");'
-    )
+    mutation_import = 'importScripts("service_worker_reasoning_slider_mutation.js");'
     assert characterization_import in observability
     assert mutation_import in observability
     assert observability.index(characterization_import) < observability.index(
@@ -55,13 +53,18 @@ def test_pr17_2_background_mutation_has_bounded_authority() -> None:
 def test_pr17_2_background_mutation_is_exact_high_to_instant() -> None:
     source = _source(MUTATION)
 
-    assert 'selectedModeBefore !== "HIGH"' in source
-    assert 'slider?.now !== 2' in source
+    assert "slider?.now !== 2" in source
     assert '"focus",' in source
     assert '"HIGH"' in source
+    assert '"selected_mode_control"' in source
+    assert '"exact_slider_value"' in source
+    assert '"picker_mode_control"' in source
+    assert "pickerHighProven" in source
+    assert "sliderHighAlreadyProven" in source
+    assert "INITIAL_MODE_MISMATCH" in source
     assert 'key: "Home"' in source
     assert 'code: "Home"' in source
-    assert 'slider?.now === 0' in source
+    assert "slider?.now === 0" in source
     assert 'slider?.currentMode === "INSTANT"' in source
     assert 'targetMode: "INSTANT"' in source
     assert "reasoningValueMutationAttempted: true" in source
