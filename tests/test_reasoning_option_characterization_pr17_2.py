@@ -237,7 +237,8 @@ def test_pr17_2_background_focus_probe_never_activates_or_changes_value() -> Non
     assert "PR17_2_BACKGROUND_FOCUS_REQUIRES_INACTIVE_RUNTIME_TAB" in source
     assert "_pr172BackgroundDomTriggerClick(" in source
     assert re.search(
-        r'_pr172BackgroundResolvedSliderSnapshot\(\s*debuggee,\s*"focus"\s*\)',
+        r'_pr172BackgroundResolvedSliderSnapshot\(\s*'
+        r'debuggee,\s*"focus",\s*selectedModeBefore\s*\)',
         source,
     )
     assert "reasoningValueMutationAttempted: false" in source
@@ -268,6 +269,13 @@ def test_pr17_2_background_focus_restores_ephemeral_picker_state() -> None:
     assert "uiTriggerRestoreAttempted" in source
     assert "uiTriggerRestoreProven" in source
     assert source.count("_pr172BackgroundDomTriggerClick(") >= 2
+    assert "__cwaPr172ReasoningTrigger" in source
+    assert "retainedReferenceUsed" in source
+    assert re.search(
+        r'_pr172BackgroundDomTriggerClick\(\s*'
+        r'debuggee,\s*selectedModeBefore,\s*true\s*\)',
+        source,
+    )
 
 
 def test_pr17_2_background_focus_uses_semantic_composer_fallback() -> None:
@@ -277,8 +285,24 @@ def test_pr17_2_background_focus_uses_semantic_composer_fallback() -> None:
     assert '[contenteditable="true"][role="textbox"][aria-multiline="true"]' in source
     assert "candidate.closest('main')" in source
     assert "candidate.closest('form')" in source
-    assert 'primary?.reason !== "composer_missing"' in source
+    assert 'primary?.reason === "composer_missing"' in source
+    assert 'primary?.reason === "current_effort_control_missing"' in source
     assert "_pr88InstantEffortRelaxedSliderSnapshot(debuggee, action)" in source
+
+
+def test_pr17_2_background_focus_can_prove_unique_slider_without_trigger() -> None:
+    source = _source(PROBE)
+
+    assert "_pr172BackgroundExactSliderExpression" in source
+    assert "_pr172BackgroundExactSliderSnapshot" in source
+    assert "'[role=\"slider\"],input[type=\"range\"]'" not in source
+    assert "'[role=\"slider\"],input[type=\"range\"]'" not in source
+    assert "document.querySelectorAll('[role=\"slider\"],input[type=\"range\"]')" in source
+    assert "min===0&&max===2&&now>=0&&now<=2" in source
+    assert "now===0?'INSTANT':now===1?'MEDIUM':now===2?'HIGH':null" in source
+    assert "exact_slider_mode_mismatch" in source
+    assert "unique_exact_slider_value" in source
+    assert "focused.now === slider.now" in source
 
 
 def test_pr17_2_background_focus_tool_has_zero_value_and_write_budgets() -> None:
