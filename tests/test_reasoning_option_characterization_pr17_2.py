@@ -103,7 +103,7 @@ def test_pr17_2_probe_is_loaded_only_as_diagnostic_overlay() -> None:
     assert "registerNativeTurnDiagnosticHandler(" in _source(PROBE)
 
 
-def test_pr17_2_probe_contains_no_product_write_or_activation_primitives() -> None:
+def test_pr17_2_probe_contains_no_write_or_activation_primitives() -> None:
     source = _source(PROBE)
 
     for forbidden in (
@@ -111,7 +111,6 @@ def test_pr17_2_probe_contains_no_product_write_or_activation_primitives() -> No
         "Input.dispatchMouseEvent",
         "Input.dispatchKeyEvent",
         "DOM.focus",
-        ".click(",
         ".requestSubmit(",
         ".submit(",
         "chrome.tabs.update",
@@ -119,6 +118,13 @@ def test_pr17_2_probe_contains_no_product_write_or_activation_primitives() -> No
         "chrome.windows.update",
     ):
         assert forbidden not in source
+
+    # The background-focus characterization intentionally permits one
+    # ephemeral DOM click to open/restore the reasoning menu. It must not
+    # broaden into arbitrary click-based product mutation.
+    assert source.count(".click(") == 1
+    assert source.count("target.click();") == 1
+    assert "function _pr172BackgroundDomTriggerClickExpression(" in source
 
     for contract in (
         "writePerformed: false",
