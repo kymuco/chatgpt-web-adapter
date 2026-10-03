@@ -65,7 +65,9 @@ def _validate_contract(response: dict[str, Any]) -> None:
     if response.get("selectedModeAfter") != "INSTANT":
         raise RuntimeError("PR17_2_BACKGROUND_MUTATION_FINAL_MODE_NOT_INSTANT")
     if response.get("conversationWriteCount") != 0:
-        raise RuntimeError("PR17_2_BACKGROUND_MUTATION_CONVERSATION_WRITE_COUNT_NONZERO")
+        raise RuntimeError(
+            "PR17_2_BACKGROUND_MUTATION_CONVERSATION_WRITE_COUNT_NONZERO"
+        )
     if response.get("uiTriggerRestoreAttempted") is True:
         if response.get("uiTriggerRestoreProven") is not True:
             raise RuntimeError("PR17_2_BACKGROUND_MUTATION_TRIGGER_RESTORE_NOT_PROVEN")
@@ -108,6 +110,7 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
             "document_visible_before": response.get("documentVisibleBefore"),
             "selected_mode_before": response.get("selectedModeBefore"),
             "selected_mode_before_proven": response.get("selectedModeBeforeProven"),
+            "initial_mode_proof_kind": response.get("initialModeProofKind"),
             "slider_found": response.get("sliderFound") is True,
             "slider_min": response.get("sliderMin"),
             "slider_max": response.get("sliderMax"),
