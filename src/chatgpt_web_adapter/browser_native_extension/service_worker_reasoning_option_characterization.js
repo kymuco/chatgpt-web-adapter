@@ -105,6 +105,7 @@ function _pr172ReasoningOptionSurfaceExpression() {
         ariaSelected: bounded(element.getAttribute('aria-selected')),
         ariaCurrent: bounded(element.getAttribute('aria-current')),
         ariaExpanded: bounded(element.getAttribute('aria-expanded')),
+        ariaHaspopup: bounded(element.getAttribute('aria-haspopup')),
         dataState: bounded(element.getAttribute('data-state')),
         disabled: element.disabled === true,
         ariaDisabled: bounded(element.getAttribute('aria-disabled'))
@@ -153,6 +154,51 @@ function _pr172ReasoningOptionSurfaceExpression() {
     }
     controls.sort((left, right) => left.distancePx - right.distancePx);
     const pickerControl = controls.length ? controls[0] : null;
+
+    const visibleSurfaces = Array.from(document.querySelectorAll(
+      '[role="menu"],[role="listbox"],[role="dialog"]'
+    )).filter(visible);
+
+    const surfaceActionables = [];
+    for (let surfaceIndex = 0; surfaceIndex < visibleSurfaces.length; surfaceIndex += 1) {
+      const surface = visibleSurfaces[surfaceIndex];
+      const surfaceRole = bounded(surface.getAttribute('role'));
+      const candidates = Array.from(surface.querySelectorAll(
+        '[role="menuitem"],[role="option"],[role="radio"],button,[role="button"]'
+      )).filter(visible);
+      for (const element of candidates) {
+        const parentRoles = [];
+        let cursor = element.parentElement;
+        for (let depth = 0; cursor && depth < 5; depth += 1, cursor = cursor.parentElement) {
+          const role = bounded(cursor.getAttribute('role'));
+          if (role) parentRoles.push(role);
+          if (cursor === surface) break;
+        }
+        surfaceActionables.push({
+          surfaceIndex,
+          surfaceRole,
+          semanticText: bounded(
+            typeof element.innerText === 'string' ? element.innerText : '',
+            120
+          ),
+          classifiedMode: classifyElement(element),
+          parentRoles,
+          ...identity(element),
+          rect: rectOf(element)
+        });
+      }
+    }
+
+    const surfaces = visibleSurfaces.slice(0, 12).map((surface, index) => ({
+      index,
+      role: bounded(surface.getAttribute('role')),
+      ariaLabel: bounded(surface.getAttribute('aria-label')),
+      dataState: bounded(surface.getAttribute('data-state')),
+      rect: rectOf(surface),
+      actionableCount: surfaceActionables.filter(
+        (item) => item.surfaceIndex === index
+      ).length
+    }));
 
     const actionables = Array.from(document.querySelectorAll(
       '[role="menuitem"],[role="option"],[role="radio"],button,[role="button"]'
@@ -206,6 +252,10 @@ function _pr172ReasoningOptionSurfaceExpression() {
         rect: rectOf(pickerControl.element)
       } : null,
       pickerControlCandidateCount: controls.length,
+      surfaceCount: surfaces.length,
+      surfaces,
+      surfaceActionableCount: surfaceActionables.length,
+      surfaceActionables: surfaceActionables.slice(0, 48),
       optionCandidateCount: options.length,
       optionCountsByMode: counts,
       options: options.slice(0, 32)
@@ -301,6 +351,10 @@ async function _pr172CharacterizeReasoningOptions(message) {
       composerPresent: false,
       pickerControl: null,
       pickerControlCandidateCount: 0,
+      surfaceCount: 0,
+      surfaces: [],
+      surfaceActionableCount: 0,
+      surfaceActionables: [],
       optionCandidateCount: 0,
       optionCountsByMode: {},
       options: [],
@@ -369,6 +423,12 @@ async function _pr172CharacterizeReasoningOptions(message) {
     pickerControl: snapshot.pickerControl || null,
     pickerControlCandidateCount:
       Number(snapshot.pickerControlCandidateCount) || 0,
+    surfaceCount: Number(snapshot.surfaceCount) || 0,
+    surfaces: Array.isArray(snapshot.surfaces) ? snapshot.surfaces.slice(0, 12) : [],
+    surfaceActionableCount: Number(snapshot.surfaceActionableCount) || 0,
+    surfaceActionables: Array.isArray(snapshot.surfaceActionables)
+      ? snapshot.surfaceActionables.slice(0, 48)
+      : [],
     optionCandidateCount: Number(snapshot.optionCandidateCount) || 0,
     optionCountsByMode:
       snapshot.optionCountsByMode && typeof snapshot.optionCountsByMode === "object"
