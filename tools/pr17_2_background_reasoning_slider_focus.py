@@ -70,14 +70,10 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
             "tab_was_active": response.get("tabWasActive"),
             "document_visible_before": response.get("documentVisibleBefore"),
             "selected_mode_before": response.get("selectedModeBefore"),
-            "selected_mode_before_proven": response.get(
-                "selectedModeBeforeProven"
-            ),
+            "selected_mode_before_proven": response.get("selectedModeBeforeProven"),
             "picker_found": response.get("pickerFound") is True,
             "picker_candidate_count": response.get("pickerCandidateCount"),
-            "ui_trigger_click_performed": response.get(
-                "uiTriggerClickPerformed"
-            ),
+            "ui_trigger_click_performed": response.get("uiTriggerClickPerformed"),
             "slider_found": response.get("sliderFound") is True,
             "slider_candidate_count": response.get("sliderCandidateCount"),
             "slider_min": response.get("sliderMin"),
@@ -91,21 +87,15 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
                 "selectedModeAfterFocusProven"
             ),
             "selected_mode_unchanged": response.get("selectedModeUnchanged"),
-            "ui_trigger_restore_attempted": response.get(
-                "uiTriggerRestoreAttempted"
-            ),
-            "ui_trigger_restore_proven": response.get(
-                "uiTriggerRestoreProven"
-            ),
+            "ui_trigger_restore_attempted": response.get("uiTriggerRestoreAttempted"),
+            "ui_trigger_restore_proven": response.get("uiTriggerRestoreProven"),
             "tab_activated": response.get("tabActivated"),
             "reasoning_value_mutation_attempted": response.get(
                 "reasoningValueMutationAttempted"
             ),
             "key_dispatch_performed": response.get("keyDispatchPerformed"),
             "mouse_dispatch_performed": response.get("mouseDispatchPerformed"),
-            "conversation_write_attempted": response.get(
-                "conversationWriteAttempted"
-            ),
+            "conversation_write_attempted": response.get("conversationWriteAttempted"),
             "debugger_attached_after": response.get("debuggerAttachedAfter"),
         }
     )
