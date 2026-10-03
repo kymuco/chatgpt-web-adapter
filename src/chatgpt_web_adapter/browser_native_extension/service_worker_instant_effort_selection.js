@@ -333,10 +333,91 @@ async function _pr88InstantEffortRelaxedSliderSnapshot(debuggee, action='snapsho
     : {found:false,reason:'relaxed_slider_probe_failed',candidateCount:0,currentControlCount:0};
 }
 
+function _pr88InstantEffortExactSliderExpression(action) {
+  return `(() => {
+    const ACTION=${JSON.stringify(action)};
+    const visible=(el)=>{
+      if(!(el instanceof Element)) return false;
+      const r=el.getBoundingClientRect();
+      if(r.width<=0||r.height<=0) return false;
+      const s=getComputedStyle(el);
+      return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
+    };
+    const num=(value)=>{
+      if(value===null||value===undefined||value==='') return null;
+      const parsed=Number(value);
+      return Number.isFinite(parsed)?parsed:null;
+    };
+    const modeFor=(now)=>now===0?'INSTANT':now===1?'MEDIUM':now===2?'HIGH':null;
+    const sliders=[];
+    for(const el of Array.from(
+      document.querySelectorAll('[role="slider"],input[type="range"]')
+    ).filter(visible)) {
+      const min=num(el.getAttribute('aria-valuemin'))??num(el.min);
+      const max=num(el.getAttribute('aria-valuemax'))??num(el.max);
+      const now=num(el.getAttribute('aria-valuenow'))??num(el.value);
+      if(!(
+        Number.isInteger(min)&&Number.isInteger(max)&&Number.isInteger(now)&&
+        min===0&&max===2&&now>=0&&now<=2
+      )) continue;
+      sliders.push({el,min,max,now});
+    }
+    if(sliders.length!==1) return {
+      found:false,
+      reason:sliders.length?'exact_slider_ambiguous':'exact_slider_missing',
+      candidateCount:sliders.length,
+      currentControlCount:0
+    };
+    const slider=sliders[0];
+    let focusProven=document.activeElement===slider.el;
+    if(ACTION==='focus') {
+      try { slider.el.focus({preventScroll:true}); }
+      catch { try { slider.el.focus(); } catch {} }
+      focusProven=document.activeElement===slider.el;
+    }
+    return {
+      found:true,reason:null,candidateCount:1,currentControlCount:0,
+      currentMode:modeFor(slider.now),currentControlOpen:true,
+      currentControlOpenObserved:false,
+      openProofKind:'unique_exact_slider_value',
+      min:slider.min,max:slider.max,now:slider.now,stepCount:3,
+      disabled:Boolean(
+        slider.el.disabled===true||
+        slider.el.getAttribute('aria-disabled')==='true'
+      ),
+      pointerEventsEnabled:getComputedStyle(slider.el).pointerEvents!=='none',
+      focusProven
+    };
+  })()`;
+}
+
+async function _pr88InstantEffortExactSliderSnapshot(debuggee, action='snapshot') {
+  const result=await chrome.debugger.sendCommand(debuggee,'Runtime.evaluate',{
+    expression:_pr88InstantEffortExactSliderExpression(action),
+    returnByValue:true,
+    awaitPromise:true
+  });
+  const value=result?.result?.value;
+  return value&&typeof value==='object'
+    ? value
+    : {found:false,reason:'exact_slider_probe_failed',candidateCount:0,currentControlCount:0};
+}
+
 async function _pr88InstantEffortResolvedSliderSnapshot(debuggee, action='snapshot') {
+  const structuralReasons=new Set([
+    'quick_picker_not_open',
+    'composer_missing',
+    'current_effort_control_missing',
+    'effort_slider_missing'
+  ]);
+
   const primary=await _pr88InstantEffortSliderSnapshot(debuggee,action);
-  if(primary?.found===true||primary?.reason!=='quick_picker_not_open') return primary;
-  return _pr88InstantEffortRelaxedSliderSnapshot(debuggee,action);
+  if(primary?.found===true||!structuralReasons.has(primary?.reason)) return primary;
+
+  const relaxed=await _pr88InstantEffortRelaxedSliderSnapshot(debuggee,action);
+  if(relaxed?.found===true||!structuralReasons.has(relaxed?.reason)) return relaxed;
+
+  return _pr88InstantEffortExactSliderSnapshot(debuggee,action);
 }
 
 function _pr88InstantEffortTriggerExpression(action) {
@@ -462,8 +543,20 @@ function _pr88InstantEffortDomTriggerClickExpression(expectedMode) {
       const s=getComputedStyle(el);
       return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
     };
-    const composer=['#prompt-textarea','[contenteditable="true"][data-lexical-editor="true"]','textarea[placeholder]']
-      .map((s)=>document.querySelector(s)).find((el)=>el&&visible(el));
+    const historicalComposer=[
+      '#prompt-textarea',
+      '[contenteditable="true"][data-lexical-editor="true"]',
+      'textarea[placeholder]'
+    ].map((s)=>document.querySelector(s)).find((el)=>el&&visible(el));
+    const semanticCandidates=historicalComposer?[]:Array.from(
+      document.querySelectorAll(
+        '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+      )
+    ).filter((candidate)=>
+      visible(candidate)&&candidate.closest('main')&&candidate.closest('form')
+    );
+    const composer=historicalComposer||
+      (semanticCandidates.length===1?semanticCandidates[0]:null);
     if(!composer) return {clicked:false,reason:'composer_missing',candidateCount:0};
     const cr=composer.getBoundingClientRect();
     const candidates=[];
@@ -693,131 +786,21 @@ async function _pr88SelectionEnsureInstantCore(debuggee, context) {
 }
 
 
-async function _pr88InstantEffortDocumentVisible(debuggee) {
-  try {
-    const result = await chrome.debugger.sendCommand(debuggee, 'Runtime.evaluate', {
-      expression: `(() => ({visible:document.visibilityState==='visible' && document.hidden!==true}))()`,
-      returnByValue: true,
-      awaitPromise: true
-    });
-    return result?.result?.value?.visible === true;
-  } catch {
-    return false;
-  }
-}
-
-async function _pr88InstantEffortWaitForeground(debuggee, timeoutMs = 2500) {
-  const tabId = Number.isInteger(debuggee?.tabId) ? debuggee.tabId : null;
-  if (tabId === null) return false;
-  const startedAt = performance.now();
-  while (performance.now() - startedAt < timeoutMs) {
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      if (tab?.active === true && await _pr88InstantEffortDocumentVisible(debuggee)) {
-        return true;
-      }
-    } catch {}
-    await sleep(PR88_INSTANT_EFFORT_SELECTION_POLL_MS);
-  }
-  return false;
-}
-
-async function _pr88InstantEffortRestorePriorTab(state) {
-  const result = {
-    attempted: false,
-    restored: state?.activated !== true,
-    priorTabPresent: Number.isInteger(state?.priorActiveTabId)
-  };
-  if (state?.activated !== true || !Number.isInteger(state?.priorActiveTabId)) {
-    return result;
-  }
-  result.attempted = true;
-  try {
-    const prior = await chrome.tabs.get(state.priorActiveTabId);
-    if (!prior || prior.windowId !== state.windowId) return result;
-    await chrome.tabs.update(state.priorActiveTabId, {active: true});
-    const startedAt = performance.now();
-    while (performance.now() - startedAt < 1500) {
-      const current = await chrome.tabs.get(state.priorActiveTabId);
-      if (current?.active === true) {
-        result.restored = true;
-        return result;
-      }
-      await sleep(PR88_INSTANT_EFFORT_SELECTION_POLL_MS);
-    }
-  } catch {}
+async function _pr88SelectionEnsureInstant(debuggee, context) {
+  context.instantEffortTransientForegroundRequested = false;
+  context.instantEffortTransientForegroundActivated = false;
+  context.instantEffortTransientForegroundProven = false;
+  context.instantEffortPriorActiveTabPresent = false;
+  context.instantEffortForegroundRestoreAttempted = false;
+  context.instantEffortForegroundRestoreProven = true;
+  context.instantEffortBackgroundSelectionAttempted = true;
+  const result = await _pr88SelectionEnsureInstantCore(debuggee, context);
+  context.instantEffortBackgroundSelectionProven =
+    context.selectionComplete === true &&
+    context.selectedModeAfterSelectionProven === true &&
+    context.selectedModeAfterSelection === "INSTANT";
   return result;
 }
-
-async function _pr88InstantEffortBeginTransientForeground(debuggee) {
-  const tabId = Number.isInteger(debuggee?.tabId) ? debuggee.tabId : null;
-  if (tabId === null) {
-    throw new Error('PR8_8_INSTANT_EFFORT_RUNTIME_TAB_REQUIRED');
-  }
-
-  const runtimeTab = await chrome.tabs.get(tabId);
-  const windowId = Number.isInteger(runtimeTab?.windowId) ? runtimeTab.windowId : null;
-  if (windowId === null) {
-    throw new Error('PR8_8_INSTANT_EFFORT_RUNTIME_WINDOW_REQUIRED');
-  }
-
-  let priorActiveTabId = null;
-  try {
-    const activeTabs = await chrome.tabs.query({active: true, windowId});
-    const prior = activeTabs.find((tab) => Number.isInteger(tab?.id) && tab.id !== tabId);
-    priorActiveTabId = Number.isInteger(prior?.id) ? prior.id : null;
-  } catch {}
-
-  const state = {
-    tabId,
-    windowId,
-    activated: runtimeTab?.active !== true,
-    priorActiveTabId,
-    foregroundProven: false
-  };
-
-  try {
-    if (state.activated) {
-      await chrome.tabs.update(tabId, {active: true});
-    }
-    state.foregroundProven = await _pr88InstantEffortWaitForeground(debuggee, 2500);
-    if (state.foregroundProven !== true) {
-      throw new Error('PR8_8_INSTANT_EFFORT_FOREGROUND_NOT_PROVEN');
-    }
-    // Give the product surface one bounded paint/event-loop turn after visibility.
-    await sleep(150);
-    return state;
-  } catch (error) {
-    await _pr88InstantEffortRestorePriorTab(state);
-    throw error;
-  }
-}
-
-async function _pr88SelectionEnsureInstant(debuggee, context) {
-    if (context?.selectionChecked === true) {
-      return _pr88SelectionEnsureInstantCore(debuggee, context);
-    }
-
-    const before = await _pr88InstantSelectedModeSnapshot(debuggee);
-    if (before?.selectedModeProven !== true || before?.selectedMode === 'INSTANT') {
-      return _pr88SelectionEnsureInstantCore(debuggee, context);
-    }
-
-    const foreground = await _pr88InstantEffortBeginTransientForeground(debuggee);
-    context.instantEffortTransientForegroundRequested = true;
-    context.instantEffortTransientForegroundActivated = foreground.activated === true;
-    context.instantEffortTransientForegroundProven = foreground.foregroundProven === true;
-    context.instantEffortPriorActiveTabPresent = Number.isInteger(foreground.priorActiveTabId);
-
-    try {
-      return await _pr88SelectionEnsureInstantCore(debuggee, context);
-    } finally {
-      const restored = await _pr88InstantEffortRestorePriorTab(foreground);
-      context.instantEffortForegroundRestoreAttempted = restored.attempted === true;
-      context.instantEffortForegroundRestoreProven = restored.restored === true;
-    }
-}
-
 
 function _pr88InstantEffortSupportDiagnosticMatches(message) {
   return message?.characterizeInstantEffortSelectionSupport === true;
@@ -835,6 +818,8 @@ async function _pr88HandleInstantEffortSupportDiagnostic(message) {
     quickPickerOnly: true,
     exactDiscreteRangeRequired: true,
     semanticHomeKeySelectionSupported: true,
+    backgroundSelectionSupported: true,
+    transientForegroundRequired: false,
     selectedInstantProofRequired: true,
     preInputFailureBoundaryPreserved: true,
     advancedPickerClickForbidden: true,
