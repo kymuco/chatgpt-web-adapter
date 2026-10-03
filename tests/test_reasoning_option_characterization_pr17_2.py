@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -229,7 +230,10 @@ def test_pr17_2_background_focus_probe_never_activates_or_changes_value() -> Non
     assert "_pr172CharacterizeBackgroundSliderFocus" in source
     assert "PR17_2_BACKGROUND_FOCUS_REQUIRES_INACTIVE_RUNTIME_TAB" in source
     assert "_pr88InstantEffortDomTriggerClick(" in source
-    assert '_pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus")' in source
+    assert re.search(
+        r'_pr88InstantEffortResolvedSliderSnapshot\\(\\s*debuggee,\\s*"focus"\\s*\\)',
+        source,
+    )
     assert "reasoningValueMutationAttempted: false" in source
     assert "keyDispatchPerformed: false" in source
     assert "mouseDispatchPerformed: false" in source
