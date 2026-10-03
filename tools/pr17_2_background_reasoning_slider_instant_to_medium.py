@@ -70,9 +70,7 @@ def _validate_contract(response: dict[str, Any]) -> None:
     if response.get("selectedModeAfter") != "MEDIUM":
         raise RuntimeError("PR17_2_BACKGROUND_STEP_FINAL_MODE_NOT_MEDIUM")
     if response.get("conversationWriteCount") != 0:
-        raise RuntimeError(
-            "PR17_2_BACKGROUND_STEP_CONVERSATION_WRITE_COUNT_NONZERO"
-        )
+        raise RuntimeError("PR17_2_BACKGROUND_STEP_CONVERSATION_WRITE_COUNT_NONZERO")
     if response.get("uiTriggerRestoreAttempted") is True:
         if response.get("uiTriggerRestoreProven") is not True:
             raise RuntimeError("PR17_2_BACKGROUND_STEP_TRIGGER_RESTORE_NOT_PROVEN")
