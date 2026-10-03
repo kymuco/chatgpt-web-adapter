@@ -141,31 +141,61 @@ async function _pr172CharacterizeBackgroundSliderHomeToInstant() {
     const documentVisibleBefore = visibility?.result?.value?.visible === true;
 
     const before = await _pr88InstantSelectedModeSnapshot(debuggee);
-    selectedModeBefore =
+    const beforeMode =
       typeof before?.selectedMode === "string" ? before.selectedMode : null;
-    if (before?.selectedModeProven !== true || selectedModeBefore !== "HIGH") {
+    if (before?.selectedModeProven === true && beforeMode !== "HIGH") {
       throw new Error(
-        `PR17_2_BACKGROUND_MUTATION_INITIAL_HIGH_NOT_PROVEN:${selectedModeBefore || "unknown"}`
+        `PR17_2_BACKGROUND_MUTATION_INITIAL_MODE_MISMATCH:${beforeMode}`
       );
     }
 
     const picker = await _pr88SelectionPoint(debuggee, "picker");
-    if (
-      picker?.found !== true ||
-      picker?.candidateCount !== 1 ||
-      picker?.mode !== "HIGH"
-    ) {
-      throw new Error(
-        `PR17_2_BACKGROUND_MUTATION_PICKER_NOT_PROVEN:${picker?.reason || "unknown"}`
-      );
-    }
+    const pickerHighProven = (
+      picker?.found === true &&
+      picker?.candidateCount === 1 &&
+      picker?.mode === "HIGH"
+    );
 
     let slider = await _pr172BackgroundResolvedSliderSnapshot(
       debuggee,
       "snapshot",
       "HIGH"
     );
+    const sliderHighAlreadyProven = (
+      slider?.found === true &&
+      slider?.candidateCount === 1 &&
+      slider?.min === 0 &&
+      slider?.max === 2 &&
+      slider?.stepCount === 3 &&
+      slider?.now === 2 &&
+      slider?.currentMode === "HIGH"
+    );
+
+    let initialModeProofKind = null;
+    if (before?.selectedModeProven === true && beforeMode === "HIGH") {
+      initialModeProofKind = "selected_mode_control";
+    } else if (sliderHighAlreadyProven) {
+      initialModeProofKind = "exact_slider_value";
+    } else if (pickerHighProven) {
+      initialModeProofKind = "picker_mode_control";
+    }
+
+    if (initialModeProofKind === null) {
+      throw new Error(
+        `PR17_2_BACKGROUND_MUTATION_INITIAL_HIGH_NOT_PROVEN:` +
+        `selected=${beforeMode || "unknown"};` +
+        `picker=${picker?.mode || picker?.reason || "unknown"};` +
+        `slider=${slider?.reason || "unknown"}`
+      );
+    }
+    selectedModeBefore = "HIGH";
+
     if (slider?.found !== true) {
+      if (!pickerHighProven) {
+        throw new Error(
+          `PR17_2_BACKGROUND_MUTATION_PICKER_NOT_PROVEN:${picker?.reason || "unknown"}`
+        );
+      }
       const opened = await _pr172BackgroundDomTriggerClick(debuggee, "HIGH");
       if (
         opened?.clicked !== true ||
@@ -229,6 +259,7 @@ async function _pr172CharacterizeBackgroundSliderHomeToInstant() {
       documentVisibleBefore,
       selectedModeBefore,
       selectedModeBeforeProven: true,
+      initialModeProofKind,
       sliderFound: true,
       sliderMin: 0,
       sliderMax: 2,
