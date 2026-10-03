@@ -74,7 +74,7 @@ globalThis.chrome = {
         "w", suffix=".js", delete=False, encoding="utf-8"
     ) as handle:
         handle.write(prelude)
-        handle.write("\\n")
+        handle.write("\n")
         handle.write(_source(PROBE))
         handle.write("\\n")
         handle.write(epilogue)
