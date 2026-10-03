@@ -237,7 +237,7 @@ def test_pr17_2_background_focus_probe_never_activates_or_changes_value() -> Non
     assert "PR17_2_BACKGROUND_FOCUS_REQUIRES_INACTIVE_RUNTIME_TAB" in source
     assert "_pr172BackgroundDomTriggerClick(" in source
     assert re.search(
-        r'_pr172BackgroundResolvedSliderSnapshot\(\s*'
+        r"_pr172BackgroundResolvedSliderSnapshot\(\s*"
         r'debuggee,\s*"focus",\s*selectedModeBefore\s*\)',
         source,
     )
@@ -272,8 +272,8 @@ def test_pr17_2_background_focus_restores_ephemeral_picker_state() -> None:
     assert "__cwaPr172ReasoningTrigger" in source
     assert "retainedReferenceUsed" in source
     assert re.search(
-        r'_pr172BackgroundDomTriggerClick\(\s*'
-        r'debuggee,\s*selectedModeBefore,\s*true\s*\)',
+        r"_pr172BackgroundDomTriggerClick\(\s*"
+        r"debuggee,\s*selectedModeBefore,\s*true\s*\)",
         source,
     )
 
@@ -295,7 +295,9 @@ def test_pr17_2_background_focus_can_prove_unique_slider_without_trigger() -> No
 
     assert "_pr172BackgroundExactSliderExpression" in source
     assert "_pr172BackgroundExactSliderSnapshot" in source
-    assert "document.querySelectorAll('[role=\"slider\"],input[type=\"range\"]')" in source
+    assert (
+        'document.querySelectorAll(\'[role="slider"],input[type="range"]\')' in source
+    )
     assert "min===0&&max===2&&now>=0&&now<=2" in source
     assert "now===0?'INSTANT':now===1?'MEDIUM':now===2?'HIGH':null" in source
     assert "exact_slider_mode_mismatch" in source
