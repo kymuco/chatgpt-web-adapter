@@ -46,7 +46,9 @@ def _validate_no_write_contract(response: dict[str, Any]) -> None:
         raise RuntimeError("PR17_2_FALLBACK_TRANSPORT_MUST_BE_NULL")
 
 
-def run_gate(*, expected_head: str | None, timeout: float, target: str) -> dict[str, Any]:
+def run_gate(
+    *, expected_head: str | None, timeout: float, target: str
+) -> dict[str, Any]:
     if timeout <= 0:
         raise ValueError("timeout must be positive")
     target_policy = target.strip().upper()
