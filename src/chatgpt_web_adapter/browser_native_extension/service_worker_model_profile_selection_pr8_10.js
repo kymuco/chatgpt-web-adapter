@@ -146,63 +146,60 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   context.selectionMechanism = "REASONING_EFFORT_SLIDER_HOME_PLUS_RIGHT";
   _pr810InstallWriteBoundary(debuggee, context);
 
-  const foreground = await _pr88InstantEffortBeginTransientForeground(debuggee);
-  context.transientForegroundActivated = foreground.activated === true;
-  context.transientForegroundProven = foreground.foregroundProven === true;
-  try {
-    const picker = await _pr88SelectionPoint(debuggee, "picker");
-    if (picker?.found !== true || picker?.candidateCount !== 1 || picker?.mode !== before.selectedMode) {
-      throw new Error(`PR8_10_MODEL_PROFILE_PICKER_NOT_PROVEN:${picker?.reason || "identity_mismatch"}`);
-    }
-
-    let slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
-    const alreadyOpen = (
-      slider?.found === true && slider?.candidateCount === 1 &&
-      slider?.min === 0 && slider?.max === 2 && slider?.stepCount === 3 &&
-      slider?.currentControlOpen === true && slider?.currentMode === before.selectedMode
-    );
-    if (!alreadyOpen) {
-      await _pr88InstantEffortOpenPickerWithFallback(debuggee, picker, before.selectedMode);
-      slider = await _pr88InstantEffortWaitForResolvedSlider(debuggee, before.selectedMode, 3000);
-    }
-    if (
-      slider?.found !== true || slider?.candidateCount !== 1 ||
-      slider?.min !== 0 || slider?.max !== 2 || slider?.stepCount !== 3
-    ) {
-      throw new Error(`PR8_10_MODEL_PROFILE_SLIDER_CONTRACT_NOT_PROVEN:${slider?.reason || "range_mismatch"}`);
-    }
-
-    const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");
-    if (focused?.focusProven !== true || focused?.min !== 0 || focused?.max !== 2 || focused?.stepCount !== 3) {
-      throw new Error("PR8_10_MODEL_PROFILE_SLIDER_FOCUS_NOT_PROVEN");
-    }
-
-    await _pr88InstantEffortDispatchHome(debuggee);
-    for (let index = 0; index < targetIndex; index += 1) {
-      await _pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39);
-    }
-
-    const settled = await _pr810WaitForTarget(debuggee, targetMode, targetIndex);
-    const after = settled?.selected;
-    const sliderAfter = settled?.slider;
-    context.sliderValueAfter = Number.isFinite(sliderAfter?.now) ? sliderAfter.now : targetIndex;
-    context.selectedModeAfter = after?.selectedMode || null;
-    context.selectedModeAfterProven = after?.selectedModeProven === true;
-    if (context.conversationWriteBeforeSelection === true) {
-      throw new Error("PR8_10_MODEL_PROFILE_CONVERSATION_WRITE_BEFORE_SELECTION");
-    }
-    if (after?.selectedModeProven !== true || after?.selectedMode !== targetMode) {
-      throw new Error(`PR8_10_MODEL_PROFILE_DID_NOT_SETTLE:${targetMode}`);
-    }
-    if (sliderAfter?.found === true && sliderAfter?.now !== targetIndex) {
-      throw new Error(`PR8_10_MODEL_PROFILE_SLIDER_TARGET_NOT_REACHED:${targetIndex}`);
-    }
-    context.selectionComplete = true;
-  } finally {
-    const restored = await _pr88InstantEffortRestorePriorTab(foreground);
-    context.foregroundRestoreAttempted = restored.attempted === true;
-    context.foregroundRestoreProven = restored.restored === true;
+  context.transientForegroundActivated = false;
+  context.transientForegroundProven = false;
+  context.foregroundRestoreAttempted = false;
+  context.foregroundRestoreProven = true;
+  context.backgroundSelectionAttempted = true;
+  const picker = await _pr88SelectionPoint(debuggee, "picker");
+  if (picker?.found !== true || picker?.candidateCount !== 1 || picker?.mode !== before.selectedMode) {
+    throw new Error(`PR8_10_MODEL_PROFILE_PICKER_NOT_PROVEN:${picker?.reason || "identity_mismatch"}`);
   }
+
+  let slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
+  const alreadyOpen = (
+    slider?.found === true && slider?.candidateCount === 1 &&
+    slider?.min === 0 && slider?.max === 2 && slider?.stepCount === 3 &&
+    slider?.currentControlOpen === true && slider?.currentMode === before.selectedMode
+  );
+  if (!alreadyOpen) {
+    await _pr88InstantEffortOpenPickerWithFallback(debuggee, picker, before.selectedMode);
+    slider = await _pr88InstantEffortWaitForResolvedSlider(debuggee, before.selectedMode, 3000);
+  }
+  if (
+    slider?.found !== true || slider?.candidateCount !== 1 ||
+    slider?.min !== 0 || slider?.max !== 2 || slider?.stepCount !== 3
+  ) {
+    throw new Error(`PR8_10_MODEL_PROFILE_SLIDER_CONTRACT_NOT_PROVEN:${slider?.reason || "range_mismatch"}`);
+  }
+
+  const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");
+  if (focused?.focusProven !== true || focused?.min !== 0 || focused?.max !== 2 || focused?.stepCount !== 3) {
+    throw new Error("PR8_10_MODEL_PROFILE_SLIDER_FOCUS_NOT_PROVEN");
+  }
+
+  await _pr88InstantEffortDispatchHome(debuggee);
+  for (let index = 0; index < targetIndex; index += 1) {
+    await _pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39);
+  }
+
+  const settled = await _pr810WaitForTarget(debuggee, targetMode, targetIndex);
+  const after = settled?.selected;
+  const sliderAfter = settled?.slider;
+  context.sliderValueAfter = Number.isFinite(sliderAfter?.now) ? sliderAfter.now : targetIndex;
+  context.selectedModeAfter = after?.selectedMode || null;
+  context.selectedModeAfterProven = after?.selectedModeProven === true;
+  if (context.conversationWriteBeforeSelection === true) {
+    throw new Error("PR8_10_MODEL_PROFILE_CONVERSATION_WRITE_BEFORE_SELECTION");
+  }
+  if (after?.selectedModeProven !== true || after?.selectedMode !== targetMode) {
+    throw new Error(`PR8_10_MODEL_PROFILE_DID_NOT_SETTLE:${targetMode}`);
+  }
+  if (sliderAfter?.found === true && sliderAfter?.now !== targetIndex) {
+    throw new Error(`PR8_10_MODEL_PROFILE_SLIDER_TARGET_NOT_REACHED:${targetIndex}`);
+  }
+  context.selectionComplete = true;
+  context.backgroundSelectionProven = true;
   context.selectionElapsedMs = Math.max(0, Math.round(performance.now() - startedAt));
 }
 
@@ -246,6 +243,8 @@ function _pr810Record(context) {
     conversationWriteBeforeSelection: context.conversationWriteBeforeSelection === true,
     transientForegroundActivated: context.transientForegroundActivated === true,
     transientForegroundProven: context.transientForegroundProven === true,
+    backgroundSelectionAttempted: context.backgroundSelectionAttempted === true,
+    backgroundSelectionProven: context.backgroundSelectionProven === true,
     foregroundRestoreAttempted: context.foregroundRestoreAttempted === true,
     foregroundRestoreProven: context.foregroundRestoreProven !== false,
     selectionElapsedMs: Number.isFinite(context.selectionElapsedMs) ? context.selectionElapsedMs : null
@@ -273,6 +272,8 @@ async function _executeNativeTurnWithModelProfile(message, next) {
       strictPrewriteVerification: true,
       boundedInitialModeAcquisition: true,
       initialModeAcquisitionTimeoutMs: PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS,
+      backgroundSelectionSupported: true,
+      transientForegroundRequired: false,
       maxProfileMapped: false
     };
   }
