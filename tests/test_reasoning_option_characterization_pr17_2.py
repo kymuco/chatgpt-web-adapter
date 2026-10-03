@@ -76,7 +76,7 @@ globalThis.chrome = {
         handle.write(prelude)
         handle.write("\n")
         handle.write(_source(PROBE))
-        handle.write("\\n")
+        handle.write("\n")
         handle.write(epilogue)
         path = handle.name
 
