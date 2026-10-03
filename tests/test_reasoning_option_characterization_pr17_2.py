@@ -295,8 +295,6 @@ def test_pr17_2_background_focus_can_prove_unique_slider_without_trigger() -> No
 
     assert "_pr172BackgroundExactSliderExpression" in source
     assert "_pr172BackgroundExactSliderSnapshot" in source
-    assert "'[role=\"slider\"],input[type=\"range\"]'" not in source
-    assert "'[role=\"slider\"],input[type=\"range\"]'" not in source
     assert "document.querySelectorAll('[role=\"slider\"],input[type=\"range\"]')" in source
     assert "min===0&&max===2&&now>=0&&now<=2" in source
     assert "now===0?'INSTANT':now===1?'MEDIUM':now===2?'HIGH':null" in source
