@@ -153,6 +153,7 @@ def test_pr17_2_probe_reports_bounded_direct_option_identity() -> None:
         "ariaSelected",
         "ariaCurrent",
         "ariaExpanded",
+        "ariaHaspopup",
         "dataState",
         "insideMenu",
         "insideListbox",
@@ -160,10 +161,18 @@ def test_pr17_2_probe_reports_bounded_direct_option_identity() -> None:
         "centerHitIsSelfOrDescendant",
         "documentVisibilityState",
         "documentHidden",
+        "surfaceCount",
+        "surfaces",
+        "surfaceActionableCount",
+        "surfaceActionables",
+        "semanticText",
+        "classifiedMode",
+        "parentRoles",
     ):
         assert field in source
 
     assert "options: options.slice(0, 32)" in source
+    assert "surfaceActionables: surfaceActionables.slice(0, 48)" in source
     assert "innerText.slice(0, 160)" in source
     assert "innerText:" not in source
     assert "textContent" not in source
