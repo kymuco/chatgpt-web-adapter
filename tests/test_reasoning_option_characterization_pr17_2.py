@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
-PROBE = EXT / "service_worker_reasoning_option_characterization_pr17_2.js"
+PROBE = EXT / "service_worker_reasoning_option_characterization.js"
 OBSERVABILITY = EXT / "service_worker_observability.js"
 LIVE_GATE = ROOT / "tools" / "pr17_2_reasoning_option_characterization.py"
 
@@ -74,11 +74,9 @@ globalThis.chrome = {
         "w", suffix=".js", delete=False, encoding="utf-8"
     ) as handle:
         handle.write(prelude)
-        handle.write("
-")
+        handle.write("\\n")
         handle.write(_source(PROBE))
-        handle.write("
-")
+        handle.write("\\n")
         handle.write(epilogue)
         path = handle.name
 
@@ -97,7 +95,7 @@ globalThis.chrome = {
 
 def test_pr17_2_probe_is_loaded_only_as_diagnostic_overlay() -> None:
     observation = _source(OBSERVABILITY)
-    probe_name = "service_worker_reasoning_option_characterization_pr17_2.js"
+    probe_name = "service_worker_reasoning_option_characterization.js"
 
     assert f'importScripts("{probe_name}");' in observation
     assert '"reasoning-option-characterization"' in _source(PROBE)
