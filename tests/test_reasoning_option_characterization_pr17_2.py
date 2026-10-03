@@ -229,9 +229,9 @@ def test_pr17_2_background_focus_probe_never_activates_or_changes_value() -> Non
     assert "characterizeBackgroundReasoningSliderFocus" in source
     assert "_pr172CharacterizeBackgroundSliderFocus" in source
     assert "PR17_2_BACKGROUND_FOCUS_REQUIRES_INACTIVE_RUNTIME_TAB" in source
-    assert "_pr88InstantEffortDomTriggerClick(" in source
+    assert "_pr172BackgroundDomTriggerClick(" in source
     assert re.search(
-        r'_pr88InstantEffortResolvedSliderSnapshot\\(\\s*debuggee,\\s*"focus"\\s*\\)',
+        r'_pr172BackgroundResolvedSliderSnapshot\(\s*debuggee,\s*"focus"\s*\)',
         source,
     )
     assert "reasoningValueMutationAttempted: false" in source
@@ -261,7 +261,18 @@ def test_pr17_2_background_focus_restores_ephemeral_picker_state() -> None:
     assert "openedByProbe" in source
     assert "uiTriggerRestoreAttempted" in source
     assert "uiTriggerRestoreProven" in source
-    assert source.count("_pr88InstantEffortDomTriggerClick(") >= 2
+    assert source.count("_pr172BackgroundDomTriggerClick(") >= 2
+
+
+def test_pr17_2_background_focus_uses_semantic_composer_fallback() -> None:
+    source = _source(PROBE)
+
+    assert "historicalComposer" in source
+    assert '[contenteditable="true"][role="textbox"][aria-multiline="true"]' in source
+    assert "candidate.closest('main')" in source
+    assert "candidate.closest('form')" in source
+    assert 'primary?.reason !== "composer_missing"' in source
+    assert "_pr88InstantEffortRelaxedSliderSnapshot(debuggee, action)" in source
 
 
 def test_pr17_2_background_focus_tool_has_zero_value_and_write_budgets() -> None:
