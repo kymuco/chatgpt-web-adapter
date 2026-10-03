@@ -453,11 +453,113 @@ async function _pr172CharacterizeReasoningOptions(message) {
 }
 
 
+function _pr172BackgroundDomTriggerClickExpression(expectedMode) {
+  return `(() => {
+    const expectedMode=${JSON.stringify(expectedMode)};
+    const normalize=(value)=>String(value||'').trim().toLowerCase().replace(/[\\s_\\-]+/g,' ');
+    const effort=(value)=>{
+      const text=normalize(value);
+      if(!text) return null;
+      if(/(^|\\b)(instant|мгновенно)(\\b|$)/.test(text)) return 'INSTANT';
+      if(/(^|\\b)(medium|средний)(\\b|$)/.test(text)) return 'MEDIUM';
+      if(/(^|\\b)(high|высокий)(\\b|$)/.test(text)) return 'HIGH';
+      return null;
+    };
+    const visible=(el)=>{
+      if(!(el instanceof Element)) return false;
+      const r=el.getBoundingClientRect();
+      if(r.width<=0||r.height<=0) return false;
+      const s=getComputedStyle(el);
+      return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
+    };
+    const historicalComposer=[
+      '#prompt-textarea',
+      '[contenteditable="true"][data-lexical-editor="true"]',
+      'textarea[placeholder]'
+    ].map((selector)=>document.querySelector(selector))
+      .find((element)=>element&&visible(element));
+    const semanticCandidates=historicalComposer?[]:Array.from(
+      document.querySelectorAll(
+        '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+      )
+    ).filter((candidate)=>
+      visible(candidate)&&candidate.closest('main')&&candidate.closest('form')
+    );
+    const composer=historicalComposer||
+      (semanticCandidates.length===1?semanticCandidates[0]:null);
+    if(!composer) return {clicked:false,reason:'composer_missing',candidateCount:0};
+    const cr=composer.getBoundingClientRect();
+    const candidates=[];
+    for(const el of Array.from(document.querySelectorAll('button,[role="button"]')).filter(visible)) {
+      const modes=Array.from(new Set([
+        el.innerText,el.getAttribute('aria-label'),el.getAttribute('title')
+      ].map(effort).filter(Boolean)));
+      if(modes.length!==1) continue;
+      const r=el.getBoundingClientRect();
+      const dx=Math.max(0,Math.max(cr.left-r.right,r.left-cr.right));
+      const dy=Math.max(0,Math.max(cr.top-r.bottom,r.top-cr.bottom));
+      const distance=Math.hypot(dx,dy);
+      if(distance<=800) candidates.push({el,mode:modes[0],distance});
+    }
+    candidates.sort((a,b)=>a.distance-b.distance);
+    if(candidates.length!==1) return {
+      clicked:false,
+      reason:candidates.length?'trigger_ambiguous':'trigger_missing',
+      candidateCount:candidates.length
+    };
+    const candidate=candidates[0];
+    if(candidate.mode!==expectedMode) return {
+      clicked:false,reason:'trigger_mode_mismatch',candidateCount:1,mode:candidate.mode
+    };
+    const target=candidate.el;
+    const disabled=Boolean(
+      target.disabled===true||
+      target.getAttribute('aria-disabled')==='true'
+    );
+    const pointerEventsEnabled=getComputedStyle(target).pointerEvents!=='none';
+    if(disabled||!pointerEventsEnabled) return {
+      clicked:false,reason:'trigger_not_actionable',candidateCount:1,mode:candidate.mode
+    };
+    const openBefore=
+      target.getAttribute('aria-expanded')==='true'||
+      normalize(target.getAttribute('data-state'))==='open';
+    target.click();
+    return {
+      clicked:true,reason:null,candidateCount:1,mode:candidate.mode,openBefore
+    };
+  })()`;
+}
+
+async function _pr172BackgroundDomTriggerClick(debuggee, expectedMode) {
+  const result = await chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
+    expression: _pr172BackgroundDomTriggerClickExpression(expectedMode),
+    returnByValue: true,
+    awaitPromise: true
+  });
+  const value = result?.result?.value;
+  return value && typeof value === "object"
+    ? value
+    : {clicked:false, reason:"background_dom_trigger_probe_failed", candidateCount:0};
+}
+
+async function _pr172BackgroundResolvedSliderSnapshot(debuggee, action = "snapshot") {
+  const primary = await _pr88InstantEffortSliderSnapshot(debuggee, action);
+  if (primary?.found === true) return primary;
+  if (
+    primary?.reason !== "quick_picker_not_open" &&
+    primary?.reason !== "composer_missing"
+  ) {
+    return primary;
+  }
+  return _pr88InstantEffortRelaxedSliderSnapshot(debuggee, action);
+}
+
+
 async function _pr172WaitForSliderSnapshot(debuggee, expectedMode, timeoutMs = 3000) {
   const startedAt = performance.now();
   let last = null;
   while (performance.now() - startedAt < timeoutMs) {
-    last = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
+    last = await _pr172BackgroundResolvedSliderSnapshot(debuggee, "snapshot");
     if (
       last?.found === true &&
       last?.candidateCount === 1 &&
@@ -560,7 +662,7 @@ async function _pr172CharacterizeBackgroundSliderFocus() {
       picker?.mode === selectedModeBefore
     );
 
-    let slider = await _pr88InstantEffortResolvedSliderSnapshot(
+    let slider = await _pr172BackgroundResolvedSliderSnapshot(
       debuggee,
       "snapshot"
     );
@@ -570,7 +672,7 @@ async function _pr172CharacterizeBackgroundSliderFocus() {
           `PR17_2_BACKGROUND_FOCUS_PICKER_NOT_PROVEN:${picker?.reason || "unknown"}`
         );
       }
-      const opened = await _pr88InstantEffortDomTriggerClick(
+      const opened = await _pr172BackgroundDomTriggerClick(
         debuggee,
         selectedModeBefore
       );
@@ -605,7 +707,7 @@ async function _pr172CharacterizeBackgroundSliderFocus() {
       );
     }
 
-    const focused = await _pr88InstantEffortResolvedSliderSnapshot(
+    const focused = await _pr172BackgroundResolvedSliderSnapshot(
       debuggee,
       "focus"
     );
