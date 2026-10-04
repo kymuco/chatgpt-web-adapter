@@ -3,7 +3,7 @@
 // INSTANT (0), MEDIUM (1), HIGH (2). Explicit unsupported modes fail before write.
 
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
-const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R11";
+const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R12";
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INDEX_MODEL_MODE = Object.freeze(["INSTANT", "MEDIUM", "HIGH"]);
@@ -113,205 +113,6 @@ async function _pr810DisableBackgroundFocusEmulation(debuggee, context) {
   context.backgroundFocusEmulationEnabled = false;
 }
 
-function _pr810ReasoningSliderExpression(returnElement = false) {
-  return `(() => {
-    const RETURN_ELEMENT=${returnElement === true ? "true" : "false"};
-    const normalize=(value)=>String(value||'').trim().toLowerCase().replace(/[\\s_\\-]+/g,' ');
-    const effort=(value)=>{
-      const text=normalize(value);
-      if(!text) return null;
-      const has=(token)=>
-        text===token||
-        text.startsWith(token+' ')||
-        text.endsWith(' '+token)||
-        text.includes(' '+token+' ');
-      if(has('instant')||has('мгновенно')) return 'INSTANT';
-      if(has('medium')||has('средний')) return 'MEDIUM';
-      if(has('high')||has('высокий')) return 'HIGH';
-      return null;
-    };
-    const visible=(el)=>{
-      if(!(el instanceof Element)) return false;
-      const r=el.getBoundingClientRect();
-      if(r.width<=0||r.height<=0) return false;
-      const s=getComputedStyle(el);
-      return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
-    };
-    const num=(value)=>{
-      if(value===null||value===undefined||value==='') return null;
-      const parsed=Number(value);
-      return Number.isFinite(parsed)?parsed:null;
-    };
-    const fields=(el)=>[
-      typeof el.innerText==='string'?el.innerText.slice(0,160):'',
-      el.getAttribute('aria-label'),
-      el.getAttribute('title')
-    ];
-    const oneMode=(el)=>{
-      const modes=Array.from(new Set(fields(el).map(effort).filter(Boolean)));
-      return modes.length===1?modes[0]:null;
-    };
-    const historicalComposer=[
-      '#prompt-textarea',
-      '[contenteditable="true"][data-lexical-editor="true"]',
-      'textarea[placeholder]'
-    ].map((s)=>document.querySelector(s)).find((el)=>el&&visible(el));
-    const semanticCandidates=historicalComposer?[]:Array.from(
-      document.querySelectorAll(
-        '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
-      )
-    ).filter((candidate)=>
-      visible(candidate)&&candidate.closest('main')&&candidate.closest('form')
-    );
-    const composer=historicalComposer||
-      (semanticCandidates.length===1?semanticCandidates[0]:null);
-    if(!composer) {
-      return RETURN_ELEMENT?null:{
-        found:false,reason:'composer_missing',candidateCount:0,currentControlCount:0
-      };
-    }
-
-    const cr=composer.getBoundingClientRect();
-    const controls=[];
-    for(const el of Array.from(
-      document.querySelectorAll('button,[role="button"]')
-    ).filter(visible)) {
-      const mode=oneMode(el);
-      if(!mode) continue;
-      const r=el.getBoundingClientRect();
-      const dx=Math.max(0,Math.max(cr.left-r.right,r.left-cr.right));
-      const dy=Math.max(0,Math.max(cr.top-r.bottom,r.top-cr.bottom));
-      const distance=Math.hypot(dx,dy);
-      if(distance<=800) controls.push({el,mode,r,distance});
-    }
-    controls.sort((a,b)=>a.distance-b.distance);
-    if(controls.length!==1) {
-      return RETURN_ELEMENT?null:{
-        found:false,
-        reason:controls.length?'current_effort_control_ambiguous':'current_effort_control_missing',
-        candidateCount:0,
-        currentControlCount:controls.length
-      };
-    }
-
-    const control=controls[0];
-    const sliders=[];
-    for(const el of Array.from(
-      document.querySelectorAll('[role="slider"],input[type="range"]')
-    ).filter(visible)) {
-      const r=el.getBoundingClientRect();
-      const min=num(el.getAttribute('aria-valuemin'))??num(el.min);
-      const max=num(el.getAttribute('aria-valuemax'))??num(el.max);
-      const now=num(el.getAttribute('aria-valuenow'))??num(el.value);
-      if(!(
-        Number.isInteger(min)&&Number.isInteger(max)&&Number.isInteger(now)&&
-        min===0&&max===2&&now>=0&&now<=2
-      )) continue;
-      const distance=Math.hypot(
-        (r.left+r.width/2)-(control.r.left+control.r.width/2),
-        (r.top+r.height/2)-(control.r.top+control.r.height/2)
-      );
-      if(distance<=400) sliders.push({el,min,max,now,distance});
-    }
-    sliders.sort((a,b)=>a.distance-b.distance);
-    if(sliders.length!==1) {
-      return RETURN_ELEMENT?null:{
-        found:false,
-        reason:sliders.length?'reasoning_slider_ambiguous':'reasoning_slider_missing',
-        candidateCount:sliders.length,
-        currentControlCount:1,
-        currentMode:control.mode
-      };
-    }
-
-    const slider=sliders[0];
-    if(RETURN_ELEMENT) return slider.el;
-    return {
-      found:true,
-      reason:null,
-      candidateCount:1,
-      currentControlCount:1,
-      currentMode:control.mode,
-      min:slider.min,
-      max:slider.max,
-      now:slider.now,
-      stepCount:3,
-      disabled:Boolean(
-        slider.el.disabled===true||
-        slider.el.getAttribute('aria-disabled')==='true'
-      ),
-      pointerEventsEnabled:getComputedStyle(slider.el).pointerEvents!=='none',
-      activeElementIsSlider:document.activeElement===slider.el
-    };
-  })()`;
-}
-
-async function _pr810ReasoningSliderSnapshot(debuggee) {
-  const result = await chrome.debugger.sendCommand(
-    debuggee,
-    "Runtime.evaluate",
-    {
-      expression: _pr810ReasoningSliderExpression(false),
-      returnByValue: true,
-      awaitPromise: true
-    }
-  );
-  const value=result?.result?.value;
-  return value&&typeof value==="object"
-    ? value
-    : {
-      found:false,
-      reason:"reasoning_slider_probe_failed",
-      candidateCount:0,
-      currentControlCount:0
-    };
-}
-
-async function _pr810FocusReasoningSlider(debuggee) {
-  await chrome.debugger.sendCommand(debuggee, "DOM.enable");
-
-  const result = await chrome.debugger.sendCommand(
-    debuggee,
-    "Runtime.evaluate",
-    {
-      expression: _pr810ReasoningSliderExpression(true),
-      returnByValue: false,
-      awaitPromise: true,
-      objectGroup: "pr17_2_reasoning_slider_focus"
-    }
-  );
-
-  const objectId = result?.result?.objectId;
-  if (typeof objectId !== "string" || !objectId) {
-    try {
-      await chrome.debugger.sendCommand(
-        debuggee,
-        "Runtime.releaseObjectGroup",
-        {objectGroup: "pr17_2_reasoning_slider_focus"}
-      );
-    } catch {}
-    throw new Error("PR8_10_MODEL_PROFILE_REASONING_SLIDER_OBJECT_NOT_PROVEN");
-  }
-
-  try {
-    await chrome.debugger.sendCommand(debuggee, "DOM.focus", {objectId});
-  } finally {
-    try {
-      await chrome.debugger.sendCommand(
-        debuggee,
-        "Runtime.releaseObjectGroup",
-        {objectGroup: "pr17_2_reasoning_slider_focus"}
-      );
-    } catch {}
-  }
-
-  const focused = await _pr810ReasoningSliderSnapshot(debuggee);
-  return {
-    ...focused,
-    focusProven: focused?.activeElementIsSlider === true,
-    focusMechanism: "DOM.focus_reasoning_slider"
-  };
-}
 
 async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs = 8000) {
   const startedAt = performance.now();
@@ -321,7 +122,7 @@ async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs 
   let selectedModeLagObserved = false;
   while (performance.now() - startedAt < timeoutMs) {
     selected = await _pr88InstantSelectedModeSnapshot(debuggee);
-    slider = await _pr810ReasoningSliderSnapshot(debuggee);
+    slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
     const sliderTargetProven = (
       slider?.found === true &&
       slider?.candidateCount === 1 &&
@@ -354,6 +155,49 @@ async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs 
     await sleep(PR88_INSTANT_EFFORT_SELECTION_POLL_MS);
   }
   return {selected, slider, proofKind, selectedModeLagObserved};
+}
+
+
+async function _pr810FocusResolvedSlider(debuggee) {
+  await chrome.debugger.sendCommand(debuggee, "DOM.enable");
+
+  const remote = await _pr88InstantEffortResolvedSliderRemoteObject(debuggee);
+  if (
+    remote?.found !== true ||
+    typeof remote?.objectId !== "string" ||
+    !remote.objectId
+  ) {
+    throw new Error(
+      `PR8_10_MODEL_PROFILE_RESOLVED_SLIDER_OBJECT_NOT_PROVEN:${remote?.reason || "unknown"}:${remote?.resolver || "unknown"}`
+    );
+  }
+
+  try {
+    await chrome.debugger.sendCommand(
+      debuggee,
+      "DOM.focus",
+      {objectId: remote.objectId}
+    );
+  } finally {
+    try {
+      await chrome.debugger.sendCommand(
+        debuggee,
+        "Runtime.releaseObjectGroup",
+        {objectGroup: "pr17_2_resolved_slider_focus"}
+      );
+    } catch {}
+  }
+
+  const focused = await _pr88InstantEffortResolvedSliderSnapshot(
+    debuggee,
+    "snapshot"
+  );
+  return {
+    ...focused,
+    focusProven: focused?.focusProven === true,
+    focusMechanism: `DOM.focus_${remote.resolver || "resolved"}`,
+    focusResolver: remote?.resolver || null
+  };
 }
 
 function _pr810InstallWriteBoundary(debuggee, context) {
@@ -436,37 +280,67 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   context.foregroundRestoreAttempted = false;
   context.foregroundRestoreProven = true;
   context.backgroundSelectionAttempted = true;
-  const picker = await _pr88SelectionPoint(debuggee, "picker");
-  if (picker?.found !== true || picker?.candidateCount !== 1 || picker?.mode !== before.selectedMode) {
-    throw new Error(`PR8_10_MODEL_PROFILE_PICKER_NOT_PROVEN:${picker?.reason || "identity_mismatch"}`);
-  }
-
-  let slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
-  const alreadyOpen = (
-    slider?.found === true && slider?.candidateCount === 1 &&
-    slider?.min === 0 && slider?.max === 2 && slider?.stepCount === 3 &&
-    slider?.currentControlOpen === true && slider?.currentMode === before.selectedMode
-  );
-  if (!alreadyOpen) {
-    await _pr88InstantEffortOpenPickerWithFallback(debuggee, picker, before.selectedMode);
-    slider = await _pr88InstantEffortWaitForResolvedSlider(debuggee, before.selectedMode, 3000);
-  }
-  if (
-    slider?.found !== true || slider?.candidateCount !== 1 ||
-    slider?.min !== 0 || slider?.max !== 2 || slider?.stepCount !== 3
-  ) {
-    throw new Error(`PR8_10_MODEL_PROFILE_SLIDER_CONTRACT_NOT_PROVEN:${slider?.reason || "range_mismatch"}`);
-  }
 
   let settled = null;
   let focusEmulationEnabled = false;
   try {
+    // Fresh active:false tabs must enter browser-level focus emulation before
+    // opening the reasoning picker. Enabling focus after the popover is open can
+    // trigger focus/blur handlers that dismiss it.
     focusEmulationEnabled = await _pr810EnableBackgroundFocusEmulation(
       debuggee,
       context
     );
 
-    const focused = await _pr810FocusReasoningSlider(debuggee);
+    const picker = await _pr88SelectionPoint(debuggee, "picker");
+    if (
+      picker?.found !== true ||
+      picker?.candidateCount !== 1 ||
+      picker?.mode !== before.selectedMode
+    ) {
+      throw new Error(
+        `PR8_10_MODEL_PROFILE_PICKER_NOT_PROVEN:${picker?.reason || "identity_mismatch"}`
+      );
+    }
+
+    let slider = await _pr88InstantEffortResolvedSliderSnapshot(
+      debuggee,
+      "snapshot"
+    );
+    const alreadyOpen = (
+      slider?.found === true &&
+      slider?.candidateCount === 1 &&
+      slider?.min === 0 &&
+      slider?.max === 2 &&
+      slider?.stepCount === 3 &&
+      slider?.currentControlOpen === true &&
+      slider?.currentMode === before.selectedMode
+    );
+    if (!alreadyOpen) {
+      await _pr88InstantEffortOpenPickerWithFallback(
+        debuggee,
+        picker,
+        before.selectedMode
+      );
+      slider = await _pr88InstantEffortWaitForResolvedSlider(
+        debuggee,
+        before.selectedMode,
+        3000
+      );
+    }
+    if (
+      slider?.found !== true ||
+      slider?.candidateCount !== 1 ||
+      slider?.min !== 0 ||
+      slider?.max !== 2 ||
+      slider?.stepCount !== 3
+    ) {
+      throw new Error(
+        `PR8_10_MODEL_PROFILE_SLIDER_CONTRACT_NOT_PROVEN:${slider?.reason || "range_mismatch"}`
+      );
+    }
+
+    const focused = await _pr810FocusResolvedSlider(debuggee);
     if (
       focused?.focusProven !== true ||
       focused?.min !== 0 ||
@@ -476,6 +350,7 @@ async function _pr810EnsureTargetMode(debuggee, context) {
       throw new Error("PR8_10_MODEL_PROFILE_SLIDER_FOCUS_NOT_PROVEN");
     }
     context.sliderFocusMechanism = focused?.focusMechanism || null;
+    context.sliderFocusResolver = focused?.focusResolver || null;
 
     await _pr88InstantEffortDispatchHome(debuggee);
     settled = await _pr810WaitForTarget(debuggee, "INSTANT", 0, 3000);
@@ -497,7 +372,10 @@ async function _pr810EnsureTargetMode(debuggee, context) {
       context.selectionStepCount = index;
     }
   } finally {
-    if (focusEmulationEnabled || context.backgroundFocusEmulationEnabled === true) {
+    if (
+      focusEmulationEnabled ||
+      context.backgroundFocusEmulationEnabled === true
+    ) {
       await _pr810DisableBackgroundFocusEmulation(debuggee, context);
     }
   }
@@ -608,6 +486,7 @@ function _pr810Record(context) {
     backgroundFocusEmulationRestored:
       context.backgroundFocusEmulationRestored !== false,
     sliderFocusMechanism: context.sliderFocusMechanism || null,
+    sliderFocusResolver: context.sliderFocusResolver || null,
     foregroundRestoreAttempted: context.foregroundRestoreAttempted === true,
     foregroundRestoreProven: context.foregroundRestoreProven !== false,
     selectionElapsedMs: Number.isFinite(context.selectionElapsedMs) ? context.selectionElapsedMs : null
