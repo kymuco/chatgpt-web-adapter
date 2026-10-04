@@ -3,7 +3,7 @@
 // INSTANT (0), MEDIUM (1), HIGH (2). Explicit unsupported modes fail before write.
 
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
-const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R9";
+const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R10";
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INDEX_MODEL_MODE = Object.freeze(["INSTANT", "MEDIUM", "HIGH"]);
@@ -111,6 +111,106 @@ async function _pr810DisableBackgroundFocusEmulation(debuggee, context) {
     context.backgroundFocusEmulationRestored = false;
   }
   context.backgroundFocusEmulationEnabled = false;
+}
+
+async function _pr810FocusExactSlider(debuggee) {
+  await chrome.debugger.sendCommand(debuggee, "DOM.enable");
+
+  const result = await chrome.debugger.sendCommand(
+    debuggee,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const visible=(el)=>{
+          if(!(el instanceof Element)) return false;
+          const r=el.getBoundingClientRect();
+          if(r.width<=0||r.height<=0) return false;
+          const s=getComputedStyle(el);
+          return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
+        };
+        const num=(value)=>{
+          if(value===null||value===undefined||value==='') return null;
+          const parsed=Number(value);
+          return Number.isFinite(parsed)?parsed:null;
+        };
+        const sliders=Array.from(
+          document.querySelectorAll('[role="slider"],input[type="range"]')
+        ).filter(visible).filter((el)=>{
+          const min=num(el.getAttribute('aria-valuemin'))??num(el.min);
+          const max=num(el.getAttribute('aria-valuemax'))??num(el.max);
+          const now=num(el.getAttribute('aria-valuenow'))??num(el.value);
+          return (
+            Number.isInteger(min)&&Number.isInteger(max)&&Number.isInteger(now)&&
+            min===0&&max===2&&now>=0&&now<=2
+          );
+        });
+        return sliders.length===1 ? sliders[0] : null;
+      })()`,
+      returnByValue: false,
+      awaitPromise: true,
+      objectGroup: "pr17_2_exact_slider_focus"
+    }
+  );
+
+  const objectId = result?.result?.objectId;
+  if (typeof objectId !== "string" || !objectId) {
+    try {
+      await chrome.debugger.sendCommand(
+        debuggee,
+        "Runtime.releaseObjectGroup",
+        {objectGroup: "pr17_2_exact_slider_focus"}
+      );
+    } catch {}
+    throw new Error("PR8_10_MODEL_PROFILE_EXACT_SLIDER_OBJECT_NOT_PROVEN");
+  }
+
+  try {
+    await chrome.debugger.sendCommand(debuggee, "DOM.focus", {objectId});
+  } finally {
+    try {
+      await chrome.debugger.sendCommand(
+        debuggee,
+        "Runtime.releaseObjectGroup",
+        {objectGroup: "pr17_2_exact_slider_focus"}
+      );
+    } catch {}
+  }
+
+  const focused = await _pr88InstantEffortExactSliderSnapshot(
+    debuggee,
+    "snapshot"
+  );
+  const active = await chrome.debugger.sendCommand(
+    debuggee,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const active=document.activeElement;
+        if(!(active instanceof Element)) return false;
+        const num=(value)=>{
+          if(value===null||value===undefined||value==='') return null;
+          const parsed=Number(value);
+          return Number.isFinite(parsed)?parsed:null;
+        };
+        const min=num(active.getAttribute('aria-valuemin'))??num(active.min);
+        const max=num(active.getAttribute('aria-valuemax'))??num(active.max);
+        const now=num(active.getAttribute('aria-valuenow'))??num(active.value);
+        return (
+          (active.getAttribute('role')==='slider'||active.matches('input[type="range"]'))&&
+          Number.isInteger(min)&&Number.isInteger(max)&&Number.isInteger(now)&&
+          min===0&&max===2&&now>=0&&now<=2
+        );
+      })()`,
+      returnByValue: true,
+      awaitPromise: true
+    }
+  );
+
+  return {
+    ...focused,
+    focusProven: active?.result?.value === true,
+    focusMechanism: "DOM.focus"
+  };
 }
 
 async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs = 8000) {
@@ -266,7 +366,7 @@ async function _pr810EnsureTargetMode(debuggee, context) {
       context
     );
 
-    const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");
+    const focused = await _pr810FocusExactSlider(debuggee);
     if (
       focused?.focusProven !== true ||
       focused?.min !== 0 ||
@@ -275,6 +375,7 @@ async function _pr810EnsureTargetMode(debuggee, context) {
     ) {
       throw new Error("PR8_10_MODEL_PROFILE_SLIDER_FOCUS_NOT_PROVEN");
     }
+    context.sliderFocusMechanism = focused?.focusMechanism || null;
 
     await _pr88InstantEffortDispatchHome(debuggee);
     settled = await _pr810WaitForTarget(debuggee, "INSTANT", 0, 3000);
@@ -406,6 +507,7 @@ function _pr810Record(context) {
       context.backgroundFocusEmulationRestoreAttempted === true,
     backgroundFocusEmulationRestored:
       context.backgroundFocusEmulationRestored !== false,
+    sliderFocusMechanism: context.sliderFocusMechanism || null,
     foregroundRestoreAttempted: context.foregroundRestoreAttempted === true,
     foregroundRestoreProven: context.foregroundRestoreProven !== false,
     selectionElapsedMs: Number.isFinite(context.selectionElapsedMs) ? context.selectionElapsedMs : null
