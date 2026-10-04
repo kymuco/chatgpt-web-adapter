@@ -239,11 +239,55 @@ function _pr88SelectionInstallNetworkWindow(debuggee, context) {
   context.networkListener = listener;
 }
 
+function _pr88SelectionAdoptModelProfileSelection(context, owner) {
+  if (
+    owner?.requestedModelMode !== "INSTANT" ||
+    owner?.selectionComplete !== true ||
+    owner?.selectedModeAfterProven !== true ||
+    owner?.selectedModeAfter !== "INSTANT"
+  ) {
+    throw new Error("PR17_2_INSTANT_SELECTION_MODEL_PROFILE_HANDOFF_NOT_PROVEN");
+  }
+
+  context.selectionChecked = true;
+  context.selectionComplete = true;
+  context.selectionPerformed = owner.selectionPerformed === true;
+  context.selectionMechanism = owner.selectionMechanism || "NO_SELECTION_REQUIRED";
+  context.selectedModeBeforeSelection = owner.selectedModeBefore || null;
+  context.selectedModeBeforeSelectionProven = owner.selectedModeBeforeProven === true;
+  context.selectedModeBeforeSelectionProofKind =
+    owner.selectedModeBeforeProofKind || "model_profile_handoff";
+  context.selectedModeBeforeSelectionCandidateCount = Number.isInteger(
+    owner.selectedModeBeforeCandidateCount
+  )
+    ? owner.selectedModeBeforeCandidateCount
+    : 0;
+  context.selectedModeAfterSelection = "INSTANT";
+  context.selectedModeAfterSelectionProven = true;
+  context.selectedModeAfterSelectionProofKind =
+    owner.selectedModeAfterProofKind || "model_profile_handoff";
+  context.selectionElapsedMs = Number.isFinite(owner.selectionElapsedMs)
+    ? owner.selectionElapsedMs
+    : 0;
+  context.selectionMutationElapsedMs = context.selectionPerformed
+    ? context.selectionElapsedMs
+    : 0;
+}
+
 async function _pr88SelectionPrepareComposer(debuggee) {
   const context = _pr88SelectionContext;
-  if (context !== null) {
-    await _pr88SelectionEnsureInstant(debuggee, context);
+  if (context === null) return;
+
+  const modelProfileContext =
+    typeof _pr810ModelProfileContext !== "undefined"
+      ? _pr810ModelProfileContext
+      : null;
+  if (modelProfileContext !== null) {
+    _pr88SelectionAdoptModelProfileSelection(context, modelProfileContext);
+    return;
   }
+
+  await _pr88SelectionEnsureInstant(debuggee, context);
 }
 
 async function _pr88SelectionStoredRecord() {
