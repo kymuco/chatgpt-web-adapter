@@ -51,6 +51,9 @@ def test_text_submit_hardening_declares_exact_protected_boundaries() -> None:
     assert "_pr92ActiveRichInputContext" in text
     assert "throw error;" in text
     assert "return _pr113SubmitTextWithEnterOnce(debuggee);" in text
+    assert "_pr113RuntimeTabActive" in text
+    assert "PR11_3_MOUSE_COMMIT_REQUIRES_ALREADY_ACTIVE_TAB" in text
+    assert "chrome.tabs.update" not in text
     assert text.index("throw error;") < text.rindex(
         "return _pr113SubmitTextWithEnterOnce(debuggee);"
     )
@@ -71,9 +74,12 @@ const log = [];
 let _pr92ActiveRichInputContext = null;
 let _pr813TemporaryTurnContext = null;
 const DEFAULT_SUBMIT_READY_TIMEOUT_MS = 10000;
+const runtimeActive = ["already_active", "move_fail", "press_fail", "release_fail"].includes(
+  scenario
+);
 const tabState = new Map([
-  [66, { id: 66, active: scenario !== "already_active", windowId: 1 }],
-  [77, { id: 77, active: scenario === "already_active", windowId: 1 }]
+  [66, { id: 66, active: !runtimeActive, windowId: 1 }],
+  [77, { id: 77, active: runtimeActive, windowId: 1 }]
 ]);
 const chrome = {
   tabs: {
@@ -202,46 +208,30 @@ def test_mouse_release_ack_loss_never_authorizes_enter_retry(tmp_path: Path) -> 
     assert sum("mouseReleased" in item for item in result["log"]) == 1
 
 
-def test_successful_click_uses_one_mouse_commit_and_no_enter(tmp_path: Path) -> None:
-    result = _run_node_scenario(tmp_path, "success")
+def test_already_active_tab_uses_one_mouse_commit_and_no_enter(tmp_path: Path) -> None:
+    result = _run_node_scenario(tmp_path, "already_active")
 
     assert result["ok"] is True
     assert result["result"] == {
         "strategy": "send_button_click",
         "selector": "send-selector",
     }
+    assert not any(item.startswith("tabs.update:") for item in result["log"])
+    assert result["log"].count("wait_button") == 1
+    assert "mouse_point:10:20" in result["log"]
     assert len(_enter_keydowns(result["log"])) == 0
     assert sum("mouseReleased" in item for item in result["log"]) == 1
 
 
-def test_background_tab_activation_refreshes_send_before_single_commit(
-    tmp_path: Path,
-) -> None:
+def test_background_tab_uses_enter_without_activation_or_mouse(tmp_path: Path) -> None:
     result = _run_node_scenario(tmp_path, "success")
 
     assert result["ok"] is True
-    log = result["log"]
-    activate = log.index("tabs.update:77:active=true")
-    waits = [i for i, item in enumerate(log) if item == "wait_button"]
-    moved = next(i for i, item in enumerate(log) if "mouseMoved" in item)
-    released = next(i for i, item in enumerate(log) if "mouseReleased" in item)
-    restore = log.index("tabs.update:66:active=true")
-
-    assert len(waits) == 2
-    assert activate < waits[1] < moved < released < restore
-    assert "mouse_point:13:24" in log
-    assert sum("mouseReleased" in item for item in log) == 1
-    assert len(_enter_keydowns(log)) == 0
-
-
-def test_already_active_commit_tab_does_not_churn_or_refresh(tmp_path: Path) -> None:
-    result = _run_node_scenario(tmp_path, "already_active")
-
-    assert result["ok"] is True
+    assert result["result"]["strategy"] == "enter_fallback"
     assert not any(item.startswith("tabs.update:") for item in result["log"])
-    assert result["log"].count("wait_button") == 1
-    assert "mouse_point:10:20" in result["log"]
-    assert sum("mouseReleased" in item for item in result["log"]) == 1
+    assert result["log"].count("wait_button") == 0
+    assert len(_enter_keydowns(result["log"])) == 1
+    assert not any("Input.dispatchMouseEvent" in item for item in result["log"])
 
 
 def test_enter_keyup_failure_is_post_commit_cleanup_only(tmp_path: Path) -> None:
