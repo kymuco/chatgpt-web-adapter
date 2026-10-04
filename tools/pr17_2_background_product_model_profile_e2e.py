@@ -14,7 +14,7 @@ from chatgpt_web_adapter.product_model_profile_pr8_10 import (
 )
 
 SEQUENCE: tuple[str, ...] = ("FAST", "DEEP", "BALANCED")
-EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R7"
+EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R9"
 
 
 def _git_output(*args: str) -> str:
@@ -94,6 +94,12 @@ def _validate_selection(
             raise RuntimeError(f"PR17_2_{profile}:STEP_COUNT_MISMATCH")
         if selection.get("stepwiseSelectionProven") is not True:
             raise RuntimeError(f"PR17_2_{profile}:STEPWISE_SELECTION_NOT_PROVEN")
+        if selection.get("backgroundFocusEmulationAttempted") is not True:
+            raise RuntimeError(f"PR17_2_{profile}:FOCUS_EMULATION_NOT_ATTEMPTED")
+        if selection.get("backgroundFocusEmulationProven") is not True:
+            raise RuntimeError(f"PR17_2_{profile}:FOCUS_EMULATION_NOT_PROVEN")
+        if selection.get("backgroundFocusEmulationRestored") is not True:
+            raise RuntimeError(f"PR17_2_{profile}:FOCUS_EMULATION_NOT_RESTORED")
     elif selection.get("selectionMechanism") != "NO_SELECTION_REQUIRED":
         raise RuntimeError(f"PR17_2_{profile}:UNEXPECTED_NOOP_SELECTION_MECHANISM")
 
