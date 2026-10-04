@@ -13,6 +13,7 @@ from chatgpt_web_adapter.browser_authority_instant_selection_repair_pr8_8 import
     InstantSelectionRepairProvider,
 )
 
+
 class Provider:
     def __init__(self):
         self.supported = True
