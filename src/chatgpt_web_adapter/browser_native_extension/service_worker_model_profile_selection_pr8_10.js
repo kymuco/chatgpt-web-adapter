@@ -52,23 +52,36 @@ async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs 
   const startedAt = performance.now();
   let selected = null;
   let slider = null;
+  let proofKind = null;
   while (performance.now() - startedAt < timeoutMs) {
     selected = await _pr88InstantSelectedModeSnapshot(debuggee);
     slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
-    const sliderCompatible = (
-      slider?.found !== true ||
-      (slider?.min === 0 && slider?.max === 2 && slider?.stepCount === 3 && slider?.now === targetIndex)
+    const sliderTargetProven = (
+      slider?.found === true &&
+      slider?.candidateCount === 1 &&
+      slider?.min === 0 &&
+      slider?.max === 2 &&
+      slider?.stepCount === 3 &&
+      slider?.now === targetIndex &&
+      slider?.currentMode === targetMode
     );
-    if (
+    const selectedTargetProven = (
       selected?.selectedModeProven === true &&
-      selected?.selectedMode === targetMode &&
-      sliderCompatible
-    ) {
-      return {selected, slider};
+      selected?.selectedMode === targetMode
+    );
+    if (sliderTargetProven && (selectedTargetProven || selected?.selectedModeProven !== true)) {
+      proofKind = selectedTargetProven
+        ? "selected_mode_and_exact_slider"
+        : "unique_exact_slider_value";
+      return {selected, slider, proofKind};
+    }
+    if (selectedTargetProven && slider?.found !== true) {
+      proofKind = "selected_mode_control";
+      return {selected, slider, proofKind};
     }
     await sleep(PR88_INSTANT_EFFORT_SELECTION_POLL_MS);
   }
-  return {selected, slider};
+  return {selected, slider, proofKind};
 }
 
 function _pr810InstallWriteBoundary(debuggee, context) {
@@ -186,9 +199,23 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   const settled = await _pr810WaitForTarget(debuggee, targetMode, targetIndex);
   const after = settled?.selected;
   const sliderAfter = settled?.slider;
+  context.selectedModeAfterProofKind = settled?.proofKind || null;
   context.sliderValueAfter = Number.isFinite(sliderAfter?.now) ? sliderAfter.now : targetIndex;
-  context.selectedModeAfter = after?.selectedMode || null;
-  context.selectedModeAfterProven = after?.selectedModeProven === true;
+  context.selectedModeAfter =
+    after?.selectedModeProven === true
+      ? after.selectedMode
+      : sliderAfter?.currentMode || null;
+  context.selectedModeAfterProven = (
+    context.selectedModeAfter === targetMode &&
+    (
+      after?.selectedModeProven === true ||
+      (
+        sliderAfter?.found === true &&
+        sliderAfter?.now === targetIndex &&
+        sliderAfter?.currentMode === targetMode
+      )
+    )
+  );
   if (context.conversationWriteBeforeSelection === true) {
     throw new Error("PR8_10_MODEL_PROFILE_CONVERSATION_WRITE_BEFORE_SELECTION");
   }
@@ -238,6 +265,7 @@ function _pr810Record(context) {
     selectionMechanism: context.selectionMechanism || null,
     selectedModeAfter: context.selectedModeAfter,
     selectedModeAfterProven: context.selectedModeAfterProven === true,
+    selectedModeAfterProofKind: context.selectedModeAfterProofKind || null,
     sliderValueAfter: Number.isFinite(context.sliderValueAfter) ? context.sliderValueAfter : null,
     selectionComplete: context.selectionComplete === true,
     conversationWriteBeforeSelection: context.conversationWriteBeforeSelection === true,
