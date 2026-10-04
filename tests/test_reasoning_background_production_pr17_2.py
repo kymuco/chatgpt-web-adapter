@@ -117,7 +117,7 @@ def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
     profile = _source(PROFILE)
 
     assert (
-        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R11"'
+        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R12"'
         in profile
     )
     assert "backgroundProductionRuntimeRevision" in profile
@@ -173,7 +173,7 @@ def test_pr17_2_post_key_proof_is_locale_independent_exact_slider() -> None:
     wait_end = profile.index("function _pr810InstallWriteBoundary", wait_start)
     wait_block = profile[wait_start:wait_end]
 
-    assert '_pr88InstantEffortExactSliderSnapshot(debuggee, "snapshot")' in wait_block
+    assert '_pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot")' in wait_block
     assert "slider?.now === targetIndex" in wait_block
     assert "slider?.currentMode === targetMode" not in wait_block
     assert "selectedModeLagObserved" in wait_block
@@ -230,7 +230,7 @@ def test_pr17_2_fresh_background_keyboard_probe_is_zero_write_and_scoped() -> No
     assert "async function _pr172FreshBackgroundKeyboardProbe" in profile
     assert "characterizeFreshBackgroundReasoningKeyboard" in profile
     assert "ensureRuntimeTab(null)" in profile
-    assert "_pr810FocusReasoningSlider(debuggee)" in profile
+    assert "_pr810FocusResolvedSlider(debuggee)" in profile
     assert '_pr810WaitForTarget(debuggee, "INSTANT", 0, 3000)' in profile
     assert "conversationWriteCount !== 0" in profile
     assert "PR17_2_FRESH_KEYBOARD_PROBE_TAB_ACTIVATED" in profile
