@@ -614,6 +614,218 @@ function _pr810Record(context) {
   };
 }
 
+async function _pr172FreshBackgroundKeyboardProbe() {
+  const existingId = await storedRuntimeTabId();
+  if (Number.isInteger(existingId)) {
+    throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_REQUIRES_NO_RUNTIME_TAB");
+  }
+
+  let tabId = null;
+  let debuggee = null;
+  let attached = false;
+  let networkListener = null;
+  let activatedListener = null;
+  let focusContext = {};
+  let focusEmulationEnabled = false;
+  let conversationWriteCount = 0;
+  let tabActivated = false;
+  let debuggerAttachedAfter = null;
+  let runtimeTabClosed = false;
+  let initialMode = null;
+  let initialIndex = null;
+  let homeBaselineProven = false;
+  let restored = false;
+  let sliderFocusMechanism = null;
+  let result = null;
+
+  try {
+    const tab = await ensureRuntimeTab(null);
+    tabId = Number.isInteger(tab?.id) ? tab.id : null;
+    if (tabId === null) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_TAB_MISSING");
+    }
+    if (tab?.active === true) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_TAB_CREATED_ACTIVE");
+    }
+
+    activatedListener = (activeInfo) => {
+      if (activeInfo?.tabId === tabId) tabActivated = true;
+    };
+    chrome.tabs.onActivated.addListener(activatedListener);
+
+    debuggee = {tabId};
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await chrome.debugger.sendCommand(debuggee, "Runtime.enable");
+    await chrome.debugger.sendCommand(debuggee, "Network.enable");
+
+    networkListener = (source, method, params) => {
+      if (source?.tabId !== tabId || method !== "Network.requestWillBeSent") return;
+      const request = params?.request;
+      if (isConversationWrite(request?.url || "", request?.method || "")) {
+        conversationWriteCount += 1;
+      }
+    };
+    chrome.debugger.onEvent.addListener(networkListener);
+
+    await waitForComposerReady(debuggee, PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS);
+    const before = await _pr88InstantWaitForSelectedMode(
+      debuggee,
+      PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS
+    );
+    initialMode = before?.selectedModeProven === true ? before.selectedMode : null;
+    initialIndex = PR810_MODEL_MODE_INDEX[initialMode];
+    if (!Number.isInteger(initialIndex)) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_INITIAL_MODE_NOT_PROVEN");
+    }
+
+    const picker = await _pr88SelectionPoint(debuggee, "picker");
+    if (
+      picker?.found !== true ||
+      picker?.candidateCount !== 1 ||
+      picker?.mode !== initialMode
+    ) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_PICKER_NOT_PROVEN");
+    }
+
+    let slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
+    const alreadyOpen = (
+      slider?.found === true &&
+      slider?.candidateCount === 1 &&
+      slider?.min === 0 &&
+      slider?.max === 2 &&
+      slider?.stepCount === 3
+    );
+    if (!alreadyOpen) {
+      await _pr88InstantEffortOpenPickerWithFallback(
+        debuggee,
+        picker,
+        initialMode
+      );
+      slider = await _pr88InstantEffortWaitForResolvedSlider(
+        debuggee,
+        initialMode,
+        3000
+      );
+    }
+    if (
+      slider?.found !== true ||
+      slider?.min !== 0 ||
+      slider?.max !== 2 ||
+      slider?.stepCount !== 3
+    ) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_SLIDER_NOT_PROVEN");
+    }
+
+    focusEmulationEnabled = await _pr810EnableBackgroundFocusEmulation(
+      debuggee,
+      focusContext
+    );
+    const focused = await _pr810FocusReasoningSlider(debuggee);
+    if (focused?.focusProven !== true) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_FOCUS_NOT_PROVEN");
+    }
+    sliderFocusMechanism = focused?.focusMechanism || null;
+
+    await _pr88InstantEffortDispatchHome(debuggee);
+    const baseline = await _pr810WaitForTarget(debuggee, "INSTANT", 0, 3000);
+    if (baseline?.proofKind == null || baseline?.slider?.now !== 0) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_HOME_NOT_PROVEN");
+    }
+    homeBaselineProven = true;
+
+    for (let index = 1; index <= initialIndex; index += 1) {
+      const mode = PR810_INDEX_MODEL_MODE[index];
+      await _pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39);
+      const step = await _pr810WaitForTarget(debuggee, mode, index, 3000);
+      if (step?.proofKind == null || step?.slider?.now !== index) {
+        throw new Error(
+          `PR17_2_FRESH_KEYBOARD_PROBE_RESTORE_STEP_NOT_PROVEN:${mode}:${index}`
+        );
+      }
+    }
+    restored = true;
+
+    const tabAfter = await chrome.tabs.get(tabId);
+    if (tabActivated || tabAfter?.active === true) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_TAB_ACTIVATED");
+    }
+    if (conversationWriteCount !== 0) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_CONVERSATION_WRITE_OBSERVED");
+    }
+
+    result = {
+      diagnosticOnly: true,
+      freshBackgroundKeyboardProbe: true,
+      runtimeTabCreated: true,
+      tabWasActive: false,
+      initialMode,
+      initialIndex,
+      focusEmulationAttempted:
+        focusContext.backgroundFocusEmulationAttempted === true,
+      focusEmulationProven:
+        focusContext.backgroundFocusEmulationProven === true,
+      sliderFocusProven: true,
+      sliderFocusMechanism,
+      homeDispatched: true,
+      homeBaselineProven,
+      sliderNowAfterHome: 0,
+      initialModeRestored: restored,
+      conversationWriteAttempted: false,
+      conversationWriteObserved: false,
+      conversationWriteCount,
+      tabActivated: false
+    };
+  } finally {
+    if (
+      focusEmulationEnabled ||
+      focusContext.backgroundFocusEmulationEnabled === true
+    ) {
+      await _pr810DisableBackgroundFocusEmulation(debuggee, focusContext);
+    }
+    if (networkListener) {
+      try { chrome.debugger.onEvent.removeListener(networkListener); } catch {}
+    }
+    if (activatedListener) {
+      try { chrome.tabs.onActivated.removeListener(activatedListener); } catch {}
+    }
+    if (attached && debuggee) {
+      try { await chrome.debugger.detach(debuggee); } catch {}
+    }
+    if (debuggee) {
+      try {
+        const targets = await chrome.debugger.getTargets();
+        debuggerAttachedAfter = Boolean(
+          targets.find((target) => target.tabId === tabId)?.attached
+        );
+      } catch {
+        debuggerAttachedAfter = null;
+      }
+    }
+    if (Number.isInteger(tabId)) {
+      try {
+        await chrome.tabs.remove(tabId);
+        runtimeTabClosed = true;
+      } catch {
+        runtimeTabClosed = false;
+      }
+    }
+    if (result) {
+      result.focusEmulationRestoreAttempted =
+        focusContext.backgroundFocusEmulationRestoreAttempted === true;
+      result.focusEmulationRestored =
+        focusContext.backgroundFocusEmulationRestored !== false;
+      result.debuggerAttachedAfter = debuggerAttachedAfter;
+      result.runtimeTabClosed = runtimeTabClosed;
+    }
+  }
+
+  if (!result) {
+    throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_RESULT_MISSING");
+  }
+  return result;
+}
+
 async function _pr810StoredRecord() {
   try {
     const stored = await chrome.storage.local.get(PR810_MODEL_PROFILE_STORAGE_KEY);
@@ -625,6 +837,13 @@ async function _pr810StoredRecord() {
 }
 
 async function _executeNativeTurnWithModelProfile(message, next) {
+  if (message?.characterizeFreshBackgroundReasoningKeyboard === true) {
+    if (_pr810QueryConflict(message)) {
+      throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_FLAG_CONFLICT");
+    }
+    return _pr172FreshBackgroundKeyboardProbe();
+  }
+
   if (message?.characterizeProductModelProfileSupport === true) {
     if (_pr810QueryConflict(message)) throw new Error("PR8_10_MODEL_PROFILE_SUPPORT_FLAG_CONFLICT");
     return {
