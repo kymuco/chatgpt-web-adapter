@@ -66,7 +66,11 @@ def _validate(response: dict[str, Any]) -> None:
     if response.get("sliderNowAfterHome") != 0:
         raise RuntimeError("PR17_2_FRESH_KEYBOARD_HOME_VALUE_NOT_ZERO")
     focus_mechanism = response.get("sliderFocusMechanism")
-    if focus_mechanism not in {"DOM.focus_primary", "DOM.focus_relaxed", "DOM.focus_exact"}:
+    if focus_mechanism not in {
+        "DOM.focus_primary",
+        "DOM.focus_relaxed",
+        "DOM.focus_exact",
+    }:
         raise RuntimeError("PR17_2_FRESH_KEYBOARD_FOCUS_MECHANISM_MISMATCH")
 
 
