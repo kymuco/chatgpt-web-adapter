@@ -51,17 +51,15 @@ function _pr88SelectionPointExpression(kind) {
     const classify = (value) => {
       const text = normalize(value);
       if (!text) return null;
-      if (
-        text === 'instant' ||
-        text === 'мгновенно' ||
-        text.startsWith('instant ') ||
-        text.includes(' instant') ||
-        text.startsWith('мгновенно ') ||
-        text.includes(' мгновенно')
-      ) return 'INSTANT';
-      if (text === 'medium' || text === 'средний' || text.includes('thinking standard')) return 'MEDIUM';
-      if (text === 'extra high' || text === 'очень высокий' || text.includes('thinking heavy')) return 'EXTRA_HIGH';
-      if (text === 'high' || text === 'высокий' || text.includes('thinking extended')) return 'HIGH';
+      const has = (token) =>
+        text === token ||
+        text.startsWith(token + ' ') ||
+        text.endsWith(' ' + token) ||
+        text.includes(' ' + token + ' ');
+      if (has('instant') || has('мгновенно')) return 'INSTANT';
+      if (has('medium') || has('средний') || text.includes('thinking standard')) return 'MEDIUM';
+      if (has('extra high') || has('очень высокий') || text.includes('thinking heavy')) return 'EXTRA_HIGH';
+      if (has('high') || has('высокий') || text.includes('thinking extended')) return 'HIGH';
       if (text === 'pro standard') return 'PRO_STANDARD';
       if (text === 'pro extended') return 'PRO_EXTENDED';
       if (text === 'thinking') return 'REASONING_OTHER';
