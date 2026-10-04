@@ -75,3 +75,15 @@ def test_pr17_2_e2e_uses_one_fresh_conversation_per_profile() -> None:
     assert '"new_chat_per_profile": True' in source
     assert '"continuation_scope_tested": False' in source
     assert '"canonical_completion_proven": True' in source
+
+
+def test_pr17_2_e2e_preflights_loaded_service_worker_revision() -> None:
+    source = _source()
+
+    assert 'EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R4"' in source
+    assert "provider.model_profile_support()" in source
+    assert '"runtime_revision_matches"' in source
+    assert "PR17_2_BACKGROUND_RUNTIME_REVISION_MISMATCH" in source
+    assert source.index("provider.model_profile_support()") < source.index(
+        "runtime.send_text_observed("
+    )
