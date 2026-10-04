@@ -14,7 +14,7 @@ from chatgpt_web_adapter.product_model_profile_pr8_10 import (
 )
 
 SEQUENCE: tuple[str, ...] = ("FAST", "DEEP", "BALANCED")
-EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R6"
+EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R7"
 
 
 def _git_output(*args: str) -> str:
