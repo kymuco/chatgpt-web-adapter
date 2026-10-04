@@ -21,9 +21,10 @@ function _pr88InstantEffortSupportConflict(message) {
   );
 }
 
-function _pr88InstantEffortSliderExpression(action) {
+function _pr88InstantEffortSliderExpression(action, returnElement = false) {
   return `(() => {
     const ACTION = ${JSON.stringify(action)};
+    const RETURN_ELEMENT = ${returnElement === true ? "true" : "false"};
     const normalize = (value) => String(value || '').trim().toLowerCase().replace(/[\\s_\\-]+/g, ' ');
     const effort = (value) => {
       const text = normalize(value);
@@ -133,6 +134,7 @@ function _pr88InstantEffortSliderExpression(action) {
     }
 
     const slider = sliders[0];
+    if (RETURN_ELEMENT) return slider.el;
     let focusProven = document.activeElement === slider.el;
     if (ACTION === 'focus') {
       try { slider.el.focus({preventScroll:true}); }
@@ -223,9 +225,10 @@ async function _pr88InstantEffortWaitForSelected(debuggee, timeoutMs) {
 }
 
 
-function _pr88InstantEffortRelaxedSliderExpression(action) {
+function _pr88InstantEffortRelaxedSliderExpression(action, returnElement = false) {
   return `(() => {
     const ACTION = ${JSON.stringify(action)};
+    const RETURN_ELEMENT = ${returnElement === true ? "true" : "false"};
     const normalize = (value) => String(value || '').trim().toLowerCase().replace(/[\\s_\\-]+/g, ' ');
     const effort = (value) => {
       const text = normalize(value);
@@ -304,6 +307,7 @@ function _pr88InstantEffortRelaxedSliderExpression(action) {
       currentControlOpen:controlOpenObserved
     };
     const slider=sliders[0];
+    if(RETURN_ELEMENT) return slider.el;
     let focusProven=document.activeElement===slider.el;
     if(ACTION==='focus') {
       try { slider.el.focus({preventScroll:true}); } catch { try { slider.el.focus(); } catch {} }
@@ -333,9 +337,10 @@ async function _pr88InstantEffortRelaxedSliderSnapshot(debuggee, action='snapsho
     : {found:false,reason:'relaxed_slider_probe_failed',candidateCount:0,currentControlCount:0};
 }
 
-function _pr88InstantEffortExactSliderExpression(action) {
+function _pr88InstantEffortExactSliderExpression(action, returnElement = false) {
   return `(() => {
     const ACTION=${JSON.stringify(action)};
+    const RETURN_ELEMENT=${returnElement === true ? "true" : "false"};
     const visible=(el)=>{
       if(!(el instanceof Element)) return false;
       const r=el.getBoundingClientRect();
@@ -369,6 +374,7 @@ function _pr88InstantEffortExactSliderExpression(action) {
       currentControlCount:0
     };
     const slider=sliders[0];
+    if(RETURN_ELEMENT) return slider.el;
     let focusProven=document.activeElement===slider.el;
     if(ACTION==='focus') {
       try { slider.el.focus({preventScroll:true}); }
@@ -418,6 +424,57 @@ async function _pr88InstantEffortResolvedSliderSnapshot(debuggee, action='snapsh
   if(relaxed?.found===true||!structuralReasons.has(relaxed?.reason)) return relaxed;
 
   return _pr88InstantEffortExactSliderSnapshot(debuggee,action);
+}
+
+
+async function _pr88InstantEffortResolvedSliderRemoteObject(debuggee) {
+  const structuralReasons=new Set([
+    'quick_picker_not_open',
+    'composer_missing',
+    'current_effort_control_missing',
+    'effort_slider_missing'
+  ]);
+
+  let resolver='primary';
+  let snapshot=await _pr88InstantEffortSliderSnapshot(debuggee,'snapshot');
+  if(snapshot?.found!==true&&structuralReasons.has(snapshot?.reason)) {
+    resolver='relaxed';
+    snapshot=await _pr88InstantEffortRelaxedSliderSnapshot(debuggee,'snapshot');
+  }
+  if(snapshot?.found!==true&&structuralReasons.has(snapshot?.reason)) {
+    resolver='exact';
+    snapshot=await _pr88InstantEffortExactSliderSnapshot(debuggee,'snapshot');
+  }
+  if(snapshot?.found!==true) {
+    return {
+      found:false,
+      reason:snapshot?.reason||'resolved_slider_missing',
+      resolver,
+      snapshot,
+      objectId:null
+    };
+  }
+
+  const expression=resolver==='primary'
+    ? _pr88InstantEffortSliderExpression('snapshot',true)
+    : resolver==='relaxed'
+      ? _pr88InstantEffortRelaxedSliderExpression('snapshot',true)
+      : _pr88InstantEffortExactSliderExpression('snapshot',true);
+
+  const result=await chrome.debugger.sendCommand(debuggee,'Runtime.evaluate',{
+    expression,
+    returnByValue:false,
+    awaitPromise:true,
+    objectGroup:'pr17_2_resolved_slider_focus'
+  });
+  const objectId=result?.result?.objectId;
+  return {
+    found:typeof objectId==='string'&&Boolean(objectId),
+    reason:typeof objectId==='string'&&objectId?null:'resolved_slider_object_missing',
+    resolver,
+    snapshot,
+    objectId:typeof objectId==='string'?objectId:null
+  };
 }
 
 function _pr88InstantEffortTriggerExpression(action) {
