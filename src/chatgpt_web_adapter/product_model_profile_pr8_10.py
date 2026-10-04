@@ -105,6 +105,9 @@ class ProductModelProfileProvider(BrowserAuthorityCharacterizationProvider):
             else [],
             "slider_indices": dict(indices) if isinstance(indices, dict) else {},
             "strict_prewrite_verification": response.get("strictPrewriteVerification") is True,
+            "background_production_runtime_revision": response.get(
+                "backgroundProductionRuntimeRevision"
+            ),
             "max_profile_mapped": response.get("maxProfileMapped") is True,
         }
 
