@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -11,8 +12,6 @@ from chatgpt_web_adapter.browser_authority_instant_selection_repair_pr8_8 import
     InstantSelectionRepairLatencyRunner,
     InstantSelectionRepairProvider,
 )
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
-
 
 class Provider:
     def __init__(self):
@@ -135,8 +134,16 @@ def base_success_report():
     }
 
 
+EXTENSION_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "chatgpt_web_adapter"
+    / "browser_native_extension"
+)
+
+
 def test_extension_selection_layer_preserves_manifest_and_import_order():
-    root = browser_native_extension_dir()
+    root = EXTENSION_ROOT
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == "0.1.13"
     assert manifest["background"]["service_worker"] == (
@@ -163,7 +170,7 @@ def test_extension_selection_layer_preserves_manifest_and_import_order():
 
 
 def test_selection_worker_mutates_only_picker_before_prompt_and_tracks_network_boundary():
-    root = browser_native_extension_dir()
+    root = EXTENSION_ROOT
     text = (root / "service_worker_instant_selection_repair_pr8_8.js").read_text(
         encoding="utf-8"
     )
