@@ -117,7 +117,7 @@ def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
     profile = _source(PROFILE)
 
     assert (
-        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R5"'
+        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R6"'
         in profile
     )
     assert "backgroundProductionRuntimeRevision" in profile
@@ -132,7 +132,34 @@ def test_pr17_2_fast_profile_has_single_selection_owner() -> None:
     assert "owner?.selectedModeAfterProven !== true" in repair
     assert 'owner?.selectedModeAfter !== "INSTANT"' in repair
     assert 'typeof _pr810ModelProfileContext !== "undefined"' in repair
-    assert "_pr88SelectionAdoptModelProfileSelection(context, modelProfileContext)" in repair
+    assert (
+        "_pr88SelectionAdoptModelProfileSelection(context, modelProfileContext)"
+        in repair
+    )
     assert repair.index(
         "_pr88SelectionAdoptModelProfileSelection(context, modelProfileContext)"
     ) < repair.index("await _pr88SelectionEnsureInstant(debuggee, context);")
+
+
+def test_pr17_2_shipping_high_selection_uses_proven_stepwise_settle() -> None:
+    profile = _source(PROFILE)
+
+    home = profile.index("await _pr88InstantEffortDispatchHome(debuggee);")
+    baseline = profile.index(
+        'settled = await _pr810WaitForTarget(debuggee, "INSTANT", 0, 3000);'
+    )
+    loop = profile.index("for (let index = 1; index <= targetIndex; index += 1)")
+    arrow = profile.index(
+        'await _pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39);',
+        loop,
+    )
+    step_wait = profile.index(
+        "settled = await _pr810WaitForTarget(debuggee, stepMode, index, 3000);",
+        arrow,
+    )
+
+    assert home < baseline < loop < arrow < step_wait
+    assert "PR8_10_MODEL_PROFILE_HOME_BASELINE_NOT_PROVEN" in profile
+    assert "PR8_10_MODEL_PROFILE_INTERMEDIATE_STEP_NOT_PROVEN" in profile
+    assert "homeBaselineProven: context.homeBaselineProven === true" in profile
+    assert "stepwiseSelectionProven:" in profile
