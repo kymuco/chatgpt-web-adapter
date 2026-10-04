@@ -88,6 +88,12 @@ def _validate_selection(
             "REASONING_EFFORT_SLIDER_HOME_PLUS_RIGHT"
         ):
             raise RuntimeError(f"PR17_2_{profile}:UNEXPECTED_SELECTION_MECHANISM")
+        if selection.get("homeBaselineProven") is not True:
+            raise RuntimeError(f"PR17_2_{profile}:HOME_BASELINE_NOT_PROVEN")
+        if selection.get("selectionStepCount") != target_index:
+            raise RuntimeError(f"PR17_2_{profile}:STEP_COUNT_MISMATCH")
+        if selection.get("stepwiseSelectionProven") is not True:
+            raise RuntimeError(f"PR17_2_{profile}:STEPWISE_SELECTION_NOT_PROVEN")
     elif selection.get("selectionMechanism") != "NO_SELECTION_REQUIRED":
         raise RuntimeError(f"PR17_2_{profile}:UNEXPECTED_NOOP_SELECTION_MECHANISM")
 
