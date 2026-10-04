@@ -9,6 +9,8 @@ from chatgpt_web_adapter.browser_authority_live_characterization import (
     BrowserAuthorityCharacterizationProvider,
 )
 
+EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R12"
+
 
 def _git_output(*args: str) -> str:
     return subprocess.run(
@@ -53,6 +55,12 @@ def _validate(response: dict[str, Any]) -> None:
         if response.get(key) is not False:
             raise RuntimeError(f"PR17_2_FRESH_KEYBOARD_CONTRACT_INVALID:{key}")
 
+    if response.get("runtimeRevision") != EXPECTED_RUNTIME_REVISION:
+        raise RuntimeError(
+            "PR17_2_FRESH_KEYBOARD_RUNTIME_REVISION_MISMATCH:"
+            f"expected={EXPECTED_RUNTIME_REVISION}:"
+            f"actual={response.get('runtimeRevision') or 'missing'}"
+        )
     if response.get("conversationWriteCount") != 0:
         raise RuntimeError("PR17_2_FRESH_KEYBOARD_CONVERSATION_WRITE_COUNT_NONZERO")
     if response.get("sliderNowAfterHome") != 0:
@@ -92,6 +100,7 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
     report.update(
         {
             "ok": True,
+            "runtime_revision": response.get("runtimeRevision"),
             "initial_mode": response.get("initialMode"),
             "initial_index": response.get("initialIndex"),
             "slider_focus_mechanism": response.get("sliderFocusMechanism"),
