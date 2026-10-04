@@ -49,40 +49,128 @@ async function _pr113WaitForSubmitPoint(debuggee, timeoutMs) {
   return waitForSendButtonPoint(debuggee, timeoutMs);
 }
 
-async function _pr113SubmitTextWithEnterOnce(debuggee) {
-  await _pr113LocateComposerForTextSubmit(debuggee);
-
-  // Enter keyDown is the keyboard protected-write boundary. A rejected/lost CDP
-  // ACK can coexist with a real keyDown, so the attempt itself is ambiguous and
-  // must never look like proof that no write happened.
+async function _pr113DocumentFocusSnapshot(debuggee) {
   try {
-    await sendCommand(debuggee, "Input.dispatchKeyEvent", {
-      type: "keyDown",
-      key: "Enter",
-      code: "Enter",
-      text: "\r",
-      unmodifiedText: "\r",
-      windowsVirtualKeyCode: 13,
-      nativeVirtualKeyCode: 13
+    const result = await sendCommand(debuggee, "Runtime.evaluate", {
+      expression: "(() => ({hasFocus: document.hasFocus()}))()",
+      returnByValue: true,
+      awaitPromise: true
     });
+    return result?.result?.value?.hasFocus === true;
   } catch {
-    throw new Error(PR113_ENTER_KEYDOWN_UNCONFIRMED);
+    return false;
+  }
+}
+
+async function _pr113EnableBackgroundKeyboardFocus(debuggee) {
+  const tabActive = await _pr113RuntimeTabActive(debuggee);
+  if (tabActive === true) {
+    return {
+      attempted: false,
+      enabled: false,
+      proven: true
+    };
   }
 
-  // Once keyDown is acknowledged, keyUp is cleanup only and must not turn a
-  // possibly committed write into a local failure that callers could interpret
-  // as permission to retry.
-  try {
-    Promise.resolve(sendCommand(debuggee, "Input.dispatchKeyEvent", {
-      type: "keyUp",
-      key: "Enter",
-      code: "Enter",
-      windowsVirtualKeyCode: 13,
-      nativeVirtualKeyCode: 13
-    })).catch(() => {});
-  } catch {}
+  await sendCommand(
+    debuggee,
+    "Emulation.setFocusEmulationEnabled",
+    { enabled: true }
+  );
+  const proven = await _pr113DocumentFocusSnapshot(debuggee);
+  if (proven !== true) {
+    try {
+      await sendCommand(
+        debuggee,
+        "Emulation.setFocusEmulationEnabled",
+        { enabled: false }
+      );
+    } catch {}
+    throw new Error("PR11_3_BACKGROUND_FOCUS_EMULATION_NOT_PROVEN");
+  }
 
-  return { strategy: "enter_fallback", selector: null };
+  const tabActiveAfter = await _pr113RuntimeTabActive(debuggee);
+  if (tabActiveAfter === true) {
+    try {
+      await sendCommand(
+        debuggee,
+        "Emulation.setFocusEmulationEnabled",
+        { enabled: false }
+      );
+    } catch {}
+    throw new Error("PR11_3_BACKGROUND_FOCUS_EMULATION_ACTIVATED_TAB");
+  }
+
+  return {
+    attempted: true,
+    enabled: true,
+    proven: true
+  };
+}
+
+async function _pr113DisableBackgroundKeyboardFocus(debuggee, state) {
+  if (state?.enabled !== true) return true;
+  try {
+    await sendCommand(
+      debuggee,
+      "Emulation.setFocusEmulationEnabled",
+      { enabled: false }
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function _pr113SubmitTextWithEnterOnce(debuggee) {
+  const focusState = await _pr113EnableBackgroundKeyboardFocus(debuggee);
+  let focusRestored = false;
+  try {
+    await _pr113LocateComposerForTextSubmit(debuggee);
+
+    // Enter keyDown is the keyboard protected-write boundary. A rejected/lost CDP
+    // ACK can coexist with a real keyDown, so the attempt itself is ambiguous and
+    // must never look like proof that no write happened.
+    try {
+      await sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "keyDown",
+        key: "Enter",
+        code: "Enter",
+        text: "\r",
+        unmodifiedText: "\r",
+        windowsVirtualKeyCode: 13,
+        nativeVirtualKeyCode: 13
+      });
+    } catch {
+      throw new Error(PR113_ENTER_KEYDOWN_UNCONFIRMED);
+    }
+
+    // Once keyDown is acknowledged, keyUp is cleanup only and must not turn a
+    // possibly committed write into a local failure that callers could interpret
+    // as permission to retry.
+    try {
+      Promise.resolve(sendCommand(debuggee, "Input.dispatchKeyEvent", {
+        type: "keyUp",
+        key: "Enter",
+        code: "Enter",
+        windowsVirtualKeyCode: 13,
+        nativeVirtualKeyCode: 13
+      })).catch(() => {});
+    } catch {}
+  } finally {
+    focusRestored = await _pr113DisableBackgroundKeyboardFocus(
+      debuggee,
+      focusState
+    );
+  }
+
+  return {
+    strategy: "enter_fallback",
+    selector: null,
+    backgroundFocusEmulationAttempted: focusState?.attempted === true,
+    backgroundFocusEmulationProven: focusState?.proven === true,
+    backgroundFocusEmulationRestored: focusRestored === true
+  };
 }
 
 async function _pr113RuntimeTabActive(debuggee) {
