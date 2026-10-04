@@ -41,11 +41,13 @@ def test_pr17_2_e2e_requires_shipping_background_selection_record() -> None:
     assert '"REASONING_EFFORT_SLIDER_HOME_PLUS_RIGHT"' in source
 
 
-def test_pr17_2_e2e_forces_mutation_after_first_turn() -> None:
+def test_pr17_2_e2e_requires_at_least_one_real_background_mutation() -> None:
     source = _source()
 
-    assert "require_mutation=index > 0" in source
-    assert '"background_mutations_required": ["DEEP", "BALANCED"]' in source
+    assert 'mutated = selection.get("selectionPerformed") is True' in source
+    assert "if mutation_count < 1:" in source
+    assert "PR17_2_BACKGROUND_E2E_NO_REAL_SELECTION_MUTATION_PROVEN" in source
+    assert '"background_mutation_count": mutation_count' in source
     assert '"background_mutations_proven": True' in source
     assert '"strict_prewrite_selection_proven": True' in source
 
@@ -59,14 +61,17 @@ def test_pr17_2_e2e_has_bounded_live_write_contract() -> None:
     assert "this gate performs exactly three ChatGPT product writes" in source
 
 
-def test_pr17_2_e2e_chains_one_new_conversation() -> None:
+def test_pr17_2_e2e_uses_one_fresh_conversation_per_profile() -> None:
     source = _source()
 
-    assert "conversation: str | None = None" in source
+    assert "conversations: list[str] = []" in source
+    assert "conversation=None" in source
     assert (
         "response_conversation = execution.response.conversation.conversation_id"
         in source
     )
-    assert "conversation = response_conversation" in source
-    assert "response_conversation != conversation" in source
+    assert "response_conversation in conversations" in source
+    assert "conversations.append(response_conversation)" in source
+    assert '"new_chat_per_profile": True' in source
+    assert '"continuation_scope_tested": False' in source
     assert '"canonical_completion_proven": True' in source
