@@ -3,6 +3,7 @@
 // INSTANT (0), MEDIUM (1), HIGH (2). Explicit unsupported modes fail before write.
 
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
+const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R4";
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = PR88_INSTANT_PROBE_TIMEOUT_MS;
@@ -302,6 +303,7 @@ async function _executeNativeTurnWithModelProfile(message, next) {
       initialModeAcquisitionTimeoutMs: PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS,
       backgroundSelectionSupported: true,
       transientForegroundRequired: false,
+      backgroundProductionRuntimeRevision: PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION,
       maxProfileMapped: false
     };
   }
