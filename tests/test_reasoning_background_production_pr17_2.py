@@ -215,13 +215,23 @@ def test_pr17_2_fresh_background_slider_uses_cdp_dom_focus() -> None:
     assert '"DOM.focus", {objectId}' in profile
     assert '"Runtime.releaseObjectGroup"' in profile
     assert '"pr17_2_exact_slider_focus"' in profile
-    assert "focusMechanism: \"DOM.focus\"" in profile
+    assert 'focusMechanism: "DOM.focus"' in profile
     assert "context.sliderFocusMechanism = focused?.focusMechanism || null" in profile
-    assert (
-        'const focused = await _pr810FocusExactSlider(debuggee);'
-        in profile
-    )
+    assert "const focused = await _pr810FocusExactSlider(debuggee);" in profile
     assert (
         'const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");'
         not in profile
     )
+
+
+def test_pr17_2_fresh_background_keyboard_probe_is_zero_write_and_scoped() -> None:
+    profile = _source(PROFILE)
+
+    assert "async function _pr172FreshBackgroundKeyboardProbe" in profile
+    assert "characterizeFreshBackgroundReasoningKeyboard" in profile
+    assert "ensureRuntimeTab(null)" in profile
+    assert "_pr810FocusReasoningSlider(debuggee)" in profile
+    assert '_pr810WaitForTarget(debuggee, "INSTANT", 0, 3000)' in profile
+    assert "conversationWriteCount !== 0" in profile
+    assert "PR17_2_FRESH_KEYBOARD_PROBE_TAB_ACTIVATED" in profile
+    assert "await chrome.tabs.remove(tabId)" in profile
