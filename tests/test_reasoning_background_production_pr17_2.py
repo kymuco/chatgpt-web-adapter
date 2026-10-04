@@ -117,7 +117,7 @@ def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
     profile = _source(PROFILE)
 
     assert (
-        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R9"'
+        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R10"'
         in profile
     )
     assert "backgroundProductionRuntimeRevision" in profile
@@ -206,3 +206,22 @@ def test_pr17_2_fresh_background_keyboard_paths_use_focus_emulation() -> None:
     assert "PR11_3_BACKGROUND_FOCUS_EMULATION_ACTIVATED_TAB" in submit
     assert "Page.bringToFront" not in submit
     assert "chrome.tabs.update" not in submit
+
+
+def test_pr17_2_fresh_background_slider_uses_cdp_dom_focus() -> None:
+    profile = _source(PROFILE)
+
+    assert "async function _pr810FocusExactSlider" in profile
+    assert '"DOM.focus", {objectId}' in profile
+    assert '"Runtime.releaseObjectGroup"' in profile
+    assert '"pr17_2_exact_slider_focus"' in profile
+    assert "focusMechanism: \"DOM.focus\"" in profile
+    assert "context.sliderFocusMechanism = focused?.focusMechanism || null" in profile
+    assert (
+        'const focused = await _pr810FocusExactSlider(debuggee);'
+        in profile
+    )
+    assert (
+        'const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");'
+        not in profile
+    )
