@@ -80,7 +80,7 @@ def test_pr17_2_e2e_uses_one_fresh_conversation_per_profile() -> None:
 def test_pr17_2_e2e_preflights_loaded_service_worker_revision() -> None:
     source = _source()
 
-    assert 'EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R9"' in source
+    assert 'EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R10"' in source
     assert "provider.model_profile_support()" in source
     assert '"runtime_revision_matches"' in source
     assert "PR17_2_BACKGROUND_RUNTIME_REVISION_MISMATCH" in source
