@@ -219,7 +219,7 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   if (context.conversationWriteBeforeSelection === true) {
     throw new Error("PR8_10_MODEL_PROFILE_CONVERSATION_WRITE_BEFORE_SELECTION");
   }
-  if (after?.selectedModeProven !== true || after?.selectedMode !== targetMode) {
+  if (context.selectedModeAfterProven !== true || context.selectedModeAfter !== targetMode) {
     throw new Error(`PR8_10_MODEL_PROFILE_DID_NOT_SETTLE:${targetMode}`);
   }
   if (sliderAfter?.found === true && sliderAfter?.now !== targetIndex) {
