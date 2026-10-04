@@ -117,7 +117,7 @@ def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
     profile = _source(PROFILE)
 
     assert (
-        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R6"'
+        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R7"'
         in profile
     )
     assert "backgroundProductionRuntimeRevision" in profile
@@ -163,3 +163,22 @@ def test_pr17_2_shipping_high_selection_uses_proven_stepwise_settle() -> None:
     assert "PR8_10_MODEL_PROFILE_INTERMEDIATE_STEP_NOT_PROVEN" in profile
     assert "homeBaselineProven: context.homeBaselineProven === true" in profile
     assert "stepwiseSelectionProven:" in profile
+
+
+def test_pr17_2_post_key_proof_is_locale_independent_exact_slider() -> None:
+    profile = _source(PROFILE)
+    instant = _source(INSTANT)
+
+    wait_start = profile.index("async function _pr810WaitForTarget")
+    wait_end = profile.index("function _pr810InstallWriteBoundary", wait_start)
+    wait_block = profile[wait_start:wait_end]
+
+    assert '_pr88InstantEffortExactSliderSnapshot(debuggee, "snapshot")' in wait_block
+    assert "slider?.now === targetIndex" in wait_block
+    assert "slider?.currentMode === targetMode" not in wait_block
+    assert "selectedModeLagObserved" in wait_block
+
+    assert "has('medium')||has('средний')" in instant
+    assert "has('high')||has('высокий')" in instant
+    assert "/(^|\\b)(medium|средний)" not in instant
+    assert "/(^|\\b)(high|высокий)" not in instant
