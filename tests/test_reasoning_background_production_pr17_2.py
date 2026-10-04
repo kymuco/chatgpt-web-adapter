@@ -208,21 +208,18 @@ def test_pr17_2_fresh_background_keyboard_paths_use_focus_emulation() -> None:
     assert "chrome.tabs.update" not in submit
 
 
-def test_pr17_2_fresh_background_slider_uses_cdp_dom_focus() -> None:
+def test_pr17_2_fresh_background_slider_uses_resolved_cdp_dom_focus() -> None:
     profile = _source(PROFILE)
 
-    assert "async function _pr810FocusExactSlider" in profile
-    assert '"DOM.focus", {objectId}' in profile
+    assert "async function _pr810FocusResolvedSlider" in profile
+    assert "_pr88InstantEffortResolvedSliderRemoteObject(debuggee)" in profile
+    assert '"DOM.focus"' in profile
     assert '"Runtime.releaseObjectGroup"' in profile
-    assert '"pr17_2_exact_slider_focus"' in profile
-    assert 'focusMechanism: "DOM.focus"' in profile
+    assert '"pr17_2_resolved_slider_focus"' in profile
+    assert 'focusMechanism: `DOM.focus_${remote.resolver || "resolved"}`' in profile
     assert "context.sliderFocusMechanism = focused?.focusMechanism || null" in profile
-    assert "const focused = await _pr810FocusExactSlider(debuggee);" in profile
-    assert (
-        'const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");'
-        not in profile
-    )
-
+    assert "context.sliderFocusResolver = focused?.focusResolver || null" in profile
+    assert "const focused = await _pr810FocusResolvedSlider(debuggee);" in profile
 
 def test_pr17_2_fresh_background_keyboard_probe_is_zero_write_and_scoped() -> None:
     profile = _source(PROFILE)
