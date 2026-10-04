@@ -89,3 +89,28 @@ def test_pr17_2_shipping_background_text_submit_never_activates_tab() -> None:
     assert "PR11_3_MOUSE_COMMIT_REQUIRES_ALREADY_ACTIVE_TAB" in submit
     assert "chrome.tabs.update" not in submit
     assert "chrome.windows.update" not in submit
+
+
+def test_pr17_2_shipping_settle_accepts_exact_slider_proof() -> None:
+    instant = _source(INSTANT)
+    profile = _source(PROFILE)
+
+    assert (
+        "context.selectedModeAfterSelectionProven !== true" in instant
+    )
+    assert (
+        'context.selectedModeAfterSelection !== "INSTANT"' in instant
+    )
+    assert (
+        'after?.selectedModeProven !== true || after?.selectedMode !== "INSTANT"'
+        not in instant
+    )
+
+    assert "context.selectedModeAfterProven !== true" in profile
+    assert "context.selectedModeAfter !== targetMode" in profile
+    assert (
+        "after?.selectedModeProven !== true || after?.selectedMode !== targetMode"
+        not in profile
+    )
+    assert '"unique_exact_slider_value"' in profile
+    assert '"unique_exact_slider_value"' in instant
