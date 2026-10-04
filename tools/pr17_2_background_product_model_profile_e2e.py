@@ -14,6 +14,7 @@ from chatgpt_web_adapter.product_model_profile_pr8_10 import (
 )
 
 SEQUENCE: tuple[str, ...] = ("FAST", "DEEP", "BALANCED")
+EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R4"
 
 
 def _git_output(*args: str) -> str:
@@ -116,6 +117,18 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
         return report
 
     provider = ProductModelProfileProvider()
+    support = provider.model_profile_support()
+    runtime_revision = support.get("background_production_runtime_revision")
+    report["runtime_revision"] = runtime_revision
+    report["expected_runtime_revision"] = EXPECTED_RUNTIME_REVISION
+    report["runtime_revision_matches"] = runtime_revision == EXPECTED_RUNTIME_REVISION
+    if report["runtime_revision_matches"] is not True:
+        report["error"] = (
+            "PR17_2_BACKGROUND_RUNTIME_REVISION_MISMATCH:"
+            f"expected={EXPECTED_RUNTIME_REVISION}:actual={runtime_revision or 'missing'}"
+        )
+        return report
+
     client = ChatGPTWebClient(auto_login=False, auto_sentinel=False)
     runtime = assemble_product_runtime(client=client, provider=provider)
 
