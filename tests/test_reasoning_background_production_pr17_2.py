@@ -95,12 +95,8 @@ def test_pr17_2_shipping_settle_accepts_exact_slider_proof() -> None:
     instant = _source(INSTANT)
     profile = _source(PROFILE)
 
-    assert (
-        "context.selectedModeAfterSelectionProven !== true" in instant
-    )
-    assert (
-        'context.selectedModeAfterSelection !== "INSTANT"' in instant
-    )
+    assert "context.selectedModeAfterSelectionProven !== true" in instant
+    assert 'context.selectedModeAfterSelection !== "INSTANT"' in instant
     assert (
         'after?.selectedModeProven !== true || after?.selectedMode !== "INSTANT"'
         not in instant
@@ -113,4 +109,11 @@ def test_pr17_2_shipping_settle_accepts_exact_slider_proof() -> None:
         not in profile
     )
     assert '"unique_exact_slider_value"' in profile
-    assert '"unique_exact_slider_value"' in instant
+    assert "'unique_exact_slider_value'" in instant
+
+
+def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
+    profile = _source(PROFILE)
+
+    assert 'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R4"' in profile
+    assert "backgroundProductionRuntimeRevision" in profile
