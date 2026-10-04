@@ -3,7 +3,7 @@
 // INSTANT (0), MEDIUM (1), HIGH (2). Explicit unsupported modes fail before write.
 
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
-const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R10";
+const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R11";
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INDEX_MODEL_MODE = Object.freeze(["INSTANT", "MEDIUM", "HIGH"]);
@@ -113,42 +113,171 @@ async function _pr810DisableBackgroundFocusEmulation(debuggee, context) {
   context.backgroundFocusEmulationEnabled = false;
 }
 
-async function _pr810FocusExactSlider(debuggee) {
+function _pr810ReasoningSliderExpression(returnElement = false) {
+  return `(() => {
+    const RETURN_ELEMENT=${returnElement === true ? "true" : "false"};
+    const normalize=(value)=>String(value||'').trim().toLowerCase().replace(/[\\s_\\-]+/g,' ');
+    const effort=(value)=>{
+      const text=normalize(value);
+      if(!text) return null;
+      const has=(token)=>
+        text===token||
+        text.startsWith(token+' ')||
+        text.endsWith(' '+token)||
+        text.includes(' '+token+' ');
+      if(has('instant')||has('мгновенно')) return 'INSTANT';
+      if(has('medium')||has('средний')) return 'MEDIUM';
+      if(has('high')||has('высокий')) return 'HIGH';
+      return null;
+    };
+    const visible=(el)=>{
+      if(!(el instanceof Element)) return false;
+      const r=el.getBoundingClientRect();
+      if(r.width<=0||r.height<=0) return false;
+      const s=getComputedStyle(el);
+      return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
+    };
+    const num=(value)=>{
+      if(value===null||value===undefined||value==='') return null;
+      const parsed=Number(value);
+      return Number.isFinite(parsed)?parsed:null;
+    };
+    const fields=(el)=>[
+      typeof el.innerText==='string'?el.innerText.slice(0,160):'',
+      el.getAttribute('aria-label'),
+      el.getAttribute('title')
+    ];
+    const oneMode=(el)=>{
+      const modes=Array.from(new Set(fields(el).map(effort).filter(Boolean)));
+      return modes.length===1?modes[0]:null;
+    };
+    const historicalComposer=[
+      '#prompt-textarea',
+      '[contenteditable="true"][data-lexical-editor="true"]',
+      'textarea[placeholder]'
+    ].map((s)=>document.querySelector(s)).find((el)=>el&&visible(el));
+    const semanticCandidates=historicalComposer?[]:Array.from(
+      document.querySelectorAll(
+        '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+      )
+    ).filter((candidate)=>
+      visible(candidate)&&candidate.closest('main')&&candidate.closest('form')
+    );
+    const composer=historicalComposer||
+      (semanticCandidates.length===1?semanticCandidates[0]:null);
+    if(!composer) {
+      return RETURN_ELEMENT?null:{
+        found:false,reason:'composer_missing',candidateCount:0,currentControlCount:0
+      };
+    }
+
+    const cr=composer.getBoundingClientRect();
+    const controls=[];
+    for(const el of Array.from(
+      document.querySelectorAll('button,[role="button"]')
+    ).filter(visible)) {
+      const mode=oneMode(el);
+      if(!mode) continue;
+      const r=el.getBoundingClientRect();
+      const dx=Math.max(0,Math.max(cr.left-r.right,r.left-cr.right));
+      const dy=Math.max(0,Math.max(cr.top-r.bottom,r.top-cr.bottom));
+      const distance=Math.hypot(dx,dy);
+      if(distance<=800) controls.push({el,mode,r,distance});
+    }
+    controls.sort((a,b)=>a.distance-b.distance);
+    if(controls.length!==1) {
+      return RETURN_ELEMENT?null:{
+        found:false,
+        reason:controls.length?'current_effort_control_ambiguous':'current_effort_control_missing',
+        candidateCount:0,
+        currentControlCount:controls.length
+      };
+    }
+
+    const control=controls[0];
+    const sliders=[];
+    for(const el of Array.from(
+      document.querySelectorAll('[role="slider"],input[type="range"]')
+    ).filter(visible)) {
+      const r=el.getBoundingClientRect();
+      const min=num(el.getAttribute('aria-valuemin'))??num(el.min);
+      const max=num(el.getAttribute('aria-valuemax'))??num(el.max);
+      const now=num(el.getAttribute('aria-valuenow'))??num(el.value);
+      if(!(
+        Number.isInteger(min)&&Number.isInteger(max)&&Number.isInteger(now)&&
+        min===0&&max===2&&now>=0&&now<=2
+      )) continue;
+      const distance=Math.hypot(
+        (r.left+r.width/2)-(control.r.left+control.r.width/2),
+        (r.top+r.height/2)-(control.r.top+control.r.height/2)
+      );
+      if(distance<=400) sliders.push({el,min,max,now,distance});
+    }
+    sliders.sort((a,b)=>a.distance-b.distance);
+    if(sliders.length!==1) {
+      return RETURN_ELEMENT?null:{
+        found:false,
+        reason:sliders.length?'reasoning_slider_ambiguous':'reasoning_slider_missing',
+        candidateCount:sliders.length,
+        currentControlCount:1,
+        currentMode:control.mode
+      };
+    }
+
+    const slider=sliders[0];
+    if(RETURN_ELEMENT) return slider.el;
+    return {
+      found:true,
+      reason:null,
+      candidateCount:1,
+      currentControlCount:1,
+      currentMode:control.mode,
+      min:slider.min,
+      max:slider.max,
+      now:slider.now,
+      stepCount:3,
+      disabled:Boolean(
+        slider.el.disabled===true||
+        slider.el.getAttribute('aria-disabled')==='true'
+      ),
+      pointerEventsEnabled:getComputedStyle(slider.el).pointerEvents!=='none',
+      activeElementIsSlider:document.activeElement===slider.el
+    };
+  })()`;
+}
+
+async function _pr810ReasoningSliderSnapshot(debuggee) {
+  const result = await chrome.debugger.sendCommand(
+    debuggee,
+    "Runtime.evaluate",
+    {
+      expression: _pr810ReasoningSliderExpression(false),
+      returnByValue: true,
+      awaitPromise: true
+    }
+  );
+  const value=result?.result?.value;
+  return value&&typeof value==="object"
+    ? value
+    : {
+      found:false,
+      reason:"reasoning_slider_probe_failed",
+      candidateCount:0,
+      currentControlCount:0
+    };
+}
+
+async function _pr810FocusReasoningSlider(debuggee) {
   await chrome.debugger.sendCommand(debuggee, "DOM.enable");
 
   const result = await chrome.debugger.sendCommand(
     debuggee,
     "Runtime.evaluate",
     {
-      expression: `(() => {
-        const visible=(el)=>{
-          if(!(el instanceof Element)) return false;
-          const r=el.getBoundingClientRect();
-          if(r.width<=0||r.height<=0) return false;
-          const s=getComputedStyle(el);
-          return s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';
-        };
-        const num=(value)=>{
-          if(value===null||value===undefined||value==='') return null;
-          const parsed=Number(value);
-          return Number.isFinite(parsed)?parsed:null;
-        };
-        const sliders=Array.from(
-          document.querySelectorAll('[role="slider"],input[type="range"]')
-        ).filter(visible).filter((el)=>{
-          const min=num(el.getAttribute('aria-valuemin'))??num(el.min);
-          const max=num(el.getAttribute('aria-valuemax'))??num(el.max);
-          const now=num(el.getAttribute('aria-valuenow'))??num(el.value);
-          return (
-            Number.isInteger(min)&&Number.isInteger(max)&&Number.isInteger(now)&&
-            min===0&&max===2&&now>=0&&now<=2
-          );
-        });
-        return sliders.length===1 ? sliders[0] : null;
-      })()`,
+      expression: _pr810ReasoningSliderExpression(true),
       returnByValue: false,
       awaitPromise: true,
-      objectGroup: "pr17_2_exact_slider_focus"
+      objectGroup: "pr17_2_reasoning_slider_focus"
     }
   );
 
@@ -158,10 +287,10 @@ async function _pr810FocusExactSlider(debuggee) {
       await chrome.debugger.sendCommand(
         debuggee,
         "Runtime.releaseObjectGroup",
-        {objectGroup: "pr17_2_exact_slider_focus"}
+        {objectGroup: "pr17_2_reasoning_slider_focus"}
       );
     } catch {}
-    throw new Error("PR8_10_MODEL_PROFILE_EXACT_SLIDER_OBJECT_NOT_PROVEN");
+    throw new Error("PR8_10_MODEL_PROFILE_REASONING_SLIDER_OBJECT_NOT_PROVEN");
   }
 
   try {
@@ -171,45 +300,16 @@ async function _pr810FocusExactSlider(debuggee) {
       await chrome.debugger.sendCommand(
         debuggee,
         "Runtime.releaseObjectGroup",
-        {objectGroup: "pr17_2_exact_slider_focus"}
+        {objectGroup: "pr17_2_reasoning_slider_focus"}
       );
     } catch {}
   }
 
-  const focused = await _pr88InstantEffortExactSliderSnapshot(
-    debuggee,
-    "snapshot"
-  );
-  const active = await chrome.debugger.sendCommand(
-    debuggee,
-    "Runtime.evaluate",
-    {
-      expression: `(() => {
-        const active=document.activeElement;
-        if(!(active instanceof Element)) return false;
-        const num=(value)=>{
-          if(value===null||value===undefined||value==='') return null;
-          const parsed=Number(value);
-          return Number.isFinite(parsed)?parsed:null;
-        };
-        const min=num(active.getAttribute('aria-valuemin'))??num(active.min);
-        const max=num(active.getAttribute('aria-valuemax'))??num(active.max);
-        const now=num(active.getAttribute('aria-valuenow'))??num(active.value);
-        return (
-          (active.getAttribute('role')==='slider'||active.matches('input[type="range"]'))&&
-          Number.isInteger(min)&&Number.isInteger(max)&&Number.isInteger(now)&&
-          min===0&&max===2&&now>=0&&now<=2
-        );
-      })()`,
-      returnByValue: true,
-      awaitPromise: true
-    }
-  );
-
+  const focused = await _pr810ReasoningSliderSnapshot(debuggee);
   return {
     ...focused,
-    focusProven: active?.result?.value === true,
-    focusMechanism: "DOM.focus"
+    focusProven: focused?.activeElementIsSlider === true,
+    focusMechanism: "DOM.focus_reasoning_slider"
   };
 }
 
@@ -221,7 +321,7 @@ async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs 
   let selectedModeLagObserved = false;
   while (performance.now() - startedAt < timeoutMs) {
     selected = await _pr88InstantSelectedModeSnapshot(debuggee);
-    slider = await _pr88InstantEffortExactSliderSnapshot(debuggee, "snapshot");
+    slider = await _pr810ReasoningSliderSnapshot(debuggee);
     const sliderTargetProven = (
       slider?.found === true &&
       slider?.candidateCount === 1 &&
@@ -366,7 +466,7 @@ async function _pr810EnsureTargetMode(debuggee, context) {
       context
     );
 
-    const focused = await _pr810FocusExactSlider(debuggee);
+    const focused = await _pr810FocusReasoningSlider(debuggee);
     if (
       focused?.focusProven !== true ||
       focused?.min !== 0 ||
