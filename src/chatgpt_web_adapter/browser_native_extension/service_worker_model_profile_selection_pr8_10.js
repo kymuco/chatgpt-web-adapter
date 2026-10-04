@@ -3,7 +3,7 @@
 // INSTANT (0), MEDIUM (1), HIGH (2). Explicit unsupported modes fail before write.
 
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
-const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R6";
+const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R7";
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INDEX_MODEL_MODE = Object.freeze(["INSTANT", "MEDIUM", "HIGH"]);
@@ -55,35 +55,42 @@ async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs 
   let selected = null;
   let slider = null;
   let proofKind = null;
+  let selectedModeLagObserved = false;
   while (performance.now() - startedAt < timeoutMs) {
     selected = await _pr88InstantSelectedModeSnapshot(debuggee);
-    slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
+    slider = await _pr88InstantEffortExactSliderSnapshot(debuggee, "snapshot");
     const sliderTargetProven = (
       slider?.found === true &&
       slider?.candidateCount === 1 &&
       slider?.min === 0 &&
       slider?.max === 2 &&
       slider?.stepCount === 3 &&
-      slider?.now === targetIndex &&
-      slider?.currentMode === targetMode
+      slider?.now === targetIndex
     );
     const selectedTargetProven = (
       selected?.selectedModeProven === true &&
       selected?.selectedMode === targetMode
     );
-    if (sliderTargetProven && (selectedTargetProven || selected?.selectedModeProven !== true)) {
+    if (
+      sliderTargetProven &&
+      selected?.selectedModeProven === true &&
+      selected?.selectedMode !== targetMode
+    ) {
+      selectedModeLagObserved = true;
+    }
+    if (sliderTargetProven) {
       proofKind = selectedTargetProven
         ? "selected_mode_and_exact_slider"
         : "unique_exact_slider_value";
-      return {selected, slider, proofKind};
+      return {selected, slider, proofKind, selectedModeLagObserved};
     }
     if (selectedTargetProven && slider?.found !== true) {
       proofKind = "selected_mode_control";
-      return {selected, slider, proofKind};
+      return {selected, slider, proofKind, selectedModeLagObserved};
     }
     await sleep(PR88_INSTANT_EFFORT_SELECTION_POLL_MS);
   }
-  return {selected, slider, proofKind};
+  return {selected, slider, proofKind, selectedModeLagObserved};
 }
 
 function _pr810InstallWriteBoundary(debuggee, context) {
@@ -216,19 +223,29 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   const after = settled?.selected;
   const sliderAfter = settled?.slider;
   context.selectedModeAfterProofKind = settled?.proofKind || null;
+  context.selectedModeLagObserved = settled?.selectedModeLagObserved === true;
   context.sliderValueAfter = Number.isFinite(sliderAfter?.now) ? sliderAfter.now : targetIndex;
-  context.selectedModeAfter =
-    after?.selectedModeProven === true
-      ? after.selectedMode
-      : sliderAfter?.currentMode || null;
+  context.selectedModeAfter = (
+    sliderAfter?.found === true &&
+    sliderAfter?.now === targetIndex
+  )
+    ? targetMode
+    : (
+      after?.selectedModeProven === true
+        ? after.selectedMode
+        : sliderAfter?.currentMode || null
+    );
   context.selectedModeAfterProven = (
     context.selectedModeAfter === targetMode &&
     (
       after?.selectedModeProven === true ||
       (
         sliderAfter?.found === true &&
-        sliderAfter?.now === targetIndex &&
-        sliderAfter?.currentMode === targetMode
+        sliderAfter?.candidateCount === 1 &&
+        sliderAfter?.min === 0 &&
+        sliderAfter?.max === 2 &&
+        sliderAfter?.stepCount === 3 &&
+        sliderAfter?.now === targetIndex
       )
     )
   );
@@ -282,6 +299,7 @@ function _pr810Record(context) {
     selectedModeAfter: context.selectedModeAfter,
     selectedModeAfterProven: context.selectedModeAfterProven === true,
     selectedModeAfterProofKind: context.selectedModeAfterProofKind || null,
+    selectedModeLagObserved: context.selectedModeLagObserved === true,
     sliderValueAfter: Number.isFinite(context.sliderValueAfter) ? context.sliderValueAfter : null,
     homeBaselineProven: context.homeBaselineProven === true,
     selectionStepCount: Number.isInteger(context.selectionStepCount)
