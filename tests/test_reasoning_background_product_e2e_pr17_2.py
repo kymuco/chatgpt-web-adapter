@@ -63,7 +63,10 @@ def test_pr17_2_e2e_chains_one_new_conversation() -> None:
     source = _source()
 
     assert "conversation: str | None = None" in source
-    assert "response_conversation = execution.response.conversation.conversation_id" in source
+    assert (
+        "response_conversation = execution.response.conversation.conversation_id"
+        in source
+    )
     assert "conversation = response_conversation" in source
     assert "response_conversation != conversation" in source
     assert '"canonical_completion_proven": True' in source
