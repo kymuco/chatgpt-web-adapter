@@ -3,9 +3,10 @@
 // INSTANT (0), MEDIUM (1), HIGH (2). Explicit unsupported modes fail before write.
 
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
-const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R5";
+const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R6";
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
+const PR810_INDEX_MODEL_MODE = Object.freeze(["INSTANT", "MEDIUM", "HIGH"]);
 const PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS = PR88_INSTANT_PROBE_TIMEOUT_MS;
 
 let _pr810ModelProfileContext = null;
@@ -193,11 +194,25 @@ async function _pr810EnsureTargetMode(debuggee, context) {
   }
 
   await _pr88InstantEffortDispatchHome(debuggee);
-  for (let index = 0; index < targetIndex; index += 1) {
+  let settled = await _pr810WaitForTarget(debuggee, "INSTANT", 0, 3000);
+  if (settled?.proofKind == null) {
+    throw new Error("PR8_10_MODEL_PROFILE_HOME_BASELINE_NOT_PROVEN");
+  }
+  context.homeBaselineProven = true;
+  context.selectionStepCount = 0;
+
+  for (let index = 1; index <= targetIndex; index += 1) {
+    const stepMode = PR810_INDEX_MODEL_MODE[index];
     await _pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39);
+    settled = await _pr810WaitForTarget(debuggee, stepMode, index, 3000);
+    if (settled?.proofKind == null) {
+      throw new Error(
+        `PR8_10_MODEL_PROFILE_INTERMEDIATE_STEP_NOT_PROVEN:${stepMode}:${index}`
+      );
+    }
+    context.selectionStepCount = index;
   }
 
-  const settled = await _pr810WaitForTarget(debuggee, targetMode, targetIndex);
   const after = settled?.selected;
   const sliderAfter = settled?.slider;
   context.selectedModeAfterProofKind = settled?.proofKind || null;
@@ -268,6 +283,14 @@ function _pr810Record(context) {
     selectedModeAfterProven: context.selectedModeAfterProven === true,
     selectedModeAfterProofKind: context.selectedModeAfterProofKind || null,
     sliderValueAfter: Number.isFinite(context.sliderValueAfter) ? context.sliderValueAfter : null,
+    homeBaselineProven: context.homeBaselineProven === true,
+    selectionStepCount: Number.isInteger(context.selectionStepCount)
+      ? context.selectionStepCount
+      : 0,
+    stepwiseSelectionProven:
+      context.homeBaselineProven === true &&
+      Number.isInteger(context.selectionStepCount) &&
+      context.selectionStepCount === PR810_MODEL_MODE_INDEX[context.requestedModelMode],
     selectionComplete: context.selectionComplete === true,
     conversationWriteBeforeSelection: context.conversationWriteBeforeSelection === true,
     transientForegroundActivated: context.transientForegroundActivated === true,
