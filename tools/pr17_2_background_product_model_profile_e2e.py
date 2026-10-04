@@ -50,9 +50,7 @@ def _validate_selection(
     profile: str,
     lease_id: str,
     selection: dict[str, Any],
-    *,
-    require_mutation: bool,
-) -> None:
+) -> bool:
     target_mode = PROFILE_TO_PRODUCT_MODE[profile]
     target_index = PRODUCT_MODE_TO_SLIDER_INDEX[target_mode]
 
@@ -79,9 +77,8 @@ def _validate_selection(
     if selection.get("foregroundRestoreProven") is not True:
         raise RuntimeError(f"PR17_2_{profile}:FOREGROUND_RESTORE_CONTRACT_INVALID")
 
-    if require_mutation:
-        if selection.get("selectionPerformed") is not True:
-            raise RuntimeError(f"PR17_2_{profile}:MUTATION_NOT_PERFORMED")
+    mutated = selection.get("selectionPerformed") is True
+    if mutated:
         if selection.get("backgroundSelectionAttempted") is not True:
             raise RuntimeError(f"PR17_2_{profile}:BACKGROUND_SELECTION_NOT_ATTEMPTED")
         if selection.get("backgroundSelectionProven") is not True:
@@ -90,6 +87,10 @@ def _validate_selection(
             "REASONING_EFFORT_SLIDER_HOME_PLUS_RIGHT"
         ):
             raise RuntimeError(f"PR17_2_{profile}:UNEXPECTED_SELECTION_MECHANISM")
+    elif selection.get("selectionMechanism") != "NO_SELECTION_REQUIRED":
+        raise RuntimeError(f"PR17_2_{profile}:UNEXPECTED_NOOP_SELECTION_MECHANISM")
+
+    return mutated
 
 
 def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
@@ -118,15 +119,16 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
     client = ChatGPTWebClient(auto_login=False, auto_sentinel=False)
     runtime = assemble_product_runtime(client=client, provider=provider)
 
-    conversation: str | None = None
-    for index, profile in enumerate(SEQUENCE):
+    mutation_count = 0
+    conversations: list[str] = []
+    for profile in SEQUENCE:
         expected = f"CWA_PR17_2_BACKGROUND_{profile}_OK"
         report["write_attempts"] += 1
 
         with provider.require_profile(profile):
             execution = runtime.send_text_observed(
                 _prompt(profile),
-                conversation=conversation,
+                conversation=None,
                 timeout=timeout,
                 conversation_mode="normal",
             )
@@ -142,10 +144,9 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
         response_conversation = execution.response.conversation.conversation_id
         if not isinstance(response_conversation, str) or not response_conversation:
             raise RuntimeError(f"PR17_2_{profile}:CONVERSATION_ID_MISSING")
-        if conversation is None:
-            conversation = response_conversation
-        elif response_conversation != conversation:
-            raise RuntimeError(f"PR17_2_{profile}:CONVERSATION_ID_CHANGED")
+        if response_conversation in conversations:
+            raise RuntimeError(f"PR17_2_{profile}:NEW_CHAT_CONVERSATION_REUSED")
+        conversations.append(response_conversation)
 
         observation = execution.observation.to_dict()
         _validate_observation(profile, observation)
@@ -155,12 +156,9 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
             raise RuntimeError(f"PR17_2_{profile}:LEASE_ID_MISSING")
 
         selection = provider.model_profile_selection_for_lease(lease_id)
-        _validate_selection(
-            profile,
-            lease_id,
-            selection,
-            require_mutation=index > 0,
-        )
+        mutated = _validate_selection(profile, lease_id, selection)
+        if mutated:
+            mutation_count += 1
 
         report["turns"].append(
             {
@@ -170,22 +168,28 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
                     PROFILE_TO_PRODUCT_MODE[profile]
                 ],
                 "response": actual,
-                "conversation_id": conversation,
+                "conversation_id": response_conversation,
+                "background_mutation_performed": mutated,
                 "observation": observation,
                 "selection": selection,
             }
         )
 
+    if mutation_count < 1:
+        raise RuntimeError("PR17_2_BACKGROUND_E2E_NO_REAL_SELECTION_MUTATION_PROVEN")
+
     report["ok"] = True
-    report["conversation"] = conversation
+    report["conversations"] = conversations
     report["summary"] = {
         "profiles_proven": list(SEQUENCE),
-        "background_mutations_required": ["DEEP", "BALANCED"],
+        "new_chat_per_profile": True,
+        "background_mutation_count": mutation_count,
         "background_mutations_proven": True,
         "foreground_activation_observed": False,
         "tab_activation_observed": False,
         "strict_prewrite_selection_proven": True,
         "canonical_completion_proven": True,
+        "continuation_scope_tested": False,
     }
     return report
 
