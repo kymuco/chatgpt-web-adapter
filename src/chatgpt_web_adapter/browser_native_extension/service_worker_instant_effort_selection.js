@@ -427,9 +427,14 @@ function _pr88InstantEffortTriggerExpression(action) {
     const effort=(value)=>{
       const text=normalize(value);
       if(!text) return null;
-      if(/(^|\\b)(instant|мгновенно)(\\b|$)/.test(text)) return 'INSTANT';
-      if(/(^|\\b)(medium|средний)(\\b|$)/.test(text)) return 'MEDIUM';
-      if(/(^|\\b)(high|высокий)(\\b|$)/.test(text)) return 'HIGH';
+      const has=(token)=>
+        text===token||
+        text.startsWith(token+' ')||
+        text.endsWith(' '+token)||
+        text.includes(' '+token+' ');
+      if(has('instant')||has('мгновенно')) return 'INSTANT';
+      if(has('medium')||has('средний')) return 'MEDIUM';
+      if(has('high')||has('высокий')) return 'HIGH';
       return null;
     };
     const visible=(el)=>{
@@ -544,9 +549,14 @@ function _pr88InstantEffortDomTriggerClickExpression(expectedMode) {
     const effort=(value)=>{
       const text=normalize(value);
       if(!text) return null;
-      if(/(^|\\b)(instant|мгновенно)(\\b|$)/.test(text)) return 'INSTANT';
-      if(/(^|\\b)(medium|средний)(\\b|$)/.test(text)) return 'MEDIUM';
-      if(/(^|\\b)(high|высокий)(\\b|$)/.test(text)) return 'HIGH';
+      const has=(token)=>
+        text===token||
+        text.startsWith(token+' ')||
+        text.endsWith(' '+token)||
+        text.includes(' '+token+' ');
+      if(has('instant')||has('мгновенно')) return 'INSTANT';
+      if(has('medium')||has('средний')) return 'MEDIUM';
+      if(has('high')||has('высокий')) return 'HIGH';
       return null;
     };
     const visible=(el)=>{
