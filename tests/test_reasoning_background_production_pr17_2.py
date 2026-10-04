@@ -117,7 +117,7 @@ def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
     profile = _source(PROFILE)
 
     assert (
-        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R10"'
+        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R11"'
         in profile
     )
     assert "backgroundProductionRuntimeRevision" in profile
