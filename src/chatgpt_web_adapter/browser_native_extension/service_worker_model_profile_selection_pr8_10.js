@@ -3,7 +3,7 @@
 // INSTANT (0), MEDIUM (1), HIGH (2). Explicit unsupported modes fail before write.
 
 const PR810_MODEL_PROFILE_SCHEMA_VERSION = 1;
-const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R7";
+const PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R8";
 const PR810_MODEL_PROFILE_STORAGE_KEY = "browserAuthorityLastModelProfileSelectionV1";
 const PR810_MODEL_MODE_INDEX = Object.freeze({INSTANT: 0, MEDIUM: 1, HIGH: 2});
 const PR810_INDEX_MODEL_MODE = Object.freeze(["INSTANT", "MEDIUM", "HIGH"]);
@@ -48,6 +48,69 @@ async function _pr810DispatchKey(debuggee, key, code, virtualKeyCode) {
     windowsVirtualKeyCode: virtualKeyCode,
     nativeVirtualKeyCode: virtualKeyCode
   });
+}
+
+async function _pr810DocumentFocusSnapshot(debuggee) {
+  try {
+    const result = await chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
+      expression: "(() => ({hasFocus: document.hasFocus()}))()",
+      returnByValue: true,
+      awaitPromise: true
+    });
+    return result?.result?.value?.hasFocus === true;
+  } catch {
+    return false;
+  }
+}
+
+async function _pr810EnableBackgroundFocusEmulation(debuggee, context) {
+  const tab = await chrome.tabs.get(debuggee.tabId);
+  context.runtimeTabWasActiveBeforeFocusEmulation = tab?.active === true;
+  if (tab?.active === true) {
+    context.backgroundFocusEmulationAttempted = false;
+    context.backgroundFocusEmulationEnabled = false;
+    context.backgroundFocusEmulationProven = await _pr810DocumentFocusSnapshot(debuggee);
+    return false;
+  }
+
+  context.backgroundFocusEmulationAttempted = true;
+  await chrome.debugger.sendCommand(
+    debuggee,
+    "Emulation.setFocusEmulationEnabled",
+    {enabled: true}
+  );
+  context.backgroundFocusEmulationEnabled = true;
+  context.backgroundFocusEmulationProven = await _pr810DocumentFocusSnapshot(debuggee);
+  if (context.backgroundFocusEmulationProven !== true) {
+    throw new Error("PR17_2_BACKGROUND_FOCUS_EMULATION_NOT_PROVEN");
+  }
+
+  const tabAfter = await chrome.tabs.get(debuggee.tabId);
+  if (tabAfter?.active === true) {
+    throw new Error("PR17_2_BACKGROUND_FOCUS_EMULATION_ACTIVATED_TAB");
+  }
+  return true;
+}
+
+async function _pr810DisableBackgroundFocusEmulation(debuggee, context) {
+  if (context.backgroundFocusEmulationEnabled !== true) {
+    context.backgroundFocusEmulationRestoreAttempted = false;
+    context.backgroundFocusEmulationRestored = true;
+    return;
+  }
+
+  context.backgroundFocusEmulationRestoreAttempted = true;
+  try {
+    await chrome.debugger.sendCommand(
+      debuggee,
+      "Emulation.setFocusEmulationEnabled",
+      {enabled: false}
+    );
+    context.backgroundFocusEmulationRestored = true;
+  } catch {
+    context.backgroundFocusEmulationRestored = false;
+  }
+  context.backgroundFocusEmulationEnabled = false;
 }
 
 async function _pr810WaitForTarget(debuggee, targetMode, targetIndex, timeoutMs = 8000) {
@@ -195,29 +258,47 @@ async function _pr810EnsureTargetMode(debuggee, context) {
     throw new Error(`PR8_10_MODEL_PROFILE_SLIDER_CONTRACT_NOT_PROVEN:${slider?.reason || "range_mismatch"}`);
   }
 
-  const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");
-  if (focused?.focusProven !== true || focused?.min !== 0 || focused?.max !== 2 || focused?.stepCount !== 3) {
-    throw new Error("PR8_10_MODEL_PROFILE_SLIDER_FOCUS_NOT_PROVEN");
-  }
+  let settled = null;
+  let focusEmulationEnabled = false;
+  try {
+    focusEmulationEnabled = await _pr810EnableBackgroundFocusEmulation(
+      debuggee,
+      context
+    );
 
-  await _pr88InstantEffortDispatchHome(debuggee);
-  let settled = await _pr810WaitForTarget(debuggee, "INSTANT", 0, 3000);
-  if (settled?.proofKind == null) {
-    throw new Error("PR8_10_MODEL_PROFILE_HOME_BASELINE_NOT_PROVEN");
-  }
-  context.homeBaselineProven = true;
-  context.selectionStepCount = 0;
-
-  for (let index = 1; index <= targetIndex; index += 1) {
-    const stepMode = PR810_INDEX_MODEL_MODE[index];
-    await _pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39);
-    settled = await _pr810WaitForTarget(debuggee, stepMode, index, 3000);
-    if (settled?.proofKind == null) {
-      throw new Error(
-        `PR8_10_MODEL_PROFILE_INTERMEDIATE_STEP_NOT_PROVEN:${stepMode}:${index}`
-      );
+    const focused = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "focus");
+    if (
+      focused?.focusProven !== true ||
+      focused?.min !== 0 ||
+      focused?.max !== 2 ||
+      focused?.stepCount !== 3
+    ) {
+      throw new Error("PR8_10_MODEL_PROFILE_SLIDER_FOCUS_NOT_PROVEN");
     }
-    context.selectionStepCount = index;
+
+    await _pr88InstantEffortDispatchHome(debuggee);
+    settled = await _pr810WaitForTarget(debuggee, "INSTANT", 0, 3000);
+    if (settled?.proofKind == null) {
+      throw new Error("PR8_10_MODEL_PROFILE_HOME_BASELINE_NOT_PROVEN");
+    }
+    context.homeBaselineProven = true;
+    context.selectionStepCount = 0;
+
+    for (let index = 1; index <= targetIndex; index += 1) {
+      const stepMode = PR810_INDEX_MODEL_MODE[index];
+      await _pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39);
+      settled = await _pr810WaitForTarget(debuggee, stepMode, index, 3000);
+      if (settled?.proofKind == null) {
+        throw new Error(
+          `PR8_10_MODEL_PROFILE_INTERMEDIATE_STEP_NOT_PROVEN:${stepMode}:${index}`
+        );
+      }
+      context.selectionStepCount = index;
+    }
+  } finally {
+    if (focusEmulationEnabled || context.backgroundFocusEmulationEnabled === true) {
+      await _pr810DisableBackgroundFocusEmulation(debuggee, context);
+    }
   }
 
   const after = settled?.selected;
@@ -315,6 +396,16 @@ function _pr810Record(context) {
     transientForegroundProven: context.transientForegroundProven === true,
     backgroundSelectionAttempted: context.backgroundSelectionAttempted === true,
     backgroundSelectionProven: context.backgroundSelectionProven === true,
+    runtimeTabWasActiveBeforeFocusEmulation:
+      context.runtimeTabWasActiveBeforeFocusEmulation === true,
+    backgroundFocusEmulationAttempted:
+      context.backgroundFocusEmulationAttempted === true,
+    backgroundFocusEmulationProven:
+      context.backgroundFocusEmulationProven === true,
+    backgroundFocusEmulationRestoreAttempted:
+      context.backgroundFocusEmulationRestoreAttempted === true,
+    backgroundFocusEmulationRestored:
+      context.backgroundFocusEmulationRestored !== false,
     foregroundRestoreAttempted: context.foregroundRestoreAttempted === true,
     foregroundRestoreProven: context.foregroundRestoreProven !== false,
     selectionElapsedMs: Number.isFinite(context.selectionElapsedMs) ? context.selectionElapsedMs : null
