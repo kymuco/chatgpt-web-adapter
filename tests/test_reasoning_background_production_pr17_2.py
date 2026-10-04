@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 INSTANT = EXT / "service_worker_instant_effort_selection.js"
 PROFILE = EXT / "service_worker_model_profile_selection_pr8_10.js"
+SUBMIT = EXT / "service_worker_text_submit_commit_hardening_pr11_3.js"
 
 
 def _source(path: Path) -> str:
@@ -15,8 +16,9 @@ def _source(path: Path) -> str:
 def test_pr17_2_shipping_selection_owners_never_activate_tabs() -> None:
     instant = _source(INSTANT)
     profile = _source(PROFILE)
+    submit = _source(SUBMIT)
 
-    for source in (instant, profile):
+    for source in (instant, profile, submit):
         assert "chrome.tabs.update" not in source
         assert "chrome.windows.update" not in source
 
@@ -76,3 +78,14 @@ def test_pr17_2_shipping_support_surfaces_declare_no_foreground_requirement() ->
     for source in (instant, profile):
         assert "backgroundSelectionSupported: true" in source
         assert "transientForegroundRequired: false" in source
+
+
+def test_pr17_2_shipping_background_text_submit_never_activates_tab() -> None:
+    submit = _source(SUBMIT)
+
+    assert "_pr113RuntimeTabActive" in submit
+    assert "if (tabActive !== true)" in submit
+    assert "return _pr113SubmitTextWithEnterOnce(debuggee);" in submit
+    assert "PR11_3_MOUSE_COMMIT_REQUIRES_ALREADY_ACTIVE_TAB" in submit
+    assert "chrome.tabs.update" not in submit
+    assert "chrome.windows.update" not in submit
