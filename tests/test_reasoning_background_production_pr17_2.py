@@ -117,7 +117,7 @@ def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
     profile = _source(PROFILE)
 
     assert (
-        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R7"'
+        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R9"'
         in profile
     )
     assert "backgroundProductionRuntimeRevision" in profile
@@ -182,3 +182,27 @@ def test_pr17_2_post_key_proof_is_locale_independent_exact_slider() -> None:
     assert "has('high')||has('высокий')" in instant
     assert "/(^|\\b)(medium|средний)" not in instant
     assert "/(^|\\b)(high|высокий)" not in instant
+
+
+def test_pr17_2_fresh_background_keyboard_paths_use_focus_emulation() -> None:
+    profile = _source(PROFILE)
+    submit = _source(SUBMIT)
+
+    assert "Emulation.setFocusEmulationEnabled" in profile
+    assert "_pr810EnableBackgroundFocusEmulation" in profile
+    assert "_pr810DisableBackgroundFocusEmulation" in profile
+    assert "PR17_2_BACKGROUND_FOCUS_EMULATION_NOT_PROVEN" in profile
+    assert "PR17_2_BACKGROUND_FOCUS_EMULATION_ACTIVATED_TAB" in profile
+    assert "backgroundFocusEmulationAttempted" in profile
+    assert "backgroundFocusEmulationProven" in profile
+    assert "backgroundFocusEmulationRestored" in profile
+    assert "Page.bringToFront" not in profile
+    assert "chrome.tabs.update" not in profile
+
+    assert "Emulation.setFocusEmulationEnabled" in submit
+    assert "_pr113EnableBackgroundKeyboardFocus" in submit
+    assert "_pr113DisableBackgroundKeyboardFocus" in submit
+    assert "PR11_3_BACKGROUND_FOCUS_EMULATION_NOT_PROVEN" in submit
+    assert "PR11_3_BACKGROUND_FOCUS_EMULATION_ACTIVATED_TAB" in submit
+    assert "Page.bringToFront" not in submit
+    assert "chrome.tabs.update" not in submit
