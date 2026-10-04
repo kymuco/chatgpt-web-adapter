@@ -507,20 +507,33 @@ async function _pr88InstantEffortWaitForResolvedSlider(debuggee,expectedMode,tim
 async function _pr88InstantEffortWaitForResolvedSelected(debuggee,timeoutMs) {
   const startedAt=performance.now();
   let selected=null,slider=null,sliderMinReached=false,sliderObservedAfterHome=false;
+  let proofKind=null;
   while(performance.now()-startedAt<timeoutMs) {
     selected=await _pr88InstantSelectedModeSnapshot(debuggee);
     slider=await _pr88InstantEffortResolvedSliderSnapshot(debuggee,'snapshot');
     if(slider?.found===true) {
       sliderObservedAfterHome=true;
-      if(slider?.min===0&&slider?.now===slider?.min) sliderMinReached=true;
+      if(
+        slider?.min===0&&slider?.max===2&&slider?.stepCount===3&&
+        slider?.now===0&&slider?.currentMode==='INSTANT'
+      ) sliderMinReached=true;
     }
-    if(
-      selected?.selectedModeProven===true&&selected?.selectedMode==='INSTANT'&&
-      (sliderMinReached||slider?.found!==true)
-    ) return {selected,slider,sliderMinReached,sliderObservedAfterHome};
+    const selectedInstant=(
+      selected?.selectedModeProven===true&&selected?.selectedMode==='INSTANT'
+    );
+    if(sliderMinReached&&(selectedInstant||selected?.selectedModeProven!==true)) {
+      proofKind=selectedInstant
+        ? 'selected_mode_and_exact_slider'
+        : 'unique_exact_slider_value';
+      return {selected,slider,sliderMinReached,sliderObservedAfterHome,proofKind};
+    }
+    if(selectedInstant&&slider?.found!==true) {
+      proofKind='selected_mode_control';
+      return {selected,slider,sliderMinReached,sliderObservedAfterHome,proofKind};
+    }
     await sleep(PR88_INSTANT_EFFORT_SELECTION_POLL_MS);
   }
-  return {selected,slider,sliderMinReached,sliderObservedAfterHome};
+  return {selected,slider,sliderMinReached,sliderObservedAfterHome,proofKind};
 }
 
 
@@ -766,9 +779,19 @@ async function _pr88SelectionEnsureInstantCore(debuggee, context) {
   context.effortSliderObservedAfterHome = settled?.sliderObservedAfterHome === true;
   context.effortSliderAriaValueNowAfter = Number.isFinite(sliderAfter?.now)
     ? sliderAfter.now : (context.effortSliderMinReachedProven ? 0 : null);
-  context.selectedModeAfterSelection = after?.selectedMode || null;
-  context.selectedModeAfterSelectionProven = after?.selectedModeProven === true;
-  context.selectedModeAfterSelectionProofKind = after?.proofKind || "unknown";
+  context.selectedModeAfterSelection =
+    after?.selectedModeProven === true
+      ? after.selectedMode
+      : sliderAfter?.currentMode || null;
+  context.selectedModeAfterSelectionProven = (
+    context.selectedModeAfterSelection === "INSTANT" &&
+    (
+      after?.selectedModeProven === true ||
+      settled?.sliderMinReached === true
+    )
+  );
+  context.selectedModeAfterSelectionProofKind =
+    settled?.proofKind || after?.proofKind || "unknown";
 
   if (context.unexpectedConversationWriteBeforeSelectionComplete === true) {
     throw new Error("PR8_8_INSTANT_EFFORT_CONVERSATION_WRITE_BEFORE_SELECTION");
