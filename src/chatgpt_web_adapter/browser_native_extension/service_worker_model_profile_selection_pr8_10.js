@@ -640,6 +640,7 @@ async function _pr172FreshBackgroundKeyboardProbe() {
     result = {
       diagnosticOnly: true,
       freshBackgroundKeyboardProbe: true,
+      runtimeRevision: PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION,
       runtimeTabCreated: true,
       tabWasActive: false,
       initialMode,
