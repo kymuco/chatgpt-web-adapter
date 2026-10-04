@@ -173,7 +173,9 @@ def test_pr17_2_post_key_proof_is_locale_independent_exact_slider() -> None:
     wait_end = profile.index("function _pr810InstallWriteBoundary", wait_start)
     wait_block = profile[wait_start:wait_end]
 
-    assert '_pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot")' in wait_block
+    assert (
+        '_pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot")' in wait_block
+    )
     assert "slider?.now === targetIndex" in wait_block
     assert "slider?.currentMode === targetMode" not in wait_block
     assert "selectedModeLagObserved" in wait_block
@@ -241,12 +243,12 @@ def test_pr17_2_focus_emulation_precedes_picker_open_and_slider_focus() -> None:
     probe_start = profile.index("async function _pr172FreshBackgroundKeyboardProbe")
 
     ensure_block = profile[ensure_start:probe_start]
-    assert ensure_block.index("_pr810EnableBackgroundFocusEmulation(") < ensure_block.index(
+    assert ensure_block.index(
+        "_pr810EnableBackgroundFocusEmulation("
+    ) < ensure_block.index('_pr88SelectionPoint(debuggee, "picker")')
+    assert ensure_block.index(
         '_pr88SelectionPoint(debuggee, "picker")'
-    )
-    assert ensure_block.index('_pr88SelectionPoint(debuggee, "picker")') < ensure_block.index(
+    ) < ensure_block.index("_pr810FocusResolvedSlider(debuggee)")
+    assert ensure_block.index(
         "_pr810FocusResolvedSlider(debuggee)"
-    )
-    assert ensure_block.index("_pr810FocusResolvedSlider(debuggee)") < ensure_block.index(
-        "_pr88InstantEffortDispatchHome(debuggee)"
-    )
+    ) < ensure_block.index("_pr88InstantEffortDispatchHome(debuggee)")
