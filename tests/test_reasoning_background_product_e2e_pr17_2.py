@@ -80,7 +80,7 @@ def test_pr17_2_e2e_uses_one_fresh_conversation_per_profile() -> None:
 def test_pr17_2_e2e_preflights_loaded_service_worker_revision() -> None:
     source = _source()
 
-    assert 'EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R7"' in source
+    assert 'EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R9"' in source
     assert "provider.model_profile_support()" in source
     assert '"runtime_revision_matches"' in source
     assert "PR17_2_BACKGROUND_RUNTIME_REVISION_MISMATCH" in source
@@ -95,3 +95,11 @@ def test_pr17_2_e2e_requires_stepwise_shipping_proof_for_mutations() -> None:
     assert 'selection.get("homeBaselineProven") is not True' in source
     assert 'selection.get("selectionStepCount") != target_index' in source
     assert 'selection.get("stepwiseSelectionProven") is not True' in source
+
+
+def test_pr17_2_e2e_requires_focus_emulation_for_background_mutations() -> None:
+    source = _source()
+
+    assert 'selection.get("backgroundFocusEmulationAttempted") is not True' in source
+    assert 'selection.get("backgroundFocusEmulationProven") is not True' in source
+    assert 'selection.get("backgroundFocusEmulationRestored") is not True' in source
