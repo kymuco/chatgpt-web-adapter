@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 import json
 import threading
+from contextlib import contextmanager
 from typing import Any, Iterator
 
-from .browser_authority_live_characterization import BrowserAuthorityCharacterizationProvider
+from .browser_authority_live_characterization import (
+    BrowserAuthorityCharacterizationProvider,
+)
 from .client import ChatGPTWebClient
 from .exceptions import RequestError
 from .product_runtime import assemble_product_runtime
@@ -30,10 +32,14 @@ def normalize_model_profile(value: str) -> str:
         raise TypeError("model_profile must be a string")
     profile = value.strip().upper()
     if profile == "MAX":
-        raise ValueError("MAX model profile is not mapped by the proven 3-state product slider")
+        raise ValueError(
+            "MAX model profile is not mapped by the proven 3-state product slider"
+        )
     if profile not in PROFILE_TO_PRODUCT_MODE:
         supported = ", ".join((*PROFILE_TO_PRODUCT_MODE, "MAX(unmapped)"))
-        raise ValueError(f"unsupported model_profile {value!r}; expected one of: {supported}")
+        raise ValueError(
+            f"unsupported model_profile {value!r}; expected one of: {supported}"
+        )
     return profile
 
 
@@ -104,7 +110,8 @@ class ProductModelProfileProvider(BrowserAuthorityCharacterizationProvider):
             if isinstance(modes, list)
             else [],
             "slider_indices": dict(indices) if isinstance(indices, dict) else {},
-            "strict_prewrite_verification": response.get("strictPrewriteVerification") is True,
+            "strict_prewrite_verification": response.get("strictPrewriteVerification")
+            is True,
             "background_production_runtime_revision": response.get(
                 "backgroundProductionRuntimeRevision"
             ),
@@ -262,7 +269,9 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=150.0)
     args = parser.parse_args()
     if not args.acknowledge_live_writes:
-        parser.error("--acknowledge-live-writes is required; this gate performs exactly three product writes")
+        parser.error(
+            "--acknowledge-live-writes is required; this gate performs exactly three product writes"
+        )
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
 
