@@ -42,7 +42,9 @@ def test_pr17_2_shipping_slider_contract_matches_live_background_proof() -> None
     assert '_pr810DispatchKey(debuggee, "ArrowRight", "ArrowRight", 39)' in profile
 
 
-def test_pr17_2_shipping_trigger_supports_semantic_composer_without_mouse_dispatch() -> None:
+def test_pr17_2_shipping_trigger_supports_semantic_composer_without_mouse_dispatch() -> (
+    None
+):
     instant = _source(INSTANT)
 
     assert '[contenteditable="true"][role="textbox"][aria-multiline="true"]' in instant
