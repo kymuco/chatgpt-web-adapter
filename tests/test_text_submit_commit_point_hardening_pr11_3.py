@@ -52,6 +52,10 @@ def test_text_submit_hardening_declares_exact_protected_boundaries() -> None:
     assert "throw error;" in text
     assert "return _pr113SubmitTextWithEnterOnce(debuggee);" in text
     assert "_pr113RuntimeTabActive" in text
+    assert "_pr113EnableBackgroundKeyboardFocus" in text
+    assert "_pr113DisableBackgroundKeyboardFocus" in text
+    assert "Emulation.setFocusEmulationEnabled" in text
+    assert "PR11_3_BACKGROUND_FOCUS_EMULATION_NOT_PROVEN" in text
     assert "PR11_3_MOUSE_COMMIT_REQUIRES_ALREADY_ACTIVE_TAB" in text
     assert "chrome.tabs.update" not in text
     assert text.index("throw error;") < text.rindex(
@@ -131,6 +135,16 @@ async function locateAndFocusComposer() {
 async function sendCommand(_debuggee, method, params) {
   const marker = `${method}:${params?.type || "none"}:${params?.key || "none"}`;
   log.push(marker);
+  if (method === "Emulation.setFocusEmulationEnabled") {
+    log.push(`focus_emulation:${params?.enabled === true}`);
+    return {};
+  }
+  if (
+    method === "Runtime.evaluate" &&
+    String(params?.expression || "").includes("document.hasFocus()")
+  ) {
+    return { result: { value: { hasFocus: true } } };
+  }
   if (method === "Input.dispatchMouseEvent") {
     log.push(`mouse_point:${params?.x}:${params?.y}`);
   }
@@ -218,20 +232,36 @@ def test_already_active_tab_uses_one_mouse_commit_and_no_enter(tmp_path: Path) -
     }
     assert not any(item.startswith("tabs.update:") for item in result["log"])
     assert result["log"].count("wait_button") == 1
+    assert not any(item.startswith("focus_emulation:") for item in result["log"])
     assert "mouse_point:10:20" in result["log"]
     assert len(_enter_keydowns(result["log"])) == 0
     assert sum("mouseReleased" in item for item in result["log"]) == 1
 
 
-def test_background_tab_uses_enter_without_activation_or_mouse(tmp_path: Path) -> None:
+def test_background_tab_uses_enter_with_focus_emulation_without_activation(
+    tmp_path: Path,
+) -> None:
     result = _run_node_scenario(tmp_path, "success")
 
     assert result["ok"] is True
     assert result["result"]["strategy"] == "enter_fallback"
+    assert result["result"]["backgroundFocusEmulationAttempted"] is True
+    assert result["result"]["backgroundFocusEmulationProven"] is True
+    assert result["result"]["backgroundFocusEmulationRestored"] is True
     assert not any(item.startswith("tabs.update:") for item in result["log"])
     assert result["log"].count("wait_button") == 0
     assert len(_enter_keydowns(result["log"])) == 1
     assert not any("Input.dispatchMouseEvent" in item for item in result["log"])
+    assert result["log"].count("focus_emulation:true") == 1
+    assert result["log"].count("focus_emulation:false") == 1
+    assert result["log"].index("focus_emulation:true") < result["log"].index(
+        "focus_composer"
+    )
+    assert result["log"].index("focus_composer") < next(
+        index
+        for index, item in enumerate(result["log"])
+        if item.endswith(":keyDown:Enter")
+    )
 
 
 def test_enter_keyup_failure_is_post_commit_cleanup_only(tmp_path: Path) -> None:
@@ -248,6 +278,8 @@ def test_enter_keydown_ack_loss_is_ambiguous_and_never_retries(tmp_path: Path) -
     assert result["ok"] is False
     assert result["error"] == "PR11_3_TEXT_ENTER_KEYDOWN_OUTCOME_UNCONFIRMED"
     assert len(_enter_keydowns(result["log"])) == 1
+    assert result["log"].count("focus_emulation:true") == 1
+    assert result["log"].count("focus_emulation:false") == 1
 
 
 @pytest.mark.parametrize("scenario", ["rich", "temporary"])
