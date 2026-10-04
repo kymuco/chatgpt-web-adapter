@@ -232,3 +232,21 @@ def test_pr17_2_fresh_background_keyboard_probe_is_zero_write_and_scoped() -> No
     assert "conversationWriteCount !== 0" in profile
     assert "PR17_2_FRESH_KEYBOARD_PROBE_TAB_ACTIVATED" in profile
     assert "await chrome.tabs.remove(tabId)" in profile
+
+
+def test_pr17_2_focus_emulation_precedes_picker_open_and_slider_focus() -> None:
+    profile = _source(PROFILE)
+
+    ensure_start = profile.index("async function _pr810EnsureTargetMode")
+    probe_start = profile.index("async function _pr172FreshBackgroundKeyboardProbe")
+
+    ensure_block = profile[ensure_start:probe_start]
+    assert ensure_block.index("_pr810EnableBackgroundFocusEmulation(") < ensure_block.index(
+        '_pr88SelectionPoint(debuggee, "picker")'
+    )
+    assert ensure_block.index('_pr88SelectionPoint(debuggee, "picker")') < ensure_block.index(
+        "_pr810FocusResolvedSlider(debuggee)"
+    )
+    assert ensure_block.index("_pr810FocusResolvedSlider(debuggee)") < ensure_block.index(
+        "_pr88InstantEffortDispatchHome(debuggee)"
+    )
