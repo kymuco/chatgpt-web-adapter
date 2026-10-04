@@ -796,7 +796,10 @@ async function _pr88SelectionEnsureInstantCore(debuggee, context) {
   if (context.unexpectedConversationWriteBeforeSelectionComplete === true) {
     throw new Error("PR8_8_INSTANT_EFFORT_CONVERSATION_WRITE_BEFORE_SELECTION");
   }
-  if (after?.selectedModeProven !== true || after?.selectedMode !== "INSTANT") {
+  if (
+    context.selectedModeAfterSelectionProven !== true ||
+    context.selectedModeAfterSelection !== "INSTANT"
+  ) {
     throw new Error("PR8_8_INSTANT_EFFORT_DID_NOT_SETTLE_TO_INSTANT");
   }
   if (settled?.sliderObservedAfterHome === true && settled?.sliderMinReached !== true) {
