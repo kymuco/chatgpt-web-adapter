@@ -7,6 +7,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 INSTANT = EXT / "service_worker_instant_effort_selection.js"
 PROFILE = EXT / "service_worker_model_profile_selection_pr8_10.js"
 SUBMIT = EXT / "service_worker_text_submit_commit_hardening_pr11_3.js"
+INSTANT_REPAIR = EXT / "service_worker_instant_selection_repair_pr8_8.js"
 
 
 def _source(path: Path) -> str:
@@ -115,5 +116,23 @@ def test_pr17_2_shipping_settle_accepts_exact_slider_proof() -> None:
 def test_pr17_2_shipping_support_exposes_loaded_runtime_revision() -> None:
     profile = _source(PROFILE)
 
-    assert 'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R4"' in profile
+    assert (
+        'PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R5"'
+        in profile
+    )
     assert "backgroundProductionRuntimeRevision" in profile
+
+
+def test_pr17_2_fast_profile_has_single_selection_owner() -> None:
+    repair = _source(INSTANT_REPAIR)
+
+    assert "_pr88SelectionAdoptModelProfileSelection" in repair
+    assert 'owner?.requestedModelMode !== "INSTANT"' in repair
+    assert "owner?.selectionComplete !== true" in repair
+    assert "owner?.selectedModeAfterProven !== true" in repair
+    assert 'owner?.selectedModeAfter !== "INSTANT"' in repair
+    assert 'typeof _pr810ModelProfileContext !== "undefined"' in repair
+    assert "_pr88SelectionAdoptModelProfileSelection(context, modelProfileContext)" in repair
+    assert repair.index(
+        "_pr88SelectionAdoptModelProfileSelection(context, modelProfileContext)"
+    ) < repair.index("await _pr88SelectionEnsureInstant(debuggee, context);")
