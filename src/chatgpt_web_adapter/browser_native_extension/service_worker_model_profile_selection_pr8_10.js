@@ -558,6 +558,11 @@ async function _pr172FreshBackgroundKeyboardProbe() {
       throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_INITIAL_MODE_NOT_PROVEN");
     }
 
+    focusEmulationEnabled = await _pr810EnableBackgroundFocusEmulation(
+      debuggee,
+      focusContext
+    );
+
     const picker = await _pr88SelectionPoint(debuggee, "picker");
     if (
       picker?.found !== true ||
@@ -567,7 +572,10 @@ async function _pr172FreshBackgroundKeyboardProbe() {
       throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_PICKER_NOT_PROVEN");
     }
 
-    let slider = await _pr88InstantEffortResolvedSliderSnapshot(debuggee, "snapshot");
+    let slider = await _pr88InstantEffortResolvedSliderSnapshot(
+      debuggee,
+      "snapshot"
+    );
     const alreadyOpen = (
       slider?.found === true &&
       slider?.candidateCount === 1 &&
@@ -596,11 +604,7 @@ async function _pr172FreshBackgroundKeyboardProbe() {
       throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_SLIDER_NOT_PROVEN");
     }
 
-    focusEmulationEnabled = await _pr810EnableBackgroundFocusEmulation(
-      debuggee,
-      focusContext
-    );
-    const focused = await _pr810FocusReasoningSlider(debuggee);
+    const focused = await _pr810FocusResolvedSlider(debuggee);
     if (focused?.focusProven !== true) {
       throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_FOCUS_NOT_PROVEN");
     }
