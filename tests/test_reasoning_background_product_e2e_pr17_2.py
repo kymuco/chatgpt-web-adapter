@@ -87,3 +87,11 @@ def test_pr17_2_e2e_preflights_loaded_service_worker_revision() -> None:
     assert source.index("provider.model_profile_support()") < source.index(
         "runtime.send_text_observed("
     )
+
+
+def test_pr17_2_e2e_requires_stepwise_shipping_proof_for_mutations() -> None:
+    source = _source()
+
+    assert 'selection.get("homeBaselineProven") is not True' in source
+    assert 'selection.get("selectionStepCount") != target_index' in source
+    assert 'selection.get("stepwiseSelectionProven") is not True' in source
