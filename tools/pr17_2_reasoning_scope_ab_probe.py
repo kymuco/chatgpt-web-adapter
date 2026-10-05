@@ -166,17 +166,13 @@ def _classify(
     p = {key: value["selectedMode"] for key, value in persistent.items()}
     f = {key: value["selectedMode"] for key, value in fresh.items()}
 
-    setup_isolation = (
-        p["a_after_b_setup"] == "HIGH"
-        and p["b_after_setup"] == "MEDIUM"
-    )
+    setup_isolation = p["a_after_b_setup"] == "HIGH" and p["b_after_setup"] == "MEDIUM"
     mutation_isolation = (
-        p["a_after_mutation"] == "INSTANT"
-        and p["b_after_a_mutation"] == "MEDIUM"
+        p["a_after_mutation"] == "INSTANT" and p["b_after_a_mutation"] == "MEDIUM"
     )
-    fresh_isolation = f["a_after_mutation"] == "INSTANT" and f[
-        "b_after_a_mutation"
-    ] == "MEDIUM"
+    fresh_isolation = (
+        f["a_after_mutation"] == "INSTANT" and f["b_after_a_mutation"] == "MEDIUM"
+    )
 
     if setup_isolation and mutation_isolation and fresh_isolation:
         verdict = "CONVERSATION_LOCAL_DURABLE"
