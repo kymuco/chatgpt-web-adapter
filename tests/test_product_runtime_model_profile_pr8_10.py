@@ -5,7 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from chatgpt_web_adapter.browser_owned_product_transport import BrowserOwnedProductTransport
+from chatgpt_web_adapter.browser_owned_product_transport import (
+    BrowserOwnedProductTransport,
+)
 from chatgpt_web_adapter.product_capabilities import (
     CapabilityOwner,
     CapabilityState,
@@ -13,7 +15,10 @@ from chatgpt_web_adapter.product_capabilities import (
     ProductCapability,
 )
 from chatgpt_web_adapter.product_runtime import ChatGPTProductRuntime
-from chatgpt_web_adapter.product_transport import ProductRuntimeExecution, ProductRuntimeHealth
+from chatgpt_web_adapter.product_transport import (
+    ProductRuntimeExecution,
+    ProductRuntimeHealth,
+)
 
 
 class _Canonical:
@@ -138,7 +143,9 @@ def test_unsupported_transport_rejects_profile_before_dispatch() -> None:
     assert transport.send_calls == []
 
 
-def test_runtime_governance_declares_profile_surface_without_preservation_claim() -> None:
+def test_runtime_governance_declares_profile_surface_without_preservation_claim() -> (
+    None
+):
     runtime = ChatGPTProductRuntime(_Canonical(), write_transport=_ProfileTransport())
 
     governance = runtime.governance()
@@ -203,7 +210,9 @@ class _LowerRuntime:
         }
 
 
-def test_browser_transport_moves_proven_profile_context_inside_production_boundary() -> None:
+def test_browser_transport_moves_proven_profile_context_inside_production_boundary() -> (
+    None
+):
     provider = _ProfileProvider()
     transport = BrowserOwnedProductTransport(_Canonical(), provider=provider)
     transport._runtime = _LowerRuntime(provider)
@@ -222,7 +231,9 @@ def test_browser_transport_moves_proven_profile_context_inside_production_bounda
     assert observed.transport == "browser-owned"
 
 
-def test_browser_transport_custom_provider_without_profile_support_fails_closed() -> None:
+def test_browser_transport_custom_provider_without_profile_support_fails_closed() -> (
+    None
+):
     provider = _NoProfileProvider()
     transport = BrowserOwnedProductTransport(_Canonical(), provider=provider)
     transport._runtime = _LowerRuntime(SimpleNamespace(active=None))
