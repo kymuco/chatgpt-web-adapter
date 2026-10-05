@@ -710,6 +710,235 @@ async function _pr172FreshBackgroundKeyboardProbe() {
   return result;
 }
 
+async function _pr172WaitForStableScopeMode(debuggee, timeoutMs = 8000) {
+  const startedAt = performance.now();
+  let stableMode = null;
+  let stableCount = 0;
+  let last = null;
+
+  while (performance.now() - startedAt < timeoutMs) {
+    const snapshot = await _pr88InstantSelectedModeSnapshot(debuggee);
+    last = snapshot;
+    const proven = (
+      snapshot?.composerReady === true &&
+      snapshot?.selectedModeProven === true &&
+      _pr810Mode(snapshot?.selectedMode) !== null &&
+      snapshot?.candidateCount === 1
+    );
+    if (!proven) {
+      stableMode = null;
+      stableCount = 0;
+    } else if (snapshot.selectedMode === stableMode) {
+      stableCount += 1;
+    } else {
+      stableMode = snapshot.selectedMode;
+      stableCount = 1;
+    }
+
+    if (stableCount >= 3) {
+      return {
+        ...snapshot,
+        stableMode,
+        stableCount,
+        observationElapsedMs: Math.max(
+          0,
+          Math.round(performance.now() - startedAt)
+        )
+      };
+    }
+    await sleep(250);
+  }
+
+  return {
+    ...(last && typeof last === "object" ? last : {}),
+    stableMode: null,
+    stableCount,
+    observationElapsedMs: Math.max(
+      0,
+      Math.round(performance.now() - startedAt)
+    )
+  };
+}
+
+async function _pr172ReasoningScopeObservation(message) {
+  const rawConversationId = message?.scopeConversationId;
+  const conversationId = typeof rawConversationId === "string"
+    ? rawConversationId.trim()
+    : null;
+  if (rawConversationId != null && !conversationId) {
+    throw new Error("PR17_2_SCOPE_CONVERSATION_ID_INVALID");
+  }
+  const freshRenderer = message?.scopeFreshRenderer === true;
+  const targetUrl = conversationId
+    ? `${CHATGPT_ORIGIN}/c/${encodeURIComponent(conversationId)}`
+    : `${CHATGPT_ORIGIN}/`;
+
+  let tab = null;
+  let tabId = null;
+  let temporaryTabCreated = false;
+  let temporaryTabClosed = false;
+  let runtimeTabPreexisting = null;
+  let attached = false;
+  let debuggee = null;
+  let networkListener = null;
+  let activatedListener = null;
+  let tabActivated = false;
+  let conversationWriteCount = 0;
+  let debuggerAttachedAfter = null;
+  let result = null;
+
+  try {
+    if (freshRenderer) {
+      tab = await chrome.tabs.create({url: targetUrl, active: false});
+      if (!Number.isInteger(tab?.id)) {
+        throw new Error("PR17_2_SCOPE_TEMP_TAB_CREATE_FAILED");
+      }
+      tabId = tab.id;
+      temporaryTabCreated = true;
+      tab = await waitForTabComplete(tabId);
+      runtimeTabPreexisting = false;
+    } else {
+      const storedBefore = await storedRuntimeTabId();
+      runtimeTabPreexisting = Number.isInteger(storedBefore);
+      tab = await ensureRuntimeTab(conversationId);
+      tabId = Number.isInteger(tab?.id) ? tab.id : null;
+      if (tabId === null) {
+        throw new Error("PR17_2_SCOPE_RUNTIME_TAB_MISSING");
+      }
+    }
+
+    if (tab?.active === true) {
+      throw new Error("PR17_2_SCOPE_OBSERVATION_TAB_MUST_REMAIN_BACKGROUND");
+    }
+
+    activatedListener = (activeInfo) => {
+      if (activeInfo?.tabId === tabId) tabActivated = true;
+    };
+    chrome.tabs.onActivated.addListener(activatedListener);
+
+    debuggee = {tabId};
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await chrome.debugger.sendCommand(debuggee, "Runtime.enable");
+    await chrome.debugger.sendCommand(debuggee, "Network.enable");
+
+    networkListener = (source, method, params) => {
+      if (
+        source?.tabId !== tabId ||
+        method !== "Network.requestWillBeSent"
+      ) return;
+      const request = params?.request;
+      if (isConversationWrite(request?.url || "", request?.method || "")) {
+        conversationWriteCount += 1;
+      }
+    };
+    chrome.debugger.onEvent.addListener(networkListener);
+
+    await waitForComposerReady(
+      debuggee,
+      PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS
+    );
+    const observed = await _pr172WaitForStableScopeMode(
+      debuggee,
+      PR810_INITIAL_MODE_ACQUISITION_TIMEOUT_MS
+    );
+    const mode = _pr810Mode(observed?.stableMode);
+    if (
+      mode === null ||
+      observed?.stableCount < 3 ||
+      observed?.selectedModeProven !== true
+    ) {
+      throw new Error(
+        `PR17_2_SCOPE_MODE_NOT_STABLE:${observed?.proofKind || "unknown"}:${observed?.stableCount || 0}`
+      );
+    }
+
+    const tabAfter = await chrome.tabs.get(tabId);
+    const finalUrl = typeof tabAfter?.url === "string" ? tabAfter.url : "";
+    const observedConversationId = conversationIdFromUrl(finalUrl);
+    if (conversationId) {
+      if (observedConversationId !== conversationId) {
+        throw new Error("PR17_2_SCOPE_CONVERSATION_TARGET_MISMATCH");
+      }
+    } else if (observedConversationId !== null) {
+      throw new Error("PR17_2_SCOPE_NEW_CHAT_TARGET_MISMATCH");
+    }
+    if (tabActivated || tabAfter?.active === true) {
+      throw new Error("PR17_2_SCOPE_OBSERVATION_TAB_ACTIVATED");
+    }
+    if (conversationWriteCount !== 0) {
+      throw new Error("PR17_2_SCOPE_OBSERVATION_WRITE_OBSERVED");
+    }
+
+    result = {
+      diagnosticOnly: true,
+      reasoningScopeObservation: true,
+      runtimeRevision: PR172_BACKGROUND_PRODUCTION_RUNTIME_REVISION,
+      targetKind: conversationId ? "conversation" : "new_chat",
+      requestedConversationId: conversationId,
+      observedConversationId,
+      freshRenderer,
+      runtimeTabPreexisting,
+      temporaryTabCreated,
+      selectedMode: mode,
+      selectedModeProven: true,
+      selectedModeProofKind: observed?.proofKind || null,
+      selectedModeCandidateCount: Number.isInteger(observed?.candidateCount)
+        ? observed.candidateCount
+        : 0,
+      selectedModeNearestDistancePx: Number.isFinite(
+        observed?.nearestDistancePx
+      )
+        ? Math.round(observed.nearestDistancePx)
+        : null,
+      stableSampleCount: observed?.stableCount || 0,
+      observationElapsedMs: observed?.observationElapsedMs || null,
+      conversationWriteCount,
+      tabActivated: false,
+      tabWasActive: false
+    };
+  } finally {
+    if (networkListener) {
+      try { chrome.debugger.onEvent.removeListener(networkListener); } catch {}
+    }
+    if (activatedListener) {
+      try { chrome.tabs.onActivated.removeListener(activatedListener); } catch {}
+    }
+    if (attached && debuggee) {
+      try { await chrome.debugger.detach(debuggee); } catch {}
+    }
+    if (debuggee) {
+      try {
+        const targets = await chrome.debugger.getTargets();
+        debuggerAttachedAfter = Boolean(
+          targets.find((target) => target.tabId === tabId)?.attached
+        );
+      } catch {
+        debuggerAttachedAfter = null;
+      }
+    }
+    if (temporaryTabCreated && Number.isInteger(tabId)) {
+      try {
+        await chrome.tabs.remove(tabId);
+        temporaryTabClosed = true;
+      } catch {
+        temporaryTabClosed = false;
+      }
+    }
+    if (result) {
+      result.debuggerAttachedAfter = debuggerAttachedAfter;
+      result.temporaryTabClosed = temporaryTabCreated
+        ? temporaryTabClosed
+        : false;
+    }
+  }
+
+  if (!result) {
+    throw new Error("PR17_2_SCOPE_OBSERVATION_RESULT_MISSING");
+  }
+  return result;
+}
+
 async function _pr810StoredRecord() {
   try {
     const stored = await chrome.storage.local.get(PR810_MODEL_PROFILE_STORAGE_KEY);
@@ -721,6 +950,18 @@ async function _pr810StoredRecord() {
 }
 
 async function _executeNativeTurnWithModelProfile(message, next) {
+  if (message?.characterizeReasoningScopeObservation === true) {
+    if (
+      message?.text != null ||
+      message?.conversationId != null ||
+      message?.browserAuthorityLeaseId != null ||
+      message?.canonicalCompleted === true
+    ) {
+      throw new Error("PR17_2_SCOPE_OBSERVATION_FLAG_CONFLICT");
+    }
+    return _pr172ReasoningScopeObservation(message);
+  }
+
   if (message?.characterizeFreshBackgroundReasoningKeyboard === true) {
     if (_pr810QueryConflict(message)) {
       throw new Error("PR17_2_FRESH_KEYBOARD_PROBE_FLAG_CONFLICT");
