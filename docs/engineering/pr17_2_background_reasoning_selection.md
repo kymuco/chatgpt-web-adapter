@@ -142,34 +142,32 @@ The production contract remains fail-closed:
 - no claim that reasoning/profile state is conversation-local or globally
   preserved without separate evidence.
 
-## Remaining scope
+## Phase C scope result
 
-PR17.2 proves **selection capability**, not cross-conversation preservation.
-
-The final E2E explicitly reports:
+The separate Phase C A/B/new-chat experiment is now live-proven.
 
 ```text
-continuation_scope_tested = false
+A after B setup       = HIGH
+B after setup         = MEDIUM
+A after A -> INSTANT  = INSTANT
+B after A -> INSTANT  = MEDIUM
+
+fresh renderer A      = INSTANT
+fresh renderer B      = MEDIUM
+fresh new chat        = INSTANT
 ```
 
-A separate scope experiment is still required:
+Verdict: `CONVERSATION_LOCAL_DURABLE` for existing conversations. New-chat
+surfaces separately hydrated the last-selected `INSTANT` mode. Preservation
+does not replace strict prewrite proof.
 
-```text
-conversation A = HIGH
-conversation B = MEDIUM
-A -> INSTANT
-prove A == INSTANT
-prove B == MEDIUM (or observe otherwise)
-fresh/new chat -> observe its independently hydrated mode
-```
-
-Until that evidence exists:
+Current capability boundary:
 
 ```text
 model_selection        = AVAILABLE
 reasoning_selection    = AVAILABLE
 model_preservation     = UNKNOWN
-reasoning_preservation = UNKNOWN
+reasoning_preservation = AVAILABLE
 ```
 
 Tracks #197. PR #198 contains the shipping implementation and live gates.
