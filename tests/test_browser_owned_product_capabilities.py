@@ -139,3 +139,15 @@ def test_browser_owned_capability_governance_declares_ordinary_product_semantics
         == "LAST_SELECTED_MODE_OBSERVED"
     )
     assert governance["reasoning_preservation_is_write_authority"] is False
+
+
+def test_custom_provider_does_not_inherit_reasoning_preservation_scope() -> None:
+    transport = BrowserOwnedProductTransport(_Client(), provider=_Provider())
+
+    governance = transport.governance()
+
+    assert governance["model_profile_product_runtime_selection_supported"] is False
+    assert governance["model_profile_preservation_scope_proven"] is False
+    assert governance["reasoning_preservation_scope"] is None
+    assert governance["reasoning_new_chat_default_behavior"] is None
+    assert governance["reasoning_preservation_is_write_authority"] is False
