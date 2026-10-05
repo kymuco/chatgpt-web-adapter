@@ -150,6 +150,9 @@ def test_runtime_governance_declares_profile_surface_without_preservation_claim(
     assert governance["silent_model_profile_fallback"] is False
     assert governance["model_profile_state_scope"] == "TURN_REQUIREMENT"
     assert governance["model_profile_preservation_scope_proven"] is False
+    assert governance["reasoning_preservation_scope"] is None
+    assert governance["reasoning_new_chat_default_behavior"] is None
+    assert governance["reasoning_preservation_is_write_authority"] is False
 
 
 class _ProfileProvider:
