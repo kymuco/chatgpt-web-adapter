@@ -115,3 +115,11 @@ def test_pr17_2_scope_classifies_shared_persistent_runtime_state() -> None:
     assert result["verdict"] == "SHARED_ACROSS_CONVERSATIONS_IN_PERSISTENT_RUNTIME"
     assert result["setup_isolation_same_renderer"] is False
     assert result["mutation_isolation_same_renderer"] is False
+
+
+def test_pr17_2_scope_gate_uses_commit_bound_continuation_provider() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert "CommitBoundProductModelProfileProvider" in source
+    assert "provider = CommitBoundProductModelProfileProvider()" in source
+    assert "from chatgpt_web_adapter.product_model_profile_pr8_10 import" not in source
