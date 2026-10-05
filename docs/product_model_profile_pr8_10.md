@@ -95,12 +95,16 @@ The production browser-owned transport now graduates only the capabilities suppo
 model_selection        = AVAILABLE
 reasoning_selection    = AVAILABLE
 model_preservation     = UNKNOWN
-reasoning_preservation = UNKNOWN
+reasoning_preservation = AVAILABLE
 ```
 
-Cross-conversation sticky-state scope was not established by the three-state transition gate. Selection is therefore modeled as a `TURN_REQUIREMENT`; preservation remains unclaimed until independent scope evidence exists.
-
-Preservation is not an unresolved PR8.10 shipping blocker: PR8.10 closes with the narrower, evidence-backed per-turn selection contract and leaves independent cross-conversation preservation proof to future work.
+PR17.2 Phase C later established `CONVERSATION_LOCAL_DURABLE` reasoning
+preservation across independent conversations and fresh renderers. A new-chat
+surface separately hydrated the most recently selected reasoning mode. The
+write contract intentionally remains a `TURN_REQUIREMENT`: preservation is
+evidence about product state, not authority to skip strict prewrite selection
+proof. `model_preservation` remains unclaimed because model identity
+preservation was not independently tested.
 
 ## Final validation
 
