@@ -3,7 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeBridgeStatus
-from chatgpt_web_adapter.browser_owned_product_transport import BrowserOwnedProductTransport
+from chatgpt_web_adapter.browser_owned_product_transport import (
+    BrowserOwnedProductTransport,
+)
 from chatgpt_web_adapter.product_capabilities import (
     APPROVALS,
     CANONICAL_READBACK,
@@ -52,14 +54,18 @@ class _Provider:
         raise AssertionError("capability tests must not send")
 
 
-def test_browser_owned_capability_matrix_is_complete_and_evidence_conservative() -> None:
+def test_browser_owned_capability_matrix_is_complete_and_evidence_conservative() -> (
+    None
+):
     # A custom legacy provider cannot inherit the production PR8.10 selection
     # claim merely because the transport class knows about profiles.
     transport = BrowserOwnedProductTransport(_Client(), provider=_Provider())
 
     capabilities = transport.capabilities()
 
-    assert tuple(entry.name for entry in capabilities.entries) == PRODUCT_CAPABILITY_NAMES
+    assert (
+        tuple(entry.name for entry in capabilities.entries) == PRODUCT_CAPABILITY_NAMES
+    )
     assert capabilities.state(TEXT_TURNS) is CapabilityState.AVAILABLE
     assert capabilities.state(NEW_CHAT) is CapabilityState.AVAILABLE
     assert capabilities.state(CONTINUATION) is CapabilityState.AVAILABLE
@@ -82,14 +88,19 @@ def test_browser_owned_capability_matrix_is_complete_and_evidence_conservative()
     assert capabilities.state(REASONING_PRESERVATION) is CapabilityState.UNKNOWN
 
     assert capabilities.get(CANONICAL_READBACK).owner is CapabilityOwner.CANONICAL
-    assert capabilities.get(PRODUCT_MEMORY_PERSONALIZATION).owner is CapabilityOwner.PRODUCT
+    assert (
+        capabilities.get(PRODUCT_MEMORY_PERSONALIZATION).owner
+        is CapabilityOwner.PRODUCT
+    )
     assert capabilities.get(TEXT_TURNS).owner is CapabilityOwner.TRANSPORT
     assert capabilities.get(STREAMING).owner is CapabilityOwner.TRANSPORT
     assert capabilities.get(STREAMING).evidence is not None
     assert "PR8.9.3 production live gate" in capabilities.get(STREAMING).evidence
 
 
-def test_default_browser_owned_provider_graduates_only_proven_pr8_10_selection() -> None:
+def test_default_browser_owned_provider_graduates_only_proven_pr8_10_selection() -> (
+    None
+):
     transport = BrowserOwnedProductTransport(_Client())
 
     capabilities = transport.capabilities()
@@ -99,13 +110,18 @@ def test_default_browser_owned_provider_graduates_only_proven_pr8_10_selection()
     assert capabilities.state(MODEL_PRESERVATION) is CapabilityState.UNKNOWN
     assert capabilities.state(REASONING_PRESERVATION) is CapabilityState.AVAILABLE
     assert "PR8.10.1 production live gate" in capabilities.get(MODEL_SELECTION).evidence
-    assert "PR17.2 production live gates" in capabilities.get(REASONING_SELECTION).evidence
-    assert "PR17.2 Phase C live A/B scope gate" in capabilities.get(
-        REASONING_PRESERVATION
-    ).evidence
+    assert (
+        "PR17.2 production live gates" in capabilities.get(REASONING_SELECTION).evidence
+    )
+    assert (
+        "PR17.2 Phase C live A/B scope gate"
+        in capabilities.get(REASONING_PRESERVATION).evidence
+    )
 
 
-def test_browser_owned_capability_governance_declares_ordinary_product_semantics() -> None:
+def test_browser_owned_capability_governance_declares_ordinary_product_semantics() -> (
+    None
+):
     transport = BrowserOwnedProductTransport(_Client())
 
     governance = transport.governance()
