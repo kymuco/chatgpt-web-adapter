@@ -97,9 +97,12 @@ def test_default_browser_owned_provider_graduates_only_proven_pr8_10_selection()
     assert capabilities.state(MODEL_SELECTION) is CapabilityState.AVAILABLE
     assert capabilities.state(REASONING_SELECTION) is CapabilityState.AVAILABLE
     assert capabilities.state(MODEL_PRESERVATION) is CapabilityState.UNKNOWN
-    assert capabilities.state(REASONING_PRESERVATION) is CapabilityState.UNKNOWN
+    assert capabilities.state(REASONING_PRESERVATION) is CapabilityState.AVAILABLE
     assert "PR8.10.1 production live gate" in capabilities.get(MODEL_SELECTION).evidence
-    assert "PR8.10.1 production live gate" in capabilities.get(REASONING_SELECTION).evidence
+    assert "PR17.2 production live gates" in capabilities.get(REASONING_SELECTION).evidence
+    assert "PR17.2 Phase C live A/B scope gate" in capabilities.get(
+        REASONING_PRESERVATION
+    ).evidence
 
 
 def test_browser_owned_capability_governance_declares_ordinary_product_semantics() -> None:
@@ -128,4 +131,11 @@ def test_browser_owned_capability_governance_declares_ordinary_product_semantics
     }
     assert governance["model_profile_max_mapped"] is False
     assert governance["model_profile_strict_prewrite_verification"] is True
-    assert governance["model_profile_preservation_scope_proven"] is False
+    assert governance["model_profile_state_scope"] == "TURN_REQUIREMENT"
+    assert governance["model_profile_preservation_scope_proven"] is True
+    assert governance["reasoning_preservation_scope"] == "CONVERSATION_LOCAL_DURABLE"
+    assert (
+        governance["reasoning_new_chat_default_behavior"]
+        == "LAST_SELECTED_MODE_OBSERVED"
+    )
+    assert governance["reasoning_preservation_is_write_authority"] is False
