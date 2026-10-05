@@ -800,7 +800,20 @@ class ChatGPTProductRuntime:
                 "model_profile_fallback": None,
                 "silent_model_profile_fallback": False,
                 "model_profile_state_scope": "TURN_REQUIREMENT",
-                "model_profile_preservation_scope_proven": False,
+                "model_profile_preservation_scope_proven": (
+                    transport_governance.get("model_profile_preservation_scope_proven")
+                    is True
+                ),
+                "reasoning_preservation_scope": transport_governance.get(
+                    "reasoning_preservation_scope"
+                ),
+                "reasoning_new_chat_default_behavior": transport_governance.get(
+                    "reasoning_new_chat_default_behavior"
+                ),
+                "reasoning_preservation_is_write_authority": transport_governance.get(
+                    "reasoning_preservation_is_write_authority"
+                )
+                is True,
                 "rich_input_high_level_surface": True,
                 "rich_input_argument": "media",
                 "rich_input_item_contract": "MediaItem",
