@@ -579,9 +579,19 @@ class BrowserOwnedProductTransport:
                 "silent_model_profile_fallback": False,
                 "model_profile_strict_prewrite_verification": True,
                 "model_profile_state_scope": "TURN_REQUIREMENT",
-                "model_profile_preservation_scope_proven": True,
-                "reasoning_preservation_scope": "CONVERSATION_LOCAL_DURABLE",
-                "reasoning_new_chat_default_behavior": "LAST_SELECTED_MODE_OBSERVED",
+                "model_profile_preservation_scope_proven": (
+                    self._model_profile_selection_supported
+                ),
+                "reasoning_preservation_scope": (
+                    "CONVERSATION_LOCAL_DURABLE"
+                    if self._model_profile_selection_supported
+                    else None
+                ),
+                "reasoning_new_chat_default_behavior": (
+                    "LAST_SELECTED_MODE_OBSERVED"
+                    if self._model_profile_selection_supported
+                    else None
+                ),
                 "reasoning_preservation_is_write_authority": False,
                 "model_profile_automatic_write_retry": False,
                 "streaming_supported": True,
