@@ -7,7 +7,7 @@ from typing import Any
 
 from chatgpt_web_adapter import assemble_product_runtime
 from chatgpt_web_adapter.browser_authority_commit_provider import (
-    CommitBoundCommitBoundProductModelProfileProvider,
+    CommitBoundProductModelProfileProvider,
 )
 from chatgpt_web_adapter.client import ChatGPTWebClient
 
