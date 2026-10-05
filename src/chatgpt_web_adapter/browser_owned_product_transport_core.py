@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import threading
 from contextlib import nullcontext
 from functools import wraps
-import threading
 from typing import Any
 
 from .browser_authority_lease import (
@@ -166,7 +166,8 @@ def _build_browser_owned_capabilities(
                 name=name,
                 state=(
                     _BROWSER_OWNED_CAPABILITY_STATES[name]
-                    if profile_selection_supported or name not in _PROFILE_SELECTION_CAPABILITIES
+                    if profile_selection_supported
+                    or name not in _PROFILE_SELECTION_CAPABILITIES
                     else CapabilityState.UNKNOWN
                 ),
                 owner=_BROWSER_OWNED_CAPABILITY_OWNERS.get(
@@ -175,7 +176,8 @@ def _build_browser_owned_capabilities(
                 ),
                 evidence=(
                     _BROWSER_OWNED_CAPABILITY_EVIDENCE.get(name)
-                    if profile_selection_supported or name not in _PROFILE_SELECTION_CAPABILITIES
+                    if profile_selection_supported
+                    or name not in _PROFILE_SELECTION_CAPABILITIES
                     else "configured browser-native provider does not expose PR8.10 profile requirements"
                 ),
             )
@@ -213,7 +215,9 @@ def _serialize_submission_operation(method: Any) -> Any:
     """Serialize every browser-owned write/finality operation on one transport."""
 
     @wraps(method)
-    def serialized(self: "BrowserOwnedProductTransport", *args: Any, **kwargs: Any) -> Any:
+    def serialized(
+        self: "BrowserOwnedProductTransport", *args: Any, **kwargs: Any
+    ) -> Any:
         with self._submission_dispatch_lock:
             return method(self, *args, **kwargs)
 
@@ -479,7 +483,9 @@ class BrowserOwnedProductTransport:
         if not isinstance(submission, ProductSubmissionAck):
             raise TypeError("submission must be ProductSubmissionAck")
         if submission.transport != self.transport_id:
-            raise ValueError("submission transport does not match browser-owned transport")
+            raise ValueError(
+                "submission transport does not match browser-owned transport"
+            )
         return self._submission_lifecycle.await_final(submission.submission_id)
 
     def submission_lifecycle_snapshot(self) -> dict[str, Any]:
