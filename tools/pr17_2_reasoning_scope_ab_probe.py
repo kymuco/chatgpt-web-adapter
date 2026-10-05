@@ -6,8 +6,10 @@ import subprocess
 from typing import Any
 
 from chatgpt_web_adapter import assemble_product_runtime
+from chatgpt_web_adapter.browser_authority_commit_provider import (
+    CommitBoundCommitBoundProductModelProfileProvider,
+)
 from chatgpt_web_adapter.client import ChatGPTWebClient
-from chatgpt_web_adapter.product_model_profile_pr8_10 import ProductModelProfileProvider
 
 EXPECTED_RUNTIME_REVISION = "PR17_2_BACKGROUND_PRODUCTION_R12"
 WRITE_PLAN = (
@@ -83,7 +85,7 @@ def _validate_observation(
 
 
 def _observe(
-    provider: ProductModelProfileProvider,
+    provider: CommitBoundProductModelProfileProvider,
     *,
     conversation_id: str | None,
     fresh_renderer: bool,
@@ -107,7 +109,7 @@ def _observe(
 def _write(
     *,
     runtime: Any,
-    provider: ProductModelProfileProvider,
+    provider: CommitBoundProductModelProfileProvider,
     phase: str,
     profile: str,
     expected: str,
@@ -230,7 +232,7 @@ def run_gate(*, expected_head: str | None, timeout: float) -> dict[str, Any]:
         report["error"] = "EXACT_HEAD_OR_TRACKED_CLEAN_GATE_FAILED"
         return report
 
-    provider = ProductModelProfileProvider()
+    provider = CommitBoundProductModelProfileProvider()
     status = provider.characterization_status(timeout=5.0)
     if status.runtime_tab_id is not None:
         report["error"] = "PR17_2_SCOPE_INITIAL_RUNTIME_TAB_MUST_BE_ABSENT"
