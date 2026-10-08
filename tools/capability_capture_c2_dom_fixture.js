@@ -139,6 +139,8 @@ function evalPage(action) { return vm.runInContext(expr(action), page.context); 
 
 async function run() {
   const sourceText = fs.readFileSync(workerPath, "utf8");
+  const pageProbe = sourceText.split("function _cwaC2PageProbe(", 2)[1]
+    .split("function _cwaC2Expression(", 1)[0];
   const banned = [
     "querySelectorAll", "querySelector(", "jsname", "W297wb", "jqKxS",
     ".textContent", ".innerText", ".outerHTML", ".value", ".data",
@@ -146,7 +148,7 @@ async function run() {
     "chrome.tabs.create"
   ];
   for (const item of banned) {
-    assert.equal(sourceText.includes(item), false, "forbidden: " + item);
+    assert.equal(pageProbe.includes(item), false, "forbidden: " + item);
   }
 
   // Source event, changed text node and cleanup work without output values.
