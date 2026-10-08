@@ -381,6 +381,77 @@ ACK and require reconciliation/no automatic retry; compare the product-owned
 semantic result against the existing handwritten `translate_text`
 reference. The Slice B trace alone is insufficient for all of these.
 
+### Slice C1 — read-only two-document semantic locator characterization
+
+The research branch now offers **a separate, explicitly consented C1 operation**
+`research_capture_translate_semantic_v0`. It does not replay the demonstration.
+
+Protocol:
+
+```text
+explicit, distinct Chrome tab IDs A/B + independently supplied sl/tl
+→ verify exact Google Translate origin and route per tab
+→ sequential CDP read-only Runtime.evaluate snapshots
+→ count visible eligible source candidates and visible result-leaf candidates
+→ export a descriptor only when its reference family has exactly one candidate
+→ detach debugger from A before attaching to B
+→ compare bounded descriptors (role/kind/coarse viewport region)
+→ refuse to infer learned selectors, semantic finality, or write authority
+```
+
+The selector families are **handwritten Translate reference heuristics**:
+`textarea` or `[contenteditable="true"][role="textbox"]` for source;
+`[jsname="W297wb"], [jsname="jqKxS"]` for result leaves. They are not
+derived from the Slice B timeline. C1 deliberately does not return those
+selectors, DOM paths, element identifiers, accessible names, user input,
+translated text, raw URLs, cookies, screenshots, DOM dumps, or network bodies.
+Only counts up to 8 and closed-enum descriptors leave the page. Overflows
+fail closed. Visibility/eligibility are checked inside the page but raw styles
+and geometry are not exported.
+
+The two observations are from **distinct explicitly selected Chrome tabs**,
+which gives separate page documents; separate Chrome renderer OS processes
+are not proven. We do not control site reload or claim fresh document
+creation. A consistent, unique-in-family descriptor in both documents is
+reported as `CONSISTENT_REFERENCE_FAMILY_SIGNATURE`, not an executable or
+uniquely learned locator. Missing, multiple, unknown-region, or changed
+signatures are reported without fallback to a leftmost control.
+
+Local research-only trial, after installing the branch's research extension
+and native host, opening **two distinct** Google Translate tabs with the same
+exact `en → es` route, and looking up both exact tab IDs:
+
+```powershell
+python -m tools.capability_capture_v0_semantic_browser `
+  --tab-id-a <FIRST_EXACT_TRANSLATE_TAB_ID> `
+  --tab-id-b <SECOND_EXACT_TRANSLATE_TAB_ID> `
+  --source-language en `
+  --target-language es `
+  --i-consent-to-semantic-observation
+```
+
+This command performs no product write, activation, navigation, reload, or
+automatic retry. The result may legitimately be `MISSING` or `AMBIGUOUS`;
+that is scientific evidence, not an error requiring heuristic fallback.
+To test variation, use separately prepared tabs/layouts (for example, different
+window sizes) in later controlled trials, recording only sanitized results.
+Do not disturb a working CWA installation until the exact research CI is green.
+
+Admissible response classes:
+
+- `MISSING`: zero eligible nodes in either document
+- `AMBIGUOUS`: more than one eligible node in either document
+- `CHANGED_STRUCTURAL_SIGNATURE`: one per document, but enum signatures differ
+- `UNRESOLVED_REGION`: viewport geometry is unavailable
+- `CONSISTENT_REFERENCE_FAMILY_SIGNATURE`: one per document, same enum
+  signature; **still not replay proof**
+
+All results preserve `semantic_finality_proven=false`,
+`replay_executable=false`, `new_write_authority=false`, and
+`automatic_retry=false`. C1 success is **not** permission for Slice C2
+product mutations. A separate explicit effect budget, source-text binding,
+output-text stability and ambiguous-ACK reconciliation proof remain gates.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
