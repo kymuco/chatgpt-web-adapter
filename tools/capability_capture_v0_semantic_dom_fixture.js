@@ -186,6 +186,11 @@ async function run() {
       "service_worker_capability_capture_c2.js"
     ].includes(script));
   };
+  const c2Path = path.join(
+    __dirname, "..", "src", "chatgpt_web_adapter",
+    "browser_native_extension", "service_worker_capability_capture_c2.js"
+  );
+  vm.runInContext(fs.readFileSync(c2Path, "utf8"), worker);
   const translatePath = path.join(
     __dirname, "..", "src", "chatgpt_web_adapter",
     "browser_native_extension", "service_worker_google_translate_capability.js"
