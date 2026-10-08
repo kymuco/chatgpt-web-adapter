@@ -19,6 +19,7 @@ class FakeElement {
     this.left = left;
     this.textContent = text;
     this.disabled = false;
+    this.hidden = false;
   }
   getBoundingClientRect() {
     return { left: this.left, width: 90, height: 30 };
@@ -50,8 +51,11 @@ function page(tab, sourceCount = 1, outputCount = 1, variant = "") {
     location: {
       href: "https://translate.google.com/?sl=en&tl=es&op=translate"
     },
-    getComputedStyle() {
-      return { display: "block", visibility: "visible" };
+    getComputedStyle(element) {
+      return {
+        display: element.hidden ? "none" : "block",
+        visibility: "visible"
+      };
     },
     URL
   });
@@ -116,6 +120,9 @@ async function run() {
     assert.equal(observation.routeVerified, true);
     assert.equal(observation.source_input.candidateCount, 1);
     assert.equal(observation.translated_result.candidateCount, 1);
+    assert.equal(observation.resultFamilyStages.rawFamily, 1);
+    assert.equal(observation.resultFamilyStages.visibleFamily, 1);
+    assert.equal(observation.resultFamilyStages.visibleLeaves, 1);
     assert.equal(observation.source_input.uniqueDescriptor.kind, "textarea");
     assert.equal(observation.source_input.uniqueDescriptor.region, "left");
     assert.equal(observation.translated_result.uniqueDescriptor.region, "right");
@@ -142,7 +149,18 @@ async function run() {
   b.outputs.length = 0;
   const missing = await worker._cwaCaptureV0SemanticTwoTabs(request);
   assert.equal(missing.observations[1].translated_result.candidateCount, 0);
+  assert.equal(missing.observations[1].resultFamilyStages.rawFamily, 0);
+  assert.equal(missing.observations[1].resultFamilyStages.visibleFamily, 0);
+  assert.equal(missing.observations[1].resultFamilyStages.visibleLeaves, 0);
   b.outputs.push(new FakeElement("SPAN", 800, "secret"));
+
+  b.outputs[0].hidden = true;
+  const hidden = await worker._cwaCaptureV0SemanticTwoTabs(request);
+  assert.equal(hidden.observations[1].translated_result.candidateCount, 0);
+  assert.equal(hidden.observations[1].resultFamilyStages.rawFamily, 1);
+  assert.equal(hidden.observations[1].resultFamilyStages.visibleFamily, 0);
+  assert.equal(hidden.observations[1].resultFamilyStages.visibleLeaves, 0);
+  b.outputs[0].hidden = false;
 
   await assert.rejects(
     () => worker._cwaCaptureV0SemanticTwoTabs({
@@ -150,15 +168,15 @@ async function run() {
     }),
     /CAPTURE_C1_INVALID_REQUEST/
   );
-  assert.equal(attachCount, 8);
-  assert.equal(detachCount, 8);
+  assert.equal(attachCount, 10);
+  assert.equal(detachCount, 10);
 
   failDetach = true;
   await assert.rejects(
     () => worker._cwaCaptureV0SemanticTwoTabs(request),
     /CAPTURE_C1_CLEANUP_UNPROVEN/
   );
-  assert.equal(detachCount, 9);
+  assert.equal(detachCount, 11);
   // Regression: the outer Google Translate handler must route C1 rather
   // than falling through to the base handler without a response.
   worker.BRIDGE_PROTOCOL_VERSION = "synthetic";
