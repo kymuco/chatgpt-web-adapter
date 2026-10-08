@@ -406,7 +406,10 @@ async function _cwaGoogleTranslateText(message) {
 let _cwaGoogleTranslateActiveRequestId = null;
 
 async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
-  if (message?.type === CWA_CAPTURE_V0_OPERATION) {
+  if (
+    message?.type === CWA_CAPTURE_V0_OPERATION ||
+    message?.type === CWA_CAPTURE_V0_SEMANTIC_OPERATION
+  ) {
     return _cwaOnNativeMessageWithCaptureV0(message, port, next);
   }
   if (
