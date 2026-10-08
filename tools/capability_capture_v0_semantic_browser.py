@@ -27,11 +27,19 @@ _ROLES = {"source_input": "textbox", "translated_result": "result_leaf"}
 _REGIONS = {"left", "center", "right", "unknown"}
 _RESULT_KEYS = frozenset(
     {
-        "schema", "productId", "captureMode", "sourceLanguage",
-        "targetLanguage", "observations", "selectorProvenance",
-        "semanticFinalityProven", "canonicalCompletionProven",
-        "replayExecutable", "newWriteAuthority",
-        "automaticRetry", "rawContentRetained",
+        "schema",
+        "productId",
+        "captureMode",
+        "sourceLanguage",
+        "targetLanguage",
+        "observations",
+        "selectorProvenance",
+        "semanticFinalityProven",
+        "canonicalCompletionProven",
+        "replayExecutable",
+        "newWriteAuthority",
+        "automaticRetry",
+        "rawContentRetained",
     }
 )
 _OBSERVATION_KEYS = frozenset({"routeVerified", "source_input", "translated_result"})
@@ -80,7 +88,8 @@ def _slot(value: object, slot: str) -> dict[str, Any]:
 
 
 def validate_semantic_observation(
-    response: dict[str, Any], *,
+    response: dict[str, Any],
+    *,
     source_language: str,
     target_language: str,
 ) -> dict[str, Any]:
@@ -89,7 +98,11 @@ def validate_semantic_observation(
         raise ValueError("CAPTURE_C1_OBSERVATION_FAILED")
     if response.get("type") != _RESPONSE:
         raise ValueError("CAPTURE_C1_RESPONSE_TYPE_INVALID")
-    raw = {k: v for k, v in response.items() if k not in {"ok", "type", "request_id", "protocol"}}
+    raw = {
+        k: v
+        for k, v in response.items()
+        if k not in {"ok", "type", "request_id", "protocol"}
+    }
     if set(raw) != _RESULT_KEYS:
         raise ValueError("CAPTURE_C1_EXTRA_OR_MISSING_FIELDS")
     if (
@@ -116,11 +129,16 @@ def validate_semantic_observation(
             raise ValueError("CAPTURE_C1_OBSERVATION_SHAPE_INVALID")
         if value["routeVerified"] is not True:
             raise ValueError("CAPTURE_C1_ROUTE_NOT_PROVEN")
-        parsed.append({
-            "routeVerified": True,
-            **{slot: _slot(value[slot], slot) for slot in _SLOTS},
-        })
-    return {**{k: v for k, v in raw.items() if k != "observations"}, "observations": parsed}
+        parsed.append(
+            {
+                "routeVerified": True,
+                **{slot: _slot(value[slot], slot) for slot in _SLOTS},
+            }
+        )
+    return {
+        **{k: v for k, v in raw.items() if k != "observations"},
+        "observations": parsed,
+    }
 
 
 def classify_semantic_stability(report: dict[str, Any]) -> dict[str, Any]:
@@ -170,7 +188,8 @@ def classify_semantic_stability(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def capture_semantic_pair(
-    bridge: BrowserNativeTurnProvider, *,
+    bridge: BrowserNativeTurnProvider,
+    *,
     tab_ids: tuple[int, int],
     source_language: str,
     target_language: str,
