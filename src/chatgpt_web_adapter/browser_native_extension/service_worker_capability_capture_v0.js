@@ -253,9 +253,10 @@ function _cwaCaptureV0SemanticPageExpression(source, target) {
       "return x<1/3?'left':(x<2/3?'center':'right')};" +
     "const source=Array.from(document.querySelectorAll('textarea,[contenteditable=\\\"true\\\"][role=\\\"textbox\\\"]'))" +
       ".filter(e=>visible(e)&&e.getAttribute('aria-disabled')!=='true'&&!e.disabled);" +
-    "const outputs=Array.from(document.querySelectorAll('[jsname=\\\"W297wb\\\"],[jsname=\\\"jqKxS\\\"]'))" +
-      ".filter(visible);" +
+    "const rawOutputs=Array.from(document.querySelectorAll('[jsname=\\\"W297wb\\\"],[jsname=\\\"jqKxS\\\"]'));" +
+    "const outputs=rawOutputs.filter(visible);" +
     "const leaves=outputs.filter(e=>!outputs.some(x=>x!==e&&e.contains(x)));" +
+    "const resultFamilyStages={rawFamily:rawOutputs.length,visibleFamily:outputs.length,visibleLeaves:leaves.length};" +
     "const pack=(nodes,slot)=>{" +
       "if(nodes.length>8)return {candidateCount:9,uniqueDescriptor:null};" +
       "if(nodes.length!==1)return {candidateCount:nodes.length,uniqueDescriptor:null};" +
@@ -269,7 +270,8 @@ function _cwaCaptureV0SemanticPageExpression(source, target) {
     "return {routeVerified:u.origin==='https://translate.google.com'&&" +
       "u.searchParams.get('sl')===" + src + "&&u.searchParams.get('tl')===" + dst + "," +
       "source_input:pack(source,'source_input')," +
-      "translated_result:pack(leaves,'translated_result')};" +
+      "translated_result:pack(leaves,'translated_result')," +
+      "resultFamilyStages};" +
   "})()";
 }
 
@@ -315,7 +317,25 @@ async function _cwaCaptureV0SemanticReadTab(tabId, source, target) {
     }
     // Copy only closed-enum structural fields. No page text, attribute names,
     // DOM selectors, raw URLs, node IDs or CDP response objects are exported.
-    const sanitized = { routeVerified: true };
+    const rawStages = snapshot.resultFamilyStages;
+    const names = ["rawFamily", "visibleFamily", "visibleLeaves"];
+    if (!rawStages || typeof rawStages !== "object" ||
+        names.some(name => !Number.isSafeInteger(rawStages[name]) ||
+          rawStages[name] < 0 || rawStages[name] > 8) ||
+        rawStages.rawFamily < rawStages.visibleFamily ||
+        rawStages.visibleFamily < rawStages.visibleLeaves ||
+        rawStages.visibleLeaves !== snapshot.translated_result?.candidateCount) {
+      throw new Error("CAPTURE_C1_RESULT_STAGE_EVIDENCE_INVALID");
+    }
+    const sanitized = {
+      routeVerified: true,
+      // Closed, capped counts only. No DOM element/content/attribute value.
+      resultFamilyStages: {
+        rawFamily: rawStages.rawFamily,
+        visibleFamily: rawStages.visibleFamily,
+        visibleLeaves: rawStages.visibleLeaves
+      }
+    };
     for (const slot of ["source_input", "translated_result"]) {
       const value = snapshot[slot];
       const count = value?.candidateCount;
@@ -369,7 +389,7 @@ async function _cwaCaptureV0SemanticTwoTabs(message) {
   const first = await _cwaCaptureV0SemanticReadTab(ids[0], source, target);
   const second = await _cwaCaptureV0SemanticReadTab(ids[1], source, target);
   return {
-    schema: "CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE",
+    schema: "CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE_V2",
     productId: "google-translate-web",
     captureMode: "EXPLICIT_TWO_TAB_OBSERVE_ONLY",
     sourceLanguage: source,
