@@ -80,7 +80,7 @@ async function _cwaCaptureV0ObserveTranslate(message) {
 
   const debuggee = { tabId };
   let attached = false;
-  let installed = false;
+  let installAttempted = false;
   const events = [];
   const start = performance.now();
   let lastInput = 0;
@@ -93,11 +93,11 @@ async function _cwaCaptureV0ObserveTranslate(message) {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+    installAttempted = true;
     const setup = await _cwaCaptureV0Evaluate(debuggee, "install");
     if (setup?.ready !== true) {
       throw new Error("CAPTURE_V0_" + String(setup?.reason || "NOT_READY"));
     }
-    installed = true;
     events.push({ phase: "source_ready", t_ms: 0, role: "textbox" });
     const deadline = start + seconds * 1000;
     while (performance.now() < deadline) {
@@ -157,16 +157,23 @@ async function _cwaCaptureV0ObserveTranslate(message) {
       rawContentRetained: false
     };
   } finally {
+    let cleanupUnproven = false;
     if (attached) {
-      if (installed) {
-        try { await _cwaCaptureV0Evaluate(debuggee, "remove"); } catch {
-          // Cleanup failure does not upgrade evidence/finality.
+      if (installAttempted) {
+        try {
+          const removed = await _cwaCaptureV0Evaluate(debuggee, "remove");
+          if (removed?.removed !== true) cleanupUnproven = true;
+        } catch {
+          cleanupUnproven = true;
         }
       }
-      try { await chrome.debugger.detach(debuggee); } catch {
-        // Best effort; cannot override observational result.
+      try {
+        await chrome.debugger.detach(debuggee);
+      } catch {
+        cleanupUnproven = true;
       }
     }
+    if (cleanupUnproven) throw new Error("CAPTURE_V0_CLEANUP_UNPROVEN");
   }
 }
 
