@@ -1,3 +1,7 @@
+// Research-only opt-in observer is loaded inside the existing Google Translate
+// domain. Do not alter the frozen native-message router composition.
+importScripts("service_worker_capability_capture_v0.js");
+
 const CWA_GOOGLE_TRANSLATE_ORIGIN = "https://translate.google.com";
 const CWA_GOOGLE_TRANSLATE_RUNTIME_TAB_KEY = "googleTranslateRuntimeTabIdV1";
 const CWA_GOOGLE_TRANSLATE_STABLE_MS = 1200;
@@ -402,6 +406,9 @@ async function _cwaGoogleTranslateText(message) {
 let _cwaGoogleTranslateActiveRequestId = null;
 
 async function _cwaOnNativeMessageWithGoogleTranslate(message, port, next) {
+  if (message?.type === CWA_CAPTURE_V0_OPERATION) {
+    return _cwaOnNativeMessageWithCaptureV0(message, port, next);
+  }
   if (
     message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
     message?.type !== "translate_text"
