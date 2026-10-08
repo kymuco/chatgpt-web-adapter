@@ -27,6 +27,8 @@ _REPORT_KEYS = frozenset(
         "sourceLanguage",
         "targetLanguage",
         "inputEventCount",
+        "inputFilterCounts",
+        "observerWindowMs",
         "source",
         "result",
         "structuralQuiet",
@@ -119,6 +121,50 @@ def _slot(value: Any, *, source: bool, quiet: bool) -> dict[str, Any]:
     }
 
 
+_INPUT_FILTER_KEYS = frozenset(
+    {"observed", "trusted", "eligible", "unsupportedTarget", "invisibleTarget"}
+)
+
+
+def _input_filter_counts(value: Any, *, accepted: int) -> dict[str, int]:
+    if not isinstance(value, dict) or set(value) != _INPUT_FILTER_KEYS:
+        raise ValueError("CAPTURE_C2_INPUT_FILTER_SHAPE_INVALID")
+    if any(type(value[k]) is not int or not 0 <= value[k] <= 64 for k in _INPUT_FILTER_KEYS):
+        raise ValueError("CAPTURE_C2_INPUT_FILTER_BOUNDS_INVALID")
+    if (
+        value["eligible"] != accepted
+        or value["observed"] < value["trusted"]
+        or value["trusted"] != (
+            value["eligible"] + value["unsupportedTarget"] + value["invisibleTarget"]
+        )
+    ):
+        raise ValueError("CAPTURE_C2_INPUT_FILTER_INCONSISTENT")
+    return {
+        key: value[key]
+        for key in (
+            "observed",
+            "trusted",
+            "eligible",
+            "unsupportedTarget",
+            "invisibleTarget",
+        )
+    }
+
+
+def _input_diagnosis(counts: dict[str, int]) -> str:
+    if counts["observed"] == 0:
+        return "NO_INPUT_EVENT_OBSERVED_DURING_WINDOW"
+    if counts["trusted"] == 0:
+        return "ONLY_UNTRUSTED_INPUT_EVENTS"
+    if counts["eligible"] > 0:
+        return "ELIGIBLE_TRUSTED_INPUT_OBSERVED"
+    if counts["unsupportedTarget"] > 0 and counts["invisibleTarget"] > 0:
+        return "FILTERED_UNSUPPORTED_AND_INVISIBLE_TARGETS"
+    if counts["unsupportedTarget"] > 0:
+        return "FILTERED_UNSUPPORTED_TARGETS"
+    return "FILTERED_INVISIBLE_TARGETS"
+
+
 def validate_independent_capture(
     response: dict[str, Any],
     *,
@@ -138,7 +184,7 @@ def validate_independent_capture(
     if set(raw) != _REPORT_KEYS:
         raise ValueError("CAPTURE_C2_EXTRA_OR_MISSING_FIELDS")
     if (
-        raw["schema"] != "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V0"
+        raw["schema"] != "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1"
         or raw["productId"] != "google-translate-web"
         or raw["captureMode"] != "EXPLICIT_SINGLE_TAB_EVENT_DELTA"
         or raw["routeVerified"] is not True
@@ -155,8 +201,13 @@ def validate_independent_capture(
         or type(raw["structuralQuiet"]) is not bool
         or type(raw["inputEventCount"]) is not int
         or not 0 <= raw["inputEventCount"] <= 64
+        or type(raw["observerWindowMs"]) is not int
+        or not 0 <= raw["observerWindowMs"] <= 20000
     ):
         raise ValueError("CAPTURE_C2_AUTHORITY_OR_ROUTE_MISMATCH")
+    filters = _input_filter_counts(
+        raw["inputFilterCounts"], accepted=raw["inputEventCount"]
+    )
     source = _slot(raw["source"], source=True, quiet=raw["structuralQuiet"])
     result = _slot(raw["result"], source=False, quiet=raw["structuralQuiet"])
     if (
@@ -177,6 +228,9 @@ def validate_independent_capture(
         "source": source,
         "result": result,
         "input_event_count": raw["inputEventCount"],
+        "input_filter_counts": filters,
+        "input_detection_diagnosis": _input_diagnosis(filters),
+        "observer_window_ms": raw["observerWindowMs"],
         "structural_quiet": raw["structuralQuiet"],
         "source_event_identity_proven": source["status"] == "EVENT_TARGET_OBSERVED",
         "result_semantic_identity_proven": False,
