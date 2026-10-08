@@ -181,7 +181,10 @@ async function run() {
   // than falling through to the base handler without a response.
   worker.BRIDGE_PROTOCOL_VERSION = "synthetic";
   worker.importScripts = (script) => {
-    assert.equal(script, "service_worker_capability_capture_v0.js");
+    assert.ok([
+      "service_worker_capability_capture_v0.js",
+      "service_worker_capability_capture_c2.js"
+    ].includes(script));
   };
   const translatePath = path.join(
     __dirname, "..", "src", "chatgpt_web_adapter",
