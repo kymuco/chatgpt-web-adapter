@@ -84,6 +84,14 @@ def test_reference_observation_is_not_promoted_to_canonical_finality() -> None:
         replace(_reference_result(), automatic_retry=True),
         replace(_reference_result(), finality_evidence="CANONICAL_COMPLETED"),
         replace(_reference_result(), target_language="de"),
+        replace(
+            _reference_result(),
+            final_url="https://eviltranslate.google.com/?sl=en&tl=es",
+        ),
+        replace(
+            _reference_result(),
+            final_url="https://translate.google.com/?sl=en&tl=de",
+        ),
     ],
 )
 def test_reference_observation_fails_closed_on_semantic_drift(
