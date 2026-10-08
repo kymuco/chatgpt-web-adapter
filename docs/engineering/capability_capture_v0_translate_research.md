@@ -571,6 +571,65 @@ whether the next action should be a reference-selector audit, a visibility
 audit, or a controlled observation of changed page state. Do not fix the
 handwritten driver until that evidence is available.
 
+### C1 completed bounded structural two-document gate — 2026-10-08
+
+The third human-operated, consented, **read-only** C1 observation on exact
+research head `ce51803ee601fcfdcf4da3b954cba0f0641aa41d` returned
+`CWA_CAPTURE_C1_STRUCTURAL_COMPARISON_V2`:
+
+```text
+                                      document A        document B
+source_input.candidateCount                     1                 1
+translated_result.rawFamily                     2                 2
+translated_result.visibleFamily                 2                 2
+translated_result.visibleLeaves                 1                 1
+
+source_input.status                CONSISTENT_REFERENCE_FAMILY_SIGNATURE
+translated_result.status           CONSISTENT_REFERENCE_FAMILY_SIGNATURE
+translated_result.diagnosis A/B     VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT
+
+independent_documents_observed     true
+independent_renderer_process       false
+selector_families_from_capture     false
+learned_locator_proven             false (both slots)
+semantic_finality_proven           false
+replay_executable                  false
+new_write_authority                false
+automatic_retry                    false
+```
+
+The legacy `[jsname="W297wb"],[jsname="jqKxS"]` selector family matched
+two visible nodes in **each** inspected document. Filtering out matched
+ancestors yielded one structural leaf candidate per document. This
+**falsifies the blanket hypothesis that the handwritten result selector
+family is always absent on these pages**. It does not prove that that leaf
+is semantically the translated output, that its text matches the requested
+input, or that its identity will persist across UI revisions.
+
+Earlier observations on the same day returned `translated_result: A=0,
+B=0`, but only the new run measured selector-stage counts. Different
+page states or sampling times can explain the difference; no causal
+explanation is proven. Do not retrospectively assign the old zero-count
+to selector absence, hidden elements, or stale Chrome state.
+
+**Bounded gate verdict:**
+`C1_REFERENCE_FAMILY_TWO_DOCUMENT_STRUCTURE_SUPPORTED`.
+Two manually inherited source/result families have replicated structural
+signatures in one pair of exact-route page documents. This is **not**
+`C1_LEARNED_LOCATOR_SUPPORTED`, semantic finality, or authority to replay.
+
+**Next discriminating study, not yet executed:** use an explicitly
+human-driven crossed state contrast: (A empty, B showing benign translated
+text), then reverse the states (A showing benign translation, B empty).
+The read-only C1 observer must be run independently after each manual
+preparation, with exact same routes and independently confirmed current
+tab IDs. Count transitions correlated with the intended result state may
+support attribution to *an output region*, but not translated-text
+correctness or generalized locator learning. A state-insensitive outcome
+requires investigating the family as possible UI decoration. Never write,
+clear, or retry automatically; do not read/export page text. Treat any
+mismatch as an experimental result.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
