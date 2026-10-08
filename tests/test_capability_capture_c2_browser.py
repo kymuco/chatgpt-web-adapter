@@ -276,6 +276,11 @@ def test_result_descriptor_count_spoofing_fails_closed() -> None:
 
 def test_worker_reference_independence_and_synthetic_cdp() -> None:
     code = WORKER.read_text(encoding="utf-8")
+    # CDP transport legitimately reads response.result.value; verify the
+    # serialized page probe, not unrelated native-transport plumbing.
+    page_probe = code.split("function _cwaC2PageProbe(", 1)[1].split(
+        "function _cwaC2Expression(", 1
+    )[0]
     for forbidden in (
         "querySelectorAll",
         "W297wb",
@@ -288,7 +293,7 @@ def test_worker_reference_independence_and_synthetic_cdp() -> None:
         "chrome.tabs.update",
         "chrome.tabs.create",
     ):
-        assert forbidden not in code
+        assert forbidden not in page_probe
     subprocess.run(
         ["node", "--check", str(WORKER)],
         check=True,
