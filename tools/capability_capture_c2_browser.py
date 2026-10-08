@@ -81,9 +81,7 @@ def _slot(value: Any, *, source: bool, quiet: bool) -> dict[str, Any]:
     status = value["status"]
     count = value["candidateCount"]
     provenance = (
-        "TRUSTED_HUMAN_INPUT_EVENT"
-        if source
-        else "POST_INPUT_GENERIC_DOM_MUTATIONS"
+        "TRUSTED_HUMAN_INPUT_EVENT" if source else "POST_INPUT_GENERIC_DOM_MUTATIONS"
     )
     if (
         type(status) is not str
