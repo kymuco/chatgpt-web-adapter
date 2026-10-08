@@ -63,8 +63,8 @@ async function _cwaCaptureV0ObserveTranslate(message) {
   const target = message?.targetLanguage;
   if (!Number.isInteger(tabId) || tabId <= 0 ||
       !Number.isInteger(seconds) || seconds < 3 || seconds > 20 ||
-      typeof source !== "string" || !/^[A-Za-z]{2,8}$/.test(source) ||
-      typeof target !== "string" || !/^[A-Za-z]{2,8}$/.test(target)) {
+      typeof source !== "string" || !/^[A-Za-z][A-Za-z0-9-]{1,19}$/.test(source) ||
+      typeof target !== "string" || !/^[A-Za-z][A-Za-z0-9-]{1,19}$/.test(target)) {
     throw new Error("CAPTURE_V0_INVALID_REQUEST");
   }
   if (message?.consent !== "EXPLICIT_OBSERVE_ONLY") {
