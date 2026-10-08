@@ -477,6 +477,45 @@ budget; it still makes a single, non-retried, read-only request.
 reload and another explicit, consented C1 observation. Do not interpret the
 original timeout as `MISSING` or `AMBIGUOUS`, nor silently retry it.
 
+### C1 first successful two-tab transport — source stable, result missing
+
+A human-operated live C1 run on 2026-10-08 returned a valid
+`CWA_CAPTURE_C1_STRUCTURAL_COMPARISON` result after the routing repair:
+
+```text
+independent_documents_observed          true
+source_input.status                    CONSISTENT_REFERENCE_FAMILY_SIGNATURE
+source_input.same_signature            true
+source_input.learned_locator_proven     false
+translated_result.status               MISSING
+translated_result.same_signature       false
+translated_result.learned_locator      false
+new_write_authority                    false
+replay_executable                      false
+semantic_finality_proven               false
+```
+
+**Verdict:** C1 transport and one live **source-input** signature comparison
+pass, but the result slot remains unresolved. The comparison previously
+discarded per-document counts; `MISSING` meant zero qualifying visible
+reference-family result nodes in **at least one** of the two tabs, not
+necessarily both. No conclusion about translation contents or selector drift
+can be drawn from this aggregated output alone.
+
+The offline Python comparison now retains already-validated bounded
+`candidate_counts_by_document: {A: 0..8, B: 0..8}` for each slot. This
+adds **no CDP operation**, no page-content read, no raw element metadata,
+no navigation and no extension/native-host change. Its purpose is only to
+tell which prepared page lacks matching candidates.
+
+Next controlled observation: ensure both exact-route tabs visibly show
+a harmless translated result from user-entered text, then run the existing
+opt-in two-tab C1 command once. If both result counts are zero despite
+visible translations, audit the hand-written reference-family selectors
+separately; do not infer the answer or choose a different element by order.
+If one count is zero, inspect that tab's visible state, not the other tab.
+All replay/write permissions remain false.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
