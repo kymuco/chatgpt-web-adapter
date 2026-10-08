@@ -129,14 +129,15 @@ _INPUT_FILTER_KEYS = frozenset(
 def _input_filter_counts(value: Any, *, accepted: int) -> dict[str, int]:
     if not isinstance(value, dict) or set(value) != _INPUT_FILTER_KEYS:
         raise ValueError("CAPTURE_C2_INPUT_FILTER_SHAPE_INVALID")
-    if any(type(value[k]) is not int or not 0 <= value[k] <= 64 for k in _INPUT_FILTER_KEYS):
+    if any(
+        type(value[k]) is not int or not 0 <= value[k] <= 64 for k in _INPUT_FILTER_KEYS
+    ):
         raise ValueError("CAPTURE_C2_INPUT_FILTER_BOUNDS_INVALID")
     if (
         value["eligible"] != accepted
         or value["observed"] < value["trusted"]
-        or value["trusted"] != (
-            value["eligible"] + value["unsupportedTarget"] + value["invisibleTarget"]
-        )
+        or value["trusted"]
+        != (value["eligible"] + value["unsupportedTarget"] + value["invisibleTarget"])
     ):
         raise ValueError("CAPTURE_C2_INPUT_FILTER_INCONSISTENT")
     return {
