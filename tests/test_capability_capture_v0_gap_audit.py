@@ -45,9 +45,9 @@ def test_observed_structural_trace_cannot_grant_replay_authority() -> None:
     ]
     assert "capture_bound_to_exact_source_text" in audit["unproven_requirements"]
     assert "translation_text_stability_proven" in audit["unproven_requirements"]
-    assert "post_effect_lost_ack_reconciliation_proven" in audit[
-        "unproven_requirements"
-    ]
+    assert (
+        "post_effect_lost_ack_reconciliation_proven" in audit["unproven_requirements"]
+    )
     assert audit["semantic_finality_proven"] is False
     assert audit["canonical_completion_proven"] is False
     assert audit["replay_executable"] is False
@@ -85,7 +85,9 @@ def test_partial_live_trace_remains_incomplete_without_false_finality() -> None:
         ("rawContentRetained", True),
     ],
 )
-def test_authority_or_identity_tampering_fails_closed(field: str, value: object) -> None:
+def test_authority_or_identity_tampering_fails_closed(
+    field: str, value: object
+) -> None:
     trace = _live_structure()
     trace[field] = value
     with pytest.raises(ValueError, match="CAPTURE_V0"):
