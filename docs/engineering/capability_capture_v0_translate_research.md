@@ -516,6 +516,61 @@ separately; do not infer the answer or choose a different element by order.
 If one count is zero, inspect that tab's visible state, not the other tab.
 All replay/write permissions remain false.
 
+### C1 reference-family selector-stage diagnostic — 2026-10-08
+
+The second consented C1 live attempt, on
+`3b2d2b3c2f1cef3d1df3acb5430e8065424bcd20`, returned source
+`A=1, B=1` with matching signatures, but result `A=0, B=0`.
+The operator had been asked to prepare translations in both tabs.
+This is a **failure to detect visible result candidates within the
+handwritten reference family**, not proof that translation text was absent.
+The earlier manual demonstration had detected a result; the two observations
+are not interchangeable because they may represent different page states.
+
+The old C1 comparison made the following distinct causes indistinguishable:
+
+- zero raw matches for `[jsname="W297wb"], [jsname="jqKxS"]`;
+- matches present in the DOM but not qualifying as visible;
+- visible matched candidates reduced to no leaf candidate.
+
+C1 now emits only a capped three-stage count vector for each of the
+already-authorized two page documents:
+
+```text
+resultFamilyStages.rawFamily      # raw selector-family matches, 0..8
+resultFamilyStages.visibleFamily  # matched nodes qualifying as visible, 0..8
+resultFamilyStages.visibleLeaves  # visible deepest matched descendants, 0..8
+```
+
+The Python comparison reports this as
+`reference_family_stages_by_document.A/B` and derives a
+`reference_family_diagnosis_by_document.A/B` with one of:
+
+```text
+NO_REFERENCE_SELECTOR_MATCH
+SELECTOR_MATCHES_NOT_VISIBLE
+VISIBLE_FAMILY_WITHOUT_LEAF
+VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT
+```
+
+This diagnostic extension upgrades the structural protocol to
+`CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE_V2` and the comparison output to
+`CWA_CAPTURE_C1_STRUCTURAL_COMPARISON_V2`; mixing old and new schemas
+fails closed. Counts must be integral, bounded and monotonic:
+`rawFamily >= visibleFamily >= visibleLeaves`, with the last exactly
+equal to the candidate count already returned for `translated_result`.
+
+**No selectors are learned or modified; no user text, DOM attributes,
+network data, page URLs or custom geometry is exported.** Candidate
+families are still inherited from the manual PR16.2 reference. This
+does not establish result identity, textual stability, renderer process
+independence, replay capability or new write authority.
+
+A bounded real Chrome comparison after branch/extension sync determines
+whether the next action should be a reference-selector audit, a visibility
+audit, or a controlled observation of changed page state. Do not fix the
+handwritten driver until that evidence is available.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
