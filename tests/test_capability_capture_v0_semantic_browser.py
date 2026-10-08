@@ -103,8 +103,12 @@ def test_two_distinct_tabs_return_bounded_comparison_without_write() -> None:
     assert request["type"] == "research_capture_translate_semantic_v0"
     assert request["tabIds"] == [101, 102]
     assert request["consent"] == "EXPLICIT_TWO_TAB_OBSERVE_ONLY"
-    assert request["timeoutMs"] == 15000
-    assert options["timeout"] == 20.0
+    assert request["timeoutMs"] == 20000
+    assert options["timeout"] == 30.0
+    # Native-host broker waits delegated timeout plus 5s. Client reserves
+    # 10s so the host can return its explicit timeout before socket expiry.
+    assert options["delegated_response_margin"] == 10.0
+    assert options["delegated_timeout_ms_key"] == "timeoutMs"
     assert not {"text", "translatedText", "url", "selector"} & set(request)
     assert report["observations"]["source_input"]["status"] == (
         "CONSISTENT_REFERENCE_FAMILY_SIGNATURE"
@@ -119,6 +123,13 @@ def test_two_distinct_tabs_return_bounded_comparison_without_write() -> None:
     assert report["replay_executable"] is False
     assert report["new_write_authority"] is False
     assert report["automatic_retry"] is False
+    # C1 must be routed by the Translate domain before the base router.
+    translate = (
+        ROOT
+        / "src/chatgpt_web_adapter/browser_native_extension"
+        / "service_worker_google_translate_capability.js"
+    ).read_text(encoding="utf-8")
+    assert "message?.type === CWA_CAPTURE_V0_SEMANTIC_OPERATION" in translate
     assert "tabIds" not in report
     assert "text" not in report
 
