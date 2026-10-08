@@ -286,10 +286,14 @@ automatically repeat the user action.
 The added `tools/capability_capture_v0_gap_audit.py` accepts a **saved,
 sanitized structural trace** and prints a machine-readable admission verdict.
 It does not connect to Chrome, infer raw text, execute a product write or
-promote any capability to executable:
+promote any capability to executable. Expected source and target language
+codes are supplied **independently** of the saved trace to avoid circular
+acceptance of tampered language identity:
 
 ```powershell
-python -m tools.capability_capture_v0_gap_audit .\\trace.json
+python -m tools.capability_capture_v0_gap_audit .\\trace.json `
+  --source-language en `
+  --target-language es
 ```
 
 A structural trace like the second 2026-10-08 live result must classify as
