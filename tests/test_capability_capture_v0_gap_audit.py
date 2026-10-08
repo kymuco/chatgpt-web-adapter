@@ -36,7 +36,7 @@ def _live_structure() -> dict:
 
 
 def test_observed_structural_trace_cannot_grant_replay_authority() -> None:
-    audit = audit_structural_trace(_live_structure())
+    audit = audit_structural_trace(_live_structure(), expected_source_language="en", expected_target_language="es")
     assert audit["classification"] == "STRUCTURAL_DEMONSTRATION_ACCEPTED"
     assert audit["observed_requirements"] == [
         "exact_product_and_language_route",
@@ -66,7 +66,7 @@ def test_partial_live_trace_remains_incomplete_without_false_finality() -> None:
     ]
     trace["candidatePresenceStable"] = False
     trace["candidateIdentityResolved"] = False
-    audit = audit_structural_trace(trace)
+    audit = audit_structural_trace(trace, expected_source_language="en", expected_target_language="es")
     assert audit["classification"] == "OBSERVATION_INCOMPLETE"
     assert audit["replay_executable"] is False
 
@@ -91,23 +91,33 @@ def test_authority_or_identity_tampering_fails_closed(
     trace = _live_structure()
     trace[field] = value
     with pytest.raises(ValueError, match="CAPTURE_V0"):
-        audit_structural_trace(trace)
+        audit_structural_trace(trace, expected_source_language="en", expected_target_language="es")
 
 
 def test_rejects_unexpected_or_sensitive_fields_in_saved_trace() -> None:
     trace = _live_structure()
     trace["rawDom"] = "user content"
     with pytest.raises(ValueError, match="UNEXPECTED_FIELDS"):
-        audit_structural_trace(trace)
+        audit_structural_trace(trace, expected_source_language="en", expected_target_language="es")
 
 
 def test_rejects_event_value_injection() -> None:
     trace = deepcopy(_live_structure())
     trace["events"][1]["text"] = "private"
     with pytest.raises(ValueError, match="UNBOUNDED_EVENT"):
-        audit_structural_trace(trace)
+        audit_structural_trace(trace, expected_source_language="en", expected_target_language="es")
 
 
 def test_rejects_non_object_trace() -> None:
     with pytest.raises(ValueError, match="AUDIT_OBJECT_REQUIRED"):
-        audit_structural_trace([])
+        audit_structural_trace([], expected_source_language="en", expected_target_language="es")
+
+
+def test_rejects_trace_languages_different_from_external_expectation() -> None:
+    trace = _live_structure()
+    with pytest.raises(ValueError, match="CAPTURE_V0"):
+        audit_structural_trace(
+            trace,
+            expected_source_language="fr",
+            expected_target_language="es",
+        )
