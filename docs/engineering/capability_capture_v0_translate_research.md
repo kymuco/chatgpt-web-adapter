@@ -281,6 +281,37 @@ proof or future cross-version observer robustness. A future failed capture is
 an experimental result; do not silently switch transports, infer finality or
 automatically repeat the user action.
 
+### Slice C preflight — offline replay admission, no mutation
+
+The added `tools/capability_capture_v0_gap_audit.py` accepts a **saved,
+sanitized structural trace** and prints a machine-readable admission verdict.
+It does not connect to Chrome, infer raw text, execute a product write or
+promote any capability to executable:
+
+```powershell
+python -m tools.capability_capture_v0_gap_audit .\\trace.json
+```
+
+A structural trace like the second 2026-10-08 live result must classify as
+`STRUCTURAL_DEMONSTRATION_ACCEPTED`, but always report
+`replay_executable=false` and `write_authority_granted=false`. A short,
+unstable trace classifies as `OBSERVATION_INCOMPLETE`.
+
+Both cases explicitly leave these gaps:
+
+```text
+capture_bound_to_exact_source_text
+translation_text_identity_proven
+translation_text_stability_proven
+generated_locator_replay_proven
+explicit_replay_write_authority
+post_effect_lost_ack_reconciliation_proven
+```
+
+Those requirements are not inferred from a valid trace's status flags or
+from the manually annotated candidate spec. The offline gap audit's
+role is to *stop* premature compilation/replay, not to pass it.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
