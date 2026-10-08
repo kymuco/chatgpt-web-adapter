@@ -362,9 +362,7 @@ def test_host_lane_and_domain_dispatch_are_explicit() -> None:
 def test_c2_missing_source_with_full_window_proves_only_no_accepted_events() -> None:
     sample = _sample(source_count=0, result_count=0)
     report = _admit(sample)
-    assert (
-        report["input_detection_diagnosis"] == "NO_DOCUMENT_INPUT_OR_FOCUS_OBSERVED"
-    )
+    assert report["input_detection_diagnosis"] == "NO_DOCUMENT_INPUT_OR_FOCUS_OBSERVED"
     assert report["input_filter_counts"]["observed"] == 0
     assert report["observer_window_ms"] == 15000
     assert report["source_event_identity_proven"] is False
@@ -583,16 +581,23 @@ def test_invalid_or_leaky_interaction_fields_rejected(signals: dict) -> None:
 )
 def test_known_remote_c2_errors_preserve_safe_code_only(error: str) -> None:
     with pytest.raises(ValueError) as captured:
-        _admit({"ok": False, "type": "research_capture_independent_delta_v0_result",
-                "error": error})
+        _admit(
+            {
+                "ok": False,
+                "type": "research_capture_independent_delta_v0_result",
+                "error": error,
+            }
+        )
     assert str(captured.value) == error
 
 
 def test_remote_error_payload_never_echoed() -> None:
     with pytest.raises(ValueError) as captured:
-        _admit({
-            "ok": False,
-            "type": "research_capture_independent_delta_v0_result",
-            "error": "private user text and URL",
-        })
+        _admit(
+            {
+                "ok": False,
+                "type": "research_capture_independent_delta_v0_result",
+                "error": "private user text and URL",
+            }
+        )
     assert str(captured.value) == "CAPTURE_C2_OBSERVATION_FAILED"
