@@ -33,6 +33,11 @@ def _desc(role: str, kind: str, region: str, interactable: bool) -> dict:
 def _snapshot(*, count: int = 1, output_region: str = "right") -> dict:
     return {
         "routeVerified": True,
+        "resultFamilyStages": {
+            "rawFamily": 1,
+            "visibleFamily": 1,
+            "visibleLeaves": 1,
+        },
         "source_input": {
             "candidateCount": count,
             "uniqueDescriptor": (
@@ -50,7 +55,7 @@ def _response() -> dict:
     return {
         "type": "research_capture_translate_semantic_v0_result",
         "ok": True,
-        "schema": "CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE",
+        "schema": "CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE_V2",
         "productId": "google-translate-web",
         "captureMode": "EXPLICIT_TWO_TAB_OBSERVE_ONLY",
         "sourceLanguage": "en",
@@ -116,6 +121,15 @@ def test_two_distinct_tabs_return_bounded_comparison_without_write() -> None:
     assert report["observations"]["translated_result"]["status"] == (
         "CONSISTENT_REFERENCE_FAMILY_SIGNATURE"
     )
+    result_observation = report["observations"]["translated_result"]
+    assert result_observation["reference_family_stages_by_document"] == {
+        "A": {"rawFamily": 1, "visibleFamily": 1, "visibleLeaves": 1},
+        "B": {"rawFamily": 1, "visibleFamily": 1, "visibleLeaves": 1},
+    }
+    assert result_observation["reference_family_diagnosis_by_document"] == {
+        "A": "VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT",
+        "B": "VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT",
+    }
     assert report["observations"]["source_input"]["candidate_counts_by_document"] == {
         "A": 1,
         "B": 1,
@@ -270,6 +284,11 @@ def test_missing_result_candidate_is_not_silent_success() -> None:
         "candidateCount": 0,
         "uniqueDescriptor": None,
     }
+    response["observations"][1]["resultFamilyStages"] = {
+        "rawFamily": 0,
+        "visibleFamily": 0,
+        "visibleLeaves": 0,
+    }
     report = _classify(response)
     assert report["observations"]["translated_result"]["status"] == "MISSING"
     result_counts = report["observations"]["translated_result"][
@@ -327,6 +346,11 @@ def test_missing_both_documents_is_distinct_from_missing_one() -> None:
             "candidateCount": 0,
             "uniqueDescriptor": None,
         }
+        item["resultFamilyStages"] = {
+            "rawFamily": 0,
+            "visibleFamily": 0,
+            "visibleLeaves": 0,
+        }
     report = _classify(response)
     slot = report["observations"]["translated_result"]
     assert slot["status"] == "MISSING"
@@ -341,9 +365,19 @@ def test_missing_in_a_and_ambiguous_in_b_preserves_both_counts() -> None:
         "candidateCount": 0,
         "uniqueDescriptor": None,
     }
+    response["observations"][0]["resultFamilyStages"] = {
+        "rawFamily": 0,
+        "visibleFamily": 0,
+        "visibleLeaves": 0,
+    }
     response["observations"][1]["translated_result"] = {
         "candidateCount": 3,
         "uniqueDescriptor": None,
+    }
+    response["observations"][1]["resultFamilyStages"] = {
+        "rawFamily": 3,
+        "visibleFamily": 3,
+        "visibleLeaves": 3,
     }
     report = _classify(response)
     slot = report["observations"]["translated_result"]
@@ -351,3 +385,74 @@ def test_missing_in_a_and_ambiguous_in_b_preserves_both_counts() -> None:
     assert slot["candidate_counts_by_document"] == {"A": 0, "B": 3}
     assert report["replay_executable"] is False
     assert "observedTabId" not in str(report)
+
+
+def test_selector_family_missing_in_both_documents_is_attributed_to_raw_match() -> None:
+    response = _response()
+    for item in response["observations"]:
+        item["translated_result"] = {
+            "candidateCount": 0,
+            "uniqueDescriptor": None,
+        }
+        item["resultFamilyStages"] = {
+            "rawFamily": 0,
+            "visibleFamily": 0,
+            "visibleLeaves": 0,
+        }
+    result = _classify(response)["observations"]["translated_result"]
+    assert result["reference_family_stages_by_document"] == {
+        "A": {"rawFamily": 0, "visibleFamily": 0, "visibleLeaves": 0},
+        "B": {"rawFamily": 0, "visibleFamily": 0, "visibleLeaves": 0},
+    }
+    assert result["reference_family_diagnosis_by_document"] == {
+        "A": "NO_REFERENCE_SELECTOR_MATCH",
+        "B": "NO_REFERENCE_SELECTOR_MATCH",
+    }
+
+
+def test_selector_matches_but_visibility_discards_all() -> None:
+    response = _response()
+    item = response["observations"][1]
+    item["translated_result"] = {
+        "candidateCount": 0,
+        "uniqueDescriptor": None,
+    }
+    item["resultFamilyStages"] = {
+        "rawFamily": 2,
+        "visibleFamily": 0,
+        "visibleLeaves": 0,
+    }
+    result = _classify(response)["observations"]["translated_result"]
+    assert result["status"] == "MISSING"
+    assert result["reference_family_diagnosis_by_document"] == {
+        "A": "VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT",
+        "B": "SELECTOR_MATCHES_NOT_VISIBLE",
+    }
+    assert result["learned_locator_proven"] is False
+
+
+@pytest.mark.parametrize(
+    "stages",
+    [
+        {"rawFamily": 1, "visibleFamily": 2, "visibleLeaves": 0},
+        {"rawFamily": 0, "visibleFamily": 0, "visibleLeaves": 1},
+        {"rawFamily": 3, "visibleFamily": 2, "visibleLeaves": 2},
+        {"rawFamily": 9, "visibleFamily": 1, "visibleLeaves": 1},
+        {"rawFamily": True, "visibleFamily": 1, "visibleLeaves": 1},
+        {"rawFamily": 1, "visibleFamily": 1, "visibleLeaves": 1, "text": "secret"},
+    ],
+)
+def test_malformed_or_leaky_result_family_stage_data_fails_closed(
+    stages: dict,
+) -> None:
+    response = _response()
+    response["observations"][1]["resultFamilyStages"] = stages
+    with pytest.raises(ValueError, match="CAPTURE_C1_RESULT_STAGE"):
+        _validate(response)
+
+
+def test_result_stages_disallow_raw_page_content() -> None:
+    response = _response()
+    response["observations"][0]["resultFamilyStages"]["rawHtml"] = "<secret>"
+    with pytest.raises(ValueError, match="CAPTURE_C1_RESULT_STAGE_SHAPE"):
+        _validate(response)
