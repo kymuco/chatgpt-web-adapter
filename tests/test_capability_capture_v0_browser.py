@@ -76,7 +76,10 @@ def test_explicit_capture_uses_only_observational_operation() -> None:
         seconds=8,
         explicit_consent=True,
     )
-    assert result == _result()
+    expected = _result()
+    expected.pop("type")
+    expected.pop("ok")
+    assert result == expected
     [request] = bridge.requests
     assert request["type"] == "research_capture_translate_demo_v0"
     assert request["consent"] == "EXPLICIT_OBSERVE_ONLY"
@@ -229,8 +232,13 @@ def test_browser_capture_wiring_stays_research_only() -> None:
     )
 
     assert "research_capture_translate_demo_v0" in worker
-    assert 'importScripts("service_worker_capability_capture_v0.js")' in runtime
-    assert "_cwaOnNativeMessageWithCaptureV0(" in router
+    translate = (extension / "service_worker_google_translate_capability.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'importScripts("service_worker_capability_capture_v0.js")' in translate
+    assert "_cwaOnNativeMessageWithCaptureV0(" in translate
+    assert "_cwaOnNativeMessageWithCaptureV0(" not in router
+    assert 'importScripts("service_worker_capability_capture_v0.js")' not in runtime
     assert '"research_capture_translate_demo_v0": 30_000' in host
     assert "chrome.tabs.create" not in worker
     assert "chrome.tabs.update" not in worker
