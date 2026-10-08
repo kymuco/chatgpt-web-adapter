@@ -73,6 +73,12 @@ function _cwaC2PageProbe(command) {
       unsupportedTargetEvents: 0,
       invisibleTargetEvents: 0,
       installedAt: performance.now(),
+      trustedKeydown: 0,
+      trustedPointerdown: 0,
+      focusAtInstall: document.hasFocus() === true,
+      everFocused: document.hasFocus() === true,
+      onKeydown: null,
+      onPointerdown: null,
       candidates: new Set(),
       overflow: false,
       lastMutationAt: 0,
@@ -167,7 +173,24 @@ function _cwaC2PageProbe(command) {
         }
       }
     });
+    // Auxiliary signal *counts* only: never read a key name/code, event
+    // data, pointed-to element, editable content, or sensitive attributes.
+    function countTrustedEvent(counter) {
+      return event => {
+        if (event.isTrusted !== true) return;
+        if (state[counter] >= MAX_INPUT_EVENTS) {
+          state.overflow = true;
+          return;
+        }
+        state[counter] += 1;
+        if (document.hasFocus() === true) state.everFocused = true;
+      };
+    }
+    state.onKeydown = countTrustedEvent("trustedKeydown");
+    state.onPointerdown = countTrustedEvent("trustedPointerdown");
     document.addEventListener("input", state.onInput, true);
+    document.addEventListener("keydown", state.onKeydown, true);
+    document.addEventListener("pointerdown", state.onPointerdown, true);
     state.observer.observe(document.documentElement, {
       subtree: true,
       childList: true,
@@ -185,12 +208,16 @@ function _cwaC2PageProbe(command) {
   if (command.action === "remove") {
     state.observer.disconnect();
     document.removeEventListener("input", state.onInput, true);
+    document.removeEventListener("keydown", state.onKeydown, true);
+    document.removeEventListener("pointerdown", state.onPointerdown, true);
     delete globalThis[KEY];
     return { removed: true };
   }
 
   if (command.action !== "observe") return { ready: false };
   const source = state.source;
+  const focusAtLastSample = document.hasFocus() === true;
+  if (focusAtLastSample) state.everFocused = true;
   const alive = [...state.candidates].filter(element =>
     element.isConnected === true && visible(element));
   // Clean-up state transitions are reported conservatively: absent elements
@@ -211,6 +238,13 @@ function _cwaC2PageProbe(command) {
     },
     observerWindowMs: Math.min(20000, Math.max(0,
       Math.floor(performance.now() - state.installedAt))),
+    interactionSignals: {
+      trustedKeydown: state.trustedKeydown,
+      trustedPointerdown: state.trustedPointerdown,
+      focusAtInstall: state.focusAtInstall,
+      focusAtLastSample,
+      everFocused: state.everFocused
+    },
     sourceCandidateCount: state.distinctSourceTargets,
     sourceDescriptor: source !== null && !state.sourceAmbiguous
       ? descriptor(source, "source_input") : null,
@@ -291,6 +325,20 @@ function _cwaC2ValidateSample(sample) {
       ) ||
       !Number.isInteger(sample.observerWindowMs) ||
       sample.observerWindowMs < 0 || sample.observerWindowMs > 20000 ||
+      !sample.interactionSignals ||
+      typeof sample.interactionSignals !== "object" ||
+      !Number.isInteger(sample.interactionSignals.trustedKeydown) ||
+      sample.interactionSignals.trustedKeydown < 0 ||
+      sample.interactionSignals.trustedKeydown > 64 ||
+      !Number.isInteger(sample.interactionSignals.trustedPointerdown) ||
+      sample.interactionSignals.trustedPointerdown < 0 ||
+      sample.interactionSignals.trustedPointerdown > 64 ||
+      !["focusAtInstall", "focusAtLastSample", "everFocused"]
+        .every(key => typeof sample.interactionSignals[key] === "boolean") ||
+      (sample.interactionSignals.focusAtInstall &&
+        !sample.interactionSignals.everFocused) ||
+      (sample.interactionSignals.focusAtLastSample &&
+        !sample.interactionSignals.everFocused) ||
       !Number.isInteger(sample.sourceCandidateCount) ||
       sample.sourceCandidateCount < 0 || sample.sourceCandidateCount > 2 ||
       !Number.isInteger(sample.mutationLeafCount) ||
@@ -328,6 +376,13 @@ function _cwaC2ValidateSample(sample) {
       invisibleTarget: sample.inputFilterCounts.invisibleTarget
     },
     observerWindowMs: sample.observerWindowMs,
+    interactionSignals: {
+      trustedKeydown: sample.interactionSignals.trustedKeydown,
+      trustedPointerdown: sample.interactionSignals.trustedPointerdown,
+      focusAtInstall: sample.interactionSignals.focusAtInstall,
+      focusAtLastSample: sample.interactionSignals.focusAtLastSample,
+      everFocused: sample.interactionSignals.everFocused
+    },
     sourceCandidateCount: sample.sourceCandidateCount,
     sourceDescriptor: copyDesc(sample.sourceDescriptor),
     mutationLeafCount: sample.mutationLeafCount,
@@ -393,7 +448,7 @@ async function _cwaC2ObserveReferenceIndependentDelta(message) {
       last.mutationLeafCount === 1 && last.structuralQuiet
         ? "ONE_STRUCTURAL_CHANGE_CANDIDATE" : "AMBIGUOUS";
     return {
-      schema: "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1",
+      schema: "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V2",
       productId: "google-translate-web",
       captureMode: "EXPLICIT_SINGLE_TAB_EVENT_DELTA",
       routeVerified: true,
@@ -402,6 +457,7 @@ async function _cwaC2ObserveReferenceIndependentDelta(message) {
       inputEventCount: last.inputEvents,
       inputFilterCounts: last.inputFilterCounts,
       observerWindowMs: last.observerWindowMs,
+      interactionSignals: last.interactionSignals,
       source: {
         status: sourceStatus,
         candidateCount: last.sourceCandidateCount,
