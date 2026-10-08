@@ -105,6 +105,14 @@ not public API definition.
 - [`engineering/pr16_0_cwa_identity_direction.md`](engineering/pr16_0_cwa_identity_direction.md)
   — post-PR15 positioning direction; naming is deliberately deferred.
 
+## PR16 / PR17.2 canonical product checkpoint
+
+- [`engineering/pr17_2_canonical_product_checkpoint.md`](engineering/pr17_2_canonical_product_checkpoint.md)
+  — exact merged-source baseline, release gap, private Notebook retrieval
+  boundary, background ChatGPT submit/slider evidence and Phase C reasoning
+  preservation. This is current checkpoint guidance; linked PR engineering
+  documents remain underlying historical evidence.
+
 ## Release and maintenance
 
 - [`release_checklist.md`](release_checklist.md) — release gates;

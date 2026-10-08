@@ -76,7 +76,7 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
 def test_roadmap_is_current_and_post_pr15_consumer_driven() -> None:
     text = _read("ROADMAP.md")
 
-    assert "_Last updated: 2026-09-26_" in text
+    assert "_Last updated: 2026-10-08_" in text
     assert "### PR15 — architecture reset and provider proof" in text
     assert "ProductProviderBoundary schema 2" in text
     assert "### PR16.1 — current documentation refresh" in text
@@ -168,3 +168,27 @@ def test_github_community_templates_exist() -> None:
         ".github/ISSUE_TEMPLATE/config.yml",
     ):
         assert (ROOT / path).is_file(), path
+
+
+def test_post_pr17_2_checkpoint_is_bounded_to_source_and_proven_evidence() -> None:
+    status = _read("STATUS.md")
+    roadmap = _read("ROADMAP.md")
+    readme = _read("README.md")
+    checkpoint = _read("docs/engineering/pr17_2_canonical_product_checkpoint.md")
+
+    assert "_Last updated: 2026-10-08_" in status
+    assert "PR17.2 merged; canonical checkpoint / release hygiene" in status
+    assert "CONVERSATION_LOCAL_DURABLE" in status
+    assert "LAST_SELECTED_MODE_OBSERVED" in status
+    assert "TURN_REQUIREMENT" in status
+    assert "model preservation remains `UNKNOWN`" in status
+    assert "### PR17.1-17.2" in roadmap
+    assert "v0.3.0" in readme
+    assert "PR17.2 checkpoint" in readme
+    assert "main@02b56911ae132d91d35d8bb87511141351968f80" in checkpoint
+    assert "CI #1945" in checkpoint
+    assert "24,033-character" in checkpoint
+    assert "no tab/window foreground activation" in checkpoint
+    assert "model_preservation       = UNKNOWN" in checkpoint
+    assert "scope_is_write_authority = false" in checkpoint
+    assert "No public Video generation API" in status
