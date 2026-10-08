@@ -34,7 +34,7 @@ def _sample(*, source_count: int = 1, result_count: int = 1) -> dict:
     return {
         "ok": True,
         "type": "research_capture_independent_delta_v0_result",
-        "schema": "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1",
+        "schema": "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V2",
         "productId": "google-translate-web",
         "captureMode": "EXPLICIT_SINGLE_TAB_EVENT_DELTA",
         "routeVerified": True,
@@ -49,6 +49,13 @@ def _sample(*, source_count: int = 1, result_count: int = 1) -> dict:
             "invisibleTarget": 0,
         },
         "observerWindowMs": 15000,
+        "interactionSignals": {
+            "trustedKeydown": 0,
+            "trustedPointerdown": 0,
+            "focusAtInstall": False,
+            "focusAtLastSample": False,
+            "everFocused": False,
+        },
         "source": {
             "status": source,
             "candidateCount": source_count,
@@ -131,6 +138,13 @@ def test_explicit_capture_returns_no_authority_or_user_content() -> None:
         "invisibleTarget": 0,
     }
     assert report["observer_window_ms"] == 15000
+    assert report["input_interaction_signals"] == {
+        "trusted_keydown": 0,
+        "trusted_pointerdown": 0,
+        "focus_at_install": False,
+        "focus_at_last_sample": False,
+        "ever_focused": False,
+    }
     assert report["input_detection_diagnosis"] == "ELIGIBLE_TRUSTED_INPUT_OBSERVED"
     assert report["result_semantic_identity_proven"] is False
     assert report["source_selector_learned"] is False
@@ -212,6 +226,7 @@ def test_response_lost_after_delegation_never_retries() -> None:
         ("observerWindowMs", True),
         ("observerWindowMs", 20001),
         ("inputFilterCounts", {"observed": 0}),
+        ("interactionSignals", {"trustedKeydown": 1}),
     ],
 )
 def test_spoofed_authority_or_identity_denied(key: str, value: object) -> None:
@@ -348,7 +363,7 @@ def test_c2_missing_source_with_full_window_proves_only_no_accepted_events() -> 
     sample = _sample(source_count=0, result_count=0)
     report = _admit(sample)
     assert (
-        report["input_detection_diagnosis"] == "NO_INPUT_EVENT_OBSERVED_DURING_WINDOW"
+        report["input_detection_diagnosis"] == "NO_DOCUMENT_INPUT_OR_FOCUS_OBSERVED"
     )
     assert report["input_filter_counts"]["observed"] == 0
     assert report["observer_window_ms"] == 15000
@@ -467,3 +482,117 @@ def test_eligible_event_filter_count_must_match_admitted_event_count() -> None:
     sample["inputFilterCounts"]["eligible"] = 4
     with pytest.raises(ValueError, match="CAPTURE_C2_INPUT_FILTER_INCONSISTENT"):
         _admit(sample)
+
+
+@pytest.mark.parametrize(
+    "signals,expected",
+    [
+        (
+            {
+                "trustedKeydown": 4,
+                "trustedPointerdown": 0,
+                "focusAtInstall": False,
+                "focusAtLastSample": True,
+                "everFocused": True,
+            },
+            "TRUSTED_KEYDOWN_WITHOUT_DOCUMENT_INPUT",
+        ),
+        (
+            {
+                "trustedKeydown": 0,
+                "trustedPointerdown": 1,
+                "focusAtInstall": False,
+                "focusAtLastSample": True,
+                "everFocused": True,
+            },
+            "TRUSTED_POINTERDOWN_WITHOUT_DOCUMENT_INPUT",
+        ),
+        (
+            {
+                "trustedKeydown": 0,
+                "trustedPointerdown": 0,
+                "focusAtInstall": True,
+                "focusAtLastSample": True,
+                "everFocused": True,
+            },
+            "NO_DOCUMENT_INPUT_WITH_FOCUS_OBSERVED",
+        ),
+    ],
+)
+def test_zero_input_diagnoses_observed_interaction(
+    signals: dict, expected: str
+) -> None:
+    sample = _sample(source_count=0, result_count=0)
+    sample["interactionSignals"] = signals
+    report = _admit(sample)
+    assert report["input_detection_diagnosis"] == expected
+    assert report["source_selector_learned"] is False
+    assert report["new_write_authority"] is False
+
+
+@pytest.mark.parametrize(
+    "signals",
+    [
+        {"trustedKeydown": 1},
+        {
+            "trustedKeydown": 65,
+            "trustedPointerdown": 0,
+            "focusAtInstall": False,
+            "focusAtLastSample": False,
+            "everFocused": False,
+        },
+        {
+            "trustedKeydown": True,
+            "trustedPointerdown": 0,
+            "focusAtInstall": False,
+            "focusAtLastSample": False,
+            "everFocused": False,
+        },
+        {
+            "trustedKeydown": 0,
+            "trustedPointerdown": 0,
+            "focusAtInstall": True,
+            "focusAtLastSample": False,
+            "everFocused": False,
+        },
+        {
+            "trustedKeydown": 0,
+            "trustedPointerdown": 0,
+            "focusAtInstall": False,
+            "focusAtLastSample": False,
+            "everFocused": False,
+            "key": "secret",
+        },
+    ],
+)
+def test_invalid_or_leaky_interaction_fields_rejected(signals: dict) -> None:
+    sample = _sample(source_count=0, result_count=0)
+    sample["interactionSignals"] = signals
+    with pytest.raises(ValueError, match="CAPTURE_C2_INTERACTION"):
+        _admit(sample)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        "CAPTURE_C2_BUSY",
+        "CAPTURE_C2_OBSERVER_NOT_FRESH",
+        "CAPTURE_C2_PAGE_EVALUATION_FAILED",
+        "CAPTURE_C2_CLEANUP_UNPROVEN",
+    ],
+)
+def test_known_remote_c2_errors_preserve_safe_code_only(error: str) -> None:
+    with pytest.raises(ValueError) as captured:
+        _admit({"ok": False, "type": "research_capture_independent_delta_v0_result",
+                "error": error})
+    assert str(captured.value) == error
+
+
+def test_remote_error_payload_never_echoed() -> None:
+    with pytest.raises(ValueError) as captured:
+        _admit({
+            "ok": False,
+            "type": "research_capture_independent_delta_v0_result",
+            "error": "private user text and URL",
+        })
+    assert str(captured.value) == "CAPTURE_C2_OBSERVATION_FAILED"
