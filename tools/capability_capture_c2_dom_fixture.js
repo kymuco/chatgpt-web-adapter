@@ -26,6 +26,7 @@ class FakeElement {
     this.children = [];
     this.isConnected = true;
     this.isContentEditable = false;
+    this.hiddenInFixture = false;
     if (parent) parent.children.push(this);
   }
   getBoundingClientRect() {
@@ -71,8 +72,11 @@ function makePage(tabId) {
     Element: FakeElement,
     MutationObserver: FakeMutationObserver,
     location: { href: "https://translate.google.com/?sl=en&tl=es&op=translate" },
-    getComputedStyle() {
-      return { display: "block", visibility: "visible" };
+    getComputedStyle(element) {
+      return {
+        display: element.hiddenInFixture ? "none" : "block",
+        visibility: "visible"
+      };
     }
   });
   return {
@@ -155,10 +159,22 @@ async function run() {
   assert.equal(evalPage("install").installed, true);
   page.input(page.source, false);
   assert.equal(evalPage("observe").inputEvents, 0);
+  const unsupported = new FakeElement("div", 320, { parent: page.root });
+  const hidden = new FakeElement("textarea", 360, { parent: page.root });
+  hidden.hiddenInFixture = true;
+  page.input(unsupported);
+  page.input(hidden);
+  assert.equal(evalPage("observe").sourceCandidateCount, 0);
   page.input();
   page.changed();
   let sample = evalPage("observe");
   assert.equal(sample.sourceCandidateCount, 1);
+  assert.equal(sample.inputFilterCounts.observed, 4);
+  assert.equal(sample.inputFilterCounts.trusted, 3);
+  assert.equal(sample.inputFilterCounts.eligible, 1);
+  assert.equal(sample.inputFilterCounts.unsupportedTarget, 1);
+  assert.equal(sample.inputFilterCounts.invisibleTarget, 1);
+  assert.ok(sample.observerWindowMs >= 0 && sample.observerWindowMs <= 20000);
   assert.equal(sample.sourceDescriptor.kind, "textarea");
   assert.equal(sample.mutationLeafCount, 1);
   assert.equal(sample.mutationLeafDescriptor.kind, "span");
@@ -195,11 +211,24 @@ async function run() {
   assert.equal(worker._cwaC2ValidateSample(sample).mutationLeafCount, 2);
   evalPage("remove");
 
+  // The event filter must cap raw events as well as accepted events.
+  assert.equal(evalPage("install").installed, true);
+  for (let i = 0; i < 65; i++) page.input(page.source, false);
+  sample = evalPage("observe");
+  assert.equal(sample.inputFilterCounts.observed, 64);
+  assert.equal(sample.inputFilterCounts.trusted, 0);
+  assert.equal(sample.mutationOverflow, true);
+  evalPage("remove");
+
   // Public worker capture path: caller manually triggers event after install.
   setTimeout(() => page.input(), 75);
   setTimeout(() => page.changed(), 150);
   const success = await worker._cwaC2ObserveReferenceIndependentDelta(request);
-  assert.equal(success.schema, "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V0");
+  assert.equal(success.schema, "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1");
+  assert.equal(success.inputFilterCounts.observed, 1);
+  assert.equal(success.inputFilterCounts.trusted, 1);
+  assert.equal(success.inputFilterCounts.eligible, 1);
+  assert.ok(success.observerWindowMs > 0);
   assert.equal(success.source.status, "EVENT_TARGET_OBSERVED");
   assert.equal(success.result.status, "ONE_STRUCTURAL_CHANGE_CANDIDATE");
   assert.equal(success.referenceSelectorConsulted, false);
