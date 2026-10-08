@@ -175,8 +175,8 @@ function _cwaC2PageProbe(command) {
 
   if (command.action !== "observe") return { ready: false };
   const source = state.source;
-  const alive = [...state.candidates].filter(element => visible(element) &&
-    !element.isConnected === false);
+  const alive = [...state.candidates].filter(element =>
+    element.isConnected === true && visible(element));
   // Clean-up state transitions are reported conservatively: absent elements
   // are excluded, but no new candidates are inferred from page text.
   const candidates = alive.filter(element =>
