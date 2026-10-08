@@ -166,7 +166,9 @@ PR #201. The published `0.3.0` runtime and standard `main` build do not
 have the research operation.
 
 1. Open Google Translate in Chrome with the intended language pair encoded
-   in the route; ensure the source field is **empty**.
+   in the route; ensure the source field is **empty** **and the previous
+   translated output is cleared**. The research observer refuses to arm if
+   it detects an existing output candidate.
 2. Find the exact tab id without reading its contents. In Chrome,
    open `chrome://extensions`, enable developer mode if necessary, locate the
    **research** CWA extension, and inspect its service worker. In that
