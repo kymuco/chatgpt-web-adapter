@@ -1,6 +1,7 @@
 # Capability Capture v0 — Google Translate falsification, slice A
 
-Status: **RESEARCH-ONLY / NON-EXECUTABLE**. Baseline:
+Status: **RESEARCH-ONLY / NON-EXECUTABLE**. Slice B one-demo structural
+live gate: **PASS** (2026-10-08); Slice C generated replay: **NOT STARTED**. Baseline:
 `main@02b56911ae132d91d35d8bb87511141351968f80`.
 
 This is not a recorder, browser compiler, product write path, public API, generic
@@ -216,6 +217,57 @@ node --check src/chatgpt_web_adapter/browser_native_extension/service_worker_cap
 node tools/capability_capture_v0_dom_fixture.js
 ```
 
+### Empirical Slice B result — 2026-10-08
+
+The first authenticated/local Chrome observation completed without transport
+error but began too late to meet the stability window:
+
+```text
+source_input_event       18,061 ms
+result_candidate_seen    19,617 ms
+capture deadline         20,000 ms
+candidatePresenceStable  false
+```
+
+The second explicit-consent observation on exact research head
+`eb8e1b9d51a48369fd4f06e5bc8f8b0930ee146c` produced:
+
+```text
+source_ready                     0 ms
+source_input_event               2,948 ms
+inputEventCount                  5
+result_candidate_seen            4,336 ms
+result_candidate_presence_stable 5,567 ms
+routeVerified                    true
+candidatePresenceStable          true
+candidateIdentityResolved        true
+semanticFinalityProven           false
+canonicalCompletionProven        false
+automaticRetry                   false
+replayExecutable                 false
+rawContentRetained               false
+```
+
+Source: a sanitized output reported by the human operator from a local
+Google Translate `en → es` demo using the research extension. This is
+**empirical, single-run evidence**, not CI or a synthetic fixture. The
+exact research commit passed CI #1976 (16/16 jobs).
+
+**Verdict:** the first single-demonstration **structural observer** acceptance
+gate is now **PASS**. Chrome accepted the opt-in capture, human input was
+observed, the output candidate appeared, and presence stability was observed.
+
+The evidence scope is deliberately narrower than `translate_text`
+success. Capture did not observe the actual requested source content,
+translation text equality, or textual stability; its
+`candidateIdentityResolved` indicates stable structural candidate presence
+only. By design `semanticFinalityProven=false`, so no captured trace becomes
+authorization for replay, retry, or canonical completion.
+
+A success-shaped returned capture implies the code's detach/observer
+cleanup did not signal failure, but it is not independent proof of cleanup
+across browser versions. Do not generalize the one live case.
+
 ### Evidence boundary and explicit incompleteness
 
 A clean offline CI proves static input validation, response admission and
@@ -223,11 +275,11 @@ synthetic DOM evidence only. It cannot prove that the current live Google
 Translate UI exposes compatible selectors or that attaching CDP while the
 user types is reliable on all browser versions.
 
-Slice B is not closed until a human performs at least one consented, observed
-real-product demonstration and reports whether the instrument attached,
-captured events, preserved privacy and detached cleanly. A failed capture is
-an experimental result; do not silently switch to a different browser
-transport, infer finality or automatically repeat the user action.
+The specific one-demonstration **structural observation** gate is now closed
+by the 2026-10-08 result above. This does not close live semantic-finality
+proof or future cross-version observer robustness. A future failed capture is
+an experimental result; do not silently switch transports, infer finality or
+automatically repeat the user action.
 
 ### Next falsification step
 
