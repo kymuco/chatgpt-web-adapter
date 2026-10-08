@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any, Sequence
+from urllib.parse import parse_qs, urlsplit
 
 from chatgpt_web_adapter.google_translate_web import (
     GOOGLE_TRANSLATE_TEXT_CAPABILITY_ID,
@@ -94,8 +95,22 @@ def inspect_reference_result(
         return False
     if not isinstance(result, GoogleTranslateTextResult):
         return False
+    try:
+        route = urlsplit(result.final_url)
+        languages = parse_qs(route.query, keep_blank_values=True)
+        route_bound = (
+            route.scheme == "https"
+            and route.hostname == "translate.google.com"
+            and route.username is None
+            and route.password is None
+            and languages.get("sl") == [expected_source_language]
+            and languages.get("tl") == [expected_target_language]
+        )
+    except ValueError:
+        return False
     return (
-        bool(result.translated_text.strip())
+        route_bound
+        and bool(result.translated_text.strip())
         and result.source_language == expected_source_language
         and result.target_language == expected_target_language
         and result.finality_evidence == candidate.result_evidence
