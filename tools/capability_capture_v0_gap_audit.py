@@ -28,13 +28,18 @@ _UNPROVEN_REPLAY_REQUIREMENTS = (
 )
 
 
-def audit_structural_trace(trace: dict[str, Any]) -> dict[str, Any]:
-    """Reject untrusted trace extensions and report only admitted evidence."""
+def audit_structural_trace(
+    trace: dict[str, Any],
+    *,
+    expected_source_language: str,
+    expected_target_language: str,
+) -> dict[str, Any]:
+    """Require independently supplied language identity; never trust the trace alone."""
     if not isinstance(trace, dict):
         raise ValueError("CAPTURE_V0_AUDIT_OBJECT_REQUIRED")
     tab_id = trace.get("observedTabId")
-    source = trace.get("sourceLanguage")
-    target = trace.get("targetLanguage")
+    source = expected_source_language
+    target = expected_target_language
     if type(tab_id) is not int or tab_id <= 0:
         raise ValueError("CAPTURE_V0_AUDIT_TAB_ID_INVALID")
     if (
@@ -104,9 +109,15 @@ def main() -> None:
         description="Offline CWA capture → replay admission audit; never replays"
     )
     parser.add_argument("trace_json", type=Path)
+    parser.add_argument("--source-language", required=True)
+    parser.add_argument("--target-language", required=True)
     args = parser.parse_args()
     payload = json.loads(args.trace_json.read_text(encoding="utf-8"))
-    report = audit_structural_trace(payload)
+    report = audit_structural_trace(
+        payload,
+        expected_source_language=args.source_language,
+        expected_target_language=args.target_language,
+    )
     print(json.dumps(report, indent=2, sort_keys=True))
 
 
