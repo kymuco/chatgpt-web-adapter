@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import subprocess
 from copy import deepcopy
 from pathlib import Path
-import subprocess
 
 import pytest
 
@@ -14,13 +14,19 @@ from tools.capability_capture_v0_semantic_browser import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-_JS = ROOT / "src/chatgpt_web_adapter/browser_native_extension" / "service_worker_capability_capture_v0.js"
+_JS = (
+    ROOT
+    / "src/chatgpt_web_adapter/browser_native_extension"
+    / "service_worker_capability_capture_v0.js"
+)
 
 
 def _desc(role: str, kind: str, region: str, interactable: bool) -> dict:
     return {
-        "role": role, "kind": kind,
-        "region": region, "interactable": interactable,
+        "role": role,
+        "kind": kind,
+        "region": region,
+        "interactable": interactable,
     }
 
 
@@ -30,8 +36,7 @@ def _snapshot(*, count: int = 1, output_region: str = "right") -> dict:
         "source_input": {
             "candidateCount": count,
             "uniqueDescriptor": (
-                _desc("textbox", "textarea", "left", True)
-                if count == 1 else None
+                _desc("textbox", "textarea", "left", True) if count == 1 else None
             ),
         },
         "translated_result": {
@@ -87,8 +92,11 @@ def _classify(response: dict) -> dict:
 def test_two_distinct_tabs_return_bounded_comparison_without_write() -> None:
     bridge = FakeBridge()
     report = capture_semantic_pair(
-        bridge, tab_ids=(101, 102),
-        source_language="en", target_language="es", explicit_consent=True,
+        bridge,
+        tab_ids=(101, 102),
+        source_language="en",
+        target_language="es",
+        explicit_consent=True,
     )
     [invocation] = bridge.calls
     request, options = invocation
@@ -142,14 +150,19 @@ def test_preflight_fails_without_delegation(changes: dict) -> None:
 
 
 def test_bridge_loss_is_propagated_without_retry() -> None:
-    bridge = FakeBridge(error=RequestError(
-        "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION",
-        request_stage="browser_native_bridge",
-    ))
+    bridge = FakeBridge(
+        error=RequestError(
+            "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION",
+            request_stage="browser_native_bridge",
+        )
+    )
     with pytest.raises(RequestError, match="RESPONSE_LOST_AFTER_DELEGATION"):
         capture_semantic_pair(
-            bridge, tab_ids=(101, 102),
-            source_language="en", target_language="es", explicit_consent=True,
+            bridge,
+            tab_ids=(101, 102),
+            source_language="en",
+            target_language="es",
+            explicit_consent=True,
         )
     assert len(bridge.calls) == 1
 
@@ -238,31 +251,37 @@ def test_missing_result_candidate_is_not_silent_success() -> None:
 
 def test_region_variation_is_not_called_stable() -> None:
     response = _response()
-    response["observations"][1]["translated_result"]["uniqueDescriptor"][
-        "region"
-    ] = "center"
+    response["observations"][1]["translated_result"]["uniqueDescriptor"]["region"] = (
+        "center"
+    )
     report = _classify(response)
     assert report["observations"]["translated_result"]["status"] == (
         "CHANGED_STRUCTURAL_SIGNATURE"
     )
-    assert report["observations"]["translated_result"][
-        "same_signature_in_two_documents"
-    ] is False
+    assert (
+        report["observations"]["translated_result"]["same_signature_in_two_documents"]
+        is False
+    )
 
 
 def test_unknown_viewport_region_refuses_stability() -> None:
     response = _response()
-    response["observations"][0]["source_input"]["uniqueDescriptor"][
-        "region"
-    ] = "unknown"
+    response["observations"][0]["source_input"]["uniqueDescriptor"]["region"] = (
+        "unknown"
+    )
     assert _classify(response)["observations"]["source_input"]["status"] == (
         "UNRESOLVED_REGION"
     )
 
 
 def test_node_synthetic_cdp_probe_and_source_syntax() -> None:
-    subprocess.run(["node", "--check", str(_JS)], check=True, capture_output=True, text=True)
     subprocess.run(
-        ["node", str(ROOT / "tools/capability_capture_v0_semantic_dom_fixture.js")],
-        check=True, capture_output=True, text=True,
+        ["node", "--check", str(_JS)], check=True, capture_output=True, text=True
     )
+    completed = subprocess.run(
+        ["node", str(ROOT / "tools/capability_capture_v0_semantic_dom_fixture.js")],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
