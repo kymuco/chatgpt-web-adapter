@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-09-27_
+_Last updated: 2026-10-08_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -16,7 +16,7 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           PR16.5 Gemini Notebook Audio Overview capability closure
+current phase           PR17.2 merged; canonical checkpoint / release hygiene
 license                 MIT
 python                  3.10-3.14
 ```
@@ -134,12 +134,14 @@ paths, but current evidence does not justify a general connector execution contr
 
 ### Generated artifacts
 
-Current frozen handoff status:
+The general ChatGPT artifact-download handoff remains frozen:
 
 ```text
 ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
 ```
 
+The later **Gemini Notebook-specific** private retrieval proofs do not change
+that ChatGPT boundary or create caller-facing download/publication authority.
 CWA does not synthesize artifact identity from filename, DOM order, assistant prose,
 URL similarity or minified frontend internals.
 
@@ -178,7 +180,7 @@ have executed is reconciliation-required.
 
 ## Completed post-0.3 architecture work
 
-The major post-release sequence is now:
+The canonical post-release sequence now includes:
 
 ```text
 PR10  connector / required-action + artifact boundaries
@@ -193,31 +195,51 @@ PR15  architecture reset + provider-neutral boundary
 PR16  public positioning/documentation alignment
       → naming deliberately deferred
       → PR16.2 non-chat hosted-capability falsification spike
+      → PR16.4 Notebook durable URL-source admission
+      → PR16.5 Audio background generate/observe
+      → PR16.6-16.8 private Audio/Video retrieval and consolidation
+PR17  ChatGPT product/runtime repair
+      → PR17.1 composer/submit drift repair
+      → PR17.2 background reasoning/submit; durable conversation-local reasoning evidence
 ```
 
 The detailed PR15 lineage remains preserved in `docs/engineering/`.
 
 ## Current checkpoint
 
-The technical chat-provider architecture remains frozen.
+Canonical `main` baseline after PR17.2: `02b56911ae132d91d35d8bb87511141351968f80`.
+GitHub Actions push CI #1945 passed on this exact revision. It is newer than
+published `v0.3.0`: source support must not be inferred for the released wheel.
 
-PR16.2 is closed with the first live-proven non-chat capability:
+PR16.5-PR16.8 closed the Gemini Notebook asynchronous Audio lifecycle and
+independent Video lifecycle proof. Audio generation/observation remains
+experimental/module-only. Audio/Video retrieval and their shared browser
+byte-acquisition, temporary staging and orchestration are **private only**.
+No public Video generation API, `HostedArtifactLifecycle`, registry/factory,
+universal schema or filesystem publication authority was introduced.
+
+PR17.1 and PR17.2 fixed ordinary ChatGPT composer/submit readiness and
+background reasoning selection without foreground tab activation. The
+shipping selector remains the three-state `0..2` slider, controlled with
+background CDP focus emulation and strictly proven before each explicit turn:
 
 ```text
-Google Translate Web
-→ translate_text
-→ EXPERIMENTAL / module-only
-→ no conversation id
-→ no ProductWriteTransport
-→ no ProductProviderBoundary claim
-→ PAGE_DOM_STABLE_TRANSLATION
+FAST     → INSTANT (0)
+BALANCED → MEDIUM  (1)
+DEEP     → HIGH    (2)
+MAX      → unmapped
 ```
 
-The experiment proved that CWA's lower browser bridge, authority lane and ambiguity
-discipline can support at least one hosted capability outside conversation semantics.
+The Phase C bounded live test proved existing-chat reasoning preservation as
+`CONVERSATION_LOCAL_DURABLE` across fresh renderers. New-chat default behavior
+was `LAST_SELECTED_MODE_OBSERVED`; model preservation remains `UNKNOWN`.
+Reasoning preservation is observational and **never** permission to skip
+the `TURN_REQUIREMENT` strict prewrite proof.
 
-It did **not** establish a generic hosted-capability runtime or registry. Future
-generalization remains evidence-driven.
+Full evidence and boundaries:
+[PR16/PR17.2 canonical product checkpoint](docs/engineering/pr17_2_canonical_product_checkpoint.md).
+Older engineering documents remain historical evidence rather than overriding
+this current product-status summary.
 
 ## Adoption and discovery
 
@@ -238,23 +260,19 @@ New discovery surfaces include `docs/quickstart.md`, `docs/capabilities.md`,
 A dedicated MCP adapter remains a future integration layer, not a current support
 claim.
 
-## Active product experiment
+## Next experimental direction (not shipping)
 
-PR16.4 asks whether the lower CWA browser bridge can support a persistent consumer
-research workspace without forcing it into the chat-provider contract.
+The persistent-workspace URL-source admission experiment (PR16.4) and Audio
+Overview generation/observation (PR16.5) are closed, module-only experimental
+proofs. PR16.6-16.8 retained private artifact internals rather than publishing
+a generic lifecycle.
 
-Target:
-
-```text
-existing owned consumer Gemini Notebook
-+ exact web URL source
-→ durable source admission
-```
-
-PR16.4 has live-proven one bounded Gemini Notebook URL-source admission path. The
-capability is module-only and experimental; no Gemini Notebook
-capability is claimed on `main` until product identity, commitment boundary and
-admission finality are live-proven.
+A possible subsequent, independently gated **Capability Capture v0**
+research experiment may demonstrate one existing Google Translate action,
+capture bounded semantic evidence, derive a private spec and replay through
+the already-proven browser-owned runtime. No Studio, registry, product
+driver marketplace, direct-request compiler or public capability factory
+is claimed by this checkpoint.
 
 ## Release policy
 
