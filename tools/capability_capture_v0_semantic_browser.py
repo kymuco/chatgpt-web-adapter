@@ -168,6 +168,13 @@ def classify_semantic_stability(report: dict[str, Any]) -> dict[str, Any]:
             status = "CONSISTENT_REFERENCE_FAMILY_SIGNATURE"
         comparison[slot] = {
             "status": status,
+            # Preserve the bounded (0..8) per-document counts that the
+            # observer already returns. This distinguishes missing candidates
+            # in A/B without exporting node text, URLs or tab identifiers.
+            "candidate_counts_by_document": {
+                "A": a["candidateCount"],
+                "B": b["candidateCount"],
+            },
             "same_signature_in_two_documents": (
                 status == "CONSISTENT_REFERENCE_FAMILY_SIGNATURE"
             ),
