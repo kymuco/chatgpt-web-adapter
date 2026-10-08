@@ -1,6 +1,7 @@
 // Research-only observational capture. This file is NOT part of a shipped
 // capability and must not be merged without separate live privacy/authority gates.
 const CWA_CAPTURE_V0_OPERATION = "research_capture_translate_demo_v0";
+const CWA_CAPTURE_V0_SEMANTIC_OPERATION = "research_capture_translate_semantic_v0";
 const CWA_CAPTURE_V0_ORIGIN = "https://translate.google.com";
 
 function _cwaCaptureV0PageExpression(mode) {
@@ -186,16 +187,20 @@ async function _cwaCaptureV0ObserveTranslate(message) {
 
 let _cwaCaptureV0Active = false;
 async function _cwaOnNativeMessageWithCaptureV0(message, port, next) {
+  const semantic = message?.type === CWA_CAPTURE_V0_SEMANTIC_OPERATION;
   if (message?.protocol !== BRIDGE_PROTOCOL_VERSION ||
-      message?.type !== CWA_CAPTURE_V0_OPERATION) {
+      (!semantic && message?.type !== CWA_CAPTURE_V0_OPERATION)) {
     return next(message, port);
   }
+  const responseType = semantic
+    ? "research_capture_translate_semantic_v0_result"
+    : "research_capture_translate_demo_v0_result";
   const requestId = message?.request_id;
   if (typeof requestId !== "string" || !requestId) return;
   if (_cwaCaptureV0Active) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "research_capture_translate_demo_v0_result",
+      type: responseType,
       request_id: requestId,
       ok: false,
       error: "CAPTURE_V0_BUSY"
@@ -204,10 +209,12 @@ async function _cwaOnNativeMessageWithCaptureV0(message, port, next) {
   }
   _cwaCaptureV0Active = true;
   try {
-    const result = await _cwaCaptureV0ObserveTranslate(message);
+    const result = semantic
+      ? await _cwaCaptureV0SemanticTwoTabs(message)
+      : await _cwaCaptureV0ObserveTranslate(message);
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "research_capture_translate_demo_v0_result",
+      type: responseType,
       request_id: requestId,
       ok: true,
       ...result
@@ -215,12 +222,165 @@ async function _cwaOnNativeMessageWithCaptureV0(message, port, next) {
   } catch (error) {
     safePortPost(port, {
       protocol: BRIDGE_PROTOCOL_VERSION,
-      type: "research_capture_translate_demo_v0_result",
+      type: responseType,
       request_id: requestId,
       ok: false,
-      error: error instanceof Error ? error.message : "CAPTURE_V0_UNKNOWN_FAILURE"
+      error: semantic
+        ? (error instanceof Error && error.message.startsWith("CAPTURE_C1_")
+          ? error.message : "CAPTURE_C1_OBSERVATION_FAILED")
+        : (error instanceof Error ? error.message : "CAPTURE_V0_UNKNOWN_FAILURE")
     });
   } finally {
     _cwaCaptureV0Active = false;
   }
+}
+
+
+// C1 research extension — separate two-document structural observation.
+// There is no product write in this path. The product-specific candidate
+// families are imported from the hand-written Translate reference; they are
+// NOT learned from the original human demonstration.
+function _cwaCaptureV0SemanticPageExpression(source, target) {
+  const src = JSON.stringify(source);
+  const dst = JSON.stringify(target);
+  return "(() => {" +
+    "const visible=e=>{const r=e.getBoundingClientRect();" +
+      "const s=getComputedStyle(e);" +
+      "return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};" +
+    "const region=e=>{const w=document.documentElement.clientWidth;" +
+      "if(!(w>0))return 'unknown';" +
+      "const r=e.getBoundingClientRect();const x=(r.left+r.width/2)/w;" +
+      "return x<1/3?'left':(x<2/3?'center':'right')};" +
+    "const source=Array.from(document.querySelectorAll('textarea,[contenteditable=\\\"true\\\"][role=\\\"textbox\\\"]'))" +
+      ".filter(e=>visible(e)&&e.getAttribute('aria-disabled')!=='true'&&!e.disabled);" +
+    "const outputs=Array.from(document.querySelectorAll('[jsname=\\\"W297wb\\\"],[jsname=\\\"jqKxS\\\"]'))" +
+      ".filter(visible);" +
+    "const leaves=outputs.filter(e=>!outputs.some(x=>x!==e&&e.contains(x)));" +
+    "const pack=(nodes,slot)=>{" +
+      "if(nodes.length>8)return {candidateCount:9,uniqueDescriptor:null};" +
+      "if(nodes.length!==1)return {candidateCount:nodes.length,uniqueDescriptor:null};" +
+      "const e=nodes[0];const tag=(e.tagName||'').toLowerCase();" +
+      "const kind=slot==='source_input'?(tag==='textarea'?'textarea':'contenteditable'):" +
+        "(tag==='span'?'span':tag==='div'?'div':'other');" +
+      "return {candidateCount:1,uniqueDescriptor:{" +
+        "role:slot==='source_input'?'textbox':'result_leaf',kind,region:region(e)," +
+        "interactable:slot==='source_input'}}};" +
+    "const u=new URL(location.href);" +
+    "return {routeVerified:u.origin==='https://translate.google.com'&&" +
+      "u.searchParams.get('sl')===" + src + "&&u.searchParams.get('tl')===" + dst + "," +
+      "source_input:pack(source,'source_input')," +
+      "translated_result:pack(leaves,'translated_result')};" +
+  "})()";
+}
+
+async function _cwaCaptureV0SemanticReadTab(tabId, source, target) {
+  const tab = await chrome.tabs.get(tabId);
+  let url;
+  try { url = new URL(tab?.url || ""); } catch {
+    throw new Error("CAPTURE_C1_TAB_ROUTE_MISMATCH");
+  }
+  if (url.origin !== CWA_CAPTURE_V0_ORIGIN ||
+      url.searchParams.get("sl") !== source ||
+      url.searchParams.get("tl") !== target) {
+    throw new Error("CAPTURE_C1_TAB_ROUTE_MISMATCH");
+  }
+  const debuggee = { tabId };
+  let attached = false;
+  let detached = false;
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+    const response = await _cwaBaseSendCommand(debuggee, "Runtime.evaluate", {
+      expression: _cwaCaptureV0SemanticPageExpression(source, target),
+      returnByValue: true,
+      awaitPromise: true
+    });
+    if (response?.exceptionDetails || !response?.result?.value) {
+      throw new Error("CAPTURE_C1_PAGE_EVALUATION_FAILED");
+    }
+    const snapshot = response.result.value;
+    if (snapshot.routeVerified !== true) {
+      throw new Error("CAPTURE_C1_ROUTE_DRIFT");
+    }
+    const after = await chrome.tabs.get(tabId);
+    let afterUrl;
+    try { afterUrl = new URL(after?.url || ""); } catch {
+      throw new Error("CAPTURE_C1_ROUTE_DRIFT");
+    }
+    if (afterUrl.origin !== CWA_CAPTURE_V0_ORIGIN ||
+        afterUrl.searchParams.get("sl") !== source ||
+        afterUrl.searchParams.get("tl") !== target) {
+      throw new Error("CAPTURE_C1_ROUTE_DRIFT");
+    }
+    // Copy only closed-enum structural fields. No page text, attribute names,
+    // DOM selectors, raw URLs, node IDs or CDP response objects are exported.
+    const sanitized = { routeVerified: true };
+    for (const slot of ["source_input", "translated_result"]) {
+      const value = snapshot[slot];
+      const count = value?.candidateCount;
+      if (!Number.isInteger(count) || count < 0 || count > 8) {
+        throw new Error("CAPTURE_C1_CANDIDATE_COUNT_INVALID");
+      }
+      const desc = count === 1 ? value?.uniqueDescriptor : null;
+      if (count === 1 && (!desc || typeof desc !== "object")) {
+        throw new Error("CAPTURE_C1_UNIQUE_DESCRIPTOR_MISSING");
+      }
+      sanitized[slot] = {
+        candidateCount: count,
+        uniqueDescriptor: count === 1 ? {
+          role: desc.role,
+          kind: desc.kind,
+          region: desc.region,
+          interactable: desc.interactable
+        } : null
+      };
+    }
+    return sanitized;
+  } finally {
+    if (attached) {
+      try {
+        await chrome.debugger.detach(debuggee);
+        detached = true;
+      } catch {
+        // The inability to prove detach fails the observation closed.
+      }
+      if (!detached) throw new Error("CAPTURE_C1_CLEANUP_UNPROVEN");
+    }
+  }
+}
+
+async function _cwaCaptureV0SemanticTwoTabs(message) {
+  const ids = message?.tabIds;
+  const source = message?.sourceLanguage;
+  const target = message?.targetLanguage;
+  if (!Array.isArray(ids) || ids.length !== 2 ||
+      !ids.every(id=>Number.isSafeInteger(id)&&id>0) ||
+      ids[0] === ids[1] ||
+      typeof source !== "string" || !/^[A-Za-z][A-Za-z0-9-]{1,19}$/.test(source) ||
+      typeof target !== "string" || !/^[A-Za-z][A-Za-z0-9-]{1,19}$/.test(target)) {
+    throw new Error("CAPTURE_C1_INVALID_REQUEST");
+  }
+  if (message?.consent !== "EXPLICIT_TWO_TAB_OBSERVE_ONLY") {
+    throw new Error("CAPTURE_C1_CONSENT_REQUIRED");
+  }
+  // Serial observation, never parallel debugger attachment. Distinct tabs
+  // demonstrate separate documents, not separate renderer OS processes.
+  const first = await _cwaCaptureV0SemanticReadTab(ids[0], source, target);
+  const second = await _cwaCaptureV0SemanticReadTab(ids[1], source, target);
+  return {
+    schema: "CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE",
+    productId: "google-translate-web",
+    captureMode: "EXPLICIT_TWO_TAB_OBSERVE_ONLY",
+    sourceLanguage: source,
+    targetLanguage: target,
+    observations: [first, second],
+    selectorProvenance: "HANDWRITTEN_REFERENCE_FAMILIES_NOT_LEARNED",
+    semanticFinalityProven: false,
+    canonicalCompletionProven: false,
+    replayExecutable: false,
+    newWriteAuthority: false,
+    automaticRetry: false,
+    rawContentRetained: false
+  };
 }
