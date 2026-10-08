@@ -70,12 +70,16 @@ def audit_structural_trace(trace: dict[str, Any]) -> dict[str, Any]:
         ]
     )
     observations = (
-        "exact_product_and_language_route",
-        "human_source_input_event",
-        "stable_structural_result_candidate_presence",
-    ) if structural else (
-        "exact_product_and_language_route",
-        "partial_or_incomplete_observation",
+        (
+            "exact_product_and_language_route",
+            "human_source_input_event",
+            "stable_structural_result_candidate_presence",
+        )
+        if structural
+        else (
+            "exact_product_and_language_route",
+            "partial_or_incomplete_observation",
+        )
     )
     return {
         "schema": "CWA_CAPTURE_V0_REPLAY_ADMISSION_AUDIT",
