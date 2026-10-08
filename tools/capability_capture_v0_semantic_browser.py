@@ -100,7 +100,9 @@ def _stages(value: object, *, result_count: int) -> dict[str, int]:
         and value["visibleLeaves"] == result_count
     ):
         raise ValueError("CAPTURE_C1_RESULT_STAGE_INCONSISTENT")
-    return {name: value[name] for name in ("rawFamily", "visibleFamily", "visibleLeaves")}
+    return {
+        name: value[name] for name in ("rawFamily", "visibleFamily", "visibleLeaves")
+    }
 
 
 def _result_stage_diagnosis(stages: dict[str, int]) -> str:
