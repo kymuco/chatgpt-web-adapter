@@ -181,8 +181,16 @@ async function run() {
   // than falling through to the base handler without a response.
   worker.BRIDGE_PROTOCOL_VERSION = "synthetic";
   worker.importScripts = (script) => {
-    assert.equal(script, "service_worker_capability_capture_v0.js");
+    assert.ok([
+      "service_worker_capability_capture_v0.js",
+      "service_worker_capability_capture_c2.js"
+    ].includes(script));
   };
+  const c2Path = path.join(
+    __dirname, "..", "src", "chatgpt_web_adapter",
+    "browser_native_extension", "service_worker_capability_capture_c2.js"
+  );
+  vm.runInContext(fs.readFileSync(c2Path, "utf8"), worker);
   const translatePath = path.join(
     __dirname, "..", "src", "chatgpt_web_adapter",
     "browser_native_extension", "service_worker_google_translate_capability.js"
