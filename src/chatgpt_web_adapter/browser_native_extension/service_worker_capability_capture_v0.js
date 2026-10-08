@@ -264,7 +264,7 @@ function _cwaCaptureV0SemanticPageExpression(source, target) {
         "(tag==='span'?'span':tag==='div'?'div':'other');" +
       "return {candidateCount:1,uniqueDescriptor:{" +
         "role:slot==='source_input'?'textbox':'result_leaf',kind,region:region(e)," +
-        "interactable:slot==='source_input'}}};" +
+        "interactable:slot==='source_input'}};" +
     "const u=new URL(location.href);" +
     "return {routeVerified:u.origin==='https://translate.google.com'&&" +
       "u.searchParams.get('sl')===" + src + "&&u.searchParams.get('tl')===" + dst + "," +
