@@ -120,7 +120,9 @@ def test_two_distinct_tabs_return_bounded_comparison_without_write() -> None:
         "A": 1,
         "B": 1,
     }
-    result_counts = report["observations"]["translated_result"]["candidate_counts_by_document"]
+    result_counts = report["observations"]["translated_result"][
+        "candidate_counts_by_document"
+    ]
     assert result_counts == {
         "A": 1,
         "B": 1,
@@ -270,7 +272,9 @@ def test_missing_result_candidate_is_not_silent_success() -> None:
     }
     report = _classify(response)
     assert report["observations"]["translated_result"]["status"] == "MISSING"
-    result_counts = report["observations"]["translated_result"]["candidate_counts_by_document"]
+    result_counts = report["observations"]["translated_result"][
+        "candidate_counts_by_document"
+    ]
     assert result_counts == {
         "A": 1,
         "B": 0,
