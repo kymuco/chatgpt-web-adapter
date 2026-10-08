@@ -89,6 +89,62 @@ writes it. It may return \`MISSING\`, \`AMBIGUOUS\`, a single generic
 changed-leaf candidate, or a failure/overflow. All are informative research
 outcomes. In all cases, replay and write authorization remain prohibited.
 
+## First real C2 attempt — no accepted input event (2026-10-08)
+
+The first human-operated live run on exact `20ce654d7a0d920d5ab41c479866e06a3edc4de1`
+completed without transport/cleanup failure, but returned:
+
+```text
+capture_classification    INCOMPLETE_OR_AMBIGUOUS_STRUCTURAL_DEMONSTRATION
+input_event_count         0
+source.status             MISSING
+result.status             MISSING
+structural_quiet          false
+replay_executable         false
+new_write_authority       false
+```
+
+This **does not mean** the browser emitted no `input` events. The original
+counter incremented only after the `isTrusted`, eligible element-kind and
+visibility filters. Nor does the output confirm whether the operator typed
+while the observer was installed. Therefore it is not a result-selector
+failure and does not justify changing candidate discovery.
+
+### C2 input-filter diagnosis
+
+The research protocol is now explicitly versioned as
+`CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1` to require a closed, bounded
+`inputFilterCounts` object in addition to the accepted event count:
+
+```text
+observed            all dispatched input events seen by capture listener
+trusted             observed events with event.isTrusted === true
+unsupportedTarget   trusted input targets outside eligible generic controls
+invisibleTarget     trusted eligible input targets failing visibility test
+eligible            trusted / eligible / visible input events (old count)
+```
+
+Every count is an integer from 0 through 64, and must satisfy
+`observed >= trusted` and
+`trusted = unsupportedTarget + invisibleTarget + eligible`.
+Greater than 64 observed events sets overflow and fails closed.
+`observerWindowMs` measures the bounded time **after successful listener
+installation**, rather than the earlier browser attachment period; it is
+between 0 and 20,000 ms. No key, typed text, event.data, text hash, element
+name, selector, URL, node ID or DOM snapshot is captured or returned.
+
+The final Python report adds `input_filter_counts`,
+`input_detection_diagnosis`, and `observer_window_ms` to distinguish
+no observed events, only untrusted events, filtered targets or accepted
+events. A count of zero **cannot** by itself prove why the human's typing
+did not appear. Old V0 responses must fail strict V1 admission.
+
+The next explicit-consent live capture should begin from a cleared Translate
+source, enter harmless `hello` **after the observation has started**, and
+leave the tab otherwise undisturbed. Its result is a diagnostic observation,
+not proof of learned source/result locator, translation identity or replay
+authority. No blind retry or automatic product write is allowed.
+
 ## Admission and falsification
 
 Strict outer RPC timeout reserves ten seconds for native-host response
