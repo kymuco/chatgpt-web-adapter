@@ -213,11 +213,13 @@ def capture_semantic_pair(
             "sourceLanguage": source,
             "targetLanguage": target,
             "consent": "EXPLICIT_TWO_TAB_OBSERVE_ONLY",
-            "timeoutMs": 15000,
+            "timeoutMs": 20000,
         },
-        timeout=20.0,
+        # Broker can spend up to delegated_timeout + 5s awaiting Chrome.
+        # Reserve enough time for its explicit timeout response to reach RPC.
+        timeout=30.0,
         delegated_timeout_ms_key="timeoutMs",
-        delegated_response_margin=2.0,
+        delegated_response_margin=10.0,
     )
     checked = validate_semantic_observation(
         response, source_language=source, target_language=target
