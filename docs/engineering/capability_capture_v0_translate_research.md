@@ -167,8 +167,22 @@ have the research operation.
 
 1. Open Google Translate in Chrome with the intended language pair encoded
    in the route; ensure the source field is **empty**.
-2. Obtain the exact Chrome tab id from a trusted local debugging/extension
-   inventory. Do not guess, target other tabs, or use a wildcard.
+2. Find the exact tab id without reading its contents. In Chrome,
+   open `chrome://extensions`, enable developer mode if necessary, locate the
+   **research** CWA extension, and inspect its service worker. In that
+   extension's DevTools Console run:
+
+```javascript
+chrome.tabs.query({ url: "https://translate.google.com/*" }).then((tabs) =>
+  console.table(tabs.map((tab) => ({ id: tab.id, active: tab.active })))
+);
+```
+
+   Choose the one Translate tab intended for the demonstration. This command
+   reads only tab IDs and whether each is active; it does not activate tabs,
+   perform an input write, or print full URLs or page contents. Close the
+   extension DevTools before testing if it interferes with debugger attachment.
+   Never guess the tab id or target other tabs.
 3. Start capture with explicit consent, and then manually type a short,
    **non-sensitive** demonstration text in the selected Translate tab:
 
