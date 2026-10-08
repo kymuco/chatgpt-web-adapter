@@ -68,6 +68,11 @@ function _cwaC2PageProbe(command) {
       source: null,
       distinctSourceTargets: 0,
       inputEvents: 0,
+      observedInputEvents: 0,
+      trustedInputEvents: 0,
+      unsupportedTargetEvents: 0,
+      invisibleTargetEvents: 0,
+      installedAt: performance.now(),
       candidates: new Set(),
       overflow: false,
       lastMutationAt: 0,
@@ -116,14 +121,25 @@ function _cwaC2PageProbe(command) {
     }
 
     state.onInput = event => {
-      if (event.isTrusted !== true) return;
-      const candidate = event.target;
-      if (!visible(candidate) || sourceKind(candidate) === null) return;
-      state.inputEvents += 1;
-      if (state.inputEvents > MAX_INPUT_EVENTS) {
+      // Count each filtering stage without reading keys, data, text, or values.
+      // Keep every counter capped; overflow fails the entire capture closed.
+      if (state.observedInputEvents >= MAX_INPUT_EVENTS) {
         state.overflow = true;
         return;
       }
+      state.observedInputEvents += 1;
+      if (event.isTrusted !== true) return;
+      state.trustedInputEvents += 1;
+      const candidate = event.target;
+      if (sourceKind(candidate) === null) {
+        state.unsupportedTargetEvents += 1;
+        return;
+      }
+      if (!visible(candidate)) {
+        state.invisibleTargetEvents += 1;
+        return;
+      }
+      state.inputEvents += 1;
       if (state.source === null) {
         state.source = candidate; // Ephemeral DOM identity never exported.
         state.distinctSourceTargets = 1;
@@ -186,6 +202,15 @@ function _cwaC2PageProbe(command) {
     ready: true,
     routeVerified: routeMatches(command.source, command.target),
     inputEvents: state.inputEvents,
+    inputFilterCounts: {
+      observed: state.observedInputEvents,
+      trusted: state.trustedInputEvents,
+      eligible: state.inputEvents,
+      unsupportedTarget: state.unsupportedTargetEvents,
+      invisibleTarget: state.invisibleTargetEvents
+    },
+    observerWindowMs: Math.min(20000, Math.max(0,
+      Math.floor(performance.now() - state.installedAt))),
     sourceCandidateCount: state.distinctSourceTargets,
     sourceDescriptor: source !== null && !state.sourceAmbiguous
       ? descriptor(source, "source_input") : null,
@@ -251,6 +276,21 @@ function _cwaC2ValidateSample(sample) {
   if (sample?.ready !== true || sample?.routeVerified !== true ||
       !Number.isInteger(sample.inputEvents) || sample.inputEvents < 0 ||
       sample.inputEvents > 64 ||
+      !sample.inputFilterCounts ||
+      typeof sample.inputFilterCounts !== "object" ||
+      !["observed", "trusted", "eligible", "unsupportedTarget", "invisibleTarget"]
+        .every(key => Number.isInteger(sample.inputFilterCounts[key]) &&
+          sample.inputFilterCounts[key] >= 0 &&
+          sample.inputFilterCounts[key] <= 64) ||
+      sample.inputFilterCounts.eligible !== sample.inputEvents ||
+      sample.inputFilterCounts.observed < sample.inputFilterCounts.trusted ||
+      sample.inputFilterCounts.trusted !== (
+        sample.inputFilterCounts.eligible +
+        sample.inputFilterCounts.unsupportedTarget +
+        sample.inputFilterCounts.invisibleTarget
+      ) ||
+      !Number.isInteger(sample.observerWindowMs) ||
+      sample.observerWindowMs < 0 || sample.observerWindowMs > 20000 ||
       !Number.isInteger(sample.sourceCandidateCount) ||
       sample.sourceCandidateCount < 0 || sample.sourceCandidateCount > 2 ||
       !Number.isInteger(sample.mutationLeafCount) ||
@@ -280,6 +320,14 @@ function _cwaC2ValidateSample(sample) {
   };
   return {
     inputEvents: sample.inputEvents,
+    inputFilterCounts: {
+      observed: sample.inputFilterCounts.observed,
+      trusted: sample.inputFilterCounts.trusted,
+      eligible: sample.inputFilterCounts.eligible,
+      unsupportedTarget: sample.inputFilterCounts.unsupportedTarget,
+      invisibleTarget: sample.inputFilterCounts.invisibleTarget
+    },
+    observerWindowMs: sample.observerWindowMs,
     sourceCandidateCount: sample.sourceCandidateCount,
     sourceDescriptor: copyDesc(sample.sourceDescriptor),
     mutationLeafCount: sample.mutationLeafCount,
@@ -311,7 +359,6 @@ async function _cwaC2ObserveReferenceIndependentDelta(message) {
   let attached = false;
   let installAttempted = false;
   let cleanupUnproven = false;
-  const startedAt = performance.now();
   let last = null;
   try {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
@@ -322,7 +369,10 @@ async function _cwaC2ObserveReferenceIndependentDelta(message) {
     if (setup?.installed !== true) {
       throw new Error("CAPTURE_C2_OBSERVER_NOT_FRESH");
     }
-    while (performance.now() - startedAt < seconds * 1000) {
+    // The capture window begins after the listener was successfully installed,
+    // not before debugger attachment or Runtime.enable.
+    const observedSince = performance.now();
+    while (performance.now() - observedSince < seconds * 1000) {
       const sample = await _cwaC2Evaluate(debuggee, "observe", source, target);
       last = _cwaC2ValidateSample(sample);
       if (last.mutationOverflow) {
@@ -343,13 +393,15 @@ async function _cwaC2ObserveReferenceIndependentDelta(message) {
       last.mutationLeafCount === 1 && last.structuralQuiet
         ? "ONE_STRUCTURAL_CHANGE_CANDIDATE" : "AMBIGUOUS";
     return {
-      schema: "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V0",
+      schema: "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1",
       productId: "google-translate-web",
       captureMode: "EXPLICIT_SINGLE_TAB_EVENT_DELTA",
       routeVerified: true,
       sourceLanguage: source,
       targetLanguage: target,
       inputEventCount: last.inputEvents,
+      inputFilterCounts: last.inputFilterCounts,
+      observerWindowMs: last.observerWindowMs,
       source: {
         status: sourceStatus,
         candidateCount: last.sourceCandidateCount,
