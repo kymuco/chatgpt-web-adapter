@@ -72,47 +72,46 @@ def _descriptor(value: Any, *, role: str) -> dict[str, str] | None:
 
 def _slot(value: Any, *, source: bool, quiet: bool) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {
-        "status", "candidateCount", "descriptor", "provenance"
+        "status",
+        "candidateCount",
+        "descriptor",
+        "provenance",
     }:
         raise ValueError("CAPTURE_C2_SLOT_SHAPE_INVALID")
     status = value["status"]
     count = value["candidateCount"]
+    provenance = (
+        "TRUSTED_HUMAN_INPUT_EVENT"
+        if source
+        else "POST_INPUT_GENERIC_DOM_MUTATIONS"
+    )
     if (
         type(status) is not str
         or status not in (_STATUS_SOURCE if source else _STATUS_RESULT)
         or type(count) is not int
         or count < 0
         or count > (2 if source else 8)
-        or value["provenance"] != (
-            "TRUSTED_HUMAN_INPUT_EVENT" if source
-            else "POST_INPUT_GENERIC_DOM_MUTATIONS"
-        )
+        or value["provenance"] != provenance
     ):
         raise ValueError("CAPTURE_C2_SLOT_IDENTITY_INVALID")
-    expected = (
-        "MISSING" if count == 0 else
-        (
-            "EVENT_TARGET_OBSERVED" if count == 1 else "AMBIGUOUS"
-        )
-        if source else
-        (
-            "MISSING" if count == 0 else
-            "ONE_STRUCTURAL_CHANGE_CANDIDATE"
-            if count == 1 and quiet else "AMBIGUOUS"
-        )
-    )
+    if count == 0:
+        expected = "MISSING"
+    elif source:
+        expected = "EVENT_TARGET_OBSERVED" if count == 1 else "AMBIGUOUS"
+    elif count == 1 and quiet:
+        expected = "ONE_STRUCTURAL_CHANGE_CANDIDATE"
+    else:
+        expected = "AMBIGUOUS"
     if status != expected:
         raise ValueError("CAPTURE_C2_STATUS_COUNT_MISMATCH")
     descriptor = _descriptor(
         value["descriptor"],
         role="source_input" if source else "changed_leaf",
     )
-    if (descriptor is not None) != (
-        status == (
-            "EVENT_TARGET_OBSERVED" if source
-            else "ONE_STRUCTURAL_CHANGE_CANDIDATE"
-        )
-    ):
+    single_status = (
+        "EVENT_TARGET_OBSERVED" if source else "ONE_STRUCTURAL_CHANGE_CANDIDATE"
+    )
+    if (descriptor is not None) != (status == single_status):
         raise ValueError("CAPTURE_C2_DESCRIPTOR_PROVENANCE_INVALID")
     return {
         "status": status,
@@ -134,7 +133,8 @@ def validate_independent_capture(
     if response.get("type") != _RESULT_TYPE:
         raise ValueError("CAPTURE_C2_RESULT_TYPE_INVALID")
     raw = {
-        k: v for k, v in response.items()
+        k: v
+        for k, v in response.items()
         if k not in {"ok", "type", "protocol", "request_id"}
     }
     if set(raw) != _REPORT_KEYS:
