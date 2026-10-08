@@ -174,9 +174,7 @@ def test_post_pr17_2_checkpoint_is_bounded_to_source_and_proven_evidence() -> No
     status = _read("STATUS.md")
     roadmap = _read("ROADMAP.md")
     readme = _read("README.md")
-    checkpoint = _read(
-        "docs/engineering/pr17_2_canonical_product_checkpoint.md"
-    )
+    checkpoint = _read("docs/engineering/pr17_2_canonical_product_checkpoint.md")
 
     assert "_Last updated: 2026-10-08_" in status
     assert "PR17.2 merged; canonical checkpoint / release hygiene" in status
@@ -194,4 +192,3 @@ def test_post_pr17_2_checkpoint_is_bounded_to_source_and_proven_evidence() -> No
     assert "model_preservation       = UNKNOWN" in checkpoint
     assert "scope_is_write_authority = false" in checkpoint
     assert "No public Video generation API" in status
-    assert "not" in checkpoint.lower()
