@@ -21,11 +21,15 @@ WORKER = (
 
 
 def _sample(*, source_count: int = 1, result_count: int = 1) -> dict:
-    source = "EVENT_TARGET_OBSERVED" if source_count == 1 else (
-        "MISSING" if source_count == 0 else "AMBIGUOUS"
+    source = (
+        "EVENT_TARGET_OBSERVED"
+        if source_count == 1
+        else ("MISSING" if source_count == 0 else "AMBIGUOUS")
     )
-    result = "ONE_STRUCTURAL_CHANGE_CANDIDATE" if result_count == 1 else (
-        "MISSING" if result_count == 0 else "AMBIGUOUS"
+    result = (
+        "ONE_STRUCTURAL_CHANGE_CANDIDATE"
+        if result_count == 1
+        else ("MISSING" if result_count == 0 else "AMBIGUOUS")
     )
     return {
         "ok": True,
@@ -42,7 +46,8 @@ def _sample(*, source_count: int = 1, result_count: int = 1) -> dict:
             "candidateCount": source_count,
             "descriptor": (
                 {"role": "source_input", "kind": "textarea", "region": "left"}
-                if source_count == 1 else None
+                if source_count == 1
+                else None
             ),
             "provenance": "TRUSTED_HUMAN_INPUT_EVENT",
         },
@@ -51,7 +56,8 @@ def _sample(*, source_count: int = 1, result_count: int = 1) -> dict:
             "candidateCount": result_count,
             "descriptor": (
                 {"role": "changed_leaf", "kind": "span", "region": "right"}
-                if result_count == 1 else None
+                if result_count == 1
+                else None
             ),
             "provenance": "POST_INPUT_GENERIC_DOM_MUTATIONS",
         },
@@ -150,14 +156,19 @@ def test_preflight_does_not_delegate_bad_request(change: dict) -> None:
 
 
 def test_response_lost_after_delegation_never_retries() -> None:
-    bridge = FakeBridge(error=RequestError(
-        "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION",
-        request_stage="browser_native_bridge",
-    ))
+    bridge = FakeBridge(
+        error=RequestError(
+            "BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION",
+            request_stage="browser_native_bridge",
+        )
+    )
     with pytest.raises(RequestError, match="RESPONSE_LOST_AFTER_DELEGATION"):
         capture_independent_delta(
-            bridge, tab_id=1001, source_language="en",
-            target_language="es", explicit_consent=True,
+            bridge,
+            tab_id=1001,
+            source_language="en",
+            target_language="es",
+            explicit_consent=True,
         )
     assert len(bridge.requests) == 1
 
@@ -255,7 +266,9 @@ def test_multiple_changed_nodes_never_assumed_to_be_result() -> None:
 def test_result_descriptor_count_spoofing_fails_closed() -> None:
     sample = _sample(result_count=2)
     sample["result"]["descriptor"] = {
-        "role": "changed_leaf", "kind": "span", "region": "right"
+        "role": "changed_leaf",
+        "kind": "span",
+        "region": "right",
     }
     with pytest.raises(ValueError, match="CAPTURE_C2_DESCRIPTOR_PROVENANCE_INVALID"):
         _admit(sample)
@@ -264,28 +277,40 @@ def test_result_descriptor_count_spoofing_fails_closed() -> None:
 def test_worker_reference_independence_and_synthetic_cdp() -> None:
     code = WORKER.read_text(encoding="utf-8")
     for forbidden in (
-        "querySelectorAll", "W297wb", "jqKxS", "jsname",
-        ".textContent", ".innerText", ".outerHTML", ".value",
-        "chrome.tabs.update", "chrome.tabs.create",
+        "querySelectorAll",
+        "W297wb",
+        "jqKxS",
+        "jsname",
+        ".textContent",
+        ".innerText",
+        ".outerHTML",
+        ".value",
+        "chrome.tabs.update",
+        "chrome.tabs.create",
     ):
         assert forbidden not in code
     subprocess.run(
         ["node", "--check", str(WORKER)],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     run = subprocess.run(
         ["node", str(ROOT / "tools/capability_capture_c2_dom_fixture.js")],
-        check=False, capture_output=True, text=True,
+        check=False,
+        capture_output=True,
+        text=True,
     )
     assert run.returncode == 0, run.stderr
 
 
 def test_host_lane_and_domain_dispatch_are_explicit() -> None:
-    host = (
-        ROOT / "src/chatgpt_web_adapter/browser_native_host.py"
-    ).read_text(encoding="utf-8")
+    host = (ROOT / "src/chatgpt_web_adapter/browser_native_host.py").read_text(
+        encoding="utf-8"
+    )
     outer = (
-        ROOT / "src/chatgpt_web_adapter/browser_native_extension"
+        ROOT
+        / "src/chatgpt_web_adapter/browser_native_extension"
         / "service_worker_google_translate_capability.js"
     ).read_text(encoding="utf-8")
     assert host.count('"research_capture_independent_delta_v0"') >= 2
