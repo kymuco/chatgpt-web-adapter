@@ -116,3 +116,107 @@ introduce a generic `HostedCapabilityRuntime` for symmetry.
 
 Ownership remains: CWA executes and proves; external agents/users own
 goals, permission, and next-action policy.
+
+
+## Slice B implementation — opt-in structural observer
+
+The research branch now contains a candidate capture operation wired through the
+existing Native Messaging authority lane. **It has not yet passed a real Chrome
+demonstration**, and it is not a production feature.
+
+```text
+explicit human consent + exact tab id
+→ existing translate.google.com tab with matching sl/tl
+→ attach CDP debugger (no navigation or activation)
+→ install bounded input-event counter
+→ human types the demonstration
+→ poll output DOM structural candidates
+→ collect capped event timeline
+→ remove listener and detach debugger
+→ validate strict allowlisted evidence schema
+```
+
+**No product input is sent by the observer.** The human demonstrator
+performs any hosted mutation knowingly; the observer merely watches.
+The Chrome debugger may display its normal attachment notice. It must not
+interfere with any concurrent CWA operation: the host's existing exclusive
+authority lane rejects contention.
+
+Only these fields are admitted by the client:
+
+- fixed schema/product/mode identity;
+- tab id and language codes (not complete URLs);
+- zero-to-64 event count, maximum four fixed phase labels;
+- bounded relative timestamps;
+- boolean route match, candidate presence, structural candidate count result;
+- explicit `semanticFinalityProven=false`, `canonicalCompletionProven=false`,
+  `automaticRetry=false`, and `replayExecutable=false`.
+
+No field value, translation text, page text, cookies, raw DOM, CDP network
+body, signed URL or content-derived hash leaves the page. The script reads
+source text only to reject a prefilled source at install time, and checks
+translated output text only for **nonempty presence**. It does not compare
+translation identity/contents, so stability of candidate presence is **not**
+`PAGE_DOM_STABLE_TRANSLATION` finality.
+
+### Local-only manual gate
+
+Use a **research build** of the extension and Native Messaging host from
+PR #201. The published `0.3.0` runtime and standard `main` build do not
+have the research operation.
+
+1. Open Google Translate in Chrome with the intended language pair encoded
+   in the route; ensure the source field is **empty**.
+2. Obtain the exact Chrome tab id from a trusted local debugging/extension
+   inventory. Do not guess, target other tabs, or use a wildcard.
+3. Start capture with explicit consent, and then manually type a short,
+   **non-sensitive** demonstration text in the selected Translate tab:
+
+```powershell
+python -m tools.capability_capture_v0_browser `
+  --tab-id <EXACT_TRANSLATE_TAB_ID> `
+  --source-language en `
+  --target-language es `
+  --seconds 12 `
+  --i-consent-to-structural-capture
+```
+
+4. A success status means only that an observational trace passed the strict
+   schema; it is **not** permission to replay or retry product writes.
+5. Independently obtain the existing hand-written CWA
+   `GoogleTranslateTextResult` from an intentionally separate, bounded
+   reference invocation when appropriate. Do not auto-write during capture.
+6. Record whether the candidate trace contains
+   `source_input_event → result_candidate_seen → result_candidate_presence_stable`
+   while preserving `semanticFinalityProven=false`.
+
+Suggested bounded offline gates:
+
+```powershell
+python -m pytest -q tests/test_capability_capture_v0.py tests/test_capability_capture_v0_browser.py
+python -m ruff check tools/capability_capture_v0*.py tests/test_capability_capture_v0*.py
+python -m ruff format --check tools/capability_capture_v0*.py tests/test_capability_capture_v0*.py
+node --check src/chatgpt_web_adapter/browser_native_extension/service_worker_capability_capture_v0.js
+node tools/capability_capture_v0_dom_fixture.js
+```
+
+### Evidence boundary and explicit incompleteness
+
+A clean offline CI proves static input validation, response admission and
+synthetic DOM evidence only. It cannot prove that the current live Google
+Translate UI exposes compatible selectors or that attaching CDP while the
+user types is reliable on all browser versions.
+
+Slice B is not closed until a human performs at least one consented, observed
+real-product demonstration and reports whether the instrument attached,
+captured events, preserved privacy and detached cleanly. A failed capture is
+an experimental result; do not silently switch to a different browser
+transport, infer finality or automatically repeat the user action.
+
+### Next falsification step
+
+Only **after live Slice B** should Slice C introduce an executable replay
+candidate. That candidate needs its own explicit write authority and
+post-effect ambiguity behavior, with an injected lost-ACK regression.
+A structural presence trace must not be upgraded into a write or finality
+permission.
