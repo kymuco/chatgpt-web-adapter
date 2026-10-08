@@ -116,6 +116,14 @@ def test_two_distinct_tabs_return_bounded_comparison_without_write() -> None:
     assert report["observations"]["translated_result"]["status"] == (
         "CONSISTENT_REFERENCE_FAMILY_SIGNATURE"
     )
+    assert report["observations"]["source_input"]["candidate_counts_by_document"] == {
+        "A": 1,
+        "B": 1,
+    }
+    assert report["observations"]["translated_result"]["candidate_counts_by_document"] == {
+        "A": 1,
+        "B": 1,
+    }
     assert report["observations"]["source_input"]["learned_locator_proven"] is False
     assert report["independent_renderer_process_proven"] is False
     assert report["selector_families_from_capture"] is False
@@ -246,6 +254,10 @@ def test_duplicate_source_candidates_are_ambiguous() -> None:
     }
     report = _classify(response)
     assert report["observations"]["source_input"]["status"] == "AMBIGUOUS"
+    assert report["observations"]["source_input"]["candidate_counts_by_document"] == {
+        "A": 1,
+        "B": 2,
+    }
     assert report["replay_executable"] is False
 
 
@@ -257,6 +269,10 @@ def test_missing_result_candidate_is_not_silent_success() -> None:
     }
     report = _classify(response)
     assert report["observations"]["translated_result"]["status"] == "MISSING"
+    assert report["observations"]["translated_result"]["candidate_counts_by_document"] == {
+        "A": 1,
+        "B": 0,
+    }
     assert report["new_write_authority"] is False
 
 
@@ -296,3 +312,36 @@ def test_node_synthetic_cdp_probe_and_source_syntax() -> None:
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_missing_both_documents_is_distinct_from_missing_one() -> None:
+    response = _response()
+    for item in response["observations"]:
+        item["translated_result"] = {
+            "candidateCount": 0,
+            "uniqueDescriptor": None,
+        }
+    report = _classify(response)
+    slot = report["observations"]["translated_result"]
+    assert slot["status"] == "MISSING"
+    assert slot["candidate_counts_by_document"] == {"A": 0, "B": 0}
+    assert slot["learned_locator_proven"] is False
+    assert report["new_write_authority"] is False
+
+
+def test_missing_in_a_and_ambiguous_in_b_preserves_both_counts() -> None:
+    response = _response()
+    response["observations"][0]["translated_result"] = {
+        "candidateCount": 0,
+        "uniqueDescriptor": None,
+    }
+    response["observations"][1]["translated_result"] = {
+        "candidateCount": 3,
+        "uniqueDescriptor": None,
+    }
+    report = _classify(response)
+    slot = report["observations"]["translated_result"]
+    assert slot["status"] == "MISSING"
+    assert slot["candidate_counts_by_document"] == {"A": 0, "B": 3}
+    assert report["replay_executable"] is False
+    assert "observedTabId" not in str(report)
