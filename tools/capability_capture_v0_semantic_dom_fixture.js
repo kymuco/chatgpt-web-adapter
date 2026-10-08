@@ -159,6 +159,44 @@ async function run() {
     /CAPTURE_C1_CLEANUP_UNPROVEN/
   );
   assert.equal(detachCount, 9);
+  // Regression: the outer Google Translate handler must route C1 rather
+  // than falling through to the base handler without a response.
+  worker.importScripts = (script) => {
+    assert.equal(script, "service_worker_capability_capture_v0.js");
+  };
+  const translatePath = path.join(
+    __dirname, "..", "src", "chatgpt_web_adapter",
+    "browser_native_extension", "service_worker_google_translate_capability.js"
+  );
+  vm.runInContext(fs.readFileSync(translatePath, "utf8"), worker);
+  const routed = [];
+  worker._cwaOnNativeMessageWithCaptureV0 = async (message) => {
+    routed.push(message.type);
+  };
+  const mustNotFallThrough = () => {
+    throw new Error("CAPTURE_C1_OUTER_ROUTER_FELL_THROUGH");
+  };
+  for (const type of [
+    "research_capture_translate_demo_v0",
+    "research_capture_translate_semantic_v0"
+  ]) {
+    await worker._cwaOnNativeMessageWithGoogleTranslate(
+      { protocol: "synthetic", type, request_id: "routing-test" },
+      {},
+      mustNotFallThrough
+    );
+  }
+  assert.deepEqual(routed, [
+    "research_capture_translate_demo_v0",
+    "research_capture_translate_semantic_v0"
+  ]);
+  let fallback = 0;
+  await worker._cwaOnNativeMessageWithGoogleTranslate(
+    { protocol: "synthetic", type: "unrelated_operation", request_id: "other" },
+    {},
+    async () => { fallback++; }
+  );
+  assert.equal(fallback, 1);
   process.stdout.write("CAPTURE_C1_TWO_DOCUMENT_FIXTURE_OK\n");
 }
 
