@@ -44,7 +44,8 @@ function makePage(tabId) {
   const root = new FakeElement("html", 0);
   const source = new FakeElement("textarea", 100, { parent: root });
   const result = new FakeElement("span", 750, { parent: root });
-  let inputListener = null;
+  const listeners = new Map();
+  let focused = false;
   let activeObserver = null;
   class FakeMutationObserver {
     constructor(fn) { this.fn = fn; }
@@ -55,16 +56,17 @@ function makePage(tabId) {
   }
   const document = {
     documentElement: Object.assign(root, { clientWidth: 1000 }),
+    hasFocus() { return focused; },
     addEventListener(name, callback, capture) {
-      assert.equal(name, "input");
+      assert.ok(["input", "keydown", "pointerdown"].includes(name));
       assert.equal(capture, true);
-      inputListener = callback;
+      assert.ok(!listeners.has(name));
+      listeners.set(name, callback);
     },
     removeEventListener(name, callback, capture) {
-      assert.equal(name, "input");
       assert.equal(capture, true);
-      assert.equal(inputListener, callback);
-      inputListener = null;
+      assert.equal(listeners.get(name), callback);
+      listeners.delete(name);
     }
   };
   const context = vm.createContext({
@@ -82,15 +84,31 @@ function makePage(tabId) {
   return {
     tabId, context, root, source, result,
     input(target = source, trusted = true) {
-      assert.ok(inputListener);
-      inputListener({ target, isTrusted: trusted, data: "sensitive source value" });
+      assert.ok(listeners.has("input"));
+      listeners.get("input")({
+        target, isTrusted: trusted, data: "sensitive source value"
+      });
     },
+    keyboard(trusted = true) {
+      assert.ok(listeners.has("keydown"));
+      listeners.get("keydown")({
+        isTrusted: trusted, key: "private keyboard event"
+      });
+    },
+    pointer(trusted = true) {
+      assert.ok(listeners.has("pointerdown"));
+      listeners.get("pointerdown")({
+        isTrusted: trusted
+      });
+    },
+    setFocus(next) { focused = next; },
     changed(node = result) {
       assert.ok(activeObserver);
       const rawNode = { parentElement: node, data: "sensitive result value" };
       activeObserver.fn([{ type: "characterData", target: rawNode }]);
     },
-    listenerActive() { return inputListener !== null; },
+    listenerActive() { return listeners.size > 0; },
+    listenersCount() { return listeners.size; },
     observerActive() { return activeObserver !== null; }
   };
 }
@@ -157,6 +175,11 @@ async function run() {
 
   // Source event, changed text node and cleanup work without output values.
   assert.equal(evalPage("install").installed, true);
+  page.setFocus(true);
+  page.keyboard(false);
+  page.pointer(false);
+  page.keyboard();
+  page.pointer();
   page.input(page.source, false);
   assert.equal(evalPage("observe").inputEvents, 0);
   const unsupported = new FakeElement("div", 320, { parent: page.root });
@@ -175,6 +198,11 @@ async function run() {
   assert.equal(sample.inputFilterCounts.unsupportedTarget, 1);
   assert.equal(sample.inputFilterCounts.invisibleTarget, 1);
   assert.ok(sample.observerWindowMs >= 0 && sample.observerWindowMs <= 20000);
+  assert.equal(sample.interactionSignals.trustedKeydown, 1);
+  assert.equal(sample.interactionSignals.trustedPointerdown, 1);
+  assert.equal(sample.interactionSignals.focusAtInstall, false);
+  assert.equal(sample.interactionSignals.focusAtLastSample, true);
+  assert.equal(sample.interactionSignals.everFocused, true);
   assert.equal(sample.sourceDescriptor.kind, "textarea");
   assert.equal(sample.mutationLeafCount, 1);
   assert.equal(sample.mutationLeafDescriptor.kind, "span");
@@ -186,6 +214,7 @@ async function run() {
   assert.equal(worker._cwaC2ValidateSample(sample).mutationLeafCount, 1);
   assert.equal(evalPage("remove").removed, true);
   assert.equal(page.listenerActive(), false);
+  assert.equal(page.listenersCount(), 0);
   assert.equal(page.observerActive(), false);
 
   // Distinct input targets make the source ambiguous, not leftmost.
@@ -220,11 +249,23 @@ async function run() {
   assert.equal(sample.mutationOverflow, true);
   evalPage("remove");
 
+  // Trusted keys without input must be an observable, content-free signal.
+  assert.equal(evalPage("install").installed, true);
+  page.keyboard();
+  sample = evalPage("observe");
+  assert.equal(sample.inputFilterCounts.observed, 0);
+  assert.equal(sample.interactionSignals.trustedKeydown, 1);
+  assert.equal(sample.inputEvents, 0);
+  assert.equal(evalPage("remove").removed, true);
+  assert.equal(page.listenersCount(), 0);
+
   // Public worker capture path: caller manually triggers event after install.
   setTimeout(() => page.input(), 75);
   setTimeout(() => page.changed(), 150);
   const success = await worker._cwaC2ObserveReferenceIndependentDelta(request);
-  assert.equal(success.schema, "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1");
+  assert.equal(success.schema, "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V2");
+  assert.equal(success.interactionSignals.trustedKeydown, 0);
+  assert.equal(success.interactionSignals.everFocused, true);
   assert.equal(success.inputFilterCounts.observed, 1);
   assert.equal(success.inputFilterCounts.trusted, 1);
   assert.equal(success.inputFilterCounts.eligible, 1);
