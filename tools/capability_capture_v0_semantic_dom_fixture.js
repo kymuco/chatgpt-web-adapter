@@ -161,6 +161,7 @@ async function run() {
   assert.equal(detachCount, 9);
   // Regression: the outer Google Translate handler must route C1 rather
   // than falling through to the base handler without a response.
+  worker.BRIDGE_PROTOCOL_VERSION = "synthetic";
   worker.importScripts = (script) => {
     assert.equal(script, "service_worker_capability_capture_v0.js");
   };
