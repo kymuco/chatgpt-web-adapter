@@ -24,14 +24,19 @@ async function onNativeMessage(message, port) {
                 releaseMessage,
                 releasePort,
                 (notebookMessage, notebookPort) =>
-                  _cwaOnNativeMessageWithGoogleTranslate(
+                  _cwaOnNativeMessageWithCaptureV0(
                     notebookMessage,
                     notebookPort,
-                    (capabilityMessage, capabilityPort) =>
-                      _cwaOnNativeMessageWithProductState(
-                        capabilityMessage,
-                        capabilityPort,
-                        _cwaBaseOnNativeMessage
+                    (captureMessage, capturePort) =>
+                      _cwaOnNativeMessageWithGoogleTranslate(
+                        captureMessage,
+                        capturePort,
+                        (capabilityMessage, capabilityPort) =>
+                          _cwaOnNativeMessageWithProductState(
+                            capabilityMessage,
+                            capabilityPort,
+                            _cwaBaseOnNativeMessage
+                          )
                       )
                   )
               )
