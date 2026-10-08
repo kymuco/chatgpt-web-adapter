@@ -34,13 +34,21 @@ def _sample(*, source_count: int = 1, result_count: int = 1) -> dict:
     return {
         "ok": True,
         "type": "research_capture_independent_delta_v0_result",
-        "schema": "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V0",
+        "schema": "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1",
         "productId": "google-translate-web",
         "captureMode": "EXPLICIT_SINGLE_TAB_EVENT_DELTA",
         "routeVerified": True,
         "sourceLanguage": "en",
         "targetLanguage": "es",
         "inputEventCount": 5 if source_count else 0,
+        "inputFilterCounts": {
+            "observed": 5 if source_count else 0,
+            "trusted": 5 if source_count else 0,
+            "eligible": 5 if source_count else 0,
+            "unsupportedTarget": 0,
+            "invisibleTarget": 0,
+        },
+        "observerWindowMs": 15000,
         "source": {
             "status": source,
             "candidateCount": source_count,
@@ -115,6 +123,15 @@ def test_explicit_capture_returns_no_authority_or_user_content() -> None:
     assert report["source"]["provenance"] == "TRUSTED_HUMAN_INPUT_EVENT"
     assert report["result"]["provenance"] == "POST_INPUT_GENERIC_DOM_MUTATIONS"
     assert report["source_event_identity_proven"] is True
+    assert report["input_filter_counts"] == {
+        "observed": 5,
+        "trusted": 5,
+        "eligible": 5,
+        "unsupportedTarget": 0,
+        "invisibleTarget": 0,
+    }
+    assert report["observer_window_ms"] == 15000
+    assert report["input_detection_diagnosis"] == "ELIGIBLE_TRUSTED_INPUT_OBSERVED"
     assert report["result_semantic_identity_proven"] is False
     assert report["source_selector_learned"] is False
     assert report["result_selector_learned"] is False
@@ -192,6 +209,9 @@ def test_response_lost_after_delegation_never_retries() -> None:
         ("structuralQuiet", "true"),
         ("inputEventCount", True),
         ("inputEventCount", 65),
+        ("observerWindowMs", True),
+        ("observerWindowMs", 20001),
+        ("inputFilterCounts", {"observed": 0}),
     ],
 )
 def test_spoofed_authority_or_identity_denied(key: str, value: object) -> None:
@@ -322,3 +342,80 @@ def test_host_lane_and_domain_dispatch_are_explicit() -> None:
     assert 'importScripts("service_worker_capability_capture_c2.js")' in outer
     assert "message?.type === CWA_C2_OPERATION" in outer
     assert "_cwaOnNativeMessageWithIndependentDelta(message, port, next)" in outer
+
+
+def test_c2_missing_source_with_full_window_proves_only_no_accepted_events() -> None:
+    sample = _sample(source_count=0, result_count=0)
+    report = _admit(sample)
+    assert report["input_detection_diagnosis"] == "NO_INPUT_EVENT_OBSERVED_DURING_WINDOW"
+    assert report["input_filter_counts"]["observed"] == 0
+    assert report["observer_window_ms"] == 15000
+    assert report["source_event_identity_proven"] is False
+    assert report["result_selector_learned"] is False
+
+
+@pytest.mark.parametrize(
+    "diagnostics,expected",
+    [
+        (
+            {"observed": 3, "trusted": 0, "eligible": 0,
+             "unsupportedTarget": 0, "invisibleTarget": 0},
+            "ONLY_UNTRUSTED_INPUT_EVENTS",
+        ),
+        (
+            {"observed": 5, "trusted": 5, "eligible": 0,
+             "unsupportedTarget": 5, "invisibleTarget": 0},
+            "FILTERED_UNSUPPORTED_TARGETS",
+        ),
+        (
+            {"observed": 2, "trusted": 2, "eligible": 0,
+             "unsupportedTarget": 0, "invisibleTarget": 2},
+            "FILTERED_INVISIBLE_TARGETS",
+        ),
+        (
+            {"observed": 2, "trusted": 2, "eligible": 0,
+             "unsupportedTarget": 1, "invisibleTarget": 1},
+            "FILTERED_UNSUPPORTED_AND_INVISIBLE_TARGETS",
+        ),
+    ],
+)
+def test_filtered_event_counts_distinguish_missing_source_reasons(
+    diagnostics: dict, expected: str,
+) -> None:
+    sample = _sample(source_count=0, result_count=0)
+    sample["inputFilterCounts"] = diagnostics
+    report = _admit(sample)
+    assert report["input_event_count"] == 0
+    assert report["input_detection_diagnosis"] == expected
+    assert report["source"]["status"] == "MISSING"
+    assert report["new_write_authority"] is False
+
+
+@pytest.mark.parametrize(
+    "diagnostics",
+    [
+        {"observed": 2, "trusted": 3, "eligible": 0,
+         "unsupportedTarget": 3, "invisibleTarget": 0},
+        {"observed": 1, "trusted": 1, "eligible": 0,
+         "unsupportedTarget": 0, "invisibleTarget": 0},
+        {"observed": 5, "trusted": 5, "eligible": 1,
+         "unsupportedTarget": 2, "invisibleTarget": 1},
+        {"observed": True, "trusted": 0, "eligible": 0,
+         "unsupportedTarget": 0, "invisibleTarget": 0},
+        {"observed": 0, "trusted": 0, "eligible": 0,
+         "unsupportedTarget": 0, "invisibleTarget": 0,
+         "text": "private hello"},
+    ],
+)
+def test_fake_or_leaky_c2_input_filter_evidence_rejected(diagnostics: dict) -> None:
+    sample = _sample(source_count=0, result_count=0)
+    sample["inputFilterCounts"] = diagnostics
+    with pytest.raises(ValueError, match="CAPTURE_C2_INPUT_FILTER"):
+        _admit(sample)
+
+
+def test_eligible_event_filter_count_must_match_admitted_event_count() -> None:
+    sample = _sample()
+    sample["inputFilterCounts"]["eligible"] = 4
+    with pytest.raises(ValueError, match="CAPTURE_C2_INPUT_FILTER_INCONSISTENT"):
+        _admit(sample)
