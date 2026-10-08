@@ -25,7 +25,6 @@ _FIXTURE_ROLES = frozenset({"textbox", "result_leaf", "other"})
 _FIXTURE_FAMILIES = frozenset(
     {"source_input_candidate", "translate_result_candidate", "other"}
 )
-_REQUIRED_SLOTS = ("source_input", "translated_result")
 _PHASE_EVIDENCE: dict[str, str] = {
     "route_languages": "CAPTURE_OBSERVED_ROUTE_ONLY",
     "clear_source": "HANDWRITTEN_REFERENCE_ONLY",
@@ -70,7 +69,10 @@ class SemanticFixtureNode:
     @classmethod
     def parse(cls, value: object) -> SemanticFixtureNode:
         if not isinstance(value, dict) or set(value) != {
-            "role", "family", "visible", "enabled"
+            "role",
+            "family",
+            "visible",
+            "enabled",
         }:
             raise ValueError("CAPTURE_V0_FIXTURE_DESCRIPTOR_INVALID")
         role = value["role"]
@@ -85,8 +87,7 @@ class SemanticFixtureNode:
         ):
             raise ValueError("CAPTURE_V0_FIXTURE_DESCRIPTOR_INVALID")
         return cls(
-            role=role, family=family,
-            visible=value["visible"], enabled=value["enabled"]
+            role=role, family=family, visible=value["visible"], enabled=value["enabled"]
         )
 
 
@@ -103,13 +104,17 @@ def evaluate_locator_fixture(nodes: Sequence[dict[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for slot in _REFERENCE_LOCATORS:
         count = sum(
-            1 for node in candidates
+            1
+            for node in candidates
             if node.role == slot["role"]
             and node.family == slot["family"]
-            and node.visible and node.enabled
+            and node.visible
+            and node.enabled
         )
-        status = "UNIQUE_IN_SYNTHETIC_FIXTURE" if count == 1 else (
-            "MISSING" if count == 0 else "AMBIGUOUS"
+        status = (
+            "UNIQUE_IN_SYNTHETIC_FIXTURE"
+            if count == 1
+            else ("MISSING" if count == 0 else "AMBIGUOUS")
         )
         result[slot["slot"]] = {
             "status": status,
@@ -143,8 +148,7 @@ def compile_semantic_replay_plan(
             "phase": phase,
             "reference_provenance": "HANDWRITTEN_REFERENCE_ANNOTATION",
             "capture_evidence": (
-                _PHASE_EVIDENCE[phase]
-                if structural else "CAPTURE_INCOMPLETE"
+                _PHASE_EVIDENCE[phase] if structural else "CAPTURE_INCOMPLETE"
             ),
         }
         for phase in candidate.phases
