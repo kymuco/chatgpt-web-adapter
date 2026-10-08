@@ -29,6 +29,7 @@ _REPORT_KEYS = frozenset(
         "inputEventCount",
         "inputFilterCounts",
         "observerWindowMs",
+        "interactionSignals",
         "source",
         "result",
         "structuralQuiet",
@@ -47,6 +48,36 @@ _STATUS_RESULT = {"MISSING", "ONE_STRUCTURAL_CHANGE_CANDIDATE", "AMBIGUOUS"}
 _KINDS_SOURCE = {"textarea", "input", "contenteditable"}
 _KINDS_RESULT = {"span", "div", "p", "section", "output", "other"}
 _REGIONS = {"left", "center", "right", "unknown"}
+_SAFE_REMOTE_ERRORS = frozenset(
+    {
+        "CAPTURE_C2_BUSY",
+        "CAPTURE_C2_INVALID_REQUEST",
+        "CAPTURE_C2_INVALID_LANGUAGES",
+        "CAPTURE_C2_CONSENT_REQUIRED",
+        "CAPTURE_C2_TAB_ROUTE_MISMATCH",
+        "CAPTURE_C2_TAB_ROUTE_DRIFT",
+        "CAPTURE_C2_PAGE_EVALUATION_FAILED",
+        "CAPTURE_C2_OBSERVER_NOT_FRESH",
+        "CAPTURE_C2_INVALID_SAMPLE",
+        "CAPTURE_C2_SOURCE_DESCRIPTOR_INVALID",
+        "CAPTURE_C2_SOURCE_DESCRIPTOR_UNEXPECTED",
+        "CAPTURE_C2_RESULT_DESCRIPTOR_INVALID",
+        "CAPTURE_C2_RESULT_DESCRIPTOR_UNEXPECTED",
+        "CAPTURE_C2_MUTATION_BOUND_EXCEEDED",
+        "CAPTURE_C2_NOT_OBSERVED",
+        "CAPTURE_C2_CLEANUP_UNPROVEN",
+        "CAPTURE_C2_OBSERVATION_FAILED",
+    }
+)
+_INTERACTION_KEYS = frozenset(
+    {
+        "trustedKeydown",
+        "trustedPointerdown",
+        "focusAtInstall",
+        "focusAtLastSample",
+        "everFocused",
+    }
+)
 
 
 def _language(code: str) -> str:
@@ -166,6 +197,46 @@ def _input_diagnosis(counts: dict[str, int]) -> str:
     return "FILTERED_INVISIBLE_TARGETS"
 
 
+def _interaction_signals(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != _INTERACTION_KEYS:
+        raise ValueError("CAPTURE_C2_INTERACTION_SHAPE_INVALID")
+    if any(
+        type(value[k]) is not int or not 0 <= value[k] <= 64
+        for k in ("trustedKeydown", "trustedPointerdown")
+    ):
+        raise ValueError("CAPTURE_C2_INTERACTION_BOUNDS_INVALID")
+    if any(
+        type(value[k]) is not bool
+        for k in ("focusAtInstall", "focusAtLastSample", "everFocused")
+    ):
+        raise ValueError("CAPTURE_C2_INTERACTION_FOCUS_INVALID")
+    if (value["focusAtInstall"] or value["focusAtLastSample"]) and not value[
+        "everFocused"
+    ]:
+        raise ValueError("CAPTURE_C2_INTERACTION_FOCUS_INCONSISTENT")
+    return {
+        "trusted_keydown": value["trustedKeydown"],
+        "trusted_pointerdown": value["trustedPointerdown"],
+        "focus_at_install": value["focusAtInstall"],
+        "focus_at_last_sample": value["focusAtLastSample"],
+        "ever_focused": value["everFocused"],
+    }
+
+
+def _input_diagnosis_with_context(
+    counts: dict[str, int], signals: dict[str, Any]
+) -> str:
+    if counts["observed"] > 0:
+        return _input_diagnosis(counts)
+    if signals["trusted_keydown"] > 0:
+        return "TRUSTED_KEYDOWN_WITHOUT_DOCUMENT_INPUT"
+    if signals["trusted_pointerdown"] > 0:
+        return "TRUSTED_POINTERDOWN_WITHOUT_DOCUMENT_INPUT"
+    if signals["ever_focused"]:
+        return "NO_DOCUMENT_INPUT_WITH_FOCUS_OBSERVED"
+    return "NO_DOCUMENT_INPUT_OR_FOCUS_OBSERVED"
+
+
 def validate_independent_capture(
     response: dict[str, Any],
     *,
@@ -173,7 +244,14 @@ def validate_independent_capture(
     target_language: str,
 ) -> dict[str, Any]:
     """Deny unexpected browser output, spoofed authority and content fields."""
-    if not isinstance(response, dict) or response.get("ok") is not True:
+    if not isinstance(response, dict):
+        raise ValueError("CAPTURE_C2_OBSERVATION_FAILED")
+    if response.get("ok") is not True:
+        # Do not print an untrusted error string from page/extension output.
+        # Only stable, static C2 error identifiers may cross to the CLI.
+        remote_error = response.get("error")
+        if type(remote_error) is str and remote_error in _SAFE_REMOTE_ERRORS:
+            raise ValueError(remote_error)
         raise ValueError("CAPTURE_C2_OBSERVATION_FAILED")
     if response.get("type") != _RESULT_TYPE:
         raise ValueError("CAPTURE_C2_RESULT_TYPE_INVALID")
@@ -185,7 +263,7 @@ def validate_independent_capture(
     if set(raw) != _REPORT_KEYS:
         raise ValueError("CAPTURE_C2_EXTRA_OR_MISSING_FIELDS")
     if (
-        raw["schema"] != "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1"
+        raw["schema"] != "CWA_CAPTURE_C2_INDEPENDENT_DELTA_V2"
         or raw["productId"] != "google-translate-web"
         or raw["captureMode"] != "EXPLICIT_SINGLE_TAB_EVENT_DELTA"
         or raw["routeVerified"] is not True
@@ -209,6 +287,7 @@ def validate_independent_capture(
     filters = _input_filter_counts(
         raw["inputFilterCounts"], accepted=raw["inputEventCount"]
     )
+    signals = _interaction_signals(raw["interactionSignals"])
     source = _slot(raw["source"], source=True, quiet=raw["structuralQuiet"])
     result = _slot(raw["result"], source=False, quiet=raw["structuralQuiet"])
     if (
@@ -230,7 +309,8 @@ def validate_independent_capture(
         "result": result,
         "input_event_count": raw["inputEventCount"],
         "input_filter_counts": filters,
-        "input_detection_diagnosis": _input_diagnosis(filters),
+        "input_detection_diagnosis": _input_diagnosis_with_context(filters, signals),
+        "input_interaction_signals": signals,
         "observer_window_ms": raw["observerWindowMs"],
         "structural_quiet": raw["structuralQuiet"],
         "source_event_identity_proven": source["status"] == "EVENT_TARGET_OBSERVED",
