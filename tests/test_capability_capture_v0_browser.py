@@ -69,8 +69,12 @@ class _FakeBridge:
 def test_explicit_capture_uses_only_observational_operation() -> None:
     bridge = _FakeBridge()
     result = capture_demo(
-        bridge, tab_id=27, source_language="en", target_language="es",
-        seconds=8, explicit_consent=True,
+        bridge,
+        tab_id=27,
+        source_language="en",
+        target_language="es",
+        seconds=8,
+        explicit_consent=True,
     )
     assert result == _result()
     [request] = bridge.requests
@@ -100,8 +104,11 @@ def test_explicit_capture_uses_only_observational_operation() -> None:
 def test_preflight_rejects_unsafe_requests_without_rpc(kwargs: dict) -> None:
     bridge = _FakeBridge()
     values = {
-        "tab_id": 27, "source_language": "en", "target_language": "es",
-        "seconds": 8, "explicit_consent": True,
+        "tab_id": 27,
+        "source_language": "en",
+        "target_language": "es",
+        "seconds": 8,
+        "explicit_consent": True,
     }
     values.update(kwargs)
     with pytest.raises(ValueError, match="CAPTURE_V0"):
@@ -118,8 +125,11 @@ def test_bridge_response_loss_is_not_retried() -> None:
     )
     with pytest.raises(RequestError, match="RESPONSE_LOST_AFTER_DELEGATION"):
         capture_demo(
-            bridge, tab_id=27, source_language="en",
-            target_language="es", explicit_consent=True,
+            bridge,
+            tab_id=27,
+            source_language="en",
+            target_language="es",
+            explicit_consent=True,
         )
     assert len(bridge.requests) == 1
 
@@ -184,12 +194,18 @@ def test_incomplete_capture_is_valid_observation_not_successful_replay() -> None
     "events",
     [
         [{"phase": "source_input_event", "t_ms": 1}],
-        [{"phase": "source_ready", "t_ms": 0, "role": "textbox"},
-         {"phase": "result_candidate_seen", "t_ms": 2}],
-        [{"phase": "source_ready", "t_ms": 0, "role": "textbox"},
-         {"phase": "source_input_event", "t_ms": -1}],
-        [{"phase": "source_ready", "t_ms": 0, "role": "textbox"},
-         {"phase": "source_input_event", "t_ms": 35000}],
+        [
+            {"phase": "source_ready", "t_ms": 0, "role": "textbox"},
+            {"phase": "result_candidate_seen", "t_ms": 2},
+        ],
+        [
+            {"phase": "source_ready", "t_ms": 0, "role": "textbox"},
+            {"phase": "source_input_event", "t_ms": -1},
+        ],
+        [
+            {"phase": "source_ready", "t_ms": 0, "role": "textbox"},
+            {"phase": "source_input_event", "t_ms": 35000},
+        ],
     ],
 )
 def test_trace_rejects_misordered_or_unbounded_timeline(events: list) -> None:
@@ -208,9 +224,9 @@ def test_browser_capture_wiring_stays_research_only() -> None:
     router = (extension / "service_worker_native_message_router.js").read_text(
         encoding="utf-8"
     )
-    host = (
-        ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py"
-    ).read_text(encoding="utf-8")
+    host = (ROOT / "src" / "chatgpt_web_adapter" / "browser_native_host.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "research_capture_translate_demo_v0" in worker
     assert 'importScripts("service_worker_capability_capture_v0.js")' in runtime
@@ -228,7 +244,7 @@ def test_browser_capture_wiring_stays_research_only() -> None:
     assert "document.addEventListener('input'" in worker
     assert "document.removeEventListener('input'" in worker
     assert "chrome.debugger.detach" in worker
-    assert 'replayExecutable: false' in worker
+    assert "replayExecutable: false" in worker
 
 
 def test_browser_capture_worker_js_syntax_and_dom_fixture() -> None:
@@ -237,5 +253,7 @@ def test_browser_capture_worker_js_syntax_and_dom_fixture() -> None:
     )
     subprocess.run(
         ["node", str(ROOT / "tools" / "capability_capture_v0_dom_fixture.js")],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
