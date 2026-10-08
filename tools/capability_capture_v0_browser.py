@@ -102,11 +102,17 @@ def validate_capture_trace(
         phase = event.get("phase")
         if phase not in _PHASES or phase in seen:
             raise ValueError("CAPTURE_V0_BAD_PHASE")
-        keys = {"phase", "t_ms", "role"} if phase == "source_ready" else {
-            "phase",
-            "t_ms",
-        }
-        if set(event) != keys or (phase == "source_ready" and event["role"] != "textbox"):
+        keys = (
+            {"phase", "t_ms", "role"}
+            if phase == "source_ready"
+            else {
+                "phase",
+                "t_ms",
+            }
+        )
+        if set(event) != keys or (
+            phase == "source_ready" and event["role"] != "textbox"
+        ):
             raise ValueError("CAPTURE_V0_UNBOUNDED_EVENT")
         t_ms = event["t_ms"]
         if type(t_ms) is not int or t_ms < last_ms or t_ms < 0 or t_ms > 25000:
