@@ -452,6 +452,31 @@ All results preserve `semantic_finality_proven=false`,
 product mutations. A separate explicit effect budget, source-text binding,
 output-text stability and ambiguous-ACK reconciliation proof remain gates.
 
+### C1 first live attempt — missing outer dispatch, repaired
+
+The first two-tab local attempt (2026-10-08) produced
+`BROWSER_NATIVE_BRIDGE_RESPONSE_LOST_AFTER_DELEGATION: timed out`.
+This is **not** a measured DOM-locator failure or two-document verdict.
+Inspection revealed that the existing outer Google Translate message handler
+delegated only `research_capture_translate_demo_v0`; the new
+`research_capture_translate_semantic_v0` message fell through to the
+unrelated base handler rather than reaching the C1 dispatcher. This routing
+bug is corrected within the research Translate domain; the frozen native
+router remains unchanged. A synthetic test now explicitly executes both
+outer branches and refuses fallthrough.
+
+A second independent defect affected error classification: the old C1 local
+RPC timeout was 20 seconds with only a two-second delegated-response margin,
+whereas the native broker may wait the delegated timeout **plus five seconds**
+before replying. The local socket could therefore expire before the broker
+returned a useful `BROWSER_NATIVE_EXTENSION_TIMEOUT`. The research
+client now reserves a ten-second response margin on a 30-second RPC
+budget; it still makes a single, non-retried, read-only request.
+
+**Live outcome remains UNPROVEN after repair** until a fresh research extension
+reload and another explicit, consented C1 observation. Do not interpret the
+original timeout as `MISSING` or `AMBIGUOUS`, nor silently retry it.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
