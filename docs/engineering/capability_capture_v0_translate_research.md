@@ -630,6 +630,82 @@ requires investigating the family as possible UI decoration. Never write,
 clear, or retry automatically; do not read/export page text. Treat any
 mismatch as an experimental result.
 
+### C1 completed crossed-state human demonstration — 2026-10-08
+
+Two *separately invoked*, explicit-consent, read-only C1 V2 observations were
+performed on the same two specified exact-route (`en → es`) Translate tabs,
+with the operator **manually** swapping which page displayed a benign
+translation. No CWA product writes, navigation, content export or retry
+occurred during the C1 snapshots.
+
+| Human-prepared state | A result raw/visible/leaves | B result raw/visible/leaves | Source A/B |
+| --- | --- | --- | --- |
+| A cleared, B translated (leg 1) | `0/0/0` | `2/2/1` | `1/1` |
+| A translated, B cleared (leg 2) | `2/2/1` | `0/0/0` | `1/1` |
+
+The explicit per-document V2 diagnoses invert along with the manually
+prepared page states:
+
+```text
+Leg 1: A=NO_REFERENCE_SELECTOR_MATCH, B=VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT
+Leg 2: A=VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT, B=NO_REFERENCE_SELECTOR_MATCH
+```
+
+Both outputs retained:
+
+```text
+independent_documents_observed      true
+independent_renderer_process_proven false
+selector_families_from_capture      false
+learned_locator_proven              false
+semantic_finality_proven            false
+replay_executable                   false
+new_write_authority                 false
+automatic_retry                     false
+```
+
+**Verdict:**
+`C1_REFERENCE_FAMILY_RESULT_STATE_ASSOCIATION_SUPPORTED_BY_CROSSOVER`.
+This crossed pair supports the narrower claim that the **existing handwritten
+result-family DOM footprint co-varies with the operator-described
+empty/translated page state, in both directions and on both tabs**. It is
+stronger than one observation because it rules out a static tab-A vs tab-B
+difference as a sufficient explanation of these two cases.
+
+It does not prove the leaf's text was a correct translation, isolate all other
+changes caused by typing/clearing, rule out transient timing effects, establish
+unique node identity across reloads, infer family selectors from the
+demonstration, or grant replay/effect authority. These are two observational
+contrasts, not a randomized causal intervention experiment. The earlier
+both-empty results remain valid observations of a different or undetermined
+state; no retrospective exact root cause is assigned.
+
+**Stop line / follow-on design:** C1 can be closed for this *bounded*
+state-association question. The next research slice should test whether an
+observer can infer source and result candidates **without consulting
+Google Translate's handwritten selector families**:
+
+1. Derive a source candidate from the element receiving the consenting
+   human's input event, recording only coarse, bounded semantic descriptors
+   and opaque **ephemeral** within-demonstration node identity.
+2. Derive a set of potential result-region candidates from *bounded
+   structural changes* between the empty and translated state, without
+   reading, hashing, preserving, or exporting user text.
+3. Compare candidate identity/uniqueness across independently prepared
+   documents and crossed output states. If zero/multiple equivalent
+   candidates survive, classify `MISSING`/`AMBIGUOUS`; never silently
+   adopt the handwritten reference.
+4. Compare learned candidates against the handwritten reference **only after
+   candidate generation**, as held-out evaluation, with provenance recorded.
+   The existing reference cannot act as the source of new locator features.
+5. Keep the candidate spec offline and non-executable. A separate
+   user-approved, one-effect product-write budget plus source-text finality,
+   translated-text stability, and lost-ACK reconciliation are later,
+   independent admission gates.
+
+No such reference-independent locator discovery or replay is yet implemented
+or live-proven by the current C1 results.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
