@@ -17,6 +17,7 @@ importScripts("service_worker_deepseek_provider.js");
 importScripts("service_worker_gemini_provider.js");
 importScripts("service_worker_gemini_notebook_capability.js");
 importScripts("service_worker_google_translate_capability.js");
+importScripts("service_worker_capability_capture_v0.js");
 importScripts("service_worker_native_message_router.js");
 importScripts("service_worker_official_page_turn_lifecycle.js");
 importScripts("service_worker_native_turn_lifecycle.js");
