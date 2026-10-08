@@ -18,7 +18,7 @@ function _cwaCaptureV0PageExpression(mode) {
       "const value=source instanceof HTMLTextAreaElement?source.value:(source.textContent||'');" +
       "if(value.trim())return {ready:false,reason:'SOURCE_NOT_EMPTY'};" +
       "let count=0;" +
-      "const listener=e=>{if(e.target===source)count=Math.min(64,count+1)};" +
+      "const listener=e=>{if(e.target===source)count=Math.min(65,count+1)};" +
       "document.addEventListener('input',listener,true);" +
       "window[key]={read:()=>count,stop:()=>document.removeEventListener('input',listener,true)};" +
       "return {ready:true,sourceRole:'textbox',sourceControl:'visible_leftmost_input'};" + suffix;
@@ -85,6 +85,7 @@ async function _cwaCaptureV0ObserveTranslate(message) {
   const start = performance.now();
   let lastInput = 0;
   let lastResult = false;
+  let candidateEverSeen = false;
   let resultSince = null;
   let stable = false;
   let resolved = false;
@@ -123,7 +124,10 @@ async function _cwaCaptureV0ObserveTranslate(message) {
         snapshot.candidateCount === 1;
       if (oneResult && !lastResult) {
         resultSince = performance.now();
-        events.push({ phase: "result_candidate_seen", t_ms: Math.round(performance.now() - start) });
+        if (!candidateEverSeen) {
+          events.push({ phase: "result_candidate_seen", t_ms: Math.round(performance.now() - start) });
+          candidateEverSeen = true;
+        }
       } else if (!oneResult) {
         resultSince = null;
         stable = false;
