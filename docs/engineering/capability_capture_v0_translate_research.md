@@ -316,6 +316,71 @@ Those requirements are not inferred from a valid trace's status flags or
 from the manually annotated candidate spec. The offline gap audit's
 role is to *stop* premature compilation/replay, not to pass it.
 
+### Slice C0 — semantic plan compiler (offline, not a replay executor)
+
+`tools/capability_capture_v0_semantic_plan.py` accepts an admitted
+structural trace and **independently specified** language expectations. It
+joins the trace with the explicitly hand-written PR16.2 Translate reference
+annotation to produce a small, non-executable semantic plan.
+
+```powershell
+python -m tools.capability_capture_v0_semantic_plan .\\trace.json `
+  --source-language en `
+  --target-language es
+```
+
+The plan gives each reference phase its own provenance:
+`CAPTURE_OBSERVED_ROUTE_ONLY`, `CAPTURE_OBSERVED_HUMAN_INPUT_EVENT_ONLY`,
+`CAPTURE_OBSERVED_STRUCTURAL_PRESENCE_ONLY`, or
+`HANDWRITTEN_REFERENCE_ONLY`. It does **not** treat the first seen event as
+a uniquely identified DOM input, or presence stability as translated-text
+stability.
+
+The two preliminary locator templates are explicitly
+`HANDWRITTEN_REFERENCE_HEURISTIC_NOT_CAPTURED`: a visible enabled textbox
+candidate and a visible result-leaf candidate. **Neither template is a
+learned locator.** Their product-specific grouping was supplied by the
+existing reference, not derived from the four emitted live event labels.
+
+`evaluate_locator_fixture(...)` is a pure, bounded synthetic DOM-descriptor
+evaluator, not a CDP command. It counts exact role/family matches. Zero yields
+`MISSING`, one yields `UNIQUE_IN_SYNTHETIC_FIXTURE`, two or more yields
+`AMBIGUOUS`; ordering and a `leftmost` fallback never grant authority.
+Even a unique synthetic fixture does not prove live locator identity.
+
+The plan always contains:
+
+```text
+input.value_captured            false
+locator_identity_proven         false
+required_finality_proven        false
+new_write_authority             false
+automatic_retry                 false
+executable                      false
+promotion_verdict               BLOCKED_UNPROVEN_SEMANTICS_AND_AUTHORITY
+```
+
+It cannot issue a browser command, bind a source-text value, navigate,
+reconcile a product write, or decide to repeat a mutation. This intentionally
+tests the **gap** between observed trace and an executable API, not a
+premature positive replay proof.
+
+Offline targeted checks:
+
+```powershell
+python -m pytest -q tests/test_capability_capture_v0_semantic_plan.py
+python -m ruff check tools/capability_capture_v0_semantic_plan.py tests/test_capability_capture_v0_semantic_plan.py
+python -m ruff format --check tools/capability_capture_v0_semantic_plan.py tests/test_capability_capture_v0_semantic_plan.py
+```
+
+**Slice C1 future evidence gate:** capture sufficiently discriminating
+source/result semantic attributes under explicit privacy constraints;
+prove locator uniqueness across a fresh renderer and at least one UI
+variation; explicitly authorize exactly one effect; inject post-effect lost
+ACK and require reconciliation/no automatic retry; compare the product-owned
+semantic result against the existing handwritten `translate_text`
+reference. The Slice B trace alone is insufficient for all of these.
+
 ### Next falsification step
 
 Only **after live Slice B** should Slice C introduce an executable replay
