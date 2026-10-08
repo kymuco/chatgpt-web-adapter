@@ -145,6 +145,59 @@ leave the tab otherwise undisturbed. Its result is a diagnostic observation,
 not proof of learned source/result locator, translation identity or replay
 authority. No blind retry or automatic product write is allowed.
 
+## Follow-up live observations — two distinct outcomes (2026-10-08)
+
+On `f03eff1f43a00fe9f48088a103c18e55c94a77ef` the human reported:
+
+1. First invocation raised Python `CAPTURE_C2_OBSERVATION_FAILED`.
+   The old Python admission wrapper discarded the extension's
+   `CAPTURE_C2_*` error code, so the failure stage cannot be reconstructed
+   from that traceback. Do not infer debugger attachment failure,
+   observer collision, or cleanup failure.
+2. Second invocation returned `CWA_CAPTURE_C2_INDEPENDENT_DELTA_V1`,
+   `observer_window_ms=15918`, with **observed=0**, **trusted=0**,
+   **eligible=0** and zero source/result candidates. This rules out a
+   *post-event acceptance-filter* explanation for this run; no `input`
+   event was observed by the installed **document-level listener**.
+   It does **not** prove the human typed during that active window or that
+   all relevant user input events bubble to that document.
+
+No source/result locator was learned; no replay authority was granted.
+
+### V2: controlled, content-free interaction diagnosis
+
+New schema `CWA_CAPTURE_C2_INDEPENDENT_DELTA_V2` extends the same
+consented, single-call, bounded page observer with only five signals:
+
+```text
+trustedKeydown          count of trusted keydown events, 0..64
+trustedPointerdown      count of trusted pointerdown events, 0..64
+focusAtInstall          document.hasFocus() after listener install
+focusAtLastSample       document.hasFocus() at last observation
+everFocused             whether sampled document focus was ever true
+```
+
+The capture never reads key values/codes, input event payload, pointer
+coordinates, element labels, DOM text, selectors, or user content. All
+listeners are removed in the cleanup path and values are admitted through a
+strict closed-schema Python validator. If `input=0` but trusted keydown
+events are recorded, investigate event path/retargeting/embedded document.
+If both input and keyboard events are zero but focus was never observed,
+investigate foreground timing and whether the target document received
+focus. A pointer signal without input shows only document interaction, not
+typing. These are bounded diagnostic hypotheses, **not causal proof**.
+
+For extension failure replies, the Python CLI now propagates only a fixed
+allowlist of predefined `CAPTURE_C2_*` error codes (e.g.,
+`CAPTURE_C2_OBSERVER_NOT_FRESH` or `CAPTURE_C2_PAGE_EVALUATION_FAILED`).
+It never forwards arbitrary extension/page error strings.
+
+**V2 requires a new offline CI gate and then one explicit, human-controlled
+live proof.** The protocol's original read-only/no-replay/no-retry boundaries
+are unchanged. The instrument has no human-facing ready notification, so
+typing time relative to listener installation is still not independently
+proven by the local CLI.
+
 ## Admission and falsification
 
 Strict outer RPC timeout reserves ten seconds for native-host response
