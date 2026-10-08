@@ -42,7 +42,10 @@ _RESULT_KEYS = frozenset(
         "rawContentRetained",
     }
 )
-_OBSERVATION_KEYS = frozenset({"routeVerified", "source_input", "translated_result"})
+_OBSERVATION_KEYS = frozenset(
+    {"routeVerified", "source_input", "translated_result", "resultFamilyStages"}
+)
+_STAGE_KEYS = frozenset({"rawFamily", "visibleFamily", "visibleLeaves"})
 _SLOT_KEYS = frozenset({"candidateCount", "uniqueDescriptor"})
 _DESCRIPTOR_KEYS = frozenset({"role", "kind", "region", "interactable"})
 
@@ -87,6 +90,29 @@ def _slot(value: object, slot: str) -> dict[str, Any]:
     }
 
 
+def _stages(value: object, *, result_count: int) -> dict[str, int]:
+    if not isinstance(value, dict) or set(value) != _STAGE_KEYS:
+        raise ValueError("CAPTURE_C1_RESULT_STAGE_SHAPE_INVALID")
+    if any(type(value[k]) is not int or not 0 <= value[k] <= 8 for k in _STAGE_KEYS):
+        raise ValueError("CAPTURE_C1_RESULT_STAGE_COUNT_INVALID")
+    if not (
+        value["rawFamily"] >= value["visibleFamily"] >= value["visibleLeaves"]
+        and value["visibleLeaves"] == result_count
+    ):
+        raise ValueError("CAPTURE_C1_RESULT_STAGE_INCONSISTENT")
+    return {name: value[name] for name in ("rawFamily", "visibleFamily", "visibleLeaves")}
+
+
+def _result_stage_diagnosis(stages: dict[str, int]) -> str:
+    if stages["rawFamily"] == 0:
+        return "NO_REFERENCE_SELECTOR_MATCH"
+    if stages["visibleFamily"] == 0:
+        return "SELECTOR_MATCHES_NOT_VISIBLE"
+    if stages["visibleLeaves"] == 0:
+        return "VISIBLE_FAMILY_WITHOUT_LEAF"
+    return "VISIBLE_REFERENCE_FAMILY_LEAF_PRESENT"
+
+
 def validate_semantic_observation(
     response: dict[str, Any],
     *,
@@ -106,7 +132,7 @@ def validate_semantic_observation(
     if set(raw) != _RESULT_KEYS:
         raise ValueError("CAPTURE_C1_EXTRA_OR_MISSING_FIELDS")
     if (
-        raw["schema"] != "CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE"
+        raw["schema"] != "CWA_CAPTURE_C1_TWO_DOCUMENT_STRUCTURE_V2"
         or raw["productId"] != "google-translate-web"
         or raw["captureMode"] != "EXPLICIT_TWO_TAB_OBSERVE_ONLY"
         or raw["sourceLanguage"] != _lang(source_language)
@@ -129,10 +155,15 @@ def validate_semantic_observation(
             raise ValueError("CAPTURE_C1_OBSERVATION_SHAPE_INVALID")
         if value["routeVerified"] is not True:
             raise ValueError("CAPTURE_C1_ROUTE_NOT_PROVEN")
+        slots = {slot: _slot(value[slot], slot) for slot in _SLOTS}
         parsed.append(
             {
                 "routeVerified": True,
-                **{slot: _slot(value[slot], slot) for slot in _SLOTS},
+                **slots,
+                "resultFamilyStages": _stages(
+                    value["resultFamilyStages"],
+                    result_count=slots["translated_result"]["candidateCount"],
+                ),
             }
         )
     return {
@@ -166,11 +197,8 @@ def classify_semantic_stability(report: dict[str, Any]) -> dict[str, Any]:
             status = "CHANGED_STRUCTURAL_SIGNATURE"
         else:
             status = "CONSISTENT_REFERENCE_FAMILY_SIGNATURE"
-        comparison[slot] = {
+        item = {
             "status": status,
-            # Preserve the bounded (0..8) per-document counts that the
-            # observer already returns. This distinguishes missing candidates
-            # in A/B without exporting node text, URLs or tab identifiers.
             "candidate_counts_by_document": {
                 "A": a["candidateCount"],
                 "B": b["candidateCount"],
@@ -180,8 +208,20 @@ def classify_semantic_stability(report: dict[str, Any]) -> dict[str, Any]:
             ),
             "learned_locator_proven": False,
         }
+        if slot == "translated_result":
+            stages_a = first["resultFamilyStages"]
+            stages_b = second["resultFamilyStages"]
+            item["reference_family_stages_by_document"] = {
+                "A": stages_a,
+                "B": stages_b,
+            }
+            item["reference_family_diagnosis_by_document"] = {
+                "A": _result_stage_diagnosis(stages_a),
+                "B": _result_stage_diagnosis(stages_b),
+            }
+        comparison[slot] = item
     return {
-        "schema": "CWA_CAPTURE_C1_STRUCTURAL_COMPARISON",
+        "schema": "CWA_CAPTURE_C1_STRUCTURAL_COMPARISON_V2",
         "observations": comparison,
         "independent_documents_observed": True,
         "independent_renderer_process_proven": False,
