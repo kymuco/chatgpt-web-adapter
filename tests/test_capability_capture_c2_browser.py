@@ -347,7 +347,9 @@ def test_host_lane_and_domain_dispatch_are_explicit() -> None:
 def test_c2_missing_source_with_full_window_proves_only_no_accepted_events() -> None:
     sample = _sample(source_count=0, result_count=0)
     report = _admit(sample)
-    assert report["input_detection_diagnosis"] == "NO_INPUT_EVENT_OBSERVED_DURING_WINDOW"
+    assert (
+        report["input_detection_diagnosis"] == "NO_INPUT_EVENT_OBSERVED_DURING_WINDOW"
+    )
     assert report["input_filter_counts"]["observed"] == 0
     assert report["observer_window_ms"] == 15000
     assert report["source_event_identity_proven"] is False
@@ -358,29 +360,50 @@ def test_c2_missing_source_with_full_window_proves_only_no_accepted_events() -> 
     "diagnostics,expected",
     [
         (
-            {"observed": 3, "trusted": 0, "eligible": 0,
-             "unsupportedTarget": 0, "invisibleTarget": 0},
+            {
+                "observed": 3,
+                "trusted": 0,
+                "eligible": 0,
+                "unsupportedTarget": 0,
+                "invisibleTarget": 0,
+            },
             "ONLY_UNTRUSTED_INPUT_EVENTS",
         ),
         (
-            {"observed": 5, "trusted": 5, "eligible": 0,
-             "unsupportedTarget": 5, "invisibleTarget": 0},
+            {
+                "observed": 5,
+                "trusted": 5,
+                "eligible": 0,
+                "unsupportedTarget": 5,
+                "invisibleTarget": 0,
+            },
             "FILTERED_UNSUPPORTED_TARGETS",
         ),
         (
-            {"observed": 2, "trusted": 2, "eligible": 0,
-             "unsupportedTarget": 0, "invisibleTarget": 2},
+            {
+                "observed": 2,
+                "trusted": 2,
+                "eligible": 0,
+                "unsupportedTarget": 0,
+                "invisibleTarget": 2,
+            },
             "FILTERED_INVISIBLE_TARGETS",
         ),
         (
-            {"observed": 2, "trusted": 2, "eligible": 0,
-             "unsupportedTarget": 1, "invisibleTarget": 1},
+            {
+                "observed": 2,
+                "trusted": 2,
+                "eligible": 0,
+                "unsupportedTarget": 1,
+                "invisibleTarget": 1,
+            },
             "FILTERED_UNSUPPORTED_AND_INVISIBLE_TARGETS",
         ),
     ],
 )
 def test_filtered_event_counts_distinguish_missing_source_reasons(
-    diagnostics: dict, expected: str,
+    diagnostics: dict,
+    expected: str,
 ) -> None:
     sample = _sample(source_count=0, result_count=0)
     sample["inputFilterCounts"] = diagnostics
@@ -394,17 +417,42 @@ def test_filtered_event_counts_distinguish_missing_source_reasons(
 @pytest.mark.parametrize(
     "diagnostics",
     [
-        {"observed": 2, "trusted": 3, "eligible": 0,
-         "unsupportedTarget": 3, "invisibleTarget": 0},
-        {"observed": 1, "trusted": 1, "eligible": 0,
-         "unsupportedTarget": 0, "invisibleTarget": 0},
-        {"observed": 5, "trusted": 5, "eligible": 1,
-         "unsupportedTarget": 2, "invisibleTarget": 1},
-        {"observed": True, "trusted": 0, "eligible": 0,
-         "unsupportedTarget": 0, "invisibleTarget": 0},
-        {"observed": 0, "trusted": 0, "eligible": 0,
-         "unsupportedTarget": 0, "invisibleTarget": 0,
-         "text": "private hello"},
+        {
+            "observed": 2,
+            "trusted": 3,
+            "eligible": 0,
+            "unsupportedTarget": 3,
+            "invisibleTarget": 0,
+        },
+        {
+            "observed": 1,
+            "trusted": 1,
+            "eligible": 0,
+            "unsupportedTarget": 0,
+            "invisibleTarget": 0,
+        },
+        {
+            "observed": 5,
+            "trusted": 5,
+            "eligible": 1,
+            "unsupportedTarget": 2,
+            "invisibleTarget": 1,
+        },
+        {
+            "observed": True,
+            "trusted": 0,
+            "eligible": 0,
+            "unsupportedTarget": 0,
+            "invisibleTarget": 0,
+        },
+        {
+            "observed": 0,
+            "trusted": 0,
+            "eligible": 0,
+            "unsupportedTarget": 0,
+            "invisibleTarget": 0,
+            "text": "private hello",
+        },
     ],
 )
 def test_fake_or_leaky_c2_input_filter_evidence_rejected(diagnostics: dict) -> None:
