@@ -17,6 +17,9 @@ function _cwaCaptureV0PageExpression(mode) {
       "const source=fields[0];if(!source)return {ready:false,reason:'SOURCE_MISSING'};" +
       "const value=source instanceof HTMLTextAreaElement?source.value:(source.textContent||'');" +
       "if(value.trim())return {ready:false,reason:'SOURCE_NOT_EMPTY'};" +
+      "const results=Array.from(document.querySelectorAll('[jsname=\\\"W297wb\\\"],[jsname=\\\"jqKxS\\\"]')).filter(visible);" +
+      "const leaves=results.filter(e=>!results.some(x=>x!==e&&e.contains(x)));" +
+      "if(leaves.some(e=>Boolean((e.textContent||'').trim())))return {ready:false,reason:'RESULT_NOT_CLEARED'};" +
       "let count=0;" +
       "const listener=e=>{if(e.target===source)count=Math.min(65,count+1)};" +
       "document.addEventListener('input',listener,true);" +
