@@ -106,8 +106,10 @@ See [docs/providers.md](docs/providers.md) for the detailed matrix and finality 
 
 - **Latest public release:** `v0.3.0` — 2026-09-01.
 - **Published package version:** `0.3.0`.
-- **Current `main`:** includes substantial post-0.3 work, including the completed PR15
-  architecture reset and experimental DeepSeek/Gemini provider proofs.
+- **Current `main`:** includes post-0.3 PR15 architecture, PR16 non-chat
+  capabilities and private artifact research, plus PR17.1/17.2 background
+  ChatGPT selection/submit repair and conversation-local reasoning scope proof.
+  The exact PR17.2 checkpoint is [documented here](docs/engineering/pr17_2_canonical_product_checkpoint.md).
 
 Do not assume every behavior described for current `main` exists in the published
 0.3.0 wheel. [STATUS.md](STATUS.md) is the compact source of truth for release/main
