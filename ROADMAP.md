@@ -1,6 +1,6 @@
 # chatgpt-web-adapter Roadmap
 
-_Last updated: 2026-09-26_
+_Last updated: 2026-10-08_
 
 This roadmap describes the current direction after CWA 0.3 and the completed PR15
 architecture reset.
@@ -250,9 +250,44 @@ automatic retry = false
 
 No shared hosted-capability abstraction is introduced by default.
 
-## Current direction after PR16
+### PR16.5-16.8 — generated-artifact lifecycle proof and private stop line
 
-After the documentation/discovery surface catches up, stop architecture-driven expansion.
+Completed on `main` by #190, #192 and #194, after PR16.5 (#188).
+
+- Audio Overview: experimental module-only asynchronous generation/observation.
+- Audio retrieval and independent Video generation/observation/retrieval:
+  **private** proof surfaces only.
+- Shared browser media byte retrieval, staging/integrity and Python orchestration:
+  private consolidation only.
+- Explicit non-goals: public Video API, `HostedArtifactLifecycle`, artifact
+  registry/factory, generic filesystem publication and universal artifact schema.
+
+### PR17.1-17.2 — background ChatGPT selection and submit
+
+Completed by #196, #198 and #199.
+
+- Ordinary-text background Enter commit and strict reasoning-mode selection no
+  longer need tab foreground activation, including proven fresh inactive tabs.
+- The shipping reasoning selector still uses the exact product `0..2` slider
+  with CDP background focus emulation; direct option clicking was not promoted.
+- `FAST/BALANCED/DEEP` remain per-turn strict prewrite requirements.
+- `reasoning_preservation = AVAILABLE` with
+  `CONVERSATION_LOCAL_DURABLE` scope for existing conversations.
+- New-chat default matched `LAST_SELECTED_MODE_OBSERVED`.
+- `model_preservation = UNKNOWN`; preservation is not write authority.
+
+See [the exact-main checkpoint](docs/engineering/pr17_2_canonical_product_checkpoint.md).
+The latest published package remains `v0.3.0`, which does not automatically
+include these post-release source capabilities.
+
+## Current direction after PR17.2
+
+Keep the existing runtime/product contract stable. Prioritize release/install
+reproducibility and bounded consumer-driven or drift-driven repairs. The first
+possible CWA Future experiment is explicitly **non-canonical research**:
+human demonstration → bounded semantic trace → private CapabilitySpec candidate
+→ browser-owned replay equivalence. Start with Google Translate and require
+independent product evidence before considering Studio/registry productization.
 
 The next runtime work should be **consumer-driven** or **drift-driven**.
 
