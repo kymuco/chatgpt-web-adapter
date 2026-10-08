@@ -81,6 +81,15 @@ assert.equal(removed.removed, true);
 assert.equal(listeners.has("input"), false);
 assert.equal(evaluate("observe").ready, false);
 
+// A stale product result must block arming before human input is observed.
+source.value = "";
+output.textContent = "stale result from an earlier demonstration";
+const refused = evaluate("install");
+assert.equal(refused.ready, false);
+assert.equal(refused.reason, "RESULT_NOT_CLEARED");
+assert.equal(listeners.has("input"), false);
+output.textContent = "";
+
 // The page-side counter must expose overflow (65), not silently clamp to 64.
 source.value = "";
 assert.equal(evaluate("install").ready, true);
