@@ -250,8 +250,7 @@ def test_prepared_binding_is_visible_only_to_own_execution_context() -> None:
             "headers.txt",
         )
         owner_max_time = _curl_max_time(owner_curl)
-        # Float serialization may round a 10-second deadline a few ULPs upward.
-        assert 0.0 < owner_max_time <= 10.0 + 1e-9
+        assert 0.0 < owner_max_time <= 10.0
         assert owner_max_time != pytest.approx(77.0)
 
         owner_requirements, owner_proof = client._get_ready_requirements()
