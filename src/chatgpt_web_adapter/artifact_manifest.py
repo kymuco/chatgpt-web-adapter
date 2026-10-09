@@ -5,7 +5,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, TextIO
 
 ARTIFACT_MANIFEST_SCHEMA = 1
 SNAPSHOT_ARTIFACT_KIND = "conversation_snapshot"
@@ -115,6 +115,28 @@ def render_artifact_manifest(manifest: StableArtifactManifest) -> str:
     )
 
 
+def open_artifact_text(
+    path: str | Path,
+    *,
+    exclusive: bool = False,
+    encoding: str = "utf-8",
+    newline: str = "\n",
+) -> TextIO:
+    """Open a new CWA-owned artifact with owner-only permissions on POSIX."""
+
+    artifact_path = Path(path)
+    if os.name != "nt":
+        flags = os.O_WRONLY | os.O_CREAT
+        flags |= os.O_EXCL if exclusive else os.O_TRUNC
+        descriptor = os.open(artifact_path, flags, 0o600)
+        return os.fdopen(descriptor, "w", encoding=encoding, newline=newline)
+    return artifact_path.open(
+        "x" if exclusive else "w",
+        encoding=encoding,
+        newline=newline,
+    )
+
+
 def write_artifact_text(
     path: str | Path,
     text: str,
@@ -130,16 +152,12 @@ def write_artifact_text(
     Windows keeps its platform-appropriate default. Existing files are not
     re-permissioned."""
     artifact_path = Path(path)
-    if os.name != "nt":
-        descriptor = os.open(
-            artifact_path,
-            os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-            0o600,
-        )
-        with os.fdopen(descriptor, "w", encoding=encoding, newline=newline) as stream:
-            stream.write(text)
-    else:
-        artifact_path.write_text(text, encoding=encoding, newline=newline)
+    with open_artifact_text(
+        artifact_path,
+        encoding=encoding,
+        newline=newline,
+    ) as stream:
+        stream.write(text)
     return artifact_path
 
 
@@ -148,12 +166,13 @@ def write_artifact_manifest(
     manifest: StableArtifactManifest,
 ) -> Path:
     manifest_path = Path(path)
-    if manifest_path.exists():
-        raise FileExistsError(f"artifact manifest already exists: {manifest_path}")
-    write_artifact_text(
-        manifest_path,
-        render_artifact_manifest(manifest),
-        encoding="utf-8",
-        newline="\n",
-    )
+    try:
+        with open_artifact_text(
+            manifest_path, exclusive=True, encoding="utf-8", newline="\n"
+        ) as stream:
+            stream.write(render_artifact_manifest(manifest))
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"artifact manifest already exists: {manifest_path}"
+        ) from exc
     return manifest_path

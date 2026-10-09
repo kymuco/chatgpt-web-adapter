@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import chatgpt_web_adapter.cli_v02 as cli
+import chatgpt_web_adapter.conversation_snapshot as conversation_snapshot_module
+import chatgpt_web_adapter.export as export_module
 from chatgpt_web_adapter.artifact_manifest import (
     ARTIFACT_MANIFEST_SCHEMA,
     ArtifactFileEntry,
@@ -21,7 +25,9 @@ from chatgpt_web_adapter.types import ChatMessage, ConversationRef
 
 
 class _ArtifactClient:
-    def __init__(self, messages: list[ChatMessage], raw_payload: dict | None = None) -> None:
+    def __init__(
+        self, messages: list[ChatMessage], raw_payload: dict | None = None
+    ) -> None:
         self.messages = list(messages)
         self.raw_payload = raw_payload or {"conversation_id": "conversation-1"}
         self.message_calls = []
@@ -73,7 +79,9 @@ def test_artifact_file_entry_hashes_exact_bytes(tmp_path: Path) -> None:
     path = tmp_path / "artifact.txt"
     path.write_bytes("Привет\n".encode("utf-8"))
 
-    entry = artifact_file_entry(path, role="export", media_type="text/plain; charset=utf-8")
+    entry = artifact_file_entry(
+        path, role="export", media_type="text/plain; charset=utf-8"
+    )
 
     payload = path.read_bytes()
     assert entry.path == "artifact.txt"
@@ -81,7 +89,9 @@ def test_artifact_file_entry_hashes_exact_bytes(tmp_path: Path) -> None:
     assert entry.sha256 == hashlib.sha256(payload).hexdigest()
 
 
-def test_snapshot_writes_manifest_last_with_context_and_raw_hashes(tmp_path: Path) -> None:
+def test_snapshot_writes_manifest_last_with_context_and_raw_hashes(
+    tmp_path: Path,
+) -> None:
     client = _ArtifactClient(
         [
             ChatMessage(role="user", text="Hello"),
@@ -108,8 +118,14 @@ def test_snapshot_writes_manifest_last_with_context_and_raw_hashes(tmp_path: Pat
     assert payload["format"] is None
     assert [item["role"] for item in payload["files"]] == ["context", "raw_payload"]
     by_role = {item["role"]: item for item in payload["files"]}
-    assert by_role["context"]["sha256"] == hashlib.sha256(result.context_path.read_bytes()).hexdigest()
-    assert by_role["raw_payload"]["sha256"] == hashlib.sha256(result.raw_payload_path.read_bytes()).hexdigest()
+    assert (
+        by_role["context"]["sha256"]
+        == hashlib.sha256(result.context_path.read_bytes()).hexdigest()
+    )
+    assert (
+        by_role["raw_payload"]["sha256"]
+        == hashlib.sha256(result.raw_payload_path.read_bytes()).hexdigest()
+    )
     assert result.message_count == 2
 
 
@@ -130,8 +146,12 @@ def test_context_only_snapshot_manifest_contains_only_context(tmp_path: Path) ->
     assert [item["role"] for item in payload["files"]] == ["context"]
 
 
-def test_snapshot_manifest_collision_fails_before_canonical_reads(tmp_path: Path) -> None:
-    (tmp_path / "project_chat_snapshot_3.manifest.json").write_text("{}\n", encoding="utf-8")
+def test_snapshot_manifest_collision_fails_before_canonical_reads(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "project_chat_snapshot_3.manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
     client = _ArtifactClient([])
 
     with pytest.raises(FileExistsError, match="snapshot manifest already exists"):
@@ -145,6 +165,71 @@ def test_snapshot_manifest_collision_fails_before_canonical_reads(tmp_path: Path
 
     assert client.message_calls == []
     assert client.payload_calls == []
+
+
+def test_concurrent_snapshots_contend_for_the_same_index(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client = _ArtifactClient([ChatMessage(role="user", text="Hello")])
+    original_open = conversation_snapshot_module.open_artifact_text
+    reservation_barrier = threading.Barrier(2)
+    attempted_indexes: list[int] = []
+
+    def coordinated_open(path: Path, *args, **kwargs):
+        if kwargs.get("exclusive") and path.name == "project_chat_context_1.md":
+            attempted_indexes.append(1)
+            reservation_barrier.wait(timeout=5)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        conversation_snapshot_module,
+        "open_artifact_text",
+        coordinated_open,
+    )
+
+    def create_snapshot():
+        return snapshot_conversation(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            include_raw_payload=False,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: create_snapshot(), range(2)))
+
+    assert attempted_indexes == [1, 1]
+    assert {result.index for result in results} == {1, 2}
+    for result in results:
+        manifest = _manifest(result.manifest_path)
+        assert (
+            manifest["files"][0]["sha256"]
+            == hashlib.sha256(result.context_path.read_bytes()).hexdigest()
+        )
+
+
+def test_snapshot_failure_preserves_unowned_raw_payload(tmp_path: Path) -> None:
+    raw_payload_path = tmp_path / "project_chat_payload_1.json"
+
+    class _RacingArtifactClient(_ArtifactClient):
+        def get_messages(self, conversation, **kwargs):
+            raw_payload_path.write_text("external\n", encoding="utf-8")
+            return super().get_messages(conversation, **kwargs)
+
+    client = _RacingArtifactClient([ChatMessage(role="user", text="Hello")])
+
+    with pytest.raises(FileExistsError):
+        snapshot_conversation(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            index=1,
+        )
+
+    assert raw_payload_path.read_text(encoding="utf-8") == "external\n"
+    assert not (tmp_path / "project_chat_context_1.md").exists()
 
 
 def test_export_writer_creates_portable_file_and_manifest(tmp_path: Path) -> None:
@@ -168,7 +253,10 @@ def test_export_writer_creates_portable_file_and_manifest(tmp_path: Path) -> Non
     assert result.index == 4
     assert result.format == "markdown"
     assert result.export_path == tmp_path / "project_chat_export_4.md"
-    assert result.export_path.read_text(encoding="utf-8") == "## User\n\nHello\n\n## Assistant\n\nHi"
+    assert (
+        result.export_path.read_text(encoding="utf-8")
+        == "## User\n\nHello\n\n## Assistant\n\nHi"
+    )
     assert result.manifest_path == tmp_path / "project_chat_export_4.manifest.json"
     payload = _manifest(result.manifest_path)
     assert payload["artifact_kind"] == "conversation_export"
@@ -179,10 +267,16 @@ def test_export_writer_creates_portable_file_and_manifest(tmp_path: Path) -> Non
     assert result.message_count == 2
 
 
-def test_export_auto_index_uses_manifest_sequence_across_formats(tmp_path: Path) -> None:
+def test_export_auto_index_uses_manifest_sequence_across_formats(
+    tmp_path: Path,
+) -> None:
     client = _ArtifactClient([ChatMessage(role="user", text="Hello")])
-    (tmp_path / "project_chat_export_2.manifest.json").write_text("{}\n", encoding="utf-8")
-    (tmp_path / "project_chat_export_5.manifest.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "project_chat_export_2.manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    (tmp_path / "project_chat_export_5.manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
 
     result = write_conversation_export(
         client,
@@ -198,7 +292,9 @@ def test_export_auto_index_uses_manifest_sequence_across_formats(tmp_path: Path)
 
 
 def test_export_manifest_collision_fails_before_canonical_read(tmp_path: Path) -> None:
-    (tmp_path / "project_chat_export_9.manifest.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "project_chat_export_9.manifest.json").write_text(
+        "{}\n", encoding="utf-8"
+    )
     client = _ArtifactClient([])
 
     with pytest.raises(FileExistsError, match="export manifest already exists"):
@@ -214,7 +310,112 @@ def test_export_manifest_collision_fails_before_canonical_read(tmp_path: Path) -
     assert client.message_calls == []
 
 
-def test_export_writer_uses_normalized_current_branch_read_contract(tmp_path: Path) -> None:
+def test_concurrent_exports_contend_for_the_same_index(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client = _ArtifactClient([ChatMessage(role="user", text="Hello")])
+    original_open = export_module.open_artifact_text
+    reservation_barrier = threading.Barrier(2)
+    attempted_indexes: list[int] = []
+
+    def coordinated_open(path: Path, *args, **kwargs):
+        if kwargs.get("exclusive") and path.name == ".project_chat_export_1.claim":
+            attempted_indexes.append(1)
+            reservation_barrier.wait(timeout=5)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(export_module, "open_artifact_text", coordinated_open)
+
+    def create_export():
+        return write_conversation_export(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            format="jsonl",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: create_export(), range(2)))
+
+    assert attempted_indexes == [1, 1]
+    assert {result.index for result in results} == {1, 2}
+    for result in results:
+        manifest = _manifest(result.manifest_path)
+        assert (
+            manifest["files"][0]["sha256"]
+            == hashlib.sha256(result.export_path.read_bytes()).hexdigest()
+        )
+
+
+def test_concurrent_cross_format_exports_claim_distinct_indexes(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client = _ArtifactClient([ChatMessage(role="user", text="Hello")])
+    original_open = export_module.open_artifact_text
+    reservation_barrier = threading.Barrier(2)
+    attempted_indexes: list[int] = []
+
+    def coordinated_open(path: Path, *args, **kwargs):
+        if kwargs.get("exclusive") and path.name == ".project_chat_export_1.claim":
+            attempted_indexes.append(1)
+            reservation_barrier.wait(timeout=5)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(export_module, "open_artifact_text", coordinated_open)
+
+    def create_export(export_format: str):
+        return write_conversation_export(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            format=export_format,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(create_export, ("markdown", "jsonl")))
+
+    assert attempted_indexes == [1, 1]
+    assert {result.index for result in results} == {1, 2}
+    assert {result.format for result in results} == {"markdown", "jsonl"}
+    for result in results:
+        manifest = _manifest(result.manifest_path)
+        assert manifest["format"] == result.format
+        assert manifest["files"][0]["path"] == result.export_path.name
+        assert (
+            manifest["files"][0]["sha256"]
+            == hashlib.sha256(result.export_path.read_bytes()).hexdigest()
+        )
+    assert not list(tmp_path.glob(".project_chat_export_*.claim"))
+
+
+def test_export_alternate_format_collision_preserves_existing_file(
+    tmp_path: Path,
+) -> None:
+    existing = tmp_path / "project_chat_export_1.md"
+    existing.write_text("external\n", encoding="utf-8")
+    client = _ArtifactClient([ChatMessage(role="user", text="Hello")])
+
+    with pytest.raises(FileExistsError, match="conversation export already exists"):
+        write_conversation_export(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            index=1,
+            format="jsonl",
+        )
+
+    assert existing.read_text(encoding="utf-8") == "external\n"
+    assert not (tmp_path / "project_chat_export_1.jsonl").exists()
+    assert not list(tmp_path.glob(".project_chat_export_*.claim"))
+    assert client.message_calls == []
+
+
+def test_export_writer_uses_normalized_current_branch_read_contract(
+    tmp_path: Path,
+) -> None:
     client = _ArtifactClient([ChatMessage(role="tool", text="")])
 
     write_conversation_export(
@@ -231,7 +432,9 @@ def test_export_writer_uses_normalized_current_branch_read_contract(tmp_path: Pa
     assert kwargs == {"limit": None, "include_empty": True}
 
 
-def test_snapshot_cli_json_embeds_stable_manifest(monkeypatch, capsys, tmp_path: Path) -> None:
+def test_snapshot_cli_json_embeds_stable_manifest(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
     context_path = tmp_path / "project_chat_context_2.md"
     raw_path = tmp_path / "project_chat_payload_2.json"
     manifest_path = tmp_path / "project_chat_snapshot_2.manifest.json"
@@ -261,7 +464,9 @@ def test_snapshot_cli_json_embeds_stable_manifest(monkeypatch, capsys, tmp_path:
         ),
     )
 
-    code = cli.main(["snapshot", "conversation-1", "--output-dir", str(tmp_path), "--json"])
+    code = cli.main(
+        ["snapshot", "conversation-1", "--output-dir", str(tmp_path), "--json"]
+    )
 
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
@@ -272,7 +477,9 @@ def test_snapshot_cli_json_embeds_stable_manifest(monkeypatch, capsys, tmp_path:
     assert payload["paths"]["raw_payload"].endswith("project_chat_payload_2.json")
 
 
-def test_export_cli_json_uses_same_artifact_envelope(monkeypatch, capsys, tmp_path: Path) -> None:
+def test_export_cli_json_uses_same_artifact_envelope(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
     export_path = tmp_path / "project_chat_export_3.jsonl"
     manifest_path = tmp_path / "project_chat_export_3.manifest.json"
     export_path.write_text("{}", encoding="utf-8")
