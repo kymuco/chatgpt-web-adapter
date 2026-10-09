@@ -4,7 +4,9 @@ import threading
 
 import chatgpt_web_adapter.browser_native_host as host_module
 from chatgpt_web_adapter.browser_native_host import BrowserNativeBroker
-from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 
 
 def test_broker_forwards_observer_failure_probe_without_whitelisting(

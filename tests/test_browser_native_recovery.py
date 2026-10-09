@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 
 
 def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() -> None:

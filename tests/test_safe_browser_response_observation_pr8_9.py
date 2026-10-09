@@ -5,7 +5,9 @@ import pytest
 from chatgpt_web_adapter.browser_authority_live_characterization import (
     BrowserAuthorityCharacterizationProvider,
 )
-from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 from chatgpt_web_adapter.safe_browser_response_observation_pr8_9 import (
     SafeBrowserResponseObservationProvider,
     summarize_safe_browser_stream,

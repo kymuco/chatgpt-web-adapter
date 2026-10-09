@@ -10,7 +10,9 @@ from chatgpt_web_adapter.browser_authority_phase_cost_attribution_pr8_8 import (
     BrowserAuthorityPhaseCostAttributionRunner,
     BrowserAuthorityPhaseTimingProvider,
 )
-from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeBridgeStatus
 from chatgpt_web_adapter.exceptions import RequestError
 
@@ -18,10 +20,13 @@ from chatgpt_web_adapter.exceptions import RequestError
 class Clock:
     def __init__(self):
         self.now = 100.0
+
     def monotonic(self):
         return self.now
+
     def sleep(self, seconds):
         self.now += seconds
+
     def advance(self, seconds):
         self.now += seconds
 
@@ -53,7 +58,10 @@ class Provider:
 
     def phase_timing_for_lease(self, lease_id):
         if self.missing:
-            raise RequestError("PR8_8_PHASE_TIMING_RECORD_NOT_AVAILABLE", request_stage="browser_authority_phase_timing")
+            raise RequestError(
+                "PR8_8_PHASE_TIMING_RECORD_NOT_AVAILABLE",
+                request_stage="browser_authority_phase_timing",
+            )
         value = dict(self.records[lease_id])
         if self.inconsistent:
             value["page_turn_elapsed_ms"] += 100
@@ -71,6 +79,7 @@ class Provider:
 class Health:
     ready: bool = True
     canonical_status: str = "completed"
+
     def to_dict(self):
         return {"ready": self.ready, "canonical_status": self.canonical_status}
 
@@ -200,9 +209,14 @@ def test_extension_timing_layer_is_below_existing_observability_chain():
     root = packaged_browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == "0.1.13"
-    assert manifest["background"]["service_worker"] == "service_worker_temporary_chat_route_reopen_probe.js"
+    assert (
+        manifest["background"]["service_worker"]
+        == "service_worker_temporary_chat_route_reopen_probe.js"
+    )
 
-    observability = (root / "service_worker_observability.js").read_text(encoding="utf-8")
+    observability = (root / "service_worker_observability.js").read_text(
+        encoding="utf-8"
+    )
     phase = (root / "service_worker_phase_timing_pr8_8.js").read_text(encoding="utf-8")
     assert 'importScripts("service_worker_phase_timing_pr8_8.js")' in observability
     assert 'importScripts("service_worker_recovery.js")' in phase
@@ -245,9 +259,11 @@ def test_provider_parses_read_only_support_and_lease_fenced_timing(monkeypatch):
         },
     ]
     calls = []
+
     def rpc(payload, *, timeout):
         calls.append(payload)
         return responses.pop(0)
+
     monkeypatch.setattr(provider, "_characterization_rpc", rpc)
 
     assert provider.phase_timing_support()["phase_timing_supported"] is True
@@ -269,7 +285,9 @@ def test_success_isolates_cold_acquisition_and_keeps_policy_decision_evidence_on
     )
     assert report["ok"] is True
     assert report["write_attempts"] == report["write_completions"] == 6
-    dist = report["phase_cost_characterization"]["distributions"]["runtime_tab_first_resolve_ms"]
+    dist = report["phase_cost_characterization"]["distributions"][
+        "runtime_tab_first_resolve_ms"
+    ]
     assert dist["cold"]["median"] == 800
     assert dist["warm"]["median"] == 5
     assert dist["cold_minus_warm"]["median"] == 795

@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 from tools.browser_worker_ownership_closure_gate import RETIRED_HISTORICAL_WORKERS
 
 ROOT = Path(__file__).resolve().parents[1]
