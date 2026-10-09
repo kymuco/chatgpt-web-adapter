@@ -1,5 +1,7 @@
 """Production shipping must not retain PR17.2 diagnostic-only slider gates."""
 
+from __future__ import annotations
+
 from chatgpt_web_adapter.browser_native_install import (
     packaged_browser_native_extension_dir,
 )
@@ -15,9 +17,7 @@ RETIRED_PROBES = (
 
 def test_shipping_observability_does_not_load_retired_diagnostics() -> None:
     extension = packaged_browser_native_extension_dir()
-    worker = (extension / "service_worker_observability.js").read_text(
-        encoding="utf-8"
-    )
+    worker = (extension / "service_worker_observability.js").read_text(encoding="utf-8")
 
     for name in RETIRED_PROBES:
         assert not (extension / name).exists(), name
