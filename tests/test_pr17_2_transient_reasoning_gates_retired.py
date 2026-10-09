@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-EXT = (\n    Path(__file__).resolve().parents[1]\n    / "src"\n    / "chatgpt_web_adapter"\n    / "browser_native_extension"\n)
+ROOT = Path(__file__).resolve().parents[1]
+EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 RETIRED_PROBES = (
     "service_worker_reasoning_option_characterization.js",
     "service_worker_reasoning_slider_mutation.js",
