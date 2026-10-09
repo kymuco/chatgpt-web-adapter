@@ -319,7 +319,7 @@ def test_concurrent_exports_contend_for_the_same_index(
     attempted_indexes: list[int] = []
 
     def coordinated_open(path: Path, *args, **kwargs):
-        if kwargs.get("exclusive") and path.name == "project_chat_export_1.jsonl":
+        if kwargs.get("exclusive") and path.name == ".project_chat_export_1.claim":
             attempted_indexes.append(1)
             reservation_barrier.wait(timeout=5)
         return original_open(path, *args, **kwargs)
@@ -346,6 +346,74 @@ def test_concurrent_exports_contend_for_the_same_index(
             manifest["files"][0]["sha256"]
             == hashlib.sha256(result.export_path.read_bytes()).hexdigest()
         )
+
+
+def test_concurrent_cross_format_exports_claim_distinct_indexes(
+    monkeypatch, tmp_path: Path
+) -> None:
+    client = _ArtifactClient([ChatMessage(role="user", text="Hello")])
+    original_open = export_module.open_artifact_text
+    reservation_barrier = threading.Barrier(2)
+    attempted_indexes: list[int] = []
+
+    def coordinated_open(path: Path, *args, **kwargs):
+        if (
+            kwargs.get("exclusive")
+            and path.name == ".project_chat_export_1.claim"
+        ):
+            attempted_indexes.append(1)
+            reservation_barrier.wait(timeout=5)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(export_module, "open_artifact_text", coordinated_open)
+
+    def create_export(export_format: str):
+        return write_conversation_export(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            format=export_format,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(create_export, ("markdown", "jsonl")))
+
+    assert attempted_indexes == [1, 1]
+    assert {result.index for result in results} == {1, 2}
+    assert {result.format for result in results} == {"markdown", "jsonl"}
+    for result in results:
+        manifest = _manifest(result.manifest_path)
+        assert manifest["format"] == result.format
+        assert manifest["files"][0]["path"] == result.export_path.name
+        assert (
+            manifest["files"][0]["sha256"]
+            == hashlib.sha256(result.export_path.read_bytes()).hexdigest()
+        )
+    assert not list(tmp_path.glob(".project_chat_export_*.claim"))
+
+
+def test_export_alternate_format_collision_preserves_existing_file(
+    tmp_path: Path,
+) -> None:
+    existing = tmp_path / "project_chat_export_1.md"
+    existing.write_text("external\n", encoding="utf-8")
+    client = _ArtifactClient([ChatMessage(role="user", text="Hello")])
+
+    with pytest.raises(FileExistsError, match="conversation export already exists"):
+        write_conversation_export(
+            client,
+            "conversation-1",
+            output_dir=tmp_path,
+            name="project",
+            index=1,
+            format="jsonl",
+        )
+
+    assert existing.read_text(encoding="utf-8") == "external\n"
+    assert not (tmp_path / "project_chat_export_1.jsonl").exists()
+    assert not list(tmp_path.glob(".project_chat_export_*.claim"))
+    assert client.message_calls == []
 
 
 def test_export_writer_uses_normalized_current_branch_read_contract(

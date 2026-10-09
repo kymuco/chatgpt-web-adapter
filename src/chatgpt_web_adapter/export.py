@@ -109,33 +109,65 @@ def _reserve_export_bundle(
     *,
     extension: str,
     automatic: bool,
-) -> tuple[int, Path, Path, TextIO]:
+) -> tuple[int, Path, Path, Path, TextIO]:
+    """Reserve one export index for every format, before canonical reads.
+
+    The private claim protects the index while the manifest remains the
+    final completion marker. A crashed owner leaves a conservative claim.
+    """
     while True:
+        claim_path = directory / f".{name}_chat_export_{index}.claim"
         export_path = directory / f"{name}_chat_export_{index}.{extension}"
         manifest_path = directory / f"{name}_chat_export_{index}.manifest.json"
+
         try:
-            export_file = open_artifact_text(
-                export_path,
-                exclusive=True,
-                encoding="utf-8",
-                newline="\n",
-            )
+            with open_artifact_text(claim_path, exclusive=True):
+                pass
         except FileExistsError:
             if not automatic:
-                raise FileExistsError(
-                    f"conversation export already exists: {export_path}"
-                )
+                raise FileExistsError(f"conversation export reserved: {claim_path}")
             index += 1
             continue
-        if not manifest_path.exists():
-            return index, export_path, manifest_path, export_file
-        export_file.close()
-        export_path.unlink()
-        if not automatic:
-            raise FileExistsError(
-                f"conversation export manifest already exists: {manifest_path}"
+
+        handed_off = False
+        try:
+            existing_paths = [manifest_path] + [
+                directory / f"{name}_chat_export_{index}.{suffix}"
+                for suffix in EXPORT_EXTENSIONS.values()
+            ]
+            collision = next(
+                (path for path in existing_paths if path.exists()), None
             )
-        index += 1
+            if collision is not None:
+                if not automatic:
+                    if collision == manifest_path:
+                        raise FileExistsError(
+                            f"conversation export manifest already exists: {collision}"
+                        )
+                    raise FileExistsError(
+                        f"conversation export already exists: {collision}"
+                    )
+                index += 1
+                continue
+
+            try:
+                export_file = open_artifact_text(
+                    export_path,
+                    exclusive=True,
+                    encoding="utf-8",
+                    newline="\n",
+                )
+            except FileExistsError:
+                if not automatic:
+                    raise
+                index += 1
+                continue
+
+            handed_off = True
+            return index, export_path, manifest_path, claim_path, export_file
+        finally:
+            if not handed_off:
+                claim_path.unlink(missing_ok=True)
 
 
 def _role_label(role: str | None) -> str:
@@ -219,7 +251,13 @@ def write_conversation_export(
     if normalized_index is None:
         normalized_index = _next_export_index(directory, normalized_name)
     extension = EXPORT_EXTENSIONS[export_format]
-    normalized_index, export_path, manifest_path, export_file = _reserve_export_bundle(
+    (
+        normalized_index,
+        export_path,
+        manifest_path,
+        claim_path,
+        export_file,
+    ) = _reserve_export_bundle(
         directory,
         normalized_name,
         normalized_index,
@@ -228,31 +266,34 @@ def write_conversation_export(
     )
 
     try:
-        ref = ConversationRef.from_any(conversation)
-        messages = list(client.get_messages(ref, limit=None, include_empty=True))
-        export_text = render_conversation_export(messages, format=export_format)
-        export_file.write(export_text)
-        export_file.close()
+        try:
+            ref = ConversationRef.from_any(conversation)
+            messages = list(client.get_messages(ref, limit=None, include_empty=True))
+            export_text = render_conversation_export(messages, format=export_format)
+            export_file.write(export_text)
+            export_file.close()
 
-        manifest = build_artifact_manifest(
-            artifact_kind=EXPORT_ARTIFACT_KIND,
-            contract=EXPORT_CONTRACT,
-            conversation_id=ref.conversation_id,
-            index=normalized_index,
-            format=export_format,
-            files=(
-                artifact_file_entry(
-                    export_path,
-                    role="export",
-                    media_type=EXPORT_MEDIA_TYPES[export_format],
+            manifest = build_artifact_manifest(
+                artifact_kind=EXPORT_ARTIFACT_KIND,
+                contract=EXPORT_CONTRACT,
+                conversation_id=ref.conversation_id,
+                index=normalized_index,
+                format=export_format,
+                files=(
+                    artifact_file_entry(
+                        export_path,
+                        role="export",
+                        media_type=EXPORT_MEDIA_TYPES[export_format],
+                    ),
                 ),
-            ),
-        )
-        write_artifact_manifest(manifest_path, manifest)
-    except Exception:
-        export_file.close()
-        export_path.unlink(missing_ok=True)
-        raise
+            )
+            write_artifact_manifest(manifest_path, manifest)
+        except Exception:
+            export_file.close()
+            export_path.unlink(missing_ok=True)
+            raise
+    finally:
+        claim_path.unlink(missing_ok=True)
 
     return ConversationExportArtifact(
         conversation_id=ref.conversation_id,

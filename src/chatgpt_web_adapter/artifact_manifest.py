@@ -166,12 +166,13 @@ def write_artifact_manifest(
     manifest: StableArtifactManifest,
 ) -> Path:
     manifest_path = Path(path)
-    if manifest_path.exists():
-        raise FileExistsError(f"artifact manifest already exists: {manifest_path}")
-    write_artifact_text(
-        manifest_path,
-        render_artifact_manifest(manifest),
-        encoding="utf-8",
-        newline="\n",
-    )
+    try:
+        with open_artifact_text(
+            manifest_path, exclusive=True, encoding="utf-8", newline="\n"
+        ) as stream:
+            stream.write(render_artifact_manifest(manifest))
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"artifact manifest already exists: {manifest_path}"
+        ) from exc
     return manifest_path
