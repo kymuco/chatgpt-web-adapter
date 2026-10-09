@@ -4,7 +4,9 @@ import threading
 
 import chatgpt_web_adapter.browser_native_host as host_module
 from chatgpt_web_adapter.browser_native_host import BrowserNativeBroker
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 
 
 def test_broker_forwards_observer_failure_probe_without_whitelisting(
@@ -64,7 +66,7 @@ def test_broker_forwards_observer_failure_probe_without_whitelisting(
 
 
 def test_recovery_awaits_probe_decision_before_early_terminal_success() -> None:
-    recovery = browser_native_extension_dir() / "service_worker_recovery.js"
+    recovery = packaged_browser_native_extension_dir() / "service_worker_recovery.js"
     source = recovery.read_text(encoding="utf-8")
     start = source.index(
         "async function _executeOfficialPageTurnWithEarlyTerminalBoundary"

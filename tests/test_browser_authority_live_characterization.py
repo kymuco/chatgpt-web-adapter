@@ -10,7 +10,9 @@ from chatgpt_web_adapter.browser_authority_live_characterization import (
     BrowserAuthorityLiveCharacterizationRunner,
     BrowserAuthorityRuntimeResourceSample,
 )
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeBridgeStatus
 
 
@@ -414,10 +416,10 @@ def test_resource_sample_requires_timeout_longer_than_window() -> None:
 
 
 def test_pr88_live_characterization_is_read_only_below_temporary_wrappers() -> None:
-    root = browser_native_extension_dir()
-    worker = (
-        root / "service_worker_runtime_tab_reconciliation.js"
-    ).read_text(encoding="utf-8")
+    root = packaged_browser_native_extension_dir()
+    worker = (root / "service_worker_runtime_tab_reconciliation.js").read_text(
+        encoding="utf-8"
+    )
 
     assert "characterizeBrowserAuthorityStatus" in worker
     assert "characterizeBrowserAuthorityResources" in worker
@@ -434,10 +436,10 @@ def test_pr88_live_characterization_is_read_only_below_temporary_wrappers() -> N
 
 
 def test_pr88_resource_probe_reports_foreground_and_debugger_hygiene() -> None:
-    root = browser_native_extension_dir()
-    worker = (
-        root / "service_worker_runtime_tab_reconciliation.js"
-    ).read_text(encoding="utf-8")
+    root = packaged_browser_native_extension_dir()
+    worker = (root / "service_worker_runtime_tab_reconciliation.js").read_text(
+        encoding="utf-8"
+    )
 
     assert "tabActivatedDuringSample" in worker
     assert "foregroundActivationObserved" in worker

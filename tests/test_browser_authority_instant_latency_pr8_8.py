@@ -12,17 +12,26 @@ from chatgpt_web_adapter.browser_authority_instant_latency_pr8_8 import (
 from chatgpt_web_adapter.browser_authority_phase_cost_attribution_pr8_8 import (
     BrowserAuthorityPhaseTimingProvider,
 )
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import (
+    packaged_browser_native_extension_dir,
+)
 
 
 def test_instant_observability_layer_preserves_existing_extension_entrypoint_and_never_selects_model():
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == "0.1.13"
-    assert manifest["background"]["service_worker"] == "service_worker_temporary_chat_route_reopen_probe.js"
+    assert (
+        manifest["background"]["service_worker"]
+        == "service_worker_temporary_chat_route_reopen_probe.js"
+    )
 
-    observability = (root / "service_worker_observability.js").read_text(encoding="utf-8")
-    instant = (root / "service_worker_instant_mode_pr8_8.js").read_text(encoding="utf-8")
+    observability = (root / "service_worker_observability.js").read_text(
+        encoding="utf-8"
+    )
+    instant = (root / "service_worker_instant_mode_pr8_8.js").read_text(
+        encoding="utf-8"
+    )
     phase_import = 'importScripts("service_worker_phase_timing_pr8_8.js")'
     instant_import = 'importScripts("service_worker_instant_mode_pr8_8.js")'
     assert phase_import in observability
@@ -46,7 +55,9 @@ def test_instant_observability_layer_preserves_existing_extension_entrypoint_and
     assert "request bodies, raw SSE" in instant
 
 
-def test_provider_injects_instant_requirement_only_into_leased_product_turns(monkeypatch):
+def test_provider_injects_instant_requirement_only_into_leased_product_turns(
+    monkeypatch,
+):
     provider = InstantModeLatencyProvider()
     calls = []
 
@@ -115,7 +126,6 @@ def test_provider_parses_lease_fenced_model_route_record(monkeypatch):
     assert record["request_evidence"]["model_modes"] == ["INSTANT"]
     assert record["response_evidence"]["reasoning_states"] == ["OFF"]
     assert record["network_no_reasoning_route_proven"] is True
-
 
 
 CONVERSATION = "6a82dabf-65b8-83eb-b8d5-5a86c6ba635d"
@@ -273,7 +283,11 @@ class FakeProvider:
             "network_route_status": (
                 "REASONING_ROUTE_OBSERVED"
                 if reasoning
-                else ("INSTANT_MODEL_ROUTE_OBSERVED" if self.network_proven else "INCONCLUSIVE")
+                else (
+                    "INSTANT_MODEL_ROUTE_OBSERVED"
+                    if self.network_proven
+                    else "INCONCLUSIVE"
+                )
             ),
             "instant_model_route_observed": self.network_proven,
             "reasoning_route_observed": reasoning,
@@ -311,7 +325,9 @@ class FakeRuntime:
             "temporary_mode_production_enabled": False,
         }
 
-    def send_text_observed(self, text, *, conversation, timeout, poll_interval, conversation_mode, **kwargs):
+    def send_text_observed(
+        self, text, *, conversation, timeout, poll_interval, conversation_mode, **kwargs
+    ):
         self.generation += 1
         self.calls.append({"text": text, "conversation": conversation, **kwargs})
         created = self.provider.runtime_tab_id is None
@@ -339,14 +355,20 @@ class FakeRuntime:
             browser_authority_ttl_ms=ttl_ms,
             browser_authority_issued_at_ms=issued,
             browser_authority_released_at_ms=released,
-            browser_authority_disposal_due_at_ms=released if policy == "TURN_SCOPED" else None,
+            browser_authority_disposal_due_at_ms=released
+            if policy == "TURN_SCOPED"
+            else None,
             browser_authority_release_proven=True,
-            browser_authority_disposal_action="CLOSE" if policy == "TURN_SCOPED" else "KEEP",
+            browser_authority_disposal_action="CLOSE"
+            if policy == "TURN_SCOPED"
+            else "KEEP",
             turn_lifecycle_id=f"turn-{self.generation}",
             turn_lifecycle_state_at_write="WRITE_COMPLETED",
         )
         provenance = SimpleNamespace(
-            completion=SimpleNamespace(completed=True, canonical_completion_proven=True),
+            completion=SimpleNamespace(
+                completed=True, canonical_completion_proven=True
+            ),
             conversation_mode=SimpleNamespace(
                 requested_conversation_mode=SimpleNamespace(value="NORMAL"),
                 observed_conversation_mode=SimpleNamespace(value="NORMAL"),
@@ -355,15 +377,21 @@ class FakeRuntime:
             transport="browser-owned",
             product_semantics="ordinary-chatgpt",
         )
-        response = SimpleNamespace(conversation=SimpleNamespace(conversation_id=conversation))
-        return SimpleNamespace(response=response, provenance=provenance, observation=observation)
+        response = SimpleNamespace(
+            conversation=SimpleNamespace(conversation_id=conversation)
+        )
+        return SimpleNamespace(
+            response=response, provenance=provenance, observation=observation
+        )
 
 
 def make_runner():
     clock = FakeClock()
     provider = FakeProvider()
     runtime = FakeRuntime(provider, clock)
-    runner = InstantModePhaseLatencyRunner(runtime, provider=provider, monotonic=clock.monotonic, sleep=clock.sleep)
+    runner = InstantModePhaseLatencyRunner(
+        runtime, provider=provider, monotonic=clock.monotonic, sleep=clock.sleep
+    )
     return runner, runtime, provider
 
 
@@ -403,7 +431,9 @@ def test_exact_conversation_must_prove_instant_before_writes():
     provider.preflight_mode = "MEDIUM"
     report = run(runner)
     assert report["ok"] is False
-    assert report["failure_phase"] == "instant_selected_mode_exact_conversation_preflight"
+    assert (
+        report["failure_phase"] == "instant_selected_mode_exact_conversation_preflight"
+    )
     assert report["write_attempts"] == 0
     assert runtime.calls == []
 
@@ -466,15 +496,26 @@ def test_happy_path_replicates_three_cold_warm_close_cycles_and_keeps_policy_unc
     assert report["summary"]["all_close_turns_reused_then_closed_runtime_tab"] is True
     assert report["summary"]["automatic_write_retry_attempted"] is False
     assert report["cross_mode_governance"]["library_default_change_performed"] is False
-    assert report["cross_mode_governance"]["hde_assembly_policy_change_performed"] is False
+    assert (
+        report["cross_mode_governance"]["hde_assembly_policy_change_performed"] is False
+    )
     assert report["final_runtime_status"]["runtime_tab_id"] is None
 
     for cycle in report["cycles"]:
         assert cycle["cold_turn"]["observation"]["runtime_tab_created_for_turn"] is True
         assert cycle["warm_turn"]["observation"]["runtime_tab_preexisting"] is True
-        assert cycle["close_turn"]["observation"]["browser_authority_policy"] == "TURN_SCOPED"
+        assert (
+            cycle["close_turn"]["observation"]["browser_authority_policy"]
+            == "TURN_SCOPED"
+        )
         assert cycle["close_disposal"]["confirmed"] is True
         assert cycle["closed_window"]["confirmed"] is True
 
-    assert all("browser_authority_policy" not in runtime.calls[index] for index in (0, 1, 3, 4, 6, 7))
-    assert all(runtime.calls[index]["browser_authority_policy"] == "TURN_SCOPED" for index in (2, 5, 8))
+    assert all(
+        "browser_authority_policy" not in runtime.calls[index]
+        for index in (0, 1, 3, 4, 6, 7)
+    )
+    assert all(
+        runtime.calls[index]["browser_authority_policy"] == "TURN_SCOPED"
+        for index in (2, 5, 8)
+    )
