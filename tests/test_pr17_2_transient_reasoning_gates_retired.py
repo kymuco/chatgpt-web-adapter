@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from chatgpt_web_adapter.browser_native_install import (
-    packaged_browser_native_extension_dir,
-)
+from pathlib import Path
 
-
+EXT = (\n    Path(__file__).resolve().parents[1]\n    / "src"\n    / "chatgpt_web_adapter"\n    / "browser_native_extension"\n)
 RETIRED_PROBES = (
     "service_worker_reasoning_option_characterization.js",
     "service_worker_reasoning_slider_mutation.js",
@@ -16,11 +14,10 @@ RETIRED_PROBES = (
 
 
 def test_shipping_observability_does_not_load_retired_diagnostics() -> None:
-    extension = packaged_browser_native_extension_dir()
-    worker = (extension / "service_worker_observability.js").read_text(encoding="utf-8")
+    worker = (EXT / "service_worker_observability.js").read_text(encoding="utf-8")
 
     for name in RETIRED_PROBES:
-        assert not (extension / name).exists(), name
+        assert not (EXT / name).exists(), name
         assert f'importScripts("{name}")' not in worker
 
     for production_module in (
@@ -28,5 +25,5 @@ def test_shipping_observability_does_not_load_retired_diagnostics() -> None:
         "service_worker_selection_preparation.js",
         "service_worker_selection_lifecycle.js",
     ):
-        assert (extension / production_module).is_file(), production_module
+        assert (EXT / production_module).is_file(), production_module
         assert f'importScripts("{production_module}")' in worker
