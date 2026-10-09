@@ -1,7 +1,5 @@
 """Production shipping must not retain PR17.2 diagnostic-only slider gates."""
 
-from pathlib import Path
-
 from chatgpt_web_adapter.browser_native_install import (
     packaged_browser_native_extension_dir,
 )
