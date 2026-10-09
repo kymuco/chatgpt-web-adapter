@@ -357,10 +357,7 @@ def test_concurrent_cross_format_exports_claim_distinct_indexes(
     attempted_indexes: list[int] = []
 
     def coordinated_open(path: Path, *args, **kwargs):
-        if (
-            kwargs.get("exclusive")
-            and path.name == ".project_chat_export_1.claim"
-        ):
+        if kwargs.get("exclusive") and path.name == ".project_chat_export_1.claim":
             attempted_indexes.append(1)
             reservation_barrier.wait(timeout=5)
         return original_open(path, *args, **kwargs)

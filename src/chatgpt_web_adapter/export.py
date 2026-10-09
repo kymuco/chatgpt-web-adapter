@@ -135,9 +135,7 @@ def _reserve_export_bundle(
                 directory / f"{name}_chat_export_{index}.{suffix}"
                 for suffix in EXPORT_EXTENSIONS.values()
             ]
-            collision = next(
-                (path for path in existing_paths if path.exists()), None
-            )
+            collision = next((path for path in existing_paths if path.exists()), None)
             if collision is not None:
                 if not automatic:
                     if collision == manifest_path:
