@@ -12,11 +12,11 @@ from chatgpt_web_adapter.browser_authority_instant_latency_pr8_8 import (
 from chatgpt_web_adapter.browser_authority_phase_cost_attribution_pr8_8 import (
     BrowserAuthorityPhaseTimingProvider,
 )
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
 
 
 def test_instant_observability_layer_preserves_existing_extension_entrypoint_and_never_selects_model():
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == "0.1.13"
     assert manifest["background"]["service_worker"] == "service_worker_temporary_chat_route_reopen_probe.js"

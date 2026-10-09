@@ -5,7 +5,7 @@ import pytest
 from chatgpt_web_adapter.browser_authority_live_characterization import (
     BrowserAuthorityCharacterizationProvider,
 )
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
 from chatgpt_web_adapter.safe_browser_response_observation_pr8_9 import (
     SafeBrowserResponseObservationProvider,
     summarize_safe_browser_stream,
@@ -13,7 +13,7 @@ from chatgpt_web_adapter.safe_browser_response_observation_pr8_9 import (
 
 
 def test_worker_is_loaded_after_pr8_8_selection_stack() -> None:
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     observability = (root / "service_worker_observability.js").read_text(
         encoding="utf-8"
     )
@@ -25,7 +25,7 @@ def test_worker_is_loaded_after_pr8_8_selection_stack() -> None:
 
 
 def test_worker_uses_bounded_non_intercepting_cdp_stream_observation() -> None:
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     source = (root / "service_worker_browser_response_stream.js").read_text(
         encoding="utf-8"
     )

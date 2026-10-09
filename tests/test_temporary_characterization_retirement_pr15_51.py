@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
 from tools.browser_worker_ownership_closure_gate import RETIRED_HISTORICAL_WORKERS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,7 +11,7 @@ EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 
 
 def test_retired_pr87_characterization_workers_are_not_packaged() -> None:
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
 
     assert all(not (root / name).exists() for name in RETIRED_HISTORICAL_WORKERS)
 
@@ -24,7 +24,7 @@ def test_no_extension_worker_imports_retired_characterization_source() -> None:
 
 
 def test_production_temporary_runtime_keeps_copied_readiness_semantics() -> None:
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     worker_name = manifest["background"]["service_worker"]
 

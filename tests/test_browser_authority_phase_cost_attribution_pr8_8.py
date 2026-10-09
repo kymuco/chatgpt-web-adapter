@@ -10,7 +10,7 @@ from chatgpt_web_adapter.browser_authority_phase_cost_attribution_pr8_8 import (
     BrowserAuthorityPhaseCostAttributionRunner,
     BrowserAuthorityPhaseTimingProvider,
 )
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
 from chatgpt_web_adapter.browser_native_provider import BrowserNativeBridgeStatus
 from chatgpt_web_adapter.exceptions import RequestError
 
@@ -197,7 +197,7 @@ def runner(runtime, provider, clock):
 
 
 def test_extension_timing_layer_is_below_existing_observability_chain():
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == "0.1.13"
     assert manifest["background"]["service_worker"] == "service_worker_temporary_chat_route_reopen_probe.js"

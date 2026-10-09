@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
+from chatgpt_web_adapter.browser_native_install import packaged_browser_native_extension_dir
 
 
 def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() -> None:
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     text = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
 
     start = text.index(
@@ -24,7 +24,7 @@ def test_recovery_page_turn_preserves_post_delegation_observer_failure_hook() ->
 
 
 def test_pr811_recovery_worker_is_packaged() -> None:
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     recovery = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
     phase_timing = (root / "service_worker_phase_timing_pr8_8.js").read_text(
         encoding="utf-8"
@@ -44,7 +44,7 @@ def test_pr811_recovery_worker_is_packaged() -> None:
 
 
 def test_recovery_exports_base_helpers_and_keeps_final_owner_handoff_dynamic() -> None:
-    root = browser_native_extension_dir()
+    root = packaged_browser_native_extension_dir()
     recovery = (root / "service_worker_recovery.js").read_text(encoding="utf-8")
 
     assert "async function _pr811BaseReloadRuntimeTabAndWait(" in recovery
