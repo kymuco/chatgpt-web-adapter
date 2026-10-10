@@ -4,12 +4,18 @@ import argparse
 import json
 import uuid
 
-from .product_rich_input_live_gate_schema24_pr9_2 import ProductRichInputSchema24LiveProvider
+from .product_rich_input_live_gate_schema24_pr9_2 import (
+    ProductRichInputSchema24LiveProvider,
+)
 
 
 def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
-    if timeout <= 0:
-        raise ValueError("timeout must be positive")
+    if timeout <= 4.0:
+        raise ValueError("timeout must exceed 4 seconds for a bridge response margin")
+
+    # The worker has its own deadline. Reserve time for a stage-specific
+    # error to reach Python before the outer socket deadline expires.
+    worker_timeout_ms = int((timeout - 3.0) * 1000)
 
     provider = ProductRichInputSchema24LiveProvider()
     request_id = str(uuid.uuid4())
@@ -18,7 +24,7 @@ def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
             "type": "turn",
             "request_id": request_id,
             "diagnosePr92ComposerEvidence": True,
-            "timeoutMs": int(timeout * 1000),
+            "timeoutMs": worker_timeout_ms,
         },
         timeout=timeout,
     )
