@@ -173,9 +173,7 @@ def test_rich_input_uses_existing_shared_composer_resolver() -> None:
     assert "prompt.closest('form')" in rich
     assert "const exactAttachmentSet = crossEvidenceChannelExact;" in rich
     assert "function _pr117ComposerResolverSource()" in compat
-    assert "_pr117ComposerResolverSource()" in DIAGNOSTIC.read_text(
-        encoding="utf-8"
-    )
+    assert "_pr117ComposerResolverSource()" in DIAGNOSTIC.read_text(encoding="utf-8")
     assert "|| document.body" not in rich
 
 
