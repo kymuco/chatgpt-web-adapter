@@ -3,6 +3,7 @@
 Run the *production* schema-27 evidence expression using a tiny DOM model. The
 tests deliberately avoid browser traffic, file staging, and any submit action.
 """
+
 from __future__ import annotations
 
 import json
