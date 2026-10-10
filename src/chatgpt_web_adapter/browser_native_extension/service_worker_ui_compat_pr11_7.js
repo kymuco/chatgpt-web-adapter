@@ -180,6 +180,60 @@ async function _pr117LocateAndFocusComposer(debuggee) {
   return 'pr11_7_structural_dom_fallback';
 }
 
+function _pr117RichComposerFocusExpression() {
+  const resolver = _pr117ComposerResolverSource();
+  return `(() => {
+    const resolveComposer = ${resolver};
+    const composer = resolveComposer();
+    if (!composer) return false;
+    composer.focus();
+    return document.activeElement === composer;
+  })()`;
+}
+
+async function _pr117FocusRichComposerWithProof(debuggee) {
+  const result = await sendCommand(debuggee, 'Runtime.evaluate', {
+    expression: _pr117RichComposerFocusExpression(),
+    returnByValue: true,
+    awaitPromise: true
+  });
+  if (result?.result?.value !== true) {
+    throw new Error('CWA_RICH_COMPOSER_FOCUS_NOT_PROVEN');
+  }
+  return 'pr11_7_structural_composer_focus_proven';
+}
+
+function _pr117RichComposerTextProofExpression(text) {
+  const resolver = _pr117ComposerResolverSource();
+  const expected = JSON.stringify(text);
+  return `(() => {
+    const resolveComposer = ${resolver};
+    const composer = resolveComposer();
+    if (!composer || document.activeElement !== composer) return false;
+    const expected = ${expected};
+    const actual = typeof composer.textContent === 'string'
+      ? composer.textContent
+      : '';
+    const rendered = typeof composer.innerText === 'string'
+      ? composer.innerText
+      : '';
+    return actual === expected || rendered === expected;
+  })()`;
+}
+
+async function _pr117RequireRichInsertedTextProof(debuggee, text) {
+  const result = await sendCommand(debuggee, 'Runtime.evaluate', {
+    expression: _pr117RichComposerTextProofExpression(text),
+    returnByValue: true,
+    awaitPromise: true
+  });
+  if (result?.result?.value !== true) {
+    // Fail before delegated protected submit: do not guess or reinsert text.
+    throw new Error('CWA_RICH_COMPOSER_TEXT_NOT_INSERTED');
+  }
+  return true;
+}
+
 function _pr117StructuralSubmitButtonResolverSource() {
   // Shared DOM authority for the ordinary-text discovery point and rich-input's
   // atomic page-owned click. The discovery selector is NOT a CSS selector.
