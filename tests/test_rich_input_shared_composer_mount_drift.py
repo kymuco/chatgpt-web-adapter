@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
 COMPAT = EXT / "service_worker_ui_compat_pr11_7.js"
 RICH = EXT / "service_worker_rich_input_schema27_repair_pr9_2.js"
+DIAGNOSTIC = EXT / "service_worker_rich_input_schema23_diagnostic_pr9_2.js"
 
 
 def _run_case(case: str) -> dict[str, object]:
@@ -24,11 +25,13 @@ const vm = require("node:vm");
 
 const compatCode = fs.readFileSync(process.argv[1], "utf8");
 const richCode = fs.readFileSync(process.argv[2], "utf8");
-const variant = process.argv[3];
+const diagnosticCode = fs.readFileSync(process.argv[3], "utf8");
+const variant = process.argv[4];
 
 class FakeElement {
   constructor(props = {}) { this.props = props; }
   get id() { return this.props.id || ""; }
+  get tagName() { return this.props.tagName || "DIV"; }
   get disabled() { return false; }
   get readOnly() { return false; }
   getBoundingClientRect() { return { width: 100, height: 24 }; }
@@ -105,20 +108,25 @@ const scope = {
   })
 };
 vm.createContext(scope);
-vm.runInContext(compatCode + "\n" + richCode, scope);
+vm.runInContext(compatCode + "\n" + richCode + "\n" + diagnosticCode, scope);
 const expr = vm.runInContext(
   "_pr92Schema27AttachmentEvidenceExpression([])", scope
 );
 const evidence = vm.runInContext(expr, scope);
+const diagnosticExpr = vm.runInContext(
+  "_pr92Schema23DiagnosticExpression()", scope
+);
+const diagnostic = vm.runInContext(diagnosticExpr, scope);
 console.log(JSON.stringify({
   mounted: evidence.officialComposerMounted,
+  diagnosticMounted: diagnostic.officialComposerMounted,
   clean: evidence.exactAttachmentSet,
   groupCount: evidence.groupLabelCount,
   kind: evidence.evidenceKind
 }));
 """
     result = subprocess.run(
-        [node, "-e", script, str(COMPAT), str(RICH), case],
+        [node, "-e", script, str(COMPAT), str(RICH), str(DIAGNOSTIC), case],
         check=False,
         capture_output=True,
         text=True,
@@ -134,6 +142,7 @@ def test_current_and_historical_official_composer_are_mounted_and_clean(
 ) -> None:
     evidence = _run_case(variant)
     assert evidence["mounted"] is True
+    assert evidence["diagnosticMounted"] is True
     assert evidence["clean"] is True
     assert evidence["groupCount"] == 0
 
@@ -144,12 +153,14 @@ def test_current_and_historical_official_composer_are_mounted_and_clean(
 def test_editor_without_authoritative_composer_is_not_mount_proof(variant: str) -> None:
     evidence = _run_case(variant)
     assert evidence["mounted"] is False
+    assert evidence["diagnosticMounted"] is False
     assert evidence["clean"] is False
 
 
 def test_unexpected_attachment_chip_still_fails_closed() -> None:
     evidence = _run_case("unexpected_chip")
     assert evidence["mounted"] is True
+    assert evidence["diagnosticMounted"] is True
     assert evidence["clean"] is False
     assert evidence["groupCount"] == 1
 
@@ -162,6 +173,9 @@ def test_rich_input_uses_existing_shared_composer_resolver() -> None:
     assert "prompt.closest('form')" in rich
     assert "const exactAttachmentSet = crossEvidenceChannelExact;" in rich
     assert "function _pr117ComposerResolverSource()" in compat
+    assert "_pr117ComposerResolverSource()" in DIAGNOSTIC.read_text(
+        encoding="utf-8"
+    )
     assert "|| document.body" not in rich
 
 
@@ -169,5 +183,6 @@ def test_actual_october_2026_chatgpt_dom_shape_is_recognized() -> None:
     """Live: visible DIV textbox; editable/multiline, inside main+form, no ids."""
     evidence = _run_case("current_generic")
     assert evidence["mounted"] is True
+    assert evidence["diagnosticMounted"] is True
     assert evidence["clean"] is True
     assert evidence["groupCount"] == 0
