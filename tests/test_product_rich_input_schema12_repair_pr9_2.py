@@ -49,7 +49,8 @@ def test_schema_12_bounds_the_complete_send_readiness_helper():
     assert "async function _pr92Schema12DeadlineBoundedSendReadiness(" in text
     assert "waitForSendButtonPoint =" not in text
     assert '"SCHEMA12_SEND_READINESS_WAIT"' in text
-    assert text.count("_cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs)") == 2
+    assert text.count("_cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs)") == 1
+    assert text.count("_pr117WaitForSendButtonPoint(debuggee, timeoutMs)") == 1
     assert "sendReadinessWaitDeadlineBounded: true" in text
 
 
