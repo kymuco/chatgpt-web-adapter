@@ -54,7 +54,9 @@ class FakeElement {
 const main = new FakeElement();
 const form = new FakeElement();
 const group = new FakeElement({attrs: {"aria-label": "unexpected.txt"}});
-const attrs = variant === "legacy"
+const genericLiveShape = variant === "current_generic" ||
+  variant === "two_generic_editors" || variant === "unexpected_chip";
+const attrs = variant === "legacy" || genericLiveShape
   ? {"contenteditable": "true", role: "textbox", "aria-multiline": "true"}
   : variant === "unrelated_editor"
     ? {"contenteditable": "true"}
@@ -70,6 +72,8 @@ const editor = new FakeElement({
   editable: true,
   hasForm: variant !== "orphan_editor"
 });
+// A second indistinguishable editor must fail closed, not grant mount authority.
+const peerEditor = new FakeElement({ attrs, editable: true });
 
 const document = {
   querySelectorAll(selector) {
@@ -79,10 +83,14 @@ const document = {
     if (selector === '[contenteditable="true"][data-lexical-editor="true"]') {
       return attrs["data-lexical-editor"] === "true" ? [editor] : [];
     }
-    if (selector === '[contenteditable="true"]') return [editor];
+    if (selector === '[contenteditable="true"]') {
+      return variant === "two_generic_editors" ? [editor, peerEditor] : [editor];
+    }
     if (selector === "textarea[placeholder]") return [];
     if (selector === '[contenteditable="true"][role="textbox"][aria-multiline="true"]') {
-      return attrs.role === "textbox" && attrs["aria-multiline"] === "true" ? [editor] : [];
+      return attrs.role === "textbox" && attrs["aria-multiline"] === "true"
+        ? (variant === "two_generic_editors" ? [editor, peerEditor] : [editor])
+        : [];
     }
     return [];
   }
@@ -120,7 +128,9 @@ console.log(JSON.stringify({
     return json.loads(result.stdout)
 
 
-@pytest.mark.parametrize("variant", ["legacy", "modern_lexical"])
+@pytest.mark.parametrize(
+    "variant", ["legacy", "modern_lexical", "current_generic"]
+)
 def test_current_and_historical_official_composer_are_mounted_and_clean(
     variant: str,
 ) -> None:
@@ -130,7 +140,9 @@ def test_current_and_historical_official_composer_are_mounted_and_clean(
     assert evidence["groupCount"] == 0
 
 
-@pytest.mark.parametrize("variant", ["orphan_editor", "unrelated_editor"])
+@pytest.mark.parametrize(
+    "variant", ["orphan_editor", "unrelated_editor", "two_generic_editors"]
+)
 def test_editor_without_authoritative_composer_is_not_mount_proof(variant: str) -> None:
     evidence = _run_case(variant)
     assert evidence["mounted"] is False
@@ -153,3 +165,11 @@ def test_rich_input_uses_existing_shared_composer_resolver() -> None:
     assert "const exactAttachmentSet = crossEvidenceChannelExact;" in rich
     assert "function _pr117ComposerResolverSource()" in compat
     assert "|| document.body" not in rich
+
+
+def test_actual_october_2026_chatgpt_dom_shape_is_recognized() -> None:
+    """Live: visible DIV textbox; editable/multiline, inside main+form, no ids."""
+    evidence = _run_case("current_generic")
+    assert evidence["mounted"] is True
+    assert evidence["clean"] is True
+    assert evidence["groupCount"] == 0
