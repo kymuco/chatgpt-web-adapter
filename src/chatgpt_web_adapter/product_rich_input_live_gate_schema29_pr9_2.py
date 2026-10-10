@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
+import sys
 import tempfile
-from typing import Any
 import uuid
+from pathlib import Path
+from typing import Any, Callable
 
-from .client import ChatGPTWebClient
 from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema28_pr9_2 as _v28
+from .client import ChatGPTWebClient
 from .product_runtime import assemble_product_runtime
-
 
 SCHEMA = 29
 PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET
@@ -102,44 +102,117 @@ def _validate_support(support: dict[str, Any]) -> None:
     ):
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_AUTHORITY_NOT_PROVEN")
     for key, error in (
-        ("request_bound_protocol_conversation_id_authority", "PR9_2_SCHEMA29_PROTOCOL_ID_AUTHORITY_NOT_PROVEN"),
-        ("request_bound_protocol_conversation_id_consensus_required", "PR9_2_SCHEMA29_PROTOCOL_ID_CONSENSUS_NOT_PROVEN"),
-        ("top_level_conversation_id_authority", "PR9_2_SCHEMA29_TOP_LEVEL_ID_AUTHORITY_NOT_PROVEN"),
-        ("root_add_value_conversation_id_authority", "PR9_2_SCHEMA29_ROOT_ADD_VALUE_ID_AUTHORITY_NOT_PROVEN"),
-        ("conflicting_request_bound_conversation_ids_fail_closed", "PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED"),
+        (
+            "request_bound_protocol_conversation_id_authority",
+            "PR9_2_SCHEMA29_PROTOCOL_ID_AUTHORITY_NOT_PROVEN",
+        ),
+        (
+            "request_bound_protocol_conversation_id_consensus_required",
+            "PR9_2_SCHEMA29_PROTOCOL_ID_CONSENSUS_NOT_PROVEN",
+        ),
+        (
+            "top_level_conversation_id_authority",
+            "PR9_2_SCHEMA29_TOP_LEVEL_ID_AUTHORITY_NOT_PROVEN",
+        ),
+        (
+            "root_add_value_conversation_id_authority",
+            "PR9_2_SCHEMA29_ROOT_ADD_VALUE_ID_AUTHORITY_NOT_PROVEN",
+        ),
+        (
+            "conflicting_request_bound_conversation_ids_fail_closed",
+            "PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED",
+        ),
     ):
         if support.get(key) is not True:
             raise RuntimeError(error)
-    if support.get("unrecognized_nested_conversation_id_can_satisfy_identity") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_UNRECOGNIZED_NESTED_IDENTITY_AUTHORITY_REGRESSED")
-    if support.get("stream_handoff_required_for_causal_conversation_identity") is not False:
+    if (
+        support.get("unrecognized_nested_conversation_id_can_satisfy_identity")
+        is not False
+    ):
+        raise RuntimeError(
+            "PR9_2_SCHEMA29_UNRECOGNIZED_NESTED_IDENTITY_AUTHORITY_REGRESSED"
+        )
+    if (
+        support.get("stream_handoff_required_for_causal_conversation_identity")
+        is not False
+    ):
         raise RuntimeError("PR9_2_SCHEMA29_STREAM_HANDOFF_REQUIREMENT_NOT_REMOVED")
     if support.get("route_conversation_identity_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_ROUTE_IDENTITY_AUTHORITY_REGRESSED")
 
-    if support.get("protected_submit_request_correlation") != _EXPECTED_REQUEST_CORRELATION:
+    if (
+        support.get("protected_submit_request_correlation")
+        != _EXPECTED_REQUEST_CORRELATION
+    ):
         raise RuntimeError("PR9_2_SCHEMA29_REQUEST_BODY_CORRELATION_NOT_PROVEN")
     for key, error in (
-        ("validated_click_request_body_correlation", "PR9_2_SCHEMA29_VALIDATED_CLICK_BODY_BINDING_NOT_PROVEN"),
-        ("request_post_data_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_REQUEST_POST_DATA_NOT_REQUIRED"),
-        ("request_post_data_fallback_supported", "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_SUPPORTED"),
-        ("request_post_data_fallback_exact_request_bound", "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_REQUEST_BOUND"),
-        ("unresolved_request_body_fails_closed", "PR9_2_SCHEMA29_UNRESOLVED_REQUEST_BODY_NOT_FAIL_CLOSED"),
-        ("exact_user_text_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_EXACT_USER_TEXT_NOT_REQUIRED"),
-        ("request_message_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_MESSAGE_ID_NOT_REQUIRED"),
-        ("request_attachment_count_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_ATTACHMENT_COUNT_NOT_REQUIRED"),
-        ("continuation_conversation_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_CONTINUATION_ID_NOT_REQUIRED"),
-        ("new_chat_conversation_id_must_be_absent_for_protected_submit_correlation", "PR9_2_SCHEMA29_NEW_CHAT_ID_ABSENCE_NOT_REQUIRED"),
-        ("additional_service_post_arm_requests_allowed", "PR9_2_SCHEMA29_SERVICE_POST_POLICY_NOT_PROVEN"),
-        ("duplicate_same_logical_message_request_allowed", "PR9_2_SCHEMA29_LOGICAL_DUPLICATE_POLICY_NOT_PROVEN"),
-        ("distinct_post_arm_user_messages_fail_closed", "PR9_2_SCHEMA29_CONCURRENT_USER_TURN_NOT_FAIL_CLOSED"),
-        ("submit_correlation_failure_diagnostics_available", "PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE"),
+        (
+            "validated_click_request_body_correlation",
+            "PR9_2_SCHEMA29_VALIDATED_CLICK_BODY_BINDING_NOT_PROVEN",
+        ),
+        (
+            "request_post_data_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_REQUEST_POST_DATA_NOT_REQUIRED",
+        ),
+        (
+            "request_post_data_fallback_supported",
+            "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_SUPPORTED",
+        ),
+        (
+            "request_post_data_fallback_exact_request_bound",
+            "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_REQUEST_BOUND",
+        ),
+        (
+            "unresolved_request_body_fails_closed",
+            "PR9_2_SCHEMA29_UNRESOLVED_REQUEST_BODY_NOT_FAIL_CLOSED",
+        ),
+        (
+            "exact_user_text_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_EXACT_USER_TEXT_NOT_REQUIRED",
+        ),
+        (
+            "request_message_id_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_MESSAGE_ID_NOT_REQUIRED",
+        ),
+        (
+            "request_attachment_count_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_ATTACHMENT_COUNT_NOT_REQUIRED",
+        ),
+        (
+            "continuation_conversation_id_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_CONTINUATION_ID_NOT_REQUIRED",
+        ),
+        (
+            "new_chat_conversation_id_must_be_absent_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_NEW_CHAT_ID_ABSENCE_NOT_REQUIRED",
+        ),
+        (
+            "additional_service_post_arm_requests_allowed",
+            "PR9_2_SCHEMA29_SERVICE_POST_POLICY_NOT_PROVEN",
+        ),
+        (
+            "duplicate_same_logical_message_request_allowed",
+            "PR9_2_SCHEMA29_LOGICAL_DUPLICATE_POLICY_NOT_PROVEN",
+        ),
+        (
+            "distinct_post_arm_user_messages_fail_closed",
+            "PR9_2_SCHEMA29_CONCURRENT_USER_TURN_NOT_FAIL_CLOSED",
+        ),
+        (
+            "submit_correlation_failure_diagnostics_available",
+            "PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE",
+        ),
     ):
         if support.get(key) is not True:
             raise RuntimeError(error)
 
-    if support.get("additional_post_arm_conversation_requests_authoritative") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_ADDITIONAL_POST_ARM_REQUEST_AUTHORITY_REGRESSED")
+    if (
+        support.get("additional_post_arm_conversation_requests_authoritative")
+        is not False
+    ):
+        raise RuntimeError(
+            "PR9_2_SCHEMA29_ADDITIONAL_POST_ARM_REQUEST_AUTHORITY_REGRESSED"
+        )
     if support.get("has_user_gesture_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_USER_GESTURE_REMAINS_IDENTITY_AUTHORITY")
     if support.get("exactly_one_post_arm_conversation_request_required") is not False:
@@ -150,23 +223,73 @@ def _validate_support(support: dict[str, Any]) -> None:
         )
         is not False
     ):
-        raise RuntimeError("PR9_2_SCHEMA29_RAW_POST_ARM_MULTIPLICITY_STILL_AUTHORITATIVE")
-    if support.get("automatic_write_retry_after_submit_correlation_failure") is not False:
+        raise RuntimeError(
+            "PR9_2_SCHEMA29_RAW_POST_ARM_MULTIPLICITY_STILL_AUTHORITATIVE"
+        )
+    if (
+        support.get("automatic_write_retry_after_submit_correlation_failure")
+        is not False
+    ):
         raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_RETRY_REGRESSED")
     if support.get("automatic_write_retry_after_causal_identity_failure") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_RETRY_REGRESSED")
 
 
-def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
+def run_preflight(*, timeout: float = 10.0) -> dict[str, Any]:
+    """One read-only support RPC; never assemble a write runtime or send a turn."""
+    if timeout <= 0:
+        raise ValueError("timeout must be positive")
+    support = _v7.ProductRichInputLiveProvider().rich_input_support(timeout=timeout)
+    return {
+        "ok": support.get("supported") is True and support.get("schema") == SCHEMA,
+        "schema": support.get("schema"),
+        "supported": support.get("supported") is True,
+        "support_rpc_count": 1,
+        "write_attempts": 0,
+        "write_completions": 0,
+        "automatic_write_retry": False,
+        "fallback_transport": None,
+    }
+
+
+def run_live_gate(
+    *,
+    timeout: float = 150.0,
+    progress: Callable[[str, int, int], None] | None = None,
+) -> dict[str, Any]:
     if timeout <= 0:
         raise ValueError("timeout must be positive")
 
+    def notify(stage: str, attempts: int, completions: int) -> None:
+        if progress is not None:
+            try:
+                progress(stage, attempts, completions)
+            except Exception:
+                # Reporting must never change an already-delegated write's outcome.
+                pass
+
+    def collect_event(
+        events: list[dict[str, Any]], label: str, attempts: int, completions: int
+    ) -> Callable[[dict[str, Any]], None]:
+        def callback(event: dict[str, Any]) -> None:
+            events.append(event)
+            kind = event.get("type")
+            if kind in {
+                "browser_native_write_completed",
+                "browser_native_readback_completed",
+            }:
+                notify(f"{label}:{kind}", attempts, completions)
+
+        return callback
+
+    notify("support_chain_started", 0, 0)
     provider = ProductRichInputSchema29LiveProvider()
     client = ChatGPTWebClient(auto_login=False, auto_sentinel=False)
     runtime = assemble_product_runtime(client=client, provider=provider)
 
     support = provider.rich_input_support(timeout=min(10.0, timeout))
     _validate_support(support)
+    notify("support_chain_validated", 0, 0)
 
     report: dict[str, Any] = {
         "ok": False,
@@ -186,14 +309,16 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
 
         image_events: list[dict[str, Any]] = []
         report["write_attempts"] += 1
+        notify("image_write_attempt_started", 1, 0)
         image_execution = runtime.send_text_observed(
             _v7._IMAGE_PROMPT,
             media=[image_path],
             timeout=timeout,
             conversation_mode="normal",
-            on_event=image_events.append,
+            on_event=collect_event(image_events, "image", 1, 0),
         )
         report["write_completions"] += 1
+        notify("image_write_returned", 1, 1)
         report["turns"].append(
             _v7._validate_execution(
                 label="IMAGE_NEW_CHAT",
@@ -204,17 +329,20 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
                 attachment_evidence_kind="image_color_band_order",
             )
         )
+        notify("image_validated", 1, 1)
 
         file_events: list[dict[str, Any]] = []
         report["write_attempts"] += 1
+        notify("file_write_attempt_started", 2, 1)
         file_execution = runtime.send_text_observed(
             _v7._FILE_PROMPT,
             media=[file_path],
             timeout=timeout,
             conversation_mode="normal",
-            on_event=file_events.append,
+            on_event=collect_event(file_events, "file", 2, 1),
         )
         report["write_completions"] += 1
+        notify("file_write_returned", 2, 2)
         report["turns"].append(
             _v7._validate_execution(
                 label="FILE_NEW_CHAT",
@@ -225,19 +353,22 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
                 attachment_evidence_kind="general_file_hidden_marker",
             )
         )
+        notify("file_validated", 2, 2)
 
         continuation_events: list[dict[str, Any]] = []
         continuation_id = image_execution.response.conversation.conversation_id
         report["write_attempts"] += 1
+        notify("continuation_write_attempt_started", 3, 2)
         continuation_execution = runtime.send_text_observed(
             _v7._CONTINUATION_PROMPT,
             conversation=image_execution.response.conversation,
             media=[continuation_path],
             timeout=timeout,
             conversation_mode="normal",
-            on_event=continuation_events.append,
+            on_event=collect_event(continuation_events, "continuation", 3, 2),
         )
         report["write_completions"] += 1
+        notify("continuation_write_returned", 3, 3)
         report["turns"].append(
             _v7._validate_execution(
                 label="MULTIMODAL_CONTINUATION",
@@ -249,6 +380,7 @@ def run_live_gate(*, timeout: float = 150.0) -> dict[str, Any]:
                 expected_conversation_id=continuation_id,
             )
         )
+        notify("continuation_validated", 3, 3)
 
     if report["write_attempts"] != PRODUCT_WRITE_BUDGET:
         raise RuntimeError("PR9_2_SCHEMA29_WRITE_BUDGET_MISMATCH")
@@ -292,16 +424,41 @@ def main() -> int:
         description="PR9.2 schema-29 request-body-bound rich-input live gate"
     )
     parser.add_argument("--acknowledge-live-writes", action="store_true")
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="One read-only rich-input support RPC; never send any messages",
+    )
     parser.add_argument("--timeout", type=float, default=150.0)
     args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
+    if args.preflight_only:
+        if args.acknowledge_live_writes:
+            parser.error("--preflight-only cannot be combined with live-write approval")
+        report = run_preflight(timeout=min(args.timeout, 10.0))
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0 if report.get("ok") is True else 1
     if not args.acknowledge_live_writes:
         parser.error(
             "--acknowledge-live-writes is required; this gate performs exactly three product writes"
         )
-    if args.timeout <= 0:
-        parser.error("--timeout must be positive")
 
-    report = run_live_gate(timeout=args.timeout)
+    def progress(stage: str, attempts: int, completions: int) -> None:
+        print(
+            json.dumps(
+                {
+                    "event": "schema29_live_gate_progress",
+                    "stage": stage,
+                    "write_attempts": attempts,
+                    "write_completions": completions,
+                }
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
+
+    report = run_live_gate(timeout=args.timeout, progress=progress)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report.get("ok") is True else 1
 
