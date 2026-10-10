@@ -42,6 +42,7 @@ class FakeElement {
     return null;
   }
   contains(_element) { return false; }
+  querySelector(_selector) { return null; }
   querySelectorAll(selector) {
     if (selector === '[role="group"][aria-label]' && variant === "unexpected_chip") {
       return [group];
