@@ -37,6 +37,9 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
   const encodedNames = JSON.stringify(expectedNames);
   const payloadParser = _pr92Schema27RemovalPostActionPayload.toString();
   const indexedParser = _pr92Schema27IndexedRemovalCandidate.toString();
+  // Runtime lookup: PR11.7 is loaded after the schema-27 definitions but before
+  // any rich-input turn evaluates this expression.
+  const structuralResolverSource = _pr117ComposerResolverSource();
   return `(() => {
     const expected = ${encodedNames};
     const isVisible = (element) => {
@@ -46,8 +49,32 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       const style = getComputedStyle(element);
       return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
     };
-    const prompt = document.querySelector('#prompt-textarea') ||
+    const legacyPrompt = document.querySelector('#prompt-textarea') ||
       document.querySelector('[data-testid="prompt-textarea"]');
+    const legacyForm = legacyPrompt instanceof Element
+      ? legacyPrompt.closest('form') : null;
+
+    // Rich attachment authority requires an unambiguous official composer.
+    // Share PR11.7 discovery but NEVER trust a generic contenteditable alone:
+    // the current no-id editor must be the unique visible, writable multiline
+    // textbox inside main and form. Any ambiguity fails closed before staging.
+    const resolveStructuralComposer = ${structuralResolverSource};
+    const structuralPrompt = legacyForm instanceof Element
+      ? null : resolveStructuralComposer();
+    const eligibleModernEditors = Array.from(document.querySelectorAll(
+      '[contenteditable="true"][role="textbox"][aria-multiline="true"]'
+    )).filter((element) =>
+      isVisible(element) &&
+      element.getAttribute('aria-disabled') !== 'true' &&
+      element.disabled !== true &&
+      element.closest('main') instanceof Element &&
+      element.closest('form') instanceof Element
+    );
+    const verifiedStructuralPrompt = structuralPrompt instanceof Element &&
+      eligibleModernEditors.length === 1 &&
+      eligibleModernEditors[0] === structuralPrompt;
+    const prompt = legacyForm instanceof Element
+      ? legacyPrompt : (verifiedStructuralPrompt ? structuralPrompt : null);
     const composer = prompt instanceof Element ? prompt.closest('form') : null;
     if (!(prompt instanceof Element) || !(composer instanceof Element)) {
       return {
