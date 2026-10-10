@@ -3,16 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 import tempfile
-from typing import Any, Callable
 import uuid
+from pathlib import Path
+from typing import Any, Callable
 
-from .client import ChatGPTWebClient
 from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema28_pr9_2 as _v28
+from .client import ChatGPTWebClient
 from .product_runtime import assemble_product_runtime
-
 
 SCHEMA = 29
 PRODUCT_WRITE_BUDGET = _v28.PRODUCT_WRITE_BUDGET
@@ -103,44 +102,117 @@ def _validate_support(support: dict[str, Any]) -> None:
     ):
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_AUTHORITY_NOT_PROVEN")
     for key, error in (
-        ("request_bound_protocol_conversation_id_authority", "PR9_2_SCHEMA29_PROTOCOL_ID_AUTHORITY_NOT_PROVEN"),
-        ("request_bound_protocol_conversation_id_consensus_required", "PR9_2_SCHEMA29_PROTOCOL_ID_CONSENSUS_NOT_PROVEN"),
-        ("top_level_conversation_id_authority", "PR9_2_SCHEMA29_TOP_LEVEL_ID_AUTHORITY_NOT_PROVEN"),
-        ("root_add_value_conversation_id_authority", "PR9_2_SCHEMA29_ROOT_ADD_VALUE_ID_AUTHORITY_NOT_PROVEN"),
-        ("conflicting_request_bound_conversation_ids_fail_closed", "PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED"),
+        (
+            "request_bound_protocol_conversation_id_authority",
+            "PR9_2_SCHEMA29_PROTOCOL_ID_AUTHORITY_NOT_PROVEN",
+        ),
+        (
+            "request_bound_protocol_conversation_id_consensus_required",
+            "PR9_2_SCHEMA29_PROTOCOL_ID_CONSENSUS_NOT_PROVEN",
+        ),
+        (
+            "top_level_conversation_id_authority",
+            "PR9_2_SCHEMA29_TOP_LEVEL_ID_AUTHORITY_NOT_PROVEN",
+        ),
+        (
+            "root_add_value_conversation_id_authority",
+            "PR9_2_SCHEMA29_ROOT_ADD_VALUE_ID_AUTHORITY_NOT_PROVEN",
+        ),
+        (
+            "conflicting_request_bound_conversation_ids_fail_closed",
+            "PR9_2_SCHEMA29_CONFLICTING_REQUEST_BOUND_IDS_NOT_FAIL_CLOSED",
+        ),
     ):
         if support.get(key) is not True:
             raise RuntimeError(error)
-    if support.get("unrecognized_nested_conversation_id_can_satisfy_identity") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_UNRECOGNIZED_NESTED_IDENTITY_AUTHORITY_REGRESSED")
-    if support.get("stream_handoff_required_for_causal_conversation_identity") is not False:
+    if (
+        support.get("unrecognized_nested_conversation_id_can_satisfy_identity")
+        is not False
+    ):
+        raise RuntimeError(
+            "PR9_2_SCHEMA29_UNRECOGNIZED_NESTED_IDENTITY_AUTHORITY_REGRESSED"
+        )
+    if (
+        support.get("stream_handoff_required_for_causal_conversation_identity")
+        is not False
+    ):
         raise RuntimeError("PR9_2_SCHEMA29_STREAM_HANDOFF_REQUIREMENT_NOT_REMOVED")
     if support.get("route_conversation_identity_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_ROUTE_IDENTITY_AUTHORITY_REGRESSED")
 
-    if support.get("protected_submit_request_correlation") != _EXPECTED_REQUEST_CORRELATION:
+    if (
+        support.get("protected_submit_request_correlation")
+        != _EXPECTED_REQUEST_CORRELATION
+    ):
         raise RuntimeError("PR9_2_SCHEMA29_REQUEST_BODY_CORRELATION_NOT_PROVEN")
     for key, error in (
-        ("validated_click_request_body_correlation", "PR9_2_SCHEMA29_VALIDATED_CLICK_BODY_BINDING_NOT_PROVEN"),
-        ("request_post_data_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_REQUEST_POST_DATA_NOT_REQUIRED"),
-        ("request_post_data_fallback_supported", "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_SUPPORTED"),
-        ("request_post_data_fallback_exact_request_bound", "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_REQUEST_BOUND"),
-        ("unresolved_request_body_fails_closed", "PR9_2_SCHEMA29_UNRESOLVED_REQUEST_BODY_NOT_FAIL_CLOSED"),
-        ("exact_user_text_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_EXACT_USER_TEXT_NOT_REQUIRED"),
-        ("request_message_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_MESSAGE_ID_NOT_REQUIRED"),
-        ("request_attachment_count_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_ATTACHMENT_COUNT_NOT_REQUIRED"),
-        ("continuation_conversation_id_required_for_protected_submit_correlation", "PR9_2_SCHEMA29_CONTINUATION_ID_NOT_REQUIRED"),
-        ("new_chat_conversation_id_must_be_absent_for_protected_submit_correlation", "PR9_2_SCHEMA29_NEW_CHAT_ID_ABSENCE_NOT_REQUIRED"),
-        ("additional_service_post_arm_requests_allowed", "PR9_2_SCHEMA29_SERVICE_POST_POLICY_NOT_PROVEN"),
-        ("duplicate_same_logical_message_request_allowed", "PR9_2_SCHEMA29_LOGICAL_DUPLICATE_POLICY_NOT_PROVEN"),
-        ("distinct_post_arm_user_messages_fail_closed", "PR9_2_SCHEMA29_CONCURRENT_USER_TURN_NOT_FAIL_CLOSED"),
-        ("submit_correlation_failure_diagnostics_available", "PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE"),
+        (
+            "validated_click_request_body_correlation",
+            "PR9_2_SCHEMA29_VALIDATED_CLICK_BODY_BINDING_NOT_PROVEN",
+        ),
+        (
+            "request_post_data_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_REQUEST_POST_DATA_NOT_REQUIRED",
+        ),
+        (
+            "request_post_data_fallback_supported",
+            "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_SUPPORTED",
+        ),
+        (
+            "request_post_data_fallback_exact_request_bound",
+            "PR9_2_SCHEMA29_REQUEST_POST_DATA_FALLBACK_NOT_REQUEST_BOUND",
+        ),
+        (
+            "unresolved_request_body_fails_closed",
+            "PR9_2_SCHEMA29_UNRESOLVED_REQUEST_BODY_NOT_FAIL_CLOSED",
+        ),
+        (
+            "exact_user_text_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_EXACT_USER_TEXT_NOT_REQUIRED",
+        ),
+        (
+            "request_message_id_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_MESSAGE_ID_NOT_REQUIRED",
+        ),
+        (
+            "request_attachment_count_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_ATTACHMENT_COUNT_NOT_REQUIRED",
+        ),
+        (
+            "continuation_conversation_id_required_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_CONTINUATION_ID_NOT_REQUIRED",
+        ),
+        (
+            "new_chat_conversation_id_must_be_absent_for_protected_submit_correlation",
+            "PR9_2_SCHEMA29_NEW_CHAT_ID_ABSENCE_NOT_REQUIRED",
+        ),
+        (
+            "additional_service_post_arm_requests_allowed",
+            "PR9_2_SCHEMA29_SERVICE_POST_POLICY_NOT_PROVEN",
+        ),
+        (
+            "duplicate_same_logical_message_request_allowed",
+            "PR9_2_SCHEMA29_LOGICAL_DUPLICATE_POLICY_NOT_PROVEN",
+        ),
+        (
+            "distinct_post_arm_user_messages_fail_closed",
+            "PR9_2_SCHEMA29_CONCURRENT_USER_TURN_NOT_FAIL_CLOSED",
+        ),
+        (
+            "submit_correlation_failure_diagnostics_available",
+            "PR9_2_SCHEMA29_SUBMIT_CORRELATION_DIAGNOSTICS_NOT_AVAILABLE",
+        ),
     ):
         if support.get(key) is not True:
             raise RuntimeError(error)
 
-    if support.get("additional_post_arm_conversation_requests_authoritative") is not False:
-        raise RuntimeError("PR9_2_SCHEMA29_ADDITIONAL_POST_ARM_REQUEST_AUTHORITY_REGRESSED")
+    if (
+        support.get("additional_post_arm_conversation_requests_authoritative")
+        is not False
+    ):
+        raise RuntimeError(
+            "PR9_2_SCHEMA29_ADDITIONAL_POST_ARM_REQUEST_AUTHORITY_REGRESSED"
+        )
     if support.get("has_user_gesture_authoritative") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_USER_GESTURE_REMAINS_IDENTITY_AUTHORITY")
     if support.get("exactly_one_post_arm_conversation_request_required") is not False:
@@ -151,8 +223,13 @@ def _validate_support(support: dict[str, Any]) -> None:
         )
         is not False
     ):
-        raise RuntimeError("PR9_2_SCHEMA29_RAW_POST_ARM_MULTIPLICITY_STILL_AUTHORITATIVE")
-    if support.get("automatic_write_retry_after_submit_correlation_failure") is not False:
+        raise RuntimeError(
+            "PR9_2_SCHEMA29_RAW_POST_ARM_MULTIPLICITY_STILL_AUTHORITATIVE"
+        )
+    if (
+        support.get("automatic_write_retry_after_submit_correlation_failure")
+        is not False
+    ):
         raise RuntimeError("PR9_2_SCHEMA29_SUBMIT_CORRELATION_RETRY_REGRESSED")
     if support.get("automatic_write_retry_after_causal_identity_failure") is not False:
         raise RuntimeError("PR9_2_SCHEMA29_IDENTITY_RETRY_REGRESSED")
@@ -366,6 +443,7 @@ def main() -> int:
         parser.error(
             "--acknowledge-live-writes is required; this gate performs exactly three product writes"
         )
+
     def progress(stage: str, attempts: int, completions: int) -> None:
         print(
             json.dumps(

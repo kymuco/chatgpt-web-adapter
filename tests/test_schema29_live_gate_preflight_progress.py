@@ -8,14 +8,18 @@ import chatgpt_web_adapter.product_rich_input_live_gate_pr9_2 as legacy_gate
 import chatgpt_web_adapter.product_rich_input_live_gate_schema29_pr9_2 as gate
 
 
-def test_preflight_is_one_read_only_support_request(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_preflight_is_one_read_only_support_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     def fake_support(self, *, timeout: float):
         calls.append(timeout)
         return {"schema": 29, "supported": True}
 
-    monkeypatch.setattr(legacy_gate.ProductRichInputLiveProvider, "rich_input_support", fake_support)
+    monkeypatch.setattr(
+        legacy_gate.ProductRichInputLiveProvider, "rich_input_support", fake_support
+    )
     result = gate.run_preflight(timeout=4.0)
 
     assert calls == [4.0]
