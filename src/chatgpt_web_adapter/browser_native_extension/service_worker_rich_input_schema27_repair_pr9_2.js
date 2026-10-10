@@ -37,8 +37,14 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
   const encodedNames = JSON.stringify(expectedNames);
   const payloadParser = _pr92Schema27RemovalPostActionPayload.toString();
   const indexedParser = _pr92Schema27IndexedRemovalCandidate.toString();
+  // The ordinary-text composer already uses PR11.7's bounded structural
+  // resolver. Rich-input must resolve that same composer before interpreting
+  // any attachment chips; a historical #prompt-textarea selector is no longer
+  // sufficient mount evidence.
+  const composerResolver = _pr117ComposerResolverSource();
   return `(() => {
     const expected = ${encodedNames};
+    const resolveComposer = ${composerResolver};
     const isVisible = (element) => {
       if (!(element instanceof Element)) return false;
       const rect = element.getBoundingClientRect();
@@ -46,8 +52,10 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       const style = getComputedStyle(element);
       return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
     };
-    const prompt = document.querySelector('#prompt-textarea') ||
-      document.querySelector('[data-testid="prompt-textarea"]');
+    const prompt = resolveComposer();
+    // Never use document.body or an unrelated form as rich-input authority.
+    // Retain the strict owning-form requirement and all exact attachment-set
+    // checks below, including the zero-attachment clean predicate.
     const composer = prompt instanceof Element ? prompt.closest('form') : null;
     if (!(prompt instanceof Element) || !(composer instanceof Element)) {
       return {

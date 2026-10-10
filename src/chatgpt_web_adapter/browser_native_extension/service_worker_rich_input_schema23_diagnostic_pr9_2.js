@@ -13,7 +13,12 @@ function _pr92Schema23DiagnosticBestEffortDetach(debuggee) {
 }
 
 function _pr92Schema23DiagnosticExpression() {
+  // Use the same resolver as the production attachment-evidence reader; an
+  // additional diagnostic-only legacy selector would falsely report missing
+  // Composer even after the production mount proof succeeded.
+  const composerResolver = _pr117ComposerResolverSource();
   return `(() => {
+    const resolveComposer = ${composerResolver};
     const normalize = (value) => typeof value === 'string' ? value.trim() : '';
     const isVisible = (element) => {
       if (!(element instanceof Element)) return false;
@@ -22,8 +27,7 @@ function _pr92Schema23DiagnosticExpression() {
       const style = getComputedStyle(element);
       return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
     };
-    const prompt = document.querySelector('#prompt-textarea') ||
-      document.querySelector('[data-testid="prompt-textarea"]');
+    const prompt = resolveComposer();
     const composer = prompt instanceof Element ? prompt.closest('form') : null;
     if (!(prompt instanceof Element) || !(composer instanceof Element)) {
       return {
