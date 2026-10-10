@@ -128,9 +128,7 @@ console.log(JSON.stringify({
     return json.loads(result.stdout)
 
 
-@pytest.mark.parametrize(
-    "variant", ["legacy", "modern_lexical", "current_generic"]
-)
+@pytest.mark.parametrize("variant", ["legacy", "modern_lexical", "current_generic"])
 def test_current_and_historical_official_composer_are_mounted_and_clean(
     variant: str,
 ) -> None:
