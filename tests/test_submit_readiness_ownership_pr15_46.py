@@ -44,7 +44,8 @@ def test_schema12_readiness_delegates_to_immutable_base() -> None:
     end = schema12.index("function _pr92Schema12AugmentSupportResult", start)
     block = schema12[start:end]
 
-    assert block.count("_cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs)") == 2
+    assert block.count("_cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs)") == 1
+    assert block.count("_pr117WaitForSendButtonPoint(debuggee, timeoutMs)") == 1
     assert "const context = _pr92ActiveRichInputContext;" in block
     assert '"SCHEMA12_SEND_READINESS_WAIT"' in block
     assert "_pr92Schema7RunUntil(" in block

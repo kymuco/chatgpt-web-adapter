@@ -133,7 +133,7 @@ async function _pr92Schema12DeadlineBoundedSendReadiness(
   return _pr92Schema7RunUntil(
     context.deadlineAt,
     "SCHEMA12_SEND_READINESS_WAIT",
-    () => _cwaBaseWaitForSendButtonPoint(debuggee, timeoutMs)
+    () => _pr117WaitForSendButtonPoint(debuggee, timeoutMs)
   );
 }
 
