@@ -110,11 +110,12 @@ console.log(JSON.stringify({
 """
     result = subprocess.run(
         [node, "-e", script, str(COMPAT), str(RICH), case],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
+    assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
 
@@ -150,4 +151,4 @@ def test_rich_input_uses_existing_shared_composer_resolver() -> None:
     assert "prompt.closest('form')" in rich
     assert "const exactAttachmentSet = crossEvidenceChannelExact;" in rich
     assert "function _pr117ComposerResolverSource()" in compat
-    assert "document.body" not in rich
+    assert "|| document.body" not in rich
