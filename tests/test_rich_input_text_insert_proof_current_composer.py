@@ -92,12 +92,17 @@ console.log(JSON.stringify({focusProof, textProof}));
     return json.loads(proc.stdout)
 
 
-@pytest.mark.parametrize("scenario,expected", [
-    ("inserted", {"focusProof": True, "textProof": True}),
-    ("not_inserted", {"focusProof": True, "textProof": False}),
-    ("orphan", {"focusProof": False, "textProof": False}),
-])
-def test_rich_composer_focus_and_exact_text_proof(scenario: str, expected: dict) -> None:
+@pytest.mark.parametrize(
+    "scenario,expected",
+    [
+        ("inserted", {"focusProof": True, "textProof": True}),
+        ("not_inserted", {"focusProof": True, "textProof": False}),
+        ("orphan", {"focusProof": False, "textProof": False}),
+    ],
+)
+def test_rich_composer_focus_and_exact_text_proof(
+    scenario: str, expected: dict
+) -> None:
     assert _run_dom(scenario) == expected
 
 
