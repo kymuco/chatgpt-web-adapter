@@ -4,7 +4,9 @@ import argparse
 import json
 import uuid
 
-from .product_rich_input_live_gate_schema24_pr9_2 import ProductRichInputSchema24LiveProvider
+from .product_rich_input_live_gate_schema24_pr9_2 import (
+    ProductRichInputSchema24LiveProvider,
+)
 
 
 def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
