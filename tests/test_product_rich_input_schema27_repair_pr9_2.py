@@ -166,9 +166,7 @@ def test_schema_27_support_probe_is_twenty_first_no_write_characterization_rpc()
     assert "--acknowledge-live-writes" in text
 
 
-def test_inline_attachment_preview_evidence_is_exact_and_bounded() -> (
-    None
-):
+def test_inline_attachment_preview_evidence_is_exact_and_bounded() -> None:
     import json
     import shutil
     import subprocess
@@ -216,7 +214,12 @@ console.log(JSON.stringify(vm.runInContext(expression, ctx)));
     def evaluate(count: int, filename: str, names: list[str] | None = None) -> dict:
         completed = subprocess.run(
             [
-                node, "-e", script, str(SCHEMA27), str(count), filename,
+                node,
+                "-e",
+                script,
+                str(SCHEMA27),
+                str(count),
+                filename,
                 json.dumps(names or []),
             ],
             capture_output=True,
