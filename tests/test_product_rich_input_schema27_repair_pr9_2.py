@@ -211,6 +211,7 @@ const expression = vm.runInContext(
 );
 console.log(JSON.stringify(vm.runInContext(expression, ctx)));
 """
+
     def evaluate(count: int, filename: str, names: list[str] | None = None) -> dict:
         completed = subprocess.run(
             [
