@@ -210,32 +210,30 @@ async function _pr92BaseTryClearDirtyAttachmentFence() {
   }
 }
 
-function _pr92FindFileInputExpression() {
+function _pr92FindFileInputExpression(preferMultiple = false) {
   return `(() => {
     const seen = new Set();
+    const inputs = [];
     const visit = (root) => {
-      if (!root || seen.has(root)) return null;
+      if (!root || seen.has(root)) return;
       seen.add(root);
       try {
-        const direct = root.querySelector && root.querySelector('input[type="file"]');
-        if (direct) return direct;
-        const elements = root.querySelectorAll ? Array.from(root.querySelectorAll('*')) : [];
-        for (const element of elements) {
-          if (element && element.shadowRoot) {
-            const nested = visit(element.shadowRoot);
-            if (nested) return nested;
+        if (root.querySelectorAll) {
+          inputs.push(...root.querySelectorAll('input[type="file"]'));
+          for (const element of root.querySelectorAll('*')) {
+            if (element && element.shadowRoot) visit(element.shadowRoot);
           }
         }
       } catch {}
-      return null;
     };
-    return visit(document);
+    visit(document);
+    return ${preferMultiple ? "inputs.find((input) => input.multiple) || inputs[0]" : "inputs[0]"} || null;
   })()`;
 }
 
-async function _pr92FindFileInputObjectId(debuggee) {
+async function _pr92FindFileInputObjectId(debuggee, preferMultiple = false) {
   const result = await chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
-    expression: _pr92FindFileInputExpression(),
+    expression: _pr92FindFileInputExpression(preferMultiple),
     returnByValue: false,
     awaitPromise: true
   });
