@@ -741,3 +741,98 @@ def test_schema29_committed_error_does_not_settle_postdata_twice() -> None:
     assert "await _pr92Schema29AwaitPostDataLookups(context);" not in catch_source
     assert "_pr92Schema29LastSubmitCorrelationDiagnostics === null" in catch_source
     assert "_pr92Schema29EvaluateSubmitCorrelation(context)" in catch_source
+
+
+def test_aborted_rich_new_chat_exports_route_only_canonical_lookup_candidate() -> None:
+    source = SCHEMA29.read_text(encoding="utf-8")
+    start = source.index("async function _pr92Schema29AnnotateAbortedRichNewChat")
+    end = source.index("async function _pr92Schema29ExecuteOfficialPageTurn", start)
+    helper = source[start:end]
+    result = _run_node(
+        f"""
+{helper}
+let _pr92Schema29LastSubmitCorrelationDiagnostics = null;
+let lookedUp = 0;
+let settled = 0;
+let route = "https://chatgpt.com/c/conversation-1";
+async function _pr92Schema29AwaitPostDataLookups(context) {{
+  settled++;
+}}
+function _pr92Schema29EvaluateSubmitCorrelation(context) {{
+  return {{ok: context.matched === true}};
+}}
+async function _pr92Schema7RunUntil(deadlineAt, stage, operation) {{
+  return operation();
+}}
+const chrome = {{tabs: {{async get(id) {{
+  lookedUp++;
+  return {{url: route}};
+}}}}}};
+function conversationIdFromUrl(url) {{
+  return url.includes("/c/") ? url.split("/c/")[1] : null;
+}}
+function context(overrides = {{}}) {{
+  return {{
+    schema19RequestedConversationId: null,
+    schema29ExpectedAttachmentCount: 3,
+    schema20ProtectedSubmitMarkerObserved: true,
+    schema29PostArmConversationRequests: [{{logicalMessageId: "user-rich-1"}}],
+    deadlineAt: 10000,
+    matched: true,
+    ...overrides
+  }};
+}}
+async function run(ctx, errorMessage) {{
+  const error = new Error(errorMessage);
+  await _pr92Schema29AnnotateAbortedRichNewChat(ctx, 73, error);
+  return {{
+    proven: error.cwaPostDelegationRequestCorrelationProven === true,
+    candidateOnly: error.cwaPostDelegationNewChatRouteCandidateOnly === true,
+    userId: error.cwaPostDelegationUserMessageId || null,
+    conversationId: error.cwaPostDelegationConversationId || null
+  }};
+}}
+(async () => {{
+  const aborted = "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED";
+  const positive = await run(context(), aborted);
+  const noCorrelation = await run(context({{matched: false}}), aborted);
+  route = "https://chatgpt.com/";
+  const noRoute = await run(context(), aborted);
+  route = "https://chatgpt.com/c/conversation-1";
+  const notArmed = await run(
+    context({{schema20ProtectedSubmitMarkerObserved: false}}),
+    aborted
+  );
+  const continuation = await run(
+    context({{schema19RequestedConversationId: "existing"}}),
+    aborted
+  );
+  const anotherError = await run(context(), "OTHER_FAILURE");
+  console.log(JSON.stringify({{
+    positive, noCorrelation, noRoute, notArmed, continuation,
+    anotherError, lookedUp, settled
+  }}));
+}})().catch(error => {{
+  console.error(error);
+  process.exitCode = 1;
+}});
+"""
+    )
+
+    assert result["positive"] == {
+        "proven": True,
+        "candidateOnly": True,
+        "userId": "user-rich-1",
+        "conversationId": "conversation-1",
+    }
+    for key in (
+        "noCorrelation",
+        "noRoute",
+        "notArmed",
+        "continuation",
+        "anotherError",
+    ):
+        assert result[key]["proven"] is False
+        assert result[key]["candidateOnly"] is False
+    assert result["settled"] == 3
+    assert result["lookedUp"] == 2
