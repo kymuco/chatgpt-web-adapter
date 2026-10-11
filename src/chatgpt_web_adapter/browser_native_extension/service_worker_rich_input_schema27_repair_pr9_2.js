@@ -191,12 +191,35 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       removalLabels.every((label) =>
         genericRemoval.test(label) || exactRemovalBasename(label, expected[0])
       );
-    const inlineFileNamesExact = expected.length > 0 &&
+    // ChatGPT can append (1), (2), ... to an uploaded display name. Associate
+    // only with a basename selected for this turn, never strip suffixes globally.
+    const isUploadCollisionLabel = (observed, name) => {
+      const dot = name.lastIndexOf('.');
+      if (dot <= 0) return false;
+      const stem = name.slice(0, dot);
+      const ext = name.slice(dot);
+      if (!observed.startsWith(stem) || !observed.endsWith(ext)) return false;
+      const suffix = observed.slice(stem.length, observed.length - ext.length);
+      return /^\\([1-9][0-9]*\\)$/.test(suffix);
+    };
+    const exactInlineNames = expected.length > 0 &&
       inlineFileNames.length === expected.length &&
-      expected.every((name) => inlineFileNames.filter((label) => label === name).length === 1) &&
-      groupLabels.every((label) => expected.includes(label) || genericGroup.test(label)) &&
+      expected.every((name) => inlineFileNames.filter((label) => label === name).length === 1);
+    const assignedNames = inlineFileNames.map((label) => {
+      const candidates = expected.filter((name) =>
+        label === name || isUploadCollisionLabel(label, name));
+      return candidates.length === 1 ? candidates[0] : null;
+    });
+    // Ambiguous matches, missing files and extra files must fail closed.
+    const collisionInlineNamesExact = !exactInlineNames && expected.length > 0 &&
+      inlineFileNames.length === expected.length &&
+      assignedNames.every((name) => name !== null) &&
+      new Set(assignedNames).size === expected.length;
+    const visibleNameSet = [...expected, ...inlineFileNames];
+    const inlineFileNamesExact = (exactInlineNames || collisionInlineNamesExact) &&
+      groupLabels.every((label) => visibleNameSet.includes(label) || genericGroup.test(label)) &&
       removalLabels.every((label) => genericRemoval.test(label) ||
-        expected.some((name) => exactRemovalBasename(label, name)));
+        visibleNameSet.some((name) => exactRemovalBasename(label, name)));
     const exactAttachmentSet = crossEvidenceChannelExact ||
       inlineFileNamesExact || imagePreviewExact;
     const matchedCount = exactAttachmentSet
@@ -241,7 +264,7 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       indexedRemovalAmbiguityBidirectionalFailClosed: true,
       unindexedRemovalLiteralSemanticsPreserved: true,
       evidenceKind: imagePreviewExact && !crossEvidenceChannelExact ? 'single-image-preview' :
-        (inlineFileNamesExact && !crossEvidenceChannelExact ? 'inline-file-name' :
+        (inlineFileNamesExact && !crossEvidenceChannelExact ? (collisionInlineNamesExact ? 'inline-collision-suffix' : 'inline-file-name') :
           (groups.exact && removals.exact ? 'exact-both-evidence-channels' :
         (groups.exact && removalLabels.length === 0 ? 'exact-independent-role-group-channel' :
           (removals.exact && groupLabels.length === 0 ? 'exact-structured-remove-control-channel' : 'not-ready'))))
