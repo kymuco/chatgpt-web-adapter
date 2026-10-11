@@ -207,23 +207,40 @@ async function _cwaBaseWaitForTabComplete(tabId, timeoutMs = 45_000) {
   const current = await chrome.tabs.get(tabId);
   if (current.status === "complete") return current;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+    let settled = false;
+    const finish = (error, tab) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       chrome.tabs.onUpdated.removeListener(onUpdated);
-      reject(new Error("CHATGPT_RUNTIME_TAB_LOAD_TIMEOUT"));
-    }, timeoutMs);
+      if (error) reject(error);
+      else resolve(tab);
+    };
+    const timer = setTimeout(
+      () => finish(new Error("CHATGPT_RUNTIME_TAB_LOAD_TIMEOUT")),
+      timeoutMs
+    );
 
     async function onUpdated(updatedTabId, changeInfo) {
       if (updatedTabId !== tabId || changeInfo.status !== "complete") return;
-      clearTimeout(timer);
-      chrome.tabs.onUpdated.removeListener(onUpdated);
       try {
-        resolve(await chrome.tabs.get(tabId));
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.status === "complete") finish(null, tab);
       } catch (error) {
-        reject(error);
+        finish(error);
       }
     }
 
     chrome.tabs.onUpdated.addListener(onUpdated);
+
+    // The tab may reach "complete" between the first tabs.get and listener
+    // registration. Recheck AFTER subscribing so no completion is lost.
+    chrome.tabs.get(tabId).then(
+      (tab) => {
+        if (tab.status === "complete") finish(null, tab);
+      },
+      (error) => finish(error)
+    );
   });
 }
 
