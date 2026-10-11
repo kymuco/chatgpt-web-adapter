@@ -188,16 +188,19 @@ async function _pr92Schema13StageFileSelection(tabId, attachmentPaths, context) 
     // A single-file input cannot accept the requested set in one chooser event.
     // Prefer a multiple-enabled input; otherwise stage one at a time, requiring
     // page-owned proof before moving to the next file.
-    const capability = await _pr92Schema7RunUntil(
-      context.deadlineAt,
-      "SCHEMA13_STAGE_INPUT_MULTIPLE_READ",
-      () => chrome.debugger.sendCommand(debuggee, "Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: "function() { return this.type === 'file' && this.multiple === true; }",
-        returnByValue: true
-      })
-    );
-    const supportsMultiple = capability?.result?.value === true;
+    let supportsMultiple = false;
+    if (attachmentPaths.length > 1) {
+      const capability = await _pr92Schema7RunUntil(
+        context.deadlineAt,
+        "SCHEMA13_STAGE_INPUT_MULTIPLE_READ",
+        () => chrome.debugger.sendCommand(debuggee, "Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function() { return this.type === 'file' && this.multiple === true; }",
+          returnByValue: true
+        })
+      );
+      supportsMultiple = capability?.result?.value === true;
+    }
     const batches = supportsMultiple || attachmentPaths.length === 1
       ? [attachmentPaths]
       : attachmentPaths.map((path) => [path]);
