@@ -346,3 +346,134 @@ def test_delegated_abort_with_canonical_terminal_assistant_finalizes_logical_tur
     assert error.automatic_retry_allowed is False
     assert error.manual_retry_safe_after_repair is False
     assert error.turn_lifecycle.state.value == "FINALIZED"
+
+
+def _aborted_rich_new_chat_snapshot(*, terminal: bool, user_id: str = "user-rich-1"):
+    from chatgpt_web_adapter.canonical_conversation_snapshot import (
+        canonical_snapshot_from_payload,
+    )
+
+    mapping = {
+        "root": {
+            "id": "root",
+            "parent": None,
+            "children": ["user-node"],
+            "message": None,
+        },
+        "user-node": {
+            "id": "user-node",
+            "parent": "root",
+            "children": ["assistant-node"] if terminal else [],
+            "message": {
+                "id": user_id,
+                "author": {"role": "user"},
+                "content": {"content_type": "text", "parts": ["prompt"]},
+                "metadata": {},
+            },
+        },
+    }
+    if terminal:
+        mapping["assistant-node"] = {
+            "id": "assistant-node",
+            "parent": "user-node",
+            "children": [],
+            "message": {
+                "id": "assistant-rich-1",
+                "author": {"role": "assistant"},
+                "content": {"content_type": "text", "parts": ["canonical answer"]},
+                "metadata": {"finish_details": {"type": "stop"}},
+            },
+        }
+    return canonical_snapshot_from_payload(
+        "rich-conversation-1",
+        {
+            "conversation_id": "rich-conversation-1",
+            "current_node": "assistant-node" if terminal else "user-node",
+            "mapping": mapping,
+        },
+    )
+
+
+def _aborted_rich_new_chat_error(*, route_candidate: bool = True):
+    error = subject.RequestError(
+        "PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:"
+        "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+    )
+    error.post_delegation_request_correlation_proven = True
+    error.post_delegation_user_message_id = "user-rich-1"
+    error.post_delegation_conversation_id = "rich-conversation-1"
+    error.post_delegation_runtime_tab_id = 73
+    error.post_delegation_new_chat_route_candidate_only = route_candidate
+    return error
+
+
+@pytest.mark.parametrize(
+    ("terminal", "snapshot_user_id", "expected_outcome"),
+    [
+        (True, "user-rich-1", "success"),
+        (False, "user-rich-1", subject.WRITE_SUBMITTED_GENERATION_INCOMPLETE),
+        (True, "unrelated-user", subject.WRITE_OUTCOME_UNKNOWN),
+    ],
+)
+def test_aborted_rich_new_chat_requires_exact_canonical_proof_before_success(
+    monkeypatch, terminal, snapshot_user_id, expected_outcome
+) -> None:
+    class SnapshotClient(FakeClient):
+        def __init__(self):
+            super().__init__()
+            self.reads = 0
+
+        def get_conversation_snapshot(self, conversation):
+            assert conversation == "rich-conversation-1"
+            self.reads += 1
+            return _aborted_rich_new_chat_snapshot(
+                terminal=terminal, user_id=snapshot_user_id
+            )
+
+    calls = []
+    def failed_send(*args, **kwargs):
+        calls.append(1)
+        raise _aborted_rich_new_chat_error()
+
+    monkeypatch.setattr(subject, "send_browser_native", failed_send)
+    client = SnapshotClient()
+    rt = subject.BrowserOwnedProductWriteRuntime(client, provider=FakeProvider())
+    events = []
+
+    if expected_outcome == "success":
+        response = rt.send_text("prompt", on_event=events.append)
+        assert response.text == "canonical answer"
+        assert response.conversation.conversation_id == "rich-conversation-1"
+        assert response.conversation.message_id == "assistant-rich-1"
+        assert [event["type"] for event in events] == [
+            "browser_native_write_completed",
+            "browser_native_readback_completed",
+        ]
+        assert rt.lifecycle_snapshot()["turn_lifecycle"]["state"] == "FINALIZED"
+    else:
+        with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+            rt.send_text("prompt", on_event=events.append)
+        assert caught.value.failure_kind == expected_outcome
+        assert caught.value.automatic_retry_allowed is False
+        assert events == []
+
+    assert calls == [1]
+    assert client.reads == 1
+
+
+def test_aborted_rich_new_chat_without_candidate_never_enters_readback(monkeypatch):
+    class SnapshotClient(FakeClient):
+        def get_conversation_snapshot(self, conversation):
+            raise AssertionError("untrusted route must not authorize readback")
+
+    def failed_send(*args, **kwargs):
+        raise _aborted_rich_new_chat_error(route_candidate=False)
+
+    monkeypatch.setattr(subject, "send_browser_native", failed_send)
+    rt = subject.BrowserOwnedProductWriteRuntime(
+        SnapshotClient(), provider=FakeProvider()
+    )
+    with pytest.raises(subject.BrowserOwnedWriteRuntimeError) as caught:
+        rt.send_text("prompt")
+    assert caught.value.failure_kind == subject.WRITE_OUTCOME_UNKNOWN
+    assert caught.value.automatic_retry_allowed is False
