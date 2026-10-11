@@ -7,7 +7,6 @@ import pytest
 
 from chatgpt_web_adapter import browser_native_install
 
-
 NODE = shutil.which("node")
 
 _JS = r"""
