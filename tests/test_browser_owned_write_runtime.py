@@ -431,6 +431,7 @@ def test_aborted_rich_new_chat_requires_exact_canonical_proof_before_success(
             )
 
     calls = []
+
     def failed_send(*args, **kwargs):
         calls.append(1)
         raise _aborted_rich_new_chat_error()
