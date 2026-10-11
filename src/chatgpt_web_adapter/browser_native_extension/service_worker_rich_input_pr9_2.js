@@ -542,7 +542,25 @@ async function _executeNativeTurnWithPr92RichInput(message, next) {
       }
       if (Number.isInteger(_pr92DirtyAttachmentTabId)) {
         const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:${detail}`);
+        const wrapped = new Error(
+          `PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:${detail}`
+        );
+        // Preserve only the bounded, internally proven recovery metadata.
+        // The durable attachment fence remains untouched.
+        if (error?.cwaPostDelegationRequestCorrelationProven === true) {
+          for (const name of [
+            "cwaPostDelegationRequestCorrelationProven",
+            "cwaPostDelegationUserMessageId",
+            "cwaPostDelegationConversationId",
+            "cwaPostDelegationRuntimeTabId",
+            "cwaPostDelegationNewChatRouteCandidateOnly"
+          ]) {
+            if (Object.prototype.hasOwnProperty.call(error, name)) {
+              wrapped[name] = error[name];
+            }
+          }
+        }
+        throw wrapped;
       }
       throw error;
     } finally {
