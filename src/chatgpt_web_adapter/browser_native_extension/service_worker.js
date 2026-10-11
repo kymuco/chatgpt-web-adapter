@@ -764,7 +764,9 @@ function safeTurnFailureEvidence(error) {
     postDelegationRecoveryContinuationObserved:
       error.cwaPostDelegationRecoveryContinuationObserved === true,
     postDelegationObserverFailureProbeTriggered:
-      error.cwaPostDelegationObserverFailureProbeTriggered === true
+      error.cwaPostDelegationObserverFailureProbeTriggered === true,
+    postDelegationNewChatRouteCandidateOnly:
+      error.cwaPostDelegationNewChatRouteCandidateOnly === true
   };
 }
 
