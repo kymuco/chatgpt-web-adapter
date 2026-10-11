@@ -21,12 +21,12 @@ from .browser_native_provider import (
     BrowserNativeTurnProvider,
 )
 from .exceptions import ConversationTimeoutError, RequestError, WebChatAdapterError
-from .product_media import current_browser_owned_attachment_paths
 from .post_delegation_reconciliation import (
     POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
     POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
     reconcile_post_delegation_failure,
 )
+from .product_media import current_browser_owned_attachment_paths
 from .types import ChatConversation, ChatResponse, ConversationRef
 
 READY = "READY_FOR_BROWSER_OWNED_WRITE"
