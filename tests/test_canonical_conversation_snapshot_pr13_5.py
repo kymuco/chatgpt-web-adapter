@@ -119,6 +119,31 @@ def test_runtime_exposes_first_class_snapshot_without_transport_details() -> Non
     assert runtime.get_conversation_snapshot("conversation-1") is snapshot
 
 
+def test_browser_owned_public_snapshot_uses_exact_writer_canonical_read_plane() -> None:
+    snapshot = canonical_snapshot_from_payload("conversation-1", _canonical_payload())
+    seen: list[str] = []
+
+    class _Browserless:
+        def get_conversation_snapshot(self, conversation):
+            raise AssertionError("browserless read must not override browser-owned")
+
+    class _BrowserContext:
+        def get_conversation_snapshot(self, conversation):
+            seen.append(conversation)
+            return snapshot
+
+    runtime = adapter.ChatGPTProductRuntime.__new__(adapter.ChatGPTProductRuntime)
+    runtime.canonical = _Browserless()
+    runtime.transport = "browser-owned"
+    runtime.write_transport = type(
+        "_Transport", (), {"canonical_client": _BrowserContext()}
+    )()
+
+    result = runtime.get_conversation_snapshot("conversation-1")
+    assert result is snapshot
+    assert seen == ["conversation-1"]
+
+
 def test_runtime_snapshot_fails_clearly_for_legacy_injected_canonical_client() -> None:
     runtime = adapter.ChatGPTProductRuntime.__new__(adapter.ChatGPTProductRuntime)
     runtime.canonical = object()
