@@ -108,7 +108,7 @@ def test_schema_27_preserves_exact_set_cross_channel_authority():
     assert "groupsCompatible" in text
     assert "removalsCompatible" in text
     assert "atLeastOneExpectedChannelExact" in text
-    assert "exactAttachmentSet = crossEvidenceChannelExact" in text
+    assert "exactAttachmentSet = crossEvidenceChannelExact || imagePreviewExact" in text
     assert "unknownRoleGroupsFailClosed: true" in text
     assert "filenameGroupIndependentOfRemovalControl: true" in text
     assert "function _pr92Schema27AttachmentEvidenceExpression" in text
@@ -163,3 +163,56 @@ def test_schema_27_support_probe_is_twenty_first_no_write_characterization_rpc()
     assert '"attachmentPaths"' not in block
     assert "PRODUCT_WRITE_BUDGET = _v21.PRODUCT_WRITE_BUDGET" in text
     assert "--acknowledge-live-writes" in text
+
+def test_single_image_thumbnail_fallback_is_exact_count_and_never_accepts_other_file() -> None:
+    import json
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js unavailable")
+    script = r"""
+const fs = require("node:fs");
+const vm = require("node:vm");
+const src = fs.readFileSync(process.argv[1], "utf8");
+const numImages = Number(process.argv[2]);
+const expected = process.argv[3];
+class FakeElement {
+  getBoundingClientRect() { return {width: 80, height: 80}; }
+  getAttribute(name) { return name === "src" ? "blob:attachment" : null; }
+  closest(name) { return name === "form" ? form : null; }
+  querySelectorAll() { return []; }
+}
+const images = Array.from({length: numImages}, () => new FakeElement());
+const form = new FakeElement();
+form.querySelectorAll = (selector) => selector === "img" ? images : [];
+const editor = new FakeElement();
+const document = {editor};
+const ctx = {
+  document,
+  Element: FakeElement,
+  getComputedStyle: () => ({display:"block", visibility:"visible", opacity:"1"}),
+  _pr117ComposerResolverSource: () => "() => document.editor"
+};
+vm.createContext(ctx);
+vm.runInContext(src, ctx);
+const expression = vm.runInContext(
+  "_pr92Schema27AttachmentEvidenceExpression([" + JSON.stringify(expected) + "])",
+  ctx
+);
+console.log(JSON.stringify(vm.runInContext(expression, ctx)));
+"""
+    def evaluate(count: int, filename: str) -> dict:
+        completed = subprocess.run(
+            [node, "-e", script, str(SCHEMA27), str(count), filename],
+            capture_output=True, text=True, check=True, encoding="utf-8",
+        )
+        return json.loads(completed.stdout)
+
+    assert evaluate(0, "photo.png")["ready"] is False
+    assert evaluate(1, "photo.png")["ready"] is True
+    assert evaluate(2, "photo.png")["ready"] is False
+    assert evaluate(1, "paper.txt")["ready"] is False

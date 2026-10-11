@@ -116,6 +116,12 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       .map((element) => normalize(element.getAttribute('aria-label')))
       .filter(isStructuredRemovalLabel);
 
+    // ChatGPT can render an uploaded image as a thumbnail without exposing the
+    // original filename in a role-group or Remove label.
+    const previewImageCount = Array.from(composer.querySelectorAll('img'))
+      .filter((element) => isVisible(element) && !!element.getAttribute('src'))
+      .length;
+
     const exactGroupBasename = (label, name) => label === name;
     const removalPostActionPayload = ${payloadParser};
     const indexedRemovalCandidate = ${indexedParser};
@@ -165,7 +171,19 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
     const crossEvidenceChannelExact = expected.length === 0
       ? groups.exact && removals.exact
       : groupsCompatible && removalsCompatible && atLeastOneExpectedChannelExact;
-    const exactAttachmentSet = crossEvidenceChannelExact;
+    // Fallback is restricted to a single image, its matching rendered preview,
+    // and no contradictory filename evidence. The staging primitive selected
+    // the known local path after the clean-composer proof in this same turn.
+    const genericGroup = /^(?:image|photo|attachment|file)(?:\\s+\\d+)?$/i;
+    const genericRemoval = /^(?:remove|delete|discard|удалить)\\s+(?:image|photo|attachment|file)(?:\\s+\\d+)?$/i;
+    const imagePreviewExact = expected.length === 1 &&
+      /\\.(?:png|jpe?g|gif|webp|avif|bmp)$/i.test(expected[0]) &&
+      previewImageCount === 1 &&
+      groupLabels.every((label) => label === expected[0] || genericGroup.test(label)) &&
+      removalLabels.every((label) =>
+        genericRemoval.test(label) || exactRemovalBasename(label, expected[0])
+      );
+    const exactAttachmentSet = crossEvidenceChannelExact || imagePreviewExact;
     const matchedCount = exactAttachmentSet
       ? expected.length
       : Math.max(groups.matched, removals.matched);
@@ -189,6 +207,8 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
         rawGroupElements.length - attachmentGroupElements.length
       ),
       removalLabelCount: removalLabels.length,
+      previewImageCount,
+      imagePreviewExact,
       exactAttachmentSet,
       crossEvidenceChannelExact,
       officialComposerMounted: true,
@@ -203,9 +223,10 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       indexedRemovalStrippedInterpretationRequiresIndependentFilenameGroup: true,
       indexedRemovalAmbiguityBidirectionalFailClosed: true,
       unindexedRemovalLiteralSemanticsPreserved: true,
-      evidenceKind: groups.exact && removals.exact ? 'exact-both-evidence-channels' :
+      evidenceKind: imagePreviewExact && !crossEvidenceChannelExact ? 'single-image-preview' :
+        (groups.exact && removals.exact ? 'exact-both-evidence-channels' :
         (groups.exact && removalLabels.length === 0 ? 'exact-independent-role-group-channel' :
-          (removals.exact && groupLabels.length === 0 ? 'exact-structured-remove-control-channel' : 'not-ready'))
+          (removals.exact && groupLabels.length === 0 ? 'exact-structured-remove-control-channel' : 'not-ready')))
     };
   })()`;
 }

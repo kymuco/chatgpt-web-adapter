@@ -37,7 +37,8 @@ function _pr92Schema24EvidenceIsClean(evidence) {
   return evidence?.officialComposerMounted === true &&
     evidence?.exactBasenameAssociation === true &&
     evidence?.exactAttachmentSet === true &&
-    groupCount === 0 && removalCount === 0;
+    groupCount === 0 && removalCount === 0 &&
+    Number(evidence?.previewImageCount || 0) === 0;
 }
 
 async function _pr92Schema24RequireOfficialCleanComposerBeforeStaging(
