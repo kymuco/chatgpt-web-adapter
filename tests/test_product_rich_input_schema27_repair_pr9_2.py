@@ -212,7 +212,9 @@ const expression = vm.runInContext(
 console.log(JSON.stringify(vm.runInContext(expression, ctx)));
 """
 
-    def evaluate(count: int, filename: str | list[str], names: list[str] | None = None) -> dict:
+    def evaluate(
+        count: int, filename: str | list[str], names: list[str] | None = None
+    ) -> dict:
         completed = subprocess.run(
             [
                 node,
