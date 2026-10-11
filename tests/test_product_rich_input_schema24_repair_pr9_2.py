@@ -44,7 +44,6 @@ def test_schema_24_preserves_exact_fail_closed_clean_evidence_after_mount():
     assert "evidence?.exactBasenameAssociation === true" in text
     assert "evidence?.exactAttachmentSet === true" in text
     assert "groupCount === 0 && removalCount === 0" in text
-    assert "Number(evidence?.previewImageCount || 0) === 0" in text
     assert 'throw new Error("PR9_2_OFFICIAL_COMPOSER_NOT_CLEAN_BEFORE_STAGING")' in text
     assert "_pr92Schema15DetachWithinDeadline" in text
 

@@ -122,6 +122,14 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       .filter((element) => isVisible(element) && !!element.getAttribute('src'))
       .length;
 
+    const inlineFileNames = Array.from(composer.querySelectorAll('span, [title]'))
+      .filter((element) => isVisible(element) && !prompt.contains(element) &&
+        (!element.children || element.children.length === 0 ||
+          !!element.getAttribute('title')))
+      .map((element) => normalize(element.getAttribute('title')) ||
+        normalize(element.textContent))
+      .filter((label) => /\\.[a-z0-9]{1,10}$/i.test(label));
+
     const exactGroupBasename = (label, name) => label === name;
     const removalPostActionPayload = ${payloadParser};
     const indexedRemovalCandidate = ${indexedParser};
@@ -183,7 +191,14 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       removalLabels.every((label) =>
         genericRemoval.test(label) || exactRemovalBasename(label, expected[0])
       );
-    const exactAttachmentSet = crossEvidenceChannelExact || imagePreviewExact;
+    const inlineFileNamesExact = expected.length > 0 &&
+      inlineFileNames.length === expected.length &&
+      expected.every((name) => inlineFileNames.filter((label) => label === name).length === 1) &&
+      groupLabels.every((label) => expected.includes(label) || genericGroup.test(label)) &&
+      removalLabels.every((label) => genericRemoval.test(label) ||
+        expected.some((name) => exactRemovalBasename(label, name)));
+    const exactAttachmentSet = crossEvidenceChannelExact ||
+      inlineFileNamesExact || imagePreviewExact;
     const matchedCount = exactAttachmentSet
       ? expected.length
       : Math.max(groups.matched, removals.matched);
@@ -209,6 +224,8 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       removalLabelCount: removalLabels.length,
       previewImageCount,
       imagePreviewExact,
+      inlineFileNamesExact,
+      inlineFileNameCount: inlineFileNames.length,
       exactAttachmentSet,
       crossEvidenceChannelExact,
       officialComposerMounted: true,
@@ -224,9 +241,10 @@ function _pr92Schema27AttachmentEvidenceExpression(expectedNames) {
       indexedRemovalAmbiguityBidirectionalFailClosed: true,
       unindexedRemovalLiteralSemanticsPreserved: true,
       evidenceKind: imagePreviewExact && !crossEvidenceChannelExact ? 'single-image-preview' :
-        (groups.exact && removals.exact ? 'exact-both-evidence-channels' :
+        (inlineFileNamesExact && !crossEvidenceChannelExact ? 'inline-file-name' :
+          (groups.exact && removals.exact ? 'exact-both-evidence-channels' :
         (groups.exact && removalLabels.length === 0 ? 'exact-independent-role-group-channel' :
-          (removals.exact && groupLabels.length === 0 ? 'exact-structured-remove-control-channel' : 'not-ready')))
+          (removals.exact && groupLabels.length === 0 ? 'exact-structured-remove-control-channel' : 'not-ready'))))
     };
   })()`;
 }
