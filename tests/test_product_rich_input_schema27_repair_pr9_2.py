@@ -181,7 +181,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 const src = fs.readFileSync(process.argv[1], "utf8");
 const numImages = Number(process.argv[2]);
-const expected = process.argv[3];
+const expected = JSON.parse(process.argv[3]);
 const filenames = JSON.parse(process.argv[4]);
 class FakeElement {
   constructor(text = "") { this.textContent = text; }
@@ -206,13 +206,13 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(src, ctx);
 const expression = vm.runInContext(
-  "_pr92Schema27AttachmentEvidenceExpression([" + JSON.stringify(expected) + "])",
+  "_pr92Schema27AttachmentEvidenceExpression(" + JSON.stringify(expected) + ")",
   ctx
 );
 console.log(JSON.stringify(vm.runInContext(expression, ctx)));
 """
 
-    def evaluate(count: int, filename: str, names: list[str] | None = None) -> dict:
+    def evaluate(count: int, filename: str | list[str], names: list[str] | None = None) -> dict:
         completed = subprocess.run(
             [
                 node,
@@ -220,7 +220,7 @@ console.log(JSON.stringify(vm.runInContext(expression, ctx)));
                 script,
                 str(SCHEMA27),
                 str(count),
-                filename,
+                json.dumps([filename] if isinstance(filename, str) else filename),
                 json.dumps(names or []),
             ],
             capture_output=True,
@@ -237,3 +237,36 @@ console.log(JSON.stringify(vm.runInContext(expression, ctx)));
     assert evaluate(0, "paper.md", ["paper.md"])["ready"] is True
     assert evaluate(0, "paper.md", ["other.md"])["ready"] is False
     assert evaluate(0, "paper.md", ["paper.md", "other.md"])["ready"] is False
+
+    # The observed three-file case: ChatGPT renamed only the first upload.
+    expected = [
+        "gen2_product_baseline.md",
+        "dw_chatgpt_bootstrap_v0.md",
+        "dw1_standalone_gen2_work_surface.md",
+    ]
+    visible = [
+        "gen2_product_baseline(1).md",
+        "dw_chatgpt_bootstrap_v0.md",
+        "dw1_standalone_gen2_work_surface.md",
+    ]
+    evidence = evaluate(0, expected, visible)
+    assert evidence["ready"] is True
+    assert evidence["matchedCount"] == 3
+    assert evidence["evidenceKind"] == "inline-collision-suffix"
+
+    assert evaluate(0, "paper.md", ["paper(1).md"])["ready"] is True
+    assert evaluate(0, "paper.md", ["paper(12).md"])["ready"] is True
+    assert evaluate(0, "paper.md", ["paper(0).md"])["ready"] is False
+    assert evaluate(0, "paper.md", ["paper (1).md"])["ready"] is False
+    assert evaluate(0, "paper.md", ["other(1).md"])["ready"] is False
+    assert evaluate(0, "paper.md", ["paper(1).txt"])["ready"] is False
+    assert evaluate(0, "paper.md", ["paper.md", "paper(1).md"])["ready"] is False
+    # A genuinely named local source preserves its literal basename.
+    assert evaluate(0, "paper(1).md", ["paper(1).md"])["ready"] is True
+    # A collision that maps to two possible sources is not evidence.
+    assert (
+        evaluate(0, ["paper.md", "paper(1).md"], ["paper(1).md", "paper(2).md"])[
+            "ready"
+        ]
+        is False
+    )
