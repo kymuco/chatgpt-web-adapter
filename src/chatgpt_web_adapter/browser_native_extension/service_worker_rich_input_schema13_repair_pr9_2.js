@@ -220,7 +220,7 @@ async function _pr92Schema13StageFileSelection(tabId, attachmentPaths, context) 
         // objectId from the preceding selection.
         await _pr92Schema7RunUntil(
           context.deadlineAt,
-          "SCHEMA13_STAGE_RELEASE_OBJECT",
+          "SCHEMA13_STAGE_INTERMEDIATE_OBJECT_RELEASE",
           () => chrome.debugger.sendCommand(debuggee, "Runtime.releaseObject", { objectId })
         );
         objectId = null;
