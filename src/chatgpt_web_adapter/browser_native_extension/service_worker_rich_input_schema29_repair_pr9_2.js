@@ -654,6 +654,42 @@ async function _pr92Schema29ExecuteOfficialPageTurn(args, next, bypassSchema20) 
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    // A browser-owned ChatGPT conversation can finish visibly while Chrome
+    // reports ERR_ABORTED for its tracked streaming POST. Never reinterpret
+    // that signal as success or retry. Export only a request-correlated user
+    // message id and a ROUTE-ONLY lookup candidate; Python must prove the
+    // exact message plus terminal assistant in one canonical snapshot.
+    if (
+      error instanceof Error &&
+      detail === "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED" &&
+      context.schema19RequestedConversationId === null &&
+      context.schema29ExpectedAttachmentCount > 0 &&
+      context.schema20ProtectedSubmitMarkerObserved === true
+    ) {
+      try {
+        await _pr92Schema29AwaitPostDataLookups(context);
+        const correlation = _pr92Schema29EvaluateSubmitCorrelation(context);
+        _pr92Schema29LastSubmitCorrelationDiagnostics = { ...correlation };
+        const first = context.schema29PostArmConversationRequests[0];
+        if (correlation.ok && typeof first?.logicalMessageId === "string") {
+          const tab = await _pr92Schema7RunUntil(
+            context.deadlineAt,
+            "SCHEMA29_ABORTED_ROUTE_LOOKUP",
+            () => chrome.tabs.get(tabId)
+          );
+          const candidate = conversationIdFromUrl(tab?.url || "");
+          if (typeof candidate === "string" && candidate.trim()) {
+            error.cwaPostDelegationRequestCorrelationProven = true;
+            error.cwaPostDelegationUserMessageId = first.logicalMessageId;
+            error.cwaPostDelegationConversationId = candidate;
+            error.cwaPostDelegationRuntimeTabId = tabId;
+            error.cwaPostDelegationNewChatRouteCandidateOnly = true;
+          }
+        }
+      } catch {
+        // No route or no exact request identity means no recovery authority.
+      }
+    }
     if (
       detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR) &&
       _pr92Schema29LastSubmitCorrelationDiagnostics === null
