@@ -21,6 +21,7 @@ from .browser_native_provider import (
     BrowserNativeTurnProvider,
 )
 from .exceptions import ConversationTimeoutError, RequestError, WebChatAdapterError
+from .product_media import current_browser_owned_attachment_paths
 from .post_delegation_reconciliation import (
     POST_DELEGATION_SUBMITTED_GENERATION_INCOMPLETE,
     POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
@@ -1044,6 +1045,9 @@ class BrowserOwnedProductWriteRuntime:
                                 "type": "browser_native_write_completed",
                                 "conversation_id": candidate_id,
                                 "runtime_tab_id": candidate_tab,
+                                "attachment_count": len(
+                                    current_browser_owned_attachment_paths() or ()
+                                ),
                                 "recovered_from_aborted_rich_stream": True,
                                 "recovery_evidence": (
                                     "REQUEST_BOUND_USER_AND_CANONICAL_TERMINAL_ASSISTANT"
