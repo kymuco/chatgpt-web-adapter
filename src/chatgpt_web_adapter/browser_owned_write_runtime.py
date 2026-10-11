@@ -998,15 +998,19 @@ class BrowserOwnedProductWriteRuntime:
             # lookup candidate, not conversation identity authority. Recover
             # without replay only if one complete canonical snapshot proves
             # the exact request-bound user id and its terminal assistant.
+            route_only_candidate = (
+                getattr(error, "post_delegation_new_chat_route_candidate_only", False)
+                is True
+            )
+            correlated_request = (
+                getattr(error, "post_delegation_request_correlation_proven", False)
+                is True
+            )
             if (
                 not readback_failure
                 and delegated_conversation_id is None
-                and getattr(
-                    error, "post_delegation_new_chat_route_candidate_only", False
-                ) is True
-                and getattr(
-                    error, "post_delegation_request_correlation_proven", False
-                ) is True
+                and route_only_candidate
+                and correlated_request
             ):
                 candidate_id = getattr(error, "post_delegation_conversation_id", None)
                 user_id = getattr(error, "post_delegation_user_message_id", None)
