@@ -5,9 +5,7 @@ import subprocess
 
 import pytest
 
-from chatgpt_web_adapter.browser_native_install import (
-    packaged_browser_native_extension_dir,
-)
+from chatgpt_web_adapter import browser_native_install
 
 
 NODE = shutil.which("node")
@@ -87,7 +85,7 @@ const waitForTab = new Function(
     ],
 )
 def test_runtime_tab_load_wait_handles_completion_races(scenario: str) -> None:
-    root = packaged_browser_native_extension_dir()
+    root = browser_native_install.packaged_browser_native_extension_dir()
     source = (root / "service_worker.js").read_text(encoding="utf-8")
     start = source.index("async function _cwaBaseWaitForTabComplete(")
     end = source.index("async function _cwaBaseStoredRuntimeTabId(", start)
