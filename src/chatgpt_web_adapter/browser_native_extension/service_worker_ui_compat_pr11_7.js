@@ -203,22 +203,92 @@ async function _pr117FocusRichComposerWithProof(debuggee) {
   return 'pr11_7_structural_composer_focus_proven';
 }
 
-function _pr117RichComposerTextProofExpression(text) {
+// Read-only observation: a rich editor may encode line breaks as distinct
+// Lexical paragraphs. textContent concatenates paragraphs; innerText may add
+// extra breaks. Prove exact logical text using a restricted DOM grammar.
+function _pr117RichComposerTextObservationExpression(text) {
   const resolver = _pr117ComposerResolverSource();
   const expected = JSON.stringify(text);
   return `(() => {
     const resolveComposer = ${resolver};
     const composer = resolveComposer();
-    if (!composer || document.activeElement !== composer) return false;
     const expected = ${expected};
-    const actual = typeof composer.textContent === 'string'
-      ? composer.textContent
-      : '';
+    const comparable = (value) =>
+      typeof value === 'string' ? value.replace(/\r\n/g, '\n') : null;
+    const exact = (value) =>
+      comparable(value) !== null && comparable(value) === comparable(expected);
+    if (!composer) {
+      return { passed: false, composerFound: false, focusMatches: false,
+        directExact: false, renderedExact: false, structuredExact: false,
+        structureSupported: false, paragraphCount: 0 };
+    }
+    const raw = typeof composer.textContent === 'string'
+      ? composer.textContent : null;
     const rendered = typeof composer.innerText === 'string'
-      ? composer.innerText
-      : '';
-    return actual === expected || rendered === expected;
-  })()`;
+      ? composer.innerText : null;
+    let structureSupported = true;
+    const blocks = new Set(['P', 'DIV']);
+    const inline = new Set(['SPAN', 'STRONG', 'EM', 'B', 'I', 'U', 'A']);
+    const visit = (node) => {
+      if (node?.nodeType === 3) return node.nodeValue ?? '';
+      if (node?.nodeType !== 1) {
+        structureSupported = false;
+        return '';
+      }
+      const tag = String(node.tagName || '').toUpperCase();
+      if (tag === 'BR') return '\n';
+      if (!blocks.has(tag) && !inline.has(tag)) {
+        structureSupported = false;
+        return '';
+      }
+      const nodes = Array.from(node.childNodes || []);
+      // Lexical empty paragraphs use a placeholder <br>, not a newline.
+      if (blocks.has(tag) && nodes.length === 1 &&
+          nodes[0]?.nodeType === 1 &&
+          String(nodes[0].tagName || '').toUpperCase() === 'BR') {
+        return '';
+      }
+      return childrenText(nodes);
+    };
+    const childrenText = (children) => {
+      const nodes = Array.from(children || []);
+      const count = nodes.filter((node) =>
+        node?.nodeType === 1 &&
+        blocks.has(String(node.tagName || '').toUpperCase())
+      ).length;
+      // Mixed block/inline siblings are ambiguous: never invent breaks.
+      if (count && count !== nodes.length) {
+        structureSupported = false;
+        return '';
+      }
+      return nodes.map((node) => visit(node)).join(count ? '\n' : '');
+    };
+    const topLevelNodes = Array.from(composer.childNodes || []);
+    if (!topLevelNodes.length) structureSupported = false;
+    const structural = structureSupported ? childrenText(topLevelNodes) : '';
+    const directExact = exact(raw);
+    const renderedExact = exact(rendered);
+    const structuredExact = structureSupported && exact(structural);
+    return {
+      passed: directExact || renderedExact || structuredExact,
+      composerFound: true,
+      focusMatches: document.activeElement === composer,
+      directExact,
+      renderedExact,
+      structuredExact,
+      structureSupported,
+      paragraphCount: topLevelNodes.filter((node) =>
+        node?.nodeType === 1 &&
+        blocks.has(String(node.tagName || '').toUpperCase())
+      ).length
+    };
+  })`;
+}
+
+function _pr117RichComposerTextProofExpression(text) {
+  // Focus was proven immediately before Input.insertText. Losing focus after
+  // insertion must not invalidate exact content proof or permit modified text.
+  return `(${_pr117RichComposerTextObservationExpression(text)}).passed`;
 }
 
 async function _pr117RequireRichInsertedTextProof(debuggee, text) {
