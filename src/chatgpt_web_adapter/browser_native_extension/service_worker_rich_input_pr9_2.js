@@ -530,15 +530,33 @@ async function _executeNativeTurnWithPr92RichInput(message, next) {
       // cleanup. If the durable fence remains, surface cleanup-unproven and keep
       // the fence authoritative for the next turn/worker generation.
       const dirtyTabId = _pr92DirtyAttachmentTabId;
-      const cleanupBudget = _pr92RemainingTurnMsOrZero(context);
-      if (
-        Number.isInteger(dirtyTabId) &&
-        cleanupBudget > 0 &&
-        await _pr92ClearOfficialPageAttachments(dirtyTabId, cleanupBudget)
-      ) {
-        if (_pr92RemainingTurnMsOrZero(context) > 0) {
-          await _pr92TryClearDirtyAttachmentFence();
+      const detail = error instanceof Error ? error.message : String(error);
+      // Only this exact rejection is proven pre-submit: schema17 invokes the
+      // insertion proof before submitOfficialPageTurn. Once the turn fails,
+      // no further staging can race while the outer turn context remains held.
+      // Temporarily drop the active staged guard so the existing schema8
+      // ownership-checked stale-tab closer can run. It still requires current
+      // tab identity, matching session/local fence, and proven tab absence.
+      // All other/ambiguous errors keep the guard and their durable fence.
+      const provenPreSubmitRejection =
+        detail === "CWA_RICH_COMPOSER_TEXT_NOT_INSERTED" &&
+        context.staged === true &&
+        Number.isInteger(context.stagedTabId) &&
+        context.stagedTabId === dirtyTabId;
+      if (provenPreSubmitRejection) _pr92ActiveRichInputContext = null;
+      try {
+        const cleanupBudget = _pr92RemainingTurnMsOrZero(context);
+        if (
+          Number.isInteger(dirtyTabId) &&
+          cleanupBudget > 0 &&
+          await _pr92ClearOfficialPageAttachments(dirtyTabId, cleanupBudget)
+        ) {
+          if (_pr92RemainingTurnMsOrZero(context) > 0) {
+            await _pr92TryClearDirtyAttachmentFence();
+          }
         }
+      } finally {
+        if (provenPreSubmitRejection) _pr92ActiveRichInputContext = context;
       }
       if (Number.isInteger(_pr92DirtyAttachmentTabId)) {
         const detail = error instanceof Error ? error.message : String(error);
