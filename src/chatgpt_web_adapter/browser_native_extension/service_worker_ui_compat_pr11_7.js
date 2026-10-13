@@ -282,11 +282,11 @@ function _pr117RichComposerTextObservationExpression(text) {
         blocks.has(String(node.tagName || '').toUpperCase())
       ).length
     };
-  })`;
+  })()`;
 }
 
 function _pr117RichComposerTextProofExpression(text) {
-  // Focus was proven immediately before Input.insertText. Losing focus after
+  // Focus was proven immediately before typing. Losing focus after
   // insertion must not invalidate exact content proof or permit modified text.
   return `(${_pr117RichComposerTextObservationExpression(text)}).passed`;
 }
