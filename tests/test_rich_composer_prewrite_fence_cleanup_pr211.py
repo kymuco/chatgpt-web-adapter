@@ -37,6 +37,7 @@ async function runCase(error, stagedTabId, closerProvesAbsent) {
   const env = {
     _pr92ActiveTurnContext: null,
     _pr92ActiveRichInputContext: null,
+    PR92_TOTAL_DEADLINE_HOOKS_AVAILABLE: true,
     _pr92DirtyAttachmentTabId: 73,
     _pr92CreateTurnContext: () => context,
     _pr92RequireCleanAttachmentState: async () => {},
