@@ -214,7 +214,7 @@ function _pr117RichComposerTextObservationExpression(text) {
     const composer = resolveComposer();
     const expected = ${expected};
     const comparable = (value) =>
-      typeof value === 'string' ? value.replace(/\r\n/g, '\n') : null;
+      typeof value === 'string' ? value.replace(/\\r\\n/g, '\\n') : null;
     const exact = (value) =>
       comparable(value) !== null && comparable(value) === comparable(expected);
     if (!composer) {
@@ -236,7 +236,7 @@ function _pr117RichComposerTextObservationExpression(text) {
         return '';
       }
       const tag = String(node.tagName || '').toUpperCase();
-      if (tag === 'BR') return '\n';
+      if (tag === 'BR') return '\\n';
       if (!blocks.has(tag) && !inline.has(tag)) {
         structureSupported = false;
         return '';
@@ -261,7 +261,7 @@ function _pr117RichComposerTextObservationExpression(text) {
         structureSupported = false;
         return '';
       }
-      return nodes.map((node) => visit(node)).join(count ? '\n' : '');
+      return nodes.map((node) => visit(node)).join(count ? '\\n' : '');
     };
     const topLevelNodes = Array.from(composer.childNodes || []);
     if (!topLevelNodes.length) structureSupported = false;
