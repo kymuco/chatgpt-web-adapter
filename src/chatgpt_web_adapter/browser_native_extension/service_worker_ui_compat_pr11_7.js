@@ -291,17 +291,54 @@ function _pr117RichComposerTextProofExpression(text) {
   return `(${_pr117RichComposerTextObservationExpression(text)}).passed`;
 }
 
+// The page can remount its Lexical editor while attachments are processed.
+// A CDP Input.insertText acknowledgement is not a synchronous DOM render proof.
+// Observe only; do not type again or send until two stable, exact reads agree.
+const PR117_RICH_TEXT_PROOF_SETTLE_CAP_MS = 15_000;
+const PR117_RICH_TEXT_PROOF_POLL_MS = 200;
+
 async function _pr117RequireRichInsertedTextProof(debuggee, text) {
-  const result = await sendCommand(debuggee, 'Runtime.evaluate', {
-    expression: _pr117RichComposerTextProofExpression(text),
-    returnByValue: true,
-    awaitPromise: true
-  });
-  if (result?.result?.value !== true) {
-    // Fail before delegated protected submit: do not guess or reinsert text.
-    throw new Error('CWA_RICH_COMPOSER_TEXT_NOT_INSERTED');
+  const startedAt = performance.now();
+  let consecutiveExact = 0;
+  let lastEvidence = null;
+  const expression = _pr117RichComposerTextObservationExpression(text);
+  while (performance.now() - startedAt < PR117_RICH_TEXT_PROOF_SETTLE_CAP_MS) {
+    const result = await sendCommand(debuggee, 'Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true
+    });
+    const evidence = result?.result?.value;
+    lastEvidence = evidence && typeof evidence === 'object'
+      ? evidence : null;
+    if (lastEvidence?.passed === true) {
+      consecutiveExact += 1;
+      if (consecutiveExact >= 2) return true;
+    } else {
+      consecutiveExact = 0;
+    }
+    const remaining = PR117_RICH_TEXT_PROOF_SETTLE_CAP_MS -
+      (performance.now() - startedAt);
+    if (remaining <= 0) break;
+    await sleep(Math.min(PR117_RICH_TEXT_PROOF_POLL_MS, remaining));
   }
-  return true;
+
+  // Safe bounded diagnostics: no composer text, file names, or prompt content.
+  // Keep the error code stable for the existing pre-submit guarded cleanup.
+  const diagnostic = {
+    composerFound: lastEvidence?.composerFound === true,
+    focusMatches: lastEvidence?.focusMatches === true,
+    directExact: lastEvidence?.directExact === true,
+    renderedExact: lastEvidence?.renderedExact === true,
+    structuredExact: lastEvidence?.structuredExact === true,
+    structureSupported: lastEvidence?.structureSupported === true,
+    paragraphCount: Number.isInteger(lastEvidence?.paragraphCount)
+      ? lastEvidence.paragraphCount : null,
+    attemptedStableReads: consecutiveExact
+  };
+  console.warn('CWA_RICH_COMPOSER_PROOF_READ_ONLY', diagnostic);
+  // Fail before delegated protected submit; no retry, no text rewrite.
+  throw new Error('CWA_RICH_COMPOSER_TEXT_NOT_INSERTED');
 }
 
 function _pr117StructuralSubmitButtonResolverSource() {
