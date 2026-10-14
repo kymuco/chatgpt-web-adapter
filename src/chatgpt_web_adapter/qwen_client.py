@@ -49,6 +49,7 @@ class QwenClient:
                 load_qwen_credentials(),
                 model=self.model,
                 refresh_path=self.refresh_path,
+                on_auth_updated=save_qwen_credentials,
             )
         return self._http
 
