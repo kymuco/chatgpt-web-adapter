@@ -70,6 +70,7 @@ class QwenHttpClient:
         timeout: float = 180.0,
         opener: Callable[..., Any] = urlopen,
         refresh_path: str | None = None,
+        on_auth_updated: Callable[[QwenHttpCredentials], None] | None = None,
     ) -> None:
         if not isinstance(model, str) or not model.strip():
             raise ValueError("model is required")
@@ -86,6 +87,7 @@ class QwenHttpClient:
         self.timeout = timeout
         self._open = opener
         self.refresh_path = refresh_path
+        self.on_auth_updated = on_auth_updated
         self.conversation: QwenHttpConversation | None = None
 
     def _headers(self) -> dict[str, str]:
@@ -106,6 +108,7 @@ class QwenHttpClient:
     def _record_cookies(self, response: Any) -> None:
         headers = getattr(response, "headers", None)
         values = headers.get_all("Set-Cookie") if hasattr(headers, "get_all") else []
+        changed = False
         for value in values or []:
             jar = SimpleCookie()
             try:
@@ -113,7 +116,11 @@ class QwenHttpClient:
             except Exception:
                 continue
             for name, item in jar.items():
-                self.credentials.cookies[name] = item.value
+                if self.credentials.cookies.get(name) != item.value:
+                    self.credentials.cookies[name] = item.value
+                    changed = True
+        if changed and self.on_auth_updated is not None:
+            self.on_auth_updated(self.credentials)
 
     def _request(
         self, method: str, path: str, *, payload: Any = None, stream: bool = False
@@ -158,6 +165,8 @@ class QwenHttpClient:
             raise QwenHttpError("QWEN_REFRESH_TOKEN_MISSING")
         self.credentials.access_token = token.removeprefix("Bearer ")
         self.credentials.expires_at = None
+        if self.on_auth_updated is not None:
+            self.on_auth_updated(self.credentials)
 
     def _preflight_auth(self) -> None:
         expiry = self.credentials.expires_at

@@ -122,3 +122,16 @@ def test_refresh_is_pre_send_only():
     client.refresh()
     assert creds.access_token == "renewed"
     assert len(requests) == 1 and requests[0].get_method() == "GET"
+
+
+def test_qwen_cookie_rotation_notifies_store_once():
+    captured = []
+    def open_(request, timeout):
+        reply = _Reply({"data": {"id": "chat-cookies"}})
+        reply.headers.add_header("Set-Cookie", "session=rotated; Path=/; HttpOnly")
+        return reply
+    creds = QwenHttpCredentials("sample", {"session": "initial"})
+    client = QwenHttpClient(creds, opener=open_, on_auth_updated=captured.append)
+    client.create_chat()
+    assert creds.cookies["session"] == "rotated"
+    assert len(captured) == 1

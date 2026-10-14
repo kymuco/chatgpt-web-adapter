@@ -40,6 +40,7 @@ class QwenClient:
             credentials,
             model=self.model,
             refresh_path=self.refresh_path,
+            on_auth_updated=save_qwen_credentials,
         )
 
     def _http_client(self) -> QwenHttpClient:
