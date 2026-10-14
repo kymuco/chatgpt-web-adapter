@@ -258,6 +258,7 @@ def test_qwen_ambiguous_post_submit_outcome_requires_reconciliation() -> None:
     assert caught.value.reconciliation_required is True
     assert caught.value.automatic_retry_allowed is False
 
+
 def test_qwen_extension_syntax_if_node_available() -> None:
     import shutil
     import subprocess
