@@ -88,6 +88,7 @@ def test_stream_without_finality_is_ambiguous():
 
     def open_(request, timeout):
         return _Reply([{"choices": [{"delta": {"content": "partial"}}]}])
+
     client = QwenHttpClient(QwenHttpCredentials("example"), opener=open_)
     with pytest.raises(QwenHttpWriteOutcomeAmbiguousError):
         client.send_text("message", conversation=QwenHttpConversation("chat-1"))
@@ -99,6 +100,7 @@ def test_expired_auth_fails_before_write_without_refresh_configuration():
     def open_(request, timeout):
         requests.append(request)
         return _Reply({})
+
     client = QwenHttpClient(
         QwenHttpCredentials("expired", expires_at=1),
         opener=open_,
@@ -114,6 +116,7 @@ def test_refresh_is_pre_send_only():
     def open_(request, timeout):
         requests.append(request)
         return _Reply({"data": {"access_token": "renewed"}})
+
     creds = QwenHttpCredentials("old", {"session": "secret"}, expires_at=1)
     client = QwenHttpClient(creds, opener=open_, refresh_path="/api/v1/auths/refresh")
     client.refresh()

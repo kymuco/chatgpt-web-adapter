@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from .browser_native_provider import BrowserNativeTurnProvider
-from .qwen_http import QwenHttpCredentials
 from .exceptions import RequestError
 from .product_capabilities import (
     APPROVALS,
@@ -42,6 +41,7 @@ from .product_provenance import (
     ProductIdentityProvenance,
 )
 from .product_transport import ProductRuntimeExecution, ProductRuntimeHealth
+from .qwen_http import QwenHttpCredentials
 from .types import (
     ChatConversation,
     ChatMetrics,

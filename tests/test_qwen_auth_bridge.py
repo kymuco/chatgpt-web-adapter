@@ -28,6 +28,7 @@ def test_auth_snapshot_requires_explicit_operation_and_scoped_cookie_access():
 def test_auth_snapshot_rpc_is_explicit_and_does_not_write():
     provider = QwenBrowserTurnProvider(connect_timeout=0.1, turn_timeout=5.0)
     captured = []
+
     def fake(payload, *, timeout, on_event=None):
         captured.append(dict(payload))
         return {
@@ -39,6 +40,7 @@ def test_auth_snapshot_rpc_is_explicit_and_does_not_write():
             "cookies": {"session": "sample"},
             "expiresAt": None,
         }
+
     provider._rpc = fake
     result = provider.export_auth()
     assert result.access_token == "sample-token"
