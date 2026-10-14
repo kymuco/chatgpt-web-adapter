@@ -24,6 +24,7 @@ if (start < 0 || end < start) throw Error("Production recovery seam absent");
 const production = owner.slice(start, end);
 
 const calls = [];
+let storedReads = 0;
 const c = {
   staged: false,
   stagedTabId: null,
@@ -54,7 +55,12 @@ const ctx = {
   _pr92RemainingTurnMsOrZero: () =>
     scenario === "near-deadline" ? 5000 : 200000,
   _pr92Schema7RunUntil: async (_deadline, _stage, operation) => operation(),
-  storedRuntimeTabId: async () => scenario === "foreign-owner" ? 999 : 42,
+  storedRuntimeTabId: async () => {
+    storedReads++;
+    if (scenario === "retained-tab") return 42;
+    if (storedReads === 1) return null;
+    return scenario === "foreign-owner" ? 999 : 42;
+  },
   chrome: {tabs: {get: async () => ({...tab})}},
   isChatGPTUrl: url => url.startsWith("https://chatgpt.com/"),
   ensureRuntimeTab: async () => {calls.push("ensure-tab"); return {...tab};},
@@ -130,6 +136,7 @@ def test_untouched_new_chat_recovers_page_mount_once_before_first_file_selection
     "scenario",
     [
         "continuation",
+        "retained-tab",
         "fenced",
         "near-deadline",
         "active-tab",
@@ -178,6 +185,7 @@ def test_production_recovery_cannot_repeat_file_stage_after_unrelated_error() ->
     assert "context.staged === true" in block
     assert "Number.isInteger(_pr92DirtyAttachmentTabId)" in block
     assert "storedRuntimeTabId()" in block
+    assert "createdForTurn !== true" in block
     assert "current.active === true" in block
     assert "_pr92ReloadRuntimeTabWithinTurn(tab.id, null)" in block
     assert "Input.insertText" not in block
