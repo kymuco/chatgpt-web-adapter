@@ -143,7 +143,10 @@ def test_stalled_runtime_evaluate_does_not_silently_consume_240_seconds() -> Non
 def test_mount_await_remains_pre_file_selection_and_protected_send() -> None:
     source = OWNER.read_text(encoding="utf-8")
     assert "PR92_SCHEMA24_MOUNT_OBSERVATION_CAP_MS = 25_000" in source
-    assert "_pr92Schema24WaitForOfficialComposerMounted(debuggee, context, tabId)" in source
+    assert (
+        "_pr92Schema24WaitForOfficialComposerMounted(debuggee, context, tabId)"
+        in source
+    )
     assert '"SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_MOUNT_READ"' in source
     assert "await _pr92BoundedSleep(" in source
     assert "button.click()" not in source
