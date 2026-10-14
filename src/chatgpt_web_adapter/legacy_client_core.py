@@ -2356,7 +2356,10 @@ class ChatGPTWebClient:
         media: Sequence[MediaItem] | None = None,
         on_token: Callable[[str], None] | None = None,
         on_event: Callable[[dict[str, Any]], None] | None = None,
+        conversation_origin: str | None = None,
     ) -> ChatResponse:
+        if conversation_origin is not None and conversation_origin not in {"flora", "tpp"}:
+            raise ValueError("conversation_origin must be flora or tpp")
         normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
         resolved_model = self._resolve_model(model, reasoning_effort)
         from .sentinel_bundle import prepared_send_active
@@ -2413,6 +2416,7 @@ class ChatGPTWebClient:
                 client_prepare_dispatch="immediate" if conversation_id else "debounced",
                 client_prepare_source="context_change" if conversation_id else "window_focus",
                 initial_conduit_token="no-token" if conversation_id else None,
+                **({"conversation_origin": conversation_origin} if conversation_origin else {}),
             )
             if not prepare_result.status_ok:
                 raise RequestError(
@@ -2458,6 +2462,8 @@ class ChatGPTWebClient:
             payload["system_hints"] = ["search"]
         if temporary:
             payload["history_and_training_disabled"] = True
+        if conversation_origin is not None:
+            payload["conversation_origin"] = conversation_origin
         if conversation_id:
             payload["conversation_id"] = conversation_id
         if normalized_effort is not None:

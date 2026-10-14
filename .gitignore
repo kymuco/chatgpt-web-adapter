@@ -10,3 +10,5 @@ src/*.egg-info/
 *.pyc
 auth_data.json
 auth_data_*.json
+artifacts/browserless-research-2026-10-13/
+experiments/browserless_request_research/cache/
