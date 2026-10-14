@@ -292,7 +292,7 @@ function _pr117RichComposerTextProofExpression(text) {
 }
 
 // The page can remount its Lexical editor while attachments are processed.
-// A CDP Input.insertText acknowledgement is not a synchronous DOM render proof.
+// A browser debugger insertion acknowledgement is not synchronous DOM render proof.
 // Observe only; do not type again or send until two stable, exact reads agree.
 const PR117_RICH_TEXT_PROOF_SETTLE_CAP_MS = 15_000;
 const PR117_RICH_TEXT_PROOF_POLL_MS = 200;
