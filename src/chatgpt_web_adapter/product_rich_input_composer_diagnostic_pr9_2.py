@@ -9,7 +9,9 @@ from .product_rich_input_live_gate_schema24_pr9_2 import (
 )
 
 
-def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
+def run_diagnostic(
+    *, timeout: float = 10.0, existing_tab_only: bool = False
+) -> dict[str, object]:
     if timeout <= 4.0:
         raise ValueError("timeout must exceed 4 seconds for a bridge response margin")
 
@@ -24,6 +26,7 @@ def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
             "type": "turn",
             "request_id": request_id,
             "diagnosePr92ComposerEvidence": True,
+            "existingTabOnly": existing_tab_only,
             "timeoutMs": worker_timeout_ms,
         },
         timeout=timeout,
@@ -46,6 +49,7 @@ def run_diagnostic(*, timeout: float = 10.0) -> dict[str, object]:
     return {
         "ok": True,
         "diagnostic_only": True,
+        "existing_tab_only": existing_tab_only,
         "write_performed": False,
         "attachment_staging_performed": False,
         "protected_submit_attempted": False,
@@ -61,8 +65,14 @@ def main() -> int:
         description="PR9.2 zero-write official-composer attachment-evidence diagnostic"
     )
     parser.add_argument("--timeout", type=float, default=10.0)
+    parser.add_argument(
+        "--existing-tab-only", action="store_true",
+        help="Observe only the already-owned Chrome runtime tab; never open or navigate.",
+    )
     args = parser.parse_args()
-    report = run_diagnostic(timeout=args.timeout)
+    report = run_diagnostic(
+        timeout=args.timeout, existing_tab_only=args.existing_tab_only
+    )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
