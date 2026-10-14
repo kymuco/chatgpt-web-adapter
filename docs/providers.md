@@ -291,3 +291,28 @@ completed in Qwen by the account holder; CWA neither bypasses it nor repeatedly
 opens the verification page. If no suitable tab exists, it fails clearly.
 
 The old `scripts/prove_qwen_dual_transport.py` live-probe has been removed.
+
+
+### Optional, browserless Qwen Web client
+
+Qwen Web's unofficial v2 endpoints may return a 200-HTML challenge instead of JSON
+even when Chrome auth is imported: the consumer website uses dynamic WAF headers
+in addition to the bearer token and cookie jar. Importing only a token does not
+prove that `--transport http` will work.
+
+To use an **explicit, optional, third-party** Python HTTP implementation:
+
+```powershell
+python -m pip install qwen-reverse==0.1.6
+python .\qwen_sdk.py --transport reverse "Привет!"
+python .\qwen_sdk.py --transport reverse
+```
+
+`reverse` uses the previously saved Qwen account token, remains browserless,
+and sends only the user's messages. The experimental `http` transport is left
+unchanged; no automatic fallback from `http` to `reverse` is performed.
+The optional third-party library is unaffiliated with Qwen and its behaviour
+has not been live-verified with this user's account. Review its source and
+dependencies before installing it. Browser/account challenges must be handled
+by the user through the provider's normal verification flow; the SDK does not
+open verification tabs or complete age checks.
