@@ -277,3 +277,17 @@ ids between HTTP calls; cross-transport migration is not established.
 
 Authentication export, model identifiers, Qwen login refresh and live
 generation behavior still need user-machine verification.
+
+## Normal usage (no automated probes)
+
+Run `python qwen_sdk.py --import-auth` only once with an already signed-in Qwen tab.
+This operation never sends a chat message or opens a new tab. Thereafter
+`python qwen_sdk.py "Your message"` uses direct HTTPS without Chrome.
+
+`python qwen_sdk.py --transport browser "Your message"` reuses **only** an
+already-open new Qwen chat tab. The SDK never opens, navigates, or activates
+Chrome tabs for Qwen. Qwen's account age/onboarding verification must be
+completed in Qwen by the account holder; CWA neither bypasses it nor repeatedly
+opens the verification page. If no suitable tab exists, it fails clearly.
+
+The old `scripts/prove_qwen_dual_transport.py` live-probe has been removed.

@@ -62,27 +62,55 @@ async function _cwaQwenExistingTab() {
   }
 }
 
-async function _cwaQwenEnsureTab(conversationId) {
-  let targetUrl = CWA_QWEN_ORIGIN + "/";
-  if (conversationId !== null) {
-    const storedRoute = await _cwaQwenRouteForConversation(conversationId);
-    if (storedRoute === null) throw new Error("QWEN_CONTINUATION_ROUTE_UNKNOWN");
-    targetUrl = storedRoute;
+function _cwaQwenIsEmptyChatRoute(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === CWA_QWEN_ORIGIN &&
+      (parsed.pathname === "/" || parsed.pathname === "/c/new-chat") &&
+      !parsed.searchParams.has("chat_id");
+  } catch {
+    return false;
   }
-
-  let tab = await _cwaQwenExistingTab();
-  if (tab === null) {
-    tab = await chrome.tabs.create({ url: targetUrl, active: false });
-    if (!Number.isInteger(tab?.id)) throw new Error("QWEN_RUNTIME_TAB_CREATE_FAILED");
-    await _cwaQwenStorageSet(CWA_QWEN_RUNTIME_TAB_KEY, tab.id);
-  } else if (tab.url !== targetUrl) {
-    tab = await chrome.tabs.update(tab.id, { url: targetUrl, active: false });
-  }
-
-  tab = await _cwaBaseWaitForTabComplete(tab.id, 45000);
-  if (!_cwaQwenIsUrl(tab?.url || "")) throw new Error("QWEN_RUNTIME_TAB_ORIGIN_CHANGED");
-  return tab;
 }
+
+async function _cwaQwenEnsureTab(conversationId) {
+  // Never create, activate, navigate or replace a user's Chrome tab.
+  // This prevents new Qwen onboarding/age-verification windows on every send.
+  const expectedRoute = conversationId === null
+    ? null
+    : await _cwaQwenRouteForConversation(conversationId);
+  if (conversationId !== null && expectedRoute === null) {
+    throw new Error("QWEN_CONTINUATION_ROUTE_UNKNOWN");
+  }
+
+  const existing = await chrome.tabs.query({url: CWA_QWEN_ORIGIN + "/*"});
+  const stored = await _cwaQwenExistingTab();
+  const available = [...existing];
+  if (stored && !available.some(tab => tab.id === stored.id)) {
+    available.push(stored);
+  }
+  const tab = conversationId === null
+    ? available.find(candidate => _cwaQwenIsEmptyChatRoute(candidate.url || ""))
+    : available.find(candidate => candidate.url === expectedRoute);
+  if (!tab || !Number.isInteger(tab.id)) {
+    throw new Error(conversationId === null
+      ? "QWEN_NEW_CHAT_TAB_NOT_OPEN: open a new Qwen chat and finish account setup yourself"
+      : "QWEN_CONTINUATION_TAB_NOT_OPEN: open the existing conversation in Qwen");
+  }
+  await _cwaQwenStorageSet(CWA_QWEN_RUNTIME_TAB_KEY, tab.id);
+  const ready = await _cwaBaseWaitForTabComplete(tab.id, 45000);
+  if (!_cwaQwenIsUrl(ready?.url || "")) {
+    throw new Error("QWEN_RUNTIME_TAB_ORIGIN_CHANGED");
+  }
+  if (conversationId === null && !_cwaQwenIsEmptyChatRoute(ready.url)) {
+    throw new Error("QWEN_NEW_CHAT_ROUTE_CHANGED_BEFORE_SUBMIT");
+  }
+  if (conversationId !== null && ready.url !== expectedRoute) {
+    throw new Error("QWEN_CONTINUATION_ROUTE_CHANGED_BEFORE_SUBMIT");
+  }
+  return ready;
+}
+
 
 function _cwaQwenComposerExpression(text) {
   const expression = function(requestedText) {
@@ -334,7 +362,7 @@ async function _cwaQwenHandleTurn(message) {
   if ((Array.isArray(message?.attachmentPaths) && message.attachmentPaths.length > 0) ||
       message?.conversationMode != null || message?.modelProfile != null ||
       message?.browserAuthorityLeaseId != null) {
-    throw new Error("QWEN_MINIMAL_PROOF_UNSUPPORTED_OPTION");
+    throw new Error("QWEN_BROWSER_UNSUPPORTED_OPTION");
   }
 
   const conversationId =

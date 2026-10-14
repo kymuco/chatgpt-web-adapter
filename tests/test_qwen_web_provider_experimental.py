@@ -285,3 +285,13 @@ def test_qwen_auth_export_is_explicit_and_separate_from_page_turn() -> None:
     assert "Authorization" not in worker
     assert "chrome.cookies" not in worker
     assert '["new-chat", "guest"]' in worker
+
+
+def test_qwen_browser_turn_never_spawns_or_navigates_tabs() -> None:
+    source = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
+    assert "chrome.tabs.create(" not in source
+    assert "chrome.tabs.update(" not in source
+    assert "chrome.tabs.query(" in source
+    assert "QWEN_NEW_CHAT_TAB_NOT_OPEN" in source
+    assert "QWEN_CONTINUATION_TAB_NOT_OPEN" in source
+    assert "_cwaQwenIsEmptyChatRoute" in source
