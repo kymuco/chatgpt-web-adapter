@@ -142,7 +142,24 @@ async function _pr92Schema24RequireOfficialCleanComposerBeforeStaging(
     // Browser tab load completion is not composer-mount authority. Reuse the exact
     // production attachment-evidence reader and treat `officialComposerMounted=false`
     // as transient until the one outer turn deadline expires.
-    let evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context, tabId);
+    let evidence;
+    try {
+      evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context, tabId);
+    } catch (error) {
+      const detail = typeof error?.message === "string" ? error.message : String(error);
+      if (detail.startsWith("PR9_2_OFFICIAL_COMPOSER_MOUNT_NOT_OBSERVED:")) {
+        // The owning pre-stage observer must be fully detached BEFORE an
+        // unmounted fresh page can be navigated by the caller. A best-effort
+        // asynchronous detach would race the next staging attempt.
+        await _pr92Schema15DetachWithinDeadline(
+          debuggee,
+          context,
+          "SCHEMA24_PRESTAGE_MOUNT_FAILURE_DEBUGGER_DETACH"
+        );
+        attached = false;
+      }
+      throw error;
+    }
 
     // The evidence that first proves mount is also the first clean poll. If the
     // freshly mounted composer already contains any attachment evidence, fail
