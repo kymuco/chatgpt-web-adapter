@@ -112,7 +112,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--model is currently supported only with --transport http")
 
     if args.transport == "reverse":
-        return asyncio.run(_run_reverse(args.message, model=args.model))
+        try:
+            return asyncio.run(_run_reverse(args.message, model=args.model))
+        except (RuntimeError, OSError, ValueError) as error:
+            print("Qwen SDK error: " + str(error), file=sys.stderr)
+            return 1
 
     client = QwenClient(
         transport=args.transport,
