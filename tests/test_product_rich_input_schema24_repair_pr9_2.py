@@ -50,7 +50,7 @@ def test_schema_24_preserves_exact_fail_closed_clean_evidence_after_mount():
 
 def test_schema_24_first_mount_evidence_is_first_authoritative_clean_poll():
     text = SCHEMA24.read_text(encoding="utf-8")
-    assert "let evidence = await _pr92Schema24WaitForOfficialComposerMounted" in text
+    assert "evidence = await _pr92Schema24WaitForOfficialComposerMounted" in text
     assert "if (!_pr92Schema24EvidenceIsClean(evidence))" in text
     assert "stable += 1" in text
     assert "evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence" in text
