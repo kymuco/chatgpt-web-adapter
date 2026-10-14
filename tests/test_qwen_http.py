@@ -11,7 +11,6 @@ from chatgpt_web_adapter.qwen_http import (
     QwenHttpClient,
     QwenHttpConversation,
     QwenHttpCredentials,
-    QwenHttpError,
     QwenHttpWriteOutcomeAmbiguousError,
 )
 
