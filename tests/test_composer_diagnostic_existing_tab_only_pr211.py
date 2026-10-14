@@ -156,9 +156,7 @@ def test_existing_tab_only_cli_passes_explicit_flag_without_write(monkeypatch):
             }
 
     provider = FakeProvider()
-    monkeypatch.setattr(
-        cli, "ProductRichInputSchema24LiveProvider", lambda: provider
-    )
+    monkeypatch.setattr(cli, "ProductRichInputSchema24LiveProvider", lambda: provider)
 
     report = cli.run_diagnostic(timeout=10.0, existing_tab_only=True)
 
