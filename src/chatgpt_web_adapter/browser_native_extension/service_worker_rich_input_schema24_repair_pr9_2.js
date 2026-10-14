@@ -38,7 +38,7 @@ async function _pr92Schema24WaitForOfficialComposerMounted(debuggee, context, ta
         () => _pr92ClosureReadPageOwnedAttachmentEvidence(debuggee, [], context)
       );
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = typeof error?.message === "string" ? error.message : String(error);
       if (!detail.startsWith("PR9_2_TOTAL_TURN_TIMEOUT:")) throw error;
       lastEvidenceKind = "read-timeout";
       break;
