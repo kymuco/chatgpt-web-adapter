@@ -235,3 +235,45 @@ review:
 
 See [architecture.md](architecture.md) and
 [engineering/pr15_56_provider_architecture_closure.md](engineering/pr15_56_provider_architecture_closure.md).
+
+## Qwen two transport experiment (PR #213)
+
+The Qwen provider now offers explicit browser and HTTP modes through `QwenClient`.
+Neither transport silently retries a possibly completed write or falls back to
+the other transport. Both remain experimental pending authenticated live proof.
+
+```python
+from chatgpt_web_adapter.qwen_client import QwenClient
+
+# Background Chrome tab using the existing CWA extension and Qwen login.
+browser = QwenClient(transport="browser")
+reply = browser.send_text("Hello")
+
+# Opt-in Qwen session import from the existing signed-in Chrome tab.
+direct = QwenClient(transport="http")
+direct.import_browser_auth()
+reply = direct.send_text("Hello over HTTPS")
+print(reply.text)
+
+# Subsequent process launches can load the already imported credentials:
+direct = QwenClient(transport="http")
+reply = direct.send_text("New Qwen HTTPS conversation")
+```
+
+The session import is explicit and scoped to Qwen. It reads the access token
+from Qwen page storage and Qwen-origin cookies from Chrome CDP; the native
+bridge does not read or export Google account credentials. The credentials
+are written outside Git to `%LOCALAPPDATA%/chatgpt-web-adapter/qwen_auth.dat`.
+On Windows, the file is encrypted with user-scoped DPAPI; on POSIX,
+the file uses mode `0600`.
+
+Direct HTTP uses `urllib` and Qwen's private `/api/v2/chats/new` and
+`/api/v2/chat/completions` endpoints; this is not an official stable API.
+Token refresh is never guessed: callers must supply a separately verified
+`refresh_path`, and expired credentials without it fail before sending.
+Neither HTTP generation nor browser completion can safely auto-replay an
+ambiguous write. `QwenHttpConversation` can explicitly carry chat and parent
+ids between HTTP calls; cross-transport migration is not established.
+
+Authentication export, model identifiers, Qwen login refresh and live
+generation behavior still need user-machine verification.
