@@ -469,7 +469,10 @@ async function _pr92RecoverBlankNewChatPageOnce(tab, context, cause, createdForT
   if (
     ownerAfter !== tab.id ||
     reloaded?.id !== tab.id ||
+    reloaded.status !== "complete" ||
     reloaded.active === true ||
+    reloaded.discarded === true ||
+    reloaded.frozen === true ||
     !isChatGPTUrl(reloaded.url || "") ||
     new URL(reloaded.url).pathname !== "/" ||
     new URL(reloaded.url).search !== ""
