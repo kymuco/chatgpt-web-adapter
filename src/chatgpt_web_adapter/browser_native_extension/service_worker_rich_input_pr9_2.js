@@ -456,6 +456,26 @@ async function _pr92RecoverBlankNewChatPageOnce(tab, context, cause, createdForT
   // No durable attachment fence was persisted and no file-selection command ran.
   // Use the existing turn-deadline-owned reload, with route proof after load.
   await _pr92ReloadRuntimeTabWithinTurn(tab.id, null);
+  const reloaded = await _pr92Schema7RunUntil(
+    context.deadlineAt,
+    "PRESTAGE_RECOVERY_RELOADED_TAB",
+    () => chrome.tabs.get(tab.id)
+  );
+  const ownerAfter = await _pr92Schema7RunUntil(
+    context.deadlineAt,
+    "PRESTAGE_RECOVERY_RELOADED_OWNER",
+    () => storedRuntimeTabId()
+  );
+  if (
+    ownerAfter !== tab.id ||
+    reloaded?.id !== tab.id ||
+    reloaded.active === true ||
+    !isChatGPTUrl(reloaded.url || "") ||
+    new URL(reloaded.url).pathname !== "/" ||
+    new URL(reloaded.url).search !== ""
+  ) {
+    throw new Error("PR9_2_PRESTAGE_RELOADED_RUNTIME_TAB_CHANGED");
+  }
   _pr92RemainingTurnMs(context, "PRESTAGE_RECOVERY_RELOADED");
 }
 
