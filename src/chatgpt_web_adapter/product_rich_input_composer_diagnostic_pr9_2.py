@@ -66,7 +66,8 @@ def main() -> int:
     )
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument(
-        "--existing-tab-only", action="store_true",
+        "--existing-tab-only",
+        action="store_true",
         help="Observe only the already-owned Chrome runtime tab; never open or navigate.",
     )
     args = parser.parse_args()
