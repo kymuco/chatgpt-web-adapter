@@ -62,6 +62,7 @@ const ctx = {
     evidence.officialComposerMounted === true &&
     evidence.exactAttachmentSet === true,
   _pr92BoundedSleep: async () => {},
+  PR92_SCHEMA24_REPAIR_SCHEMA: 24,
   PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS: 2,
   PR92_PAGE_ATTACHMENT_POLL_MS: 150,
   _pr92ClosureReadPageOwnedAttachmentEvidence: async () =>
