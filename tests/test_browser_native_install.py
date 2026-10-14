@@ -40,6 +40,7 @@ def test_packaged_extension_identity_and_manifest() -> None:
         "https://notebook.google.com/*",
         "https://notebooklm.google.com/*",
         "https://translate.google.com/*",
+        "https://chat.qwen.ai/*",
     ]
 
 
