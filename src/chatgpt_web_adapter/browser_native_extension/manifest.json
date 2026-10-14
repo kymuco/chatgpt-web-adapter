@@ -17,7 +17,8 @@
     "https://gemini.google.com/*",
     "https://notebook.google.com/*",
     "https://notebooklm.google.com/*",
-    "https://translate.google.com/*"
+    "https://translate.google.com/*",
+    "https://chat.qwen.ai/*"
   ],
   "background": {
     "service_worker": "service_worker_temporary_chat_route_reopen_probe.js"

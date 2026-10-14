@@ -1,6 +1,6 @@
 # Providers
 
-_Last updated: 2026-09-26_
+_Last updated: 2026-10-14_
 
 This document describes the provider-specific support surface on current `main`.
 
@@ -148,6 +148,26 @@ Completion evidence:
 PAGE_DOM_STABLE_COMPLETION
 canonical_completion_proven = false
 ```
+
+## Qwen Web — experimental candidate
+
+```python
+from chatgpt_web_adapter.qwen_web import QwenWebRuntime
+```
+
+The Qwen adapter runs through the **existing CWA Chrome extension** and Native
+Messaging bridge, targeting `https://chat.qwen.ai`. It uses Qwen-specific
+composer, send-button, answer-phase and stop-generation DOM evidence rather than
+exporting credentials or reproducing Qwen's private HTTP protocol.
+
+Text, new chat and continuation are implemented **but not yet live-verified** on
+an authenticated Chrome session. The advertised capability states remain
+`UNKNOWN` until a successful live acceptance gate; all other advanced
+capabilities remain unimplemented or unknown. Canonical finality is unproven.
+
+An ambiguous result after potential submission requires reconciliation, never
+an automatic retry. This experiment does not export Qwen tokens/cookies or
+modify the separate experimental browserless HTTP client.
 
 ## Finality is provider-specific
 
