@@ -1,4 +1,5 @@
 """Explicit user-machine Qwen live gate. Never prints credentials."""
+
 from __future__ import annotations
 
 import argparse
