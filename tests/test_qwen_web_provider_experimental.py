@@ -4,15 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from chatgpt_web_adapter.qwen_web import (
-    QWEN_PROVIDER_ID,
-    QWEN_WEB_TRANSPORT,
-    ORDINARY_QWEN_PRODUCT_SEMANTICS,
-    QwenBrowserTurnProvider,
-    QwenWebRuntime,
-    QwenWebTransport,
-    QwenWebWriteOutcomeAmbiguousError,
-)
 from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.product_capabilities import (
     CONTINUATION,
@@ -23,6 +14,15 @@ from chatgpt_web_adapter.product_capabilities import (
 from chatgpt_web_adapter.product_provenance import CompletionSource
 from chatgpt_web_adapter.product_provider import product_provider_boundary
 from chatgpt_web_adapter.product_support import ProductTransportSupportTier
+from chatgpt_web_adapter.qwen_web import (
+    ORDINARY_QWEN_PRODUCT_SEMANTICS,
+    QWEN_PROVIDER_ID,
+    QWEN_WEB_TRANSPORT,
+    QwenBrowserTurnProvider,
+    QwenWebRuntime,
+    QwenWebTransport,
+    QwenWebWriteOutcomeAmbiguousError,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "src" / "chatgpt_web_adapter" / "browser_native_extension"
@@ -200,9 +200,7 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert worker.count("await _cwaQwenSubmitOnce(") == 1
 
 
-def test_qwen_bridge_response_loss_after_delegation_requires_reconciliation() -> (
-    None
-):
+def test_qwen_bridge_response_loss_after_delegation_requires_reconciliation() -> None:
     provider = QwenBrowserTurnProvider(connect_timeout=0.1, turn_timeout=5.0)
 
     def rpc(payload, *, timeout, on_event=None):
@@ -269,14 +267,21 @@ def test_qwen_extension_syntax_if_node_available() -> None:
         pytest.skip("Node.js not installed")
     result = subprocess.run(
         [node, "--check", str(EXT / "service_worker_qwen_provider.js")],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
 
 
 def test_qwen_extension_never_exports_session_secrets() -> None:
     worker = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
-    for forbidden in ("qwen_access_token_state", "auths/refresh", "chrome.cookies",
-                      "localStorage.getItem", "Authorization"):
+    for forbidden in (
+        "qwen_access_token_state",
+        "auths/refresh",
+        "chrome.cookies",
+        "localStorage.getItem",
+        "Authorization",
+    ):
         assert forbidden not in worker
     assert '["new-chat", "guest"]' in worker
