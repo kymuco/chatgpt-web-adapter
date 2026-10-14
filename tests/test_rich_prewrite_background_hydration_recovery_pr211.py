@@ -155,7 +155,8 @@ def test_prewrite_recovery_fails_closed_without_navigation(scenario: str) -> Non
     assert result["result"] is False
     assert result["calls"] == (
         ["ensure-tab", "stage", "reload"]
-        if scenario == "post-reload-drift" else ["ensure-tab", "stage"]
+        if scenario == "post-reload-drift"
+        else ["ensure-tab", "stage"]
     )
     assert result["staged"] is False
     assert result["attachmentCount"] == 0
