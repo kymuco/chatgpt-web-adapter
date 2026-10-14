@@ -1,10 +1,11 @@
 """Two explicitly selected transports for the same Qwen Web product."""
+
 from __future__ import annotations
 
 from typing import Any, Callable, Literal
 
 from .qwen_auth_store import load_qwen_credentials, save_qwen_credentials
-from .qwen_http import QwenHttpClient, QwenHttpCredentials, QwenHttpConversation
+from .qwen_http import QwenHttpClient, QwenHttpConversation
 from .qwen_web import QwenBrowserTurnProvider, QwenWebTransport
 from .types import ChatResponse
 
@@ -17,7 +18,9 @@ class QwenClient:
     """
 
     def __init__(
-        self, *, transport: Literal["browser", "http"] = "browser",
+        self,
+        *,
+        transport: Literal["browser", "http"] = "browser",
         model: str = "qwen-max-latest",
         refresh_path: str | None = None,
     ) -> None:
@@ -34,13 +37,16 @@ class QwenClient:
         credentials = QwenBrowserTurnProvider().export_auth()
         save_qwen_credentials(credentials)
         self._http = QwenHttpClient(
-            credentials, model=self.model, refresh_path=self.refresh_path,
+            credentials,
+            model=self.model,
+            refresh_path=self.refresh_path,
         )
 
     def _http_client(self) -> QwenHttpClient:
         if self._http is None:
             self._http = QwenHttpClient(
-                load_qwen_credentials(), model=self.model,
+                load_qwen_credentials(),
+                model=self.model,
                 refresh_path=self.refresh_path,
             )
         return self._http
@@ -54,13 +60,22 @@ class QwenClient:
         on_token: Callable[[str], None] | None = None,
     ) -> ChatResponse:
         if self.transport == "http":
-            if conversation is not None and not isinstance(conversation, QwenHttpConversation):
-                raise ValueError("Direct HTTP requires QwenHttpConversation(chat_id, parent_id)")
+            if conversation is not None and not isinstance(
+                conversation, QwenHttpConversation
+            ):
+                raise ValueError(
+                    "Direct HTTP requires QwenHttpConversation(chat_id, parent_id)"
+                )
             return self._http_client().send_text(
-                text, conversation=conversation, model=model, on_token=on_token,
+                text,
+                conversation=conversation,
+                model=model,
+                on_token=on_token,
             )
         if model is not None or on_token is not None:
-            raise ValueError("Browser provider does not support model selection or token streaming")
+            raise ValueError(
+                "Browser provider does not support model selection or token streaming"
+            )
         if self._browser is None:
             self._browser = QwenWebTransport()
         return self._browser.send_text(text, conversation=conversation)

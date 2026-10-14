@@ -3,6 +3,7 @@
 The web protocol is private and may change. No implicit retries of generation.
 Credentials are always caller supplied or loaded from the separate Qwen store.
 """
+
 from __future__ import annotations
 
 import json
@@ -39,8 +40,12 @@ class QwenHttpCredentials:
         self.access_token = self.access_token.removeprefix("Bearer ").strip()
         if not self.access_token:
             raise ValueError("Qwen access token required")
-        if any(not isinstance(k, str) or not isinstance(v, str)
-               or any(c in k + v for c in "\r\n;") for k, v in self.cookies.items()):
+        if any(
+            not isinstance(k, str)
+            or not isinstance(v, str)
+            or any(c in k + v for c in "\r\n;")
+            for k, v in self.cookies.items()
+        ):
             raise ValueError("Invalid Qwen cookies")
 
 
@@ -110,19 +115,27 @@ class QwenHttpClient:
             for name, item in jar.items():
                 self.credentials.cookies[name] = item.value
 
-    def _request(self, method: str, path: str, *, payload: Any = None, stream: bool = False) -> Any:
+    def _request(
+        self, method: str, path: str, *, payload: Any = None, stream: bool = False
+    ) -> Any:
         if not path.startswith("/api/") or "//" in path:
             raise ValueError("Only Qwen API paths are supported")
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
-        request = Request(QWEN_ORIGIN + path, data=data, headers=self._headers(), method=method)
+        request = Request(
+            QWEN_ORIGIN + path, data=data, headers=self._headers(), method=method
+        )
         try:
             response = self._open(request, timeout=self.timeout)
         except HTTPError as error:
             # A definitive 401 is not an authorization to replay a mutation.
-            raise QwenHttpError(f"QWEN_HTTP_{error.code}: {method} {path.split('?')[0]}") from None
+            raise QwenHttpError(
+                f"QWEN_HTTP_{error.code}: {method} {path.split('?')[0]}"
+            ) from None
         except (URLError, TimeoutError, OSError) as error:
             if method == "POST" and "completions" in path:
-                raise QwenHttpWriteOutcomeAmbiguousError("QWEN_HTTP_GENERATION_DELIVERY_UNCERTAIN") from error
+                raise QwenHttpWriteOutcomeAmbiguousError(
+                    "QWEN_HTTP_GENERATION_DELIVERY_UNCERTAIN"
+                ) from error
             raise QwenHttpError(f"QWEN_HTTP_TRANSPORT_ERROR: {method}") from error
         self._record_cookies(response)
         return response
@@ -136,7 +149,11 @@ class QwenHttpClient:
         if not isinstance(payload, dict):
             raise QwenHttpError("QWEN_REFRESH_INVALID_RESPONSE")
         data = payload.get("data", payload)
-        token = data.get("access_token", data.get("token")) if isinstance(data, dict) else None
+        token = (
+            data.get("access_token", data.get("token"))
+            if isinstance(data, dict)
+            else None
+        )
         if not isinstance(token, str) or not token:
             raise QwenHttpError("QWEN_REFRESH_TOKEN_MISSING")
         self.credentials.access_token = token.removeprefix("Bearer ")
@@ -151,8 +168,11 @@ class QwenHttpClient:
         self._preflight_auth()
         selected = model or self.model
         payload = {
-            "title": "Qwen Direct", "models": [selected], "chat_mode": "normal",
-            "chat_type": "t2t", "timestamp": int(time.time() * 1000),
+            "title": "Qwen Direct",
+            "models": [selected],
+            "chat_mode": "normal",
+            "chat_type": "t2t",
+            "timestamp": int(time.time() * 1000),
             "project_id": "",
         }
         with self._request("POST", "/api/v2/chats/new", payload=payload) as response:
@@ -170,21 +190,36 @@ class QwenHttpClient:
     def _payload(text: str, model: str, state: QwenHttpConversation) -> dict[str, Any]:
         timestamp = int(time.time())
         return {
-            "stream": True, "version": "2.1", "incremental_output": True,
-            "chat_id": state.chat_id, "chat_mode": "normal", "model": model,
-            "parent_id": state.parent_id, "timestamp": timestamp,
-            "messages": [{
-                "fid": str(uuid.uuid4()), "parentId": state.parent_id,
-                "parent_id": state.parent_id, "childrenIds": [],
-                "role": "user", "content": text, "user_action": "chat",
-                "files": [], "timestamp": timestamp, "models": [model],
-                "chat_type": "t2t", "sub_chat_type": "t2t",
-                "feature_config": {
-                    "thinking_enabled": False, "thinking_budget": 0,
-                    "output_schema": None,
-                },
-                "extra": {"meta": {"subChatType": "t2t"}},
-            }],
+            "stream": True,
+            "version": "2.1",
+            "incremental_output": True,
+            "chat_id": state.chat_id,
+            "chat_mode": "normal",
+            "model": model,
+            "parent_id": state.parent_id,
+            "timestamp": timestamp,
+            "messages": [
+                {
+                    "fid": str(uuid.uuid4()),
+                    "parentId": state.parent_id,
+                    "parent_id": state.parent_id,
+                    "childrenIds": [],
+                    "role": "user",
+                    "content": text,
+                    "user_action": "chat",
+                    "files": [],
+                    "timestamp": timestamp,
+                    "models": [model],
+                    "chat_type": "t2t",
+                    "sub_chat_type": "t2t",
+                    "feature_config": {
+                        "thinking_enabled": False,
+                        "thinking_budget": 0,
+                        "output_schema": None,
+                    },
+                    "extra": {"meta": {"subChatType": "t2t"}},
+                }
+            ],
         }
 
     def send_text(
@@ -208,9 +243,15 @@ class QwenHttpClient:
         finished = False
         # One and only one completion POST. On interrupted stream, never replay.
         try:
-            with self._request("POST", path, payload=self._payload(text, selected, state), stream=True) as response:
+            with self._request(
+                "POST", path, payload=self._payload(text, selected, state), stream=True
+            ) as response:
                 for line in response:
-                    raw = line.decode("utf-8", "replace") if isinstance(line, bytes) else line
+                    raw = (
+                        line.decode("utf-8", "replace")
+                        if isinstance(line, bytes)
+                        else line
+                    )
                     if not raw.startswith("data:"):
                         continue
                     data = raw[5:].strip()
@@ -229,7 +270,11 @@ class QwenHttpClient:
                         if isinstance(maybe_parent, str) and maybe_parent:
                             parent_id = maybe_parent
                     choices = event.get("choices")
-                    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+                    if (
+                        not isinstance(choices, list)
+                        or not choices
+                        or not isinstance(choices[0], dict)
+                    ):
                         continue
                     choice = choices[0]
                     delta = choice.get("delta")
@@ -243,8 +288,13 @@ class QwenHttpClient:
         except QwenHttpError:
             raise
         except (OSError, ValueError) as error:
-            raise QwenHttpWriteOutcomeAmbiguousError("QWEN_HTTP_RESPONSE_INCOMPLETE") from error
+            raise QwenHttpWriteOutcomeAmbiguousError(
+                "QWEN_HTTP_RESPONSE_INCOMPLETE"
+            ) from error
         if not finished or not chunks:
             raise QwenHttpWriteOutcomeAmbiguousError("QWEN_HTTP_FINALITY_NOT_PROVEN")
         self.conversation = QwenHttpConversation(state.chat_id, parent_id)
-        return ChatResponse(text="".join(chunks), conversation=ChatConversation(conversation_id=state.chat_id))
+        return ChatResponse(
+            text="".join(chunks),
+            conversation=ChatConversation(conversation_id=state.chat_id),
+        )

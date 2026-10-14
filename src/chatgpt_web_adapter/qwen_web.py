@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .browser_native_provider import BrowserNativeTurnProvider
+from .qwen_http import QwenHttpCredentials
 from .exceptions import RequestError
 from .product_capabilities import (
     APPROVALS,
@@ -114,8 +115,6 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
 
     def export_auth(self) -> "QwenHttpCredentials":
         """Explicit opt-in: import only the Qwen session via existing native bridge."""
-        from .qwen_http import QwenHttpCredentials
-
         request_id = uuid.uuid4().hex
         response = self._rpc(
             {
@@ -133,8 +132,10 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
                 "QWEN_AUTH_SNAPSHOT_UNAVAILABLE",
                 request_stage="qwen_auth_snapshot",
             )
-        if (response.get("providerId") != QWEN_PROVIDER_ID
-                or response.get("operation") != "auth_snapshot"):
+        if (
+            response.get("providerId") != QWEN_PROVIDER_ID
+            or response.get("operation") != "auth_snapshot"
+        ):
             raise RequestError(
                 "QWEN_AUTH_SNAPSHOT_IDENTITY_MISMATCH",
                 request_stage="qwen_auth_snapshot",
@@ -150,7 +151,8 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
         if not isinstance(cookies, dict):
             cookies = {}
         return QwenHttpCredentials(
-            access_token=token, cookies=cookies,
+            access_token=token,
+            cookies=cookies,
             expires_at=float(expires) if isinstance(expires, (int, float)) else None,
         )
 

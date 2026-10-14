@@ -1,4 +1,5 @@
 """Opt-in, local-only Qwen session persistence outside the checkout."""
+
 from __future__ import annotations
 
 import base64
@@ -37,13 +38,23 @@ def _dpapi(value: bytes, *, encrypt: bool) -> bytes:
     if encrypt:
         func = crypt.CryptProtectData
         args: tuple[Any, ...] = (
-            ctypes.byref(incoming), "CWA Qwen web credentials",
-            None, None, None, 0, ctypes.byref(outgoing),
+            ctypes.byref(incoming),
+            "CWA Qwen web credentials",
+            None,
+            None,
+            None,
+            0,
+            ctypes.byref(outgoing),
         )
     else:
         func = crypt.CryptUnprotectData
         args = (
-            ctypes.byref(incoming), None, None, None, None, 0,
+            ctypes.byref(incoming),
+            None,
+            None,
+            None,
+            None,
+            0,
             ctypes.byref(outgoing),
         )
     if not func(*args):
@@ -57,10 +68,14 @@ def _dpapi(value: bytes, *, encrypt: bool) -> bytes:
 def save_qwen_credentials(
     credentials: QwenHttpCredentials, *, path: Path = AUTH_FILE
 ) -> None:
-    payload = json.dumps({
-        "schema": 1, "access_token": credentials.access_token,
-        "cookies": credentials.cookies, "expires_at": credentials.expires_at,
-    }).encode("utf-8")
+    payload = json.dumps(
+        {
+            "schema": 1,
+            "access_token": credentials.access_token,
+            "cookies": credentials.cookies,
+            "expires_at": credentials.expires_at,
+        }
+    ).encode("utf-8")
     if os.name == "nt":
         value = b"DPAPI1:" + base64.b64encode(_dpapi(payload, encrypt=True))
     else:
@@ -96,7 +111,8 @@ def load_qwen_credentials(*, path: Path = AUTH_FILE) -> QwenHttpCredentials:
         if not isinstance(body, dict) or body.get("schema") != 1:
             raise QwenAuthStoreError("QWEN_AUTH_STORE_SCHEMA_MISMATCH")
         return QwenHttpCredentials(
-            access_token=body["access_token"], cookies=body.get("cookies", {}),
+            access_token=body["access_token"],
+            cookies=body.get("cookies", {}),
             expires_at=body.get("expires_at"),
         )
     except (OSError, ValueError, KeyError, TypeError) as error:
