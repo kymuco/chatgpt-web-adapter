@@ -4,6 +4,7 @@ Requires: pip install -e .   (from chatgpt-web-adapter checkout)
 Usage:
     python qwen_sdk.py --import-auth
     python qwen_sdk.py "Привет!"
+    python qwen_sdk.py --transport reverse "Привет!"  # optional qwen-reverse library
     python qwen_sdk.py --transport browser "Привет!"
     python qwen_sdk.py
 """
@@ -11,18 +12,84 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 
+from chatgpt_web_adapter.qwen_auth_store import load_qwen_credentials
+
 from chatgpt_web_adapter.qwen_client import QwenClient
+
+
+async def _run_reverse(messages: list[str], *, model: str | None = None) -> int:
+    """Opt-in, browserless Qwen Web adapter. No probe messages or browser tabs."""
+    try:
+        from qwen_reverse import Conversation
+    except ImportError as error:
+        raise RuntimeError(
+            "QWEN_REVERSE_NOT_INSTALLED: "
+            "python -m pip install qwen-reverse==0.1.6 "
+            "(unofficial third-party library)"
+        ) from error
+
+    # Explicit account identity: never silently switch to anonymous traffic.
+    credentials = load_qwen_credentials()
+    token = credentials.access_token
+    conversation = Conversation(
+        model=model or "qwen3.8-max",
+        token=token,
+        reasoning_effort="none",
+    )
+
+    async def send(message: str) -> None:
+        seen = False
+        completed = False
+        async for event in conversation.stream(message):
+            if event.get("type") == "content":
+                fragment = event.get("data")
+                if isinstance(fragment, str) and fragment:
+                    print(fragment, end="", flush=True)
+                    seen = True
+            elif event.get("type") == "done":
+                completed = True
+        if seen:
+            print()
+        if not completed or not seen:
+            raise RuntimeError("QWEN_REVERSE_COMPLETION_NOT_PROVEN")
+
+    try:
+        if messages:
+            await send(" ".join(messages))
+            return 0
+        print("Qwen SDK · transport=reverse · /exit для выхода")
+        while True:
+            try:
+                message = input("Вы: ").strip()
+            except EOFError:
+                return 0
+            if message.lower() in {"/exit", "/quit"}:
+                return 0
+            if message:
+                print("Qwen: ", end="", flush=True)
+                await send(message)
+    except Exception as error:
+        # The third-party client may include server data in exception details;
+        # never let imported auth values leak into a terminal log.
+        message = str(error).replace(token, "[REDACTED]")
+        for cookie in credentials.cookies.values():
+            if cookie:
+                message = message.replace(cookie, "[REDACTED]")
+        print("Qwen SDK error: " + message, file=sys.stderr)
+        return 1
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Qwen SDK: background browser or direct HTTP")
     parser.add_argument(
         "--transport",
-        choices=("http", "browser"),
+        choices=("http", "browser", "reverse"),
         default="http",
-        help="http (default): no browser; browser: existing Qwen tab only",
+        help="http: raw HTTPS; browser: existing tab; reverse: optional unofficial Python HTTPS",
     )
     parser.add_argument(
         "--import-auth",
@@ -43,6 +110,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--import-auth does not send messages; run it separately")
     if args.model and args.transport == "browser":
         parser.error("--model is currently supported only with --transport http")
+
+    if args.transport == "reverse":
+        return asyncio.run(_run_reverse(args.message, model=args.model))
 
     client = QwenClient(
         transport=args.transport,
