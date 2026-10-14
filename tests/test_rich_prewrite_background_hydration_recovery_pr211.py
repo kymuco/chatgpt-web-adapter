@@ -61,7 +61,11 @@ const ctx = {
     if (storedReads === 1) return null;
     return scenario === "foreign-owner" ? 999 : 42;
   },
-  chrome: {tabs: {get: async () => ({...tab})}},
+  chrome: {tabs: {get: async () => ({
+    ...tab,
+    url: scenario === "post-reload-drift" && calls.includes("reload")
+      ? "https://chatgpt.com/auth/login" : tab.url,
+  })}},
   isChatGPTUrl: url => url.startsWith("https://chatgpt.com/"),
   ensureRuntimeTab: async () => {calls.push("ensure-tab"); return {...tab};},
   _pr92ReloadRuntimeTabWithinTurn: async () => {calls.push("reload");},
@@ -142,13 +146,17 @@ def test_untouched_new_chat_recovers_page_mount_once_before_first_file_selection
         "active-tab",
         "foreign-owner",
         "route-drift",
+        "post-reload-drift",
         "ambiguous-error",
     ],
 )
 def test_prewrite_recovery_fails_closed_without_navigation(scenario: str) -> None:
     result = _scenario(scenario)
     assert result["result"] is False
-    assert result["calls"] == ["ensure-tab", "stage"]
+    assert result["calls"] == (
+        ["ensure-tab", "stage", "reload"]
+        if scenario == "post-reload-drift" else ["ensure-tab", "stage"]
+    )
     assert result["staged"] is False
     assert result["attachmentCount"] == 0
     assert result["error"]
