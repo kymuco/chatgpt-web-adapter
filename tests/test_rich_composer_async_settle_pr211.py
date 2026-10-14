@@ -168,7 +168,9 @@ def test_multiline_rich_proof_waits_for_two_stable_exact_observations(
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js unavailable")
-def test_persistent_rich_mismatch_fails_before_any_write_with_bounded_evidence() -> None:
+def test_persistent_rich_mismatch_fails_before_any_write_with_bounded_evidence() -> (
+    None
+):
     proc = subprocess.run(
         [
             NODE,
