@@ -208,9 +208,7 @@ def test_preserve_existing_captured_qwen_token_cookie():
         (b"not json", "text/plain", "body_class=other"),
     ],
 )
-def test_create_chat_non_json_has_safe_error_with_stage(
-    body, content_type, error_code
-):
+def test_create_chat_non_json_has_safe_error_with_stage(body, content_type, error_code):
     from email.message import Message
 
     requests = []

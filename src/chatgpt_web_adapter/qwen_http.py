@@ -159,18 +159,20 @@ class QwenHttpClient:
         """Parse an API JSON reply without ever logging private response bodies."""
         status = getattr(response, "status", None)
         status_label = (
-            str(status) if isinstance(status, int) and not isinstance(status, bool)
+            str(status)
+            if isinstance(status, int) and not isinstance(status, bool)
             else "unknown"
         )
         headers = getattr(response, "headers", None)
-        content_type = (
-            headers.get("Content-Type", "") if headers is not None else ""
-        )
+        content_type = headers.get("Content-Type", "") if headers is not None else ""
         # Only an allowlisted MIME family enters diagnostics.
         media_type = str(content_type).split(";", 1)[0].strip().lower()
         if media_type not in {
-            "application/json", "text/html", "application/xhtml+xml",
-            "text/plain", "text/event-stream",
+            "application/json",
+            "text/html",
+            "application/xhtml+xml",
+            "text/plain",
+            "text/event-stream",
         }:
             media_type = "unknown"
         raw = response.read(1_048_577)
@@ -185,7 +187,8 @@ class QwenHttpClient:
         if not stripped:
             kind = "empty"
         elif stripped[:1] == b"<" or media_type in {
-            "text/html", "application/xhtml+xml",
+            "text/html",
+            "application/xhtml+xml",
         }:
             kind = "html"
         elif stripped[:1] in (b"{", b"["):
@@ -200,7 +203,7 @@ class QwenHttpClient:
             )
         try:
             data = json.loads(raw)
-        except (ValueError, UnicodeDecodeError) as error:
+        except (ValueError, UnicodeDecodeError):
             raise QwenHttpError(
                 f"QWEN_{stage}_NON_JSON_RESPONSE: status={status_label} "
                 f"content_type={media_type} body_class={kind}"
@@ -325,9 +328,12 @@ class QwenHttpClient:
             ) as response:
                 # No retry is safe after a completion POST, even if Qwen returns
                 # a login/WAF HTML page with HTTP 200.
-                mime = str(
-                    getattr(response, "headers", {}).get("Content-Type", "")
-                ).split(";", 1)[0].strip().lower()
+                mime = (
+                    str(getattr(response, "headers", {}).get("Content-Type", ""))
+                    .split(";", 1)[0]
+                    .strip()
+                    .lower()
+                )
                 if mime in {"text/html", "application/xhtml+xml"}:
                     raise QwenHttpWriteOutcomeAmbiguousError(
                         "QWEN_COMPLETION_NON_SSE_RESPONSE: body_class=html "
