@@ -94,20 +94,62 @@ def test_stream_without_finality_is_ambiguous():
         client.send_text("message", conversation=QwenHttpConversation("chat-1"))
 
 
-def test_expired_auth_fails_before_write_without_refresh_configuration():
+def test_stale_page_expiry_hint_does_not_block_first_http_send():
     requests = []
 
     def open_(request, timeout):
         requests.append(request)
-        return _Reply({})
+        if request.full_url.endswith("/chats/new"):
+            return _Reply({"data": {"id": "chat-stale"}})
+        return _Reply(
+            [
+                {"choices": [{"delta": {"content": "hello"}, "finish_reason": "stop"}]},
+                "[DONE]",
+            ]
+        )
 
     client = QwenHttpClient(
-        QwenHttpCredentials("expired", expires_at=1),
+        QwenHttpCredentials("possibly-valid", expires_at=1),
         opener=open_,
     )
-    with pytest.raises(QwenHttpError, match="REFRESH_UNAVAILABLE"):
-        client.send_text("message")
-    assert requests == []
+    response = client.send_text("message")
+    assert response.text == "hello"
+    assert len(requests) == 2
+    assert all(request.get_method() == "POST" for request in requests)
+
+
+def test_expired_auth_refreshes_before_write_only_with_configured_path():
+    requests = []
+
+    def open_(request, timeout):
+        requests.append(request)
+        return _Reply({"data": {"access_token": "new-token"}})
+
+    client = QwenHttpClient(
+        QwenHttpCredentials("old-token", {"session": "example"}, expires_at=1),
+        opener=open_,
+        refresh_path="/api/v1/auths/refresh",
+    )
+    client._preflight_auth()
+    assert client.credentials.access_token == "new-token"
+    assert len(requests) == 1
+    assert requests[0].get_method() == "GET"
+
+
+def test_expired_auth_does_not_invent_or_call_refresh_endpoint():
+    requests = []
+
+    def open_(request, timeout):
+        requests.append(request)
+        return _Reply({"data": {"id": "chat-stale"}})
+
+    client = QwenHttpClient(
+        QwenHttpCredentials("possibly-valid", expires_at=1),
+        opener=open_,
+    )
+    client.create_chat()
+    assert len(requests) == 1
+    assert "/api/v2/chats/new" in requests[0].full_url
 
 
 def test_refresh_is_pre_send_only():

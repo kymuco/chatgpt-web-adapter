@@ -170,8 +170,16 @@ class QwenHttpClient:
 
     def _preflight_auth(self) -> None:
         expiry = self.credentials.expires_at
-        if expiry is not None and expiry <= time.time() + 60:
+        if (
+            self.refresh_path is not None
+            and expiry is not None
+            and expiry <= time.time() + 60
+        ):
             self.refresh()
+        # A web-page expiry hint is not proof that the imported token is unusable.
+        # Without a verified refresh endpoint, attempt the requested operation
+        # once with its existing credentials. The server's 401/403 is definitive.
+        # Do not spawn Chrome tabs or silently retry a generation.
 
     def create_chat(self, *, model: str | None = None) -> QwenHttpConversation:
         self._preflight_auth()
