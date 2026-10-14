@@ -418,9 +418,12 @@ async function _pr92RequireCleanAttachmentState(context) {
 // runtime tab. Failure to prove any condition retains the original failure.
 const PR92_PRESTAGE_MOUNT_RECOVERY_RESERVE_MS = 35_000;
 
-async function _pr92RecoverBlankNewChatPageOnce(tab, context, cause) {
+async function _pr92RecoverBlankNewChatPageOnce(tab, context, cause, createdForTurn) {
   const detail = typeof cause?.message === "string" ? cause.message : String(cause);
   if (!detail.startsWith("PR9_2_OFFICIAL_COMPOSER_MOUNT_NOT_OBSERVED:")) throw cause;
+  // A retained root tab might hold a draft the structural resolver cannot see.
+  // Only a tab created by this turn may be safely reloaded.
+  if (createdForTurn !== true) throw cause;
   if (
     context.staged === true ||
     Number.isInteger(_pr92DirtyAttachmentTabId) ||
@@ -468,7 +471,17 @@ async function _pr92RecoverThenStage(message) {
   const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
     ? message.conversationId.trim()
     : null;
+  // Record whether a runtime tab already existed before acquisition.
+  // A retained tab may contain a user draft even when Composer is not recognized.
+  const runtimeIdBefore = conversationId === null
+    ? await _pr92Schema7RunUntil(
+        context.deadlineAt,
+        "PRESTAGE_RUNTIME_TAB_PREEXISTENCE",
+        () => storedRuntimeTabId()
+      )
+    : null;
   const tab = await ensureRuntimeTab(conversationId);
+  const createdForTurn = conversationId === null && !Number.isInteger(runtimeIdBefore);
   _pr92RemainingTurnMs(context, "POST_RECOVERY_TAB");
   if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
 
@@ -484,7 +497,7 @@ async function _pr92RecoverThenStage(message) {
     // recovery. The first staging call reached no file chooser or submit.
     // Never retry after an ambiguous staging failure or a durable fence.
     if (conversationId !== null) throw error;
-    await _pr92RecoverBlankNewChatPageOnce(tab, context, error);
+    await _pr92RecoverBlankNewChatPageOnce(tab, context, error, createdForTurn);
     count = await _pr92StageOfficialPageAttachments(
       tab.id,
       context.attachmentPaths,
