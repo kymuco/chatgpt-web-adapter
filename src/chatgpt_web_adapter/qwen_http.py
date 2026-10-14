@@ -97,12 +97,19 @@ class QwenHttpClient:
             "Accept": "application/json, text/event-stream",
             "Origin": QWEN_ORIGIN,
             "Referer": QWEN_ORIGIN + "/",
-            "User-Agent": "Mozilla/5.0 QwenDirectExperimental/1.0",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/155.0.0.0 Safari/537.36"
+            ),
         }
-        if self.credentials.cookies:
-            headers["Cookie"] = "; ".join(
-                name + "=" + value for name, value in self.credentials.cookies.items()
-            )
+        # Qwen Web uses the account token as a cookie as well as, in some
+        # deployments, Authorization. Preserve imported cookies verbatim.
+        cookies = dict(self.credentials.cookies)
+        cookies.setdefault("token", self.credentials.access_token)
+        headers["Cookie"] = "; ".join(
+            name + "=" + value for name, value in cookies.items()
+        )
         return headers
 
     def _record_cookies(self, response: Any) -> None:
@@ -147,14 +154,69 @@ class QwenHttpClient:
         self._record_cookies(response)
         return response
 
+    @staticmethod
+    def _read_json_response(response: Any, *, stage: str) -> dict[str, Any]:
+        """Parse an API JSON reply without ever logging private response bodies."""
+        status = getattr(response, "status", None)
+        status_label = (
+            str(status) if isinstance(status, int) and not isinstance(status, bool)
+            else "unknown"
+        )
+        headers = getattr(response, "headers", None)
+        content_type = (
+            headers.get("Content-Type", "") if headers is not None else ""
+        )
+        # Only an allowlisted MIME family enters diagnostics.
+        media_type = str(content_type).split(";", 1)[0].strip().lower()
+        if media_type not in {
+            "application/json", "text/html", "application/xhtml+xml",
+            "text/plain", "text/event-stream",
+        }:
+            media_type = "unknown"
+        raw = response.read(1_048_577)
+        if isinstance(raw, str):
+            raw = raw.encode("utf-8", "replace")
+        if len(raw) > 1_048_576:
+            raise QwenHttpError(
+                f"QWEN_{stage}_RESPONSE_TOO_LARGE: status={status_label} "
+                f"content_type={media_type}"
+            )
+        stripped = raw.lstrip()
+        if not stripped:
+            kind = "empty"
+        elif stripped[:1] == b"<" or media_type in {
+            "text/html", "application/xhtml+xml",
+        }:
+            kind = "html"
+        elif stripped[:1] in (b"{", b"["):
+            kind = "json_like"
+        else:
+            kind = "other"
+        if kind == "html" or kind == "empty":
+            raise QwenHttpError(
+                f"QWEN_{stage}_NON_JSON_RESPONSE: status={status_label} "
+                f"content_type={media_type} body_class={kind}; "
+                "Qwen may require account verification or browser access"
+            )
+        try:
+            data = json.loads(raw)
+        except (ValueError, UnicodeDecodeError) as error:
+            raise QwenHttpError(
+                f"QWEN_{stage}_NON_JSON_RESPONSE: status={status_label} "
+                f"content_type={media_type} body_class={kind}"
+            ) from None
+        if not isinstance(data, dict):
+            raise QwenHttpError(
+                f"QWEN_{stage}_INVALID_JSON_ENVELOPE: status={status_label}"
+            )
+        return data
+
     def refresh(self) -> None:
         """Pre-send renewal only; requires a separately verified refresh path."""
         if not self.refresh_path or not self.credentials.cookies:
             raise QwenHttpError("QWEN_REFRESH_UNAVAILABLE_REIMPORT_BROWSER_SESSION")
         with self._request("GET", self.refresh_path) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        if not isinstance(payload, dict):
-            raise QwenHttpError("QWEN_REFRESH_INVALID_RESPONSE")
+            payload = self._read_json_response(response, stage="REFRESH")
         data = payload.get("data", payload)
         token = (
             data.get("access_token", data.get("token"))
@@ -193,9 +255,7 @@ class QwenHttpClient:
             "project_id": "",
         }
         with self._request("POST", "/api/v2/chats/new", payload=payload) as response:
-            body = json.loads(response.read().decode("utf-8"))
-        if not isinstance(body, dict):
-            raise QwenHttpError("QWEN_NEW_CHAT_INVALID_RESPONSE")
+            body = self._read_json_response(response, stage="CREATE_CHAT")
         data = body.get("data", body)
         chat_id = data.get("id") if isinstance(data, dict) else None
         if not isinstance(chat_id, str) or not chat_id:
@@ -263,6 +323,16 @@ class QwenHttpClient:
             with self._request(
                 "POST", path, payload=self._payload(text, selected, state), stream=True
             ) as response:
+                # No retry is safe after a completion POST, even if Qwen returns
+                # a login/WAF HTML page with HTTP 200.
+                mime = str(
+                    getattr(response, "headers", {}).get("Content-Type", "")
+                ).split(";", 1)[0].strip().lower()
+                if mime in {"text/html", "application/xhtml+xml"}:
+                    raise QwenHttpWriteOutcomeAmbiguousError(
+                        "QWEN_COMPLETION_NON_SSE_RESPONSE: body_class=html "
+                        "(possible Qwen account verification)"
+                    )
                 for line in response:
                     raw = (
                         line.decode("utf-8", "replace")

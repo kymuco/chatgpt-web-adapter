@@ -11,6 +11,7 @@ from chatgpt_web_adapter.qwen_http import (
     QwenHttpClient,
     QwenHttpConversation,
     QwenHttpCredentials,
+    QwenHttpError,
     QwenHttpWriteOutcomeAmbiguousError,
 )
 
@@ -178,3 +179,82 @@ def test_qwen_cookie_rotation_notifies_store_once():
     client.create_chat()
     assert creds.cookies["session"] == "rotated"
     assert len(captured) == 1
+
+
+def test_imported_qwen_token_is_sent_as_cookie_without_losing_other_cookies():
+    client = QwenHttpClient(
+        QwenHttpCredentials("user-token", {"session": "qwen-session"})
+    )
+    headers = client._headers()
+    assert "token=user-token" in headers["Cookie"]
+    assert "session=qwen-session" in headers["Cookie"]
+    assert headers["Authorization"] == "Bearer user-token"
+    assert "QwenDirectExperimental" not in headers["User-Agent"]
+
+
+def test_preserve_existing_captured_qwen_token_cookie():
+    client = QwenHttpClient(
+        QwenHttpCredentials("bearer-token", {"token": "cookie-token"})
+    )
+    assert "token=cookie-token" in client._headers()["Cookie"]
+
+
+@pytest.mark.parametrize(
+    ("body", "content_type", "error_code"),
+    [
+        (b"", "application/json", "body_class=empty"),
+        (b"<html>Verify your age</html>", "text/html", "body_class=html"),
+        (b"<html>Access denied</html>", "application/json", "body_class=html"),
+        (b"not json", "text/plain", "body_class=other"),
+    ],
+)
+def test_create_chat_non_json_has_safe_error_with_stage(
+    body, content_type, error_code
+):
+    from email.message import Message
+
+    requests = []
+
+    def open_(request, timeout):
+        requests.append(request)
+        reply = _Reply({})
+        reply.seek(0)
+        reply.truncate(0)
+        reply.write(body)
+        reply.seek(0)
+        reply.headers = Message()
+        reply.headers["Content-Type"] = content_type
+        reply.status = 200
+        return reply
+
+    client = QwenHttpClient(QwenHttpCredentials("private-token"), opener=open_)
+    with pytest.raises(
+        QwenHttpError, match="QWEN_CREATE_CHAT_NON_JSON_RESPONSE"
+    ) as caught:
+        client.send_text("my actual message")
+
+    diagnostic = str(caught.value)
+    assert "status=200" in diagnostic
+    assert error_code in diagnostic
+    assert "private-token" not in diagnostic
+    assert "Verify your age" not in diagnostic
+    assert "Access denied" not in diagnostic
+    assert len(requests) == 1
+    assert requests[0].full_url.endswith("/api/v2/chats/new")
+
+
+def test_completion_html_does_not_attempt_second_write():
+    requests = []
+
+    def open_(request, timeout):
+        requests.append(request)
+        reply = _Reply({})
+        reply.headers["Content-Type"] = "text/html"
+        return reply
+
+    client = QwenHttpClient(QwenHttpCredentials("private-token"), opener=open_)
+    with pytest.raises(
+        QwenHttpWriteOutcomeAmbiguousError, match="QWEN_COMPLETION_NON_SSE_RESPONSE"
+    ):
+        client.send_text("message", conversation=QwenHttpConversation("existing"))
+    assert len(requests) == 1
