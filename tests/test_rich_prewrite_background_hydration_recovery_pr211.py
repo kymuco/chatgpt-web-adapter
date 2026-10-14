@@ -115,7 +115,9 @@ def _scenario(name: str) -> dict[str, object]:
     return json.loads(run.stdout)
 
 
-def test_untouched_new_chat_recovers_page_mount_once_before_first_file_selection() -> None:
+def test_untouched_new_chat_recovers_page_mount_once_before_first_file_selection() -> (
+    None
+):
     result = _scenario("blank-new-chat")
     assert result["calls"] == ["ensure-tab", "stage", "reload", "stage"]
     assert result["result"] is True
@@ -156,7 +158,9 @@ def test_second_mount_failure_is_terminal_with_no_second_reload() -> None:
 
 def test_production_mount_failure_relinquishes_debugger_before_recovery() -> None:
     source = MOUNT.read_text(encoding="utf-8")
-    start = source.index("try {\n      evidence = await _pr92Schema24WaitForOfficialComposerMounted")
+    start = source.index(
+        "try {\n      evidence = await _pr92Schema24WaitForOfficialComposerMounted"
+    )
     end = source.index("// The evidence that first proves mount", start)
     block = source[start:end]
     assert "SCHEMA24_PRESTAGE_MOUNT_FAILURE_DEBUGGER_DETACH" in block
