@@ -275,14 +275,13 @@ def test_qwen_extension_syntax_if_node_available() -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_qwen_extension_never_exports_session_secrets() -> None:
+def test_qwen_auth_export_is_explicit_and_separate_from_page_turn() -> None:
     worker = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
-    for forbidden in (
-        "qwen_access_token_state",
-        "auths/refresh",
-        "chrome.cookies",
-        "localStorage.getItem",
-        "Authorization",
-    ):
-        assert forbidden not in worker
+    turn = worker.split("async function _cwaQwenHandleTurn(message) {", 1)[1]
+    assert 'if (message?.operation === "export_auth")' in turn
+    assert "QWEN_TEXT_REQUIRED" in turn
+    assert "localStorage.getItem" not in turn
+    assert "Network.getCookies" not in turn
+    assert "Authorization" not in worker
+    assert "chrome.cookies" not in worker
     assert '["new-chat", "guest"]' in worker
