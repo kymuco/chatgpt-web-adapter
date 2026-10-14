@@ -112,6 +112,48 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
             raise ValueError("Qwen conversation_id must be a non-empty opaque id")
         return value.strip()
 
+    def export_auth(self) -> "QwenHttpCredentials":
+        """Explicit opt-in: import only the Qwen session via existing native bridge."""
+        from .qwen_http import QwenHttpCredentials
+
+        request_id = uuid.uuid4().hex
+        response = self._rpc(
+            {
+                "type": "turn",
+                "request_id": request_id,
+                "providerId": QWEN_PROVIDER_ID,
+                "operation": "export_auth",
+                "allowAuthExport": True,
+                "timeoutMs": 30_000,
+            },
+            timeout=35.0,
+        )
+        if response.get("request_id") != request_id or response.get("ok") is not True:
+            raise RequestError(
+                "QWEN_AUTH_SNAPSHOT_UNAVAILABLE",
+                request_stage="qwen_auth_snapshot",
+            )
+        if (response.get("providerId") != QWEN_PROVIDER_ID
+                or response.get("operation") != "auth_snapshot"):
+            raise RequestError(
+                "QWEN_AUTH_SNAPSHOT_IDENTITY_MISMATCH",
+                request_stage="qwen_auth_snapshot",
+            )
+        token = response.get("accessToken")
+        cookies = response.get("cookies")
+        expires = response.get("expiresAt")
+        if not isinstance(token, str) or not token:
+            raise RequestError(
+                "QWEN_AUTH_SNAPSHOT_MISSING_TOKEN",
+                request_stage="qwen_auth_snapshot",
+            )
+        if not isinstance(cookies, dict):
+            cookies = {}
+        return QwenHttpCredentials(
+            access_token=token, cookies=cookies,
+            expires_at=float(expires) if isinstance(expires, (int, float)) else None,
+        )
+
     def send_text(
         self,
         text: str,

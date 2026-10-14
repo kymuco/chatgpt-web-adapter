@@ -267,7 +267,68 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt) {
   );
 }
 
+
+function _cwaQwenAuthProbeExpression() {
+  return "(() => {" +
+    "let state=null;" +
+    "try{state=JSON.parse(localStorage.getItem('qwen_access_token_state')||'null');}catch{}" +
+    "const token=[state?.access_token,state?.accessToken,state?.token,state?.value," +
+      "state?.state?.token,localStorage.getItem('token')].find(" +
+      "value=>typeof value==='string'&&value.length>8)||null;" +
+    "const expiresAt=[state?.expires_at,state?.expiresAt,state?.at_expire_time," +
+      "localStorage.getItem('at_expire_time')].find(value=>value!=null)||null;" +
+    "return {token,expiresAt};" +
+  "})()";
+}
+
+async function _cwaQwenExportAuth(message) {
+  if (message?.allowAuthExport !== true || message?.operation !== "export_auth") {
+    throw new Error("QWEN_AUTH_EXPORT_NOT_AUTHORIZED");
+  }
+  const candidates = await chrome.tabs.query({url: CWA_QWEN_ORIGIN + "/*"});
+  const tab = candidates.find(tab => tab.active) || candidates[0];
+  if (!tab || !Number.isInteger(tab.id) || !_cwaQwenIsUrl(tab.url || "")) {
+    throw new Error("QWEN_AUTH_TAB_REQUIRED");
+  }
+  const debuggee = {tabId: tab.id};
+  let attached = false;
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+    const probe = await _cwaQwenEvaluate(debuggee, _cwaQwenAuthProbeExpression());
+    if (typeof probe?.token !== "string" || !probe.token) {
+      throw new Error("QWEN_AUTH_ACCESS_TOKEN_UNAVAILABLE");
+    }
+    // Scoped to the Qwen site. Neither Google nor other Chrome cookies are read.
+    const cookieResponse = await _cwaBaseSendCommand(
+      debuggee, "Network.getCookies", {urls: [CWA_QWEN_ORIGIN + "/"]}
+    );
+    const cookies = {};
+    for (const cookie of cookieResponse?.cookies || []) {
+      if (typeof cookie?.name !== "string" || typeof cookie?.value !== "string") continue;
+      if (!["chat.qwen.ai", ".chat.qwen.ai", ".qwen.ai", "qwen.ai"].includes(cookie.domain)) continue;
+      cookies[cookie.name] = cookie.value;
+    }
+    let expiresAt = Number(probe.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= 0) expiresAt = null;
+    else if (expiresAt > 1e12) expiresAt /= 1000;
+    return {
+      providerId: CWA_QWEN_PROVIDER_ID,
+      operation: "auth_snapshot",
+      accessToken: probe.token,
+      cookies,
+      expiresAt
+    };
+  } finally {
+    if (attached) {
+      try { await chrome.debugger.detach(debuggee); } catch {}
+    }
+  }
+}
+
 async function _cwaQwenHandleTurn(message) {
+  if (message?.operation === "export_auth") return _cwaQwenExportAuth(message);
   if (message?.type !== "turn") throw new Error("QWEN_TURN_TYPE_REQUIRED");
   if (typeof message?.text !== "string" || !message.text.trim()) throw new Error("QWEN_TEXT_REQUIRED");
   if ((Array.isArray(message?.attachmentPaths) && message.attachmentPaths.length > 0) ||
