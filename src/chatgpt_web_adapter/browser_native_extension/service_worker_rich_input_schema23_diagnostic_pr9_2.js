@@ -106,11 +106,34 @@ async function _pr92RunSchema23ComposerDiagnostic(message) {
   const context = {
     deadlineAt: performance.now() + timeoutMs
   };
-  const tab = await _pr92Schema7RunUntil(
-    context.deadlineAt,
-    "SCHEMA24_DIAGNOSTIC_RUNTIME_TAB",
-    () => ensureRuntimeTab(null)
-  );
+  // An opted-in diagnostic must observe the existing runtime tab in place.
+  // The historical default may create/navigate via ensureRuntimeTab(null);
+  // never invoke it in existingTabOnly mode.
+  let tab;
+  if (message?.existingTabOnly === true) {
+    const storedId = await _pr92Schema7RunUntil(
+      context.deadlineAt,
+      "SCHEMA24_DIAGNOSTIC_EXISTING_TAB_ID",
+      () => storedRuntimeTabId()
+    );
+    if (!Number.isInteger(storedId)) {
+      throw new Error("PR9_2_DIAGNOSTIC_NO_OWNED_RUNTIME_TAB");
+    }
+    tab = await _pr92Schema7RunUntil(
+      context.deadlineAt,
+      "SCHEMA24_DIAGNOSTIC_EXISTING_TAB_READ",
+      () => chrome.tabs.get(storedId)
+    );
+    if (!Number.isInteger(tab?.id) || !isChatGPTUrl(tab?.url || "")) {
+      throw new Error("PR9_2_DIAGNOSTIC_OWNED_TAB_NOT_CHATGPT");
+    }
+  } else {
+    tab = await _pr92Schema7RunUntil(
+      context.deadlineAt,
+      "SCHEMA24_DIAGNOSTIC_RUNTIME_TAB",
+      () => ensureRuntimeTab(null)
+    );
+  }
   if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
 
   const debuggee = { tabId: tab.id };
@@ -126,7 +149,7 @@ async function _pr92RunSchema23ComposerDiagnostic(message) {
     // Exact schema-24 production dry-run: use the production mount wait and then
     // apply the production clean predicate to the mount evidence plus the second
     // stable poll. No text, files, staging, focus mutation, or submit is involved.
-    let evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context);
+    let evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context, tab.id);
     const productionPolls = [];
     let stable = 0;
     while (stable < PR92_SCHEMA10_PRESTAGE_CLEAN_STABLE_POLLS) {
