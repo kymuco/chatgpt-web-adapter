@@ -31,6 +31,7 @@ def test_current_repository_entrypoints_exist() -> None:
         "docs/agent_integration.md",
         "docs/adding_capability.md",
         "QWEN.md",
+        "QWEN.ru.md",
         "docs/qwen.md",
         "llms.txt",
     ):
@@ -58,6 +59,7 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
 def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
     guide = _read("docs/qwen.md")
     quickstart = _read("QWEN.md")
+    quickstart_ru = _read("QWEN.ru.md")
     index = _read("docs/README.md")
     readme = _read("README.md")
 
@@ -89,6 +91,35 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
     assert "python -m chatgpt_web_adapter.qwen_native" in quickstart
     assert "--extension-id YOUR_QWEN_EXTENSION_ID" in quickstart
     assert "No ChatGPT authentication" in quickstart
+    assert "[Русский](QWEN.ru.md)" in quickstart
+    assert "[English](QWEN.md)" in quickstart_ru
+    assert "[Qwen (RU)](QWEN.ru.md)" in readme
+    assert "[Русская инструкция](QWEN.ru.md)" in readme
+    assert "../QWEN.ru.md" in index
+    for command in (
+        "git clone https://github.com/kymuco/chatgpt-web-adapter.git",
+        "python -m pip install -e .",
+        "python -m chatgpt_web_adapter.qwen_native",
+        "--extension-id YOUR_QWEN_EXTENSION_ID",
+        "python .\\qwen_sdk.py --stream network",
+        "--chat YOUR_CHAT_UUID --stream network",
+        "--auto-confirm-age --birth-year YOUR_BIRTH_YEAR",
+        "--foreground-tab --stream network",
+        "QwenClient(transport=" + '"browser"' + ")",
+        "conversation=first.conversation",
+    ):
+        assert command in quickstart, command
+        assert command in quickstart_ru, command
+
+    for limit in (
+        "com.kymuco.qwen_web_adapter",
+        "com.kymuco.chatgpt_web_adapter",
+        "/retry",
+        "transport http",
+    ):
+        assert limit in quickstart, limit
+        assert limit in quickstart_ru, limit
+
 
 
 def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() -> None:
