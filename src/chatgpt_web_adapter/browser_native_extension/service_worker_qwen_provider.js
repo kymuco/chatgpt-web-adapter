@@ -413,6 +413,61 @@ function _cwaQwenPostSubmitAmbiguousError(error) {
   );
 }
 
+// Passive POST metadata only; never inspect request bodies or issue a fetch.
+// This establishes whether the browser even attempted a Qwen API write.
+// DOM visibility is not evidence that a message was actually sent.
+async function _cwaQwenObserveWriteLifecycle(debuggee) {
+  const watched = new Map();
+  let enabled = false;
+  let kind = "none", status = "unobserved", responseCode = null;
+  const listener = (source, method, params) => {
+    if (source?.tabId !== debuggee.tabId) return;
+    if (method === "Network.requestWillBeSent") {
+      try {
+        const request = params?.request;
+        if (request?.method !== "POST" || typeof request.url !== "string") return;
+        const url = new URL(request.url);
+        if (url.origin !== CWA_QWEN_ORIGIN) return;
+        const path = url.pathname.replace(/\\/+$/, "");
+        const nextKind = path === "/api/v2/chat/completions"
+          ? "completion" : path === "/api/v2/chats/new" ? "create" : null;
+        if (!nextKind) return;
+        watched.set(params.requestId, nextKind);
+        kind = nextKind;
+        status = "requested";
+        responseCode = null;
+      } catch {}
+    } else if (watched.has(params?.requestId)) {
+      if (method === "Network.responseReceived") {
+        const code = params?.response?.status;
+        responseCode = Number.isInteger(code) && code >= 100 && code <= 599 ? code : null;
+        status = "responded";
+      } else if (method === "Network.loadingFinished") {
+        status = "finished";
+      } else if (method === "Network.loadingFailed") {
+        status = "failed";
+      }
+    }
+  };
+  chrome.debugger.onEvent.addListener(listener);
+  try {
+    await _cwaBaseSendCommand(debuggee, "Network.enable");
+    enabled = true;
+  } catch {
+    chrome.debugger.onEvent.removeListener(listener);
+  }
+  return {
+    snapshot() {
+      return enabled ? {kind, status, responseCode} :
+        {kind:"unknown", status:"unavailable", responseCode:null};
+    },
+    close() {
+      if (enabled) chrome.debugger.onEvent.removeListener(listener);
+      watched.clear();
+    }
+  };
+}
+
 async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}, ageState = {}, readyConfirmed = false) {
   // The caller that captured the baseline has ALREADY awaited a stable
   // composer. Do not pay another 1.5-second fence per message.
@@ -474,7 +529,7 @@ function _cwaQwenLatestNewText(snapshot, baseline) {
   return null;
 }
 
-async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, onText = null, message = {}, ageState = {}) {
+async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, onText = null, message = {}, ageState = {}, writeObserver = null) {
   let lastText = null;
   let stableSince = null;
   let idleSince = null;
@@ -521,16 +576,31 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
       unobservedSince = null;
     } else if (snapshot?.generating === false && candidate === null) {
       if (unobservedSince === null) unobservedSince = performance.now();
-      if (performance.now() - unobservedSince >= 15000) {
+      const network = writeObserver?.snapshot?.() ||
+        {kind:"unknown", status:"unavailable", responseCode:null};
+      const networkObserved = network.kind === "create" || network.kind === "completion";
+      // If the browser emitted no Qwen POST at all, report promptly instead
+      // of waiting for a DOM answer that could never arrive. A confirmed POST
+      // gets more time: Qwen may be generating in an unmounted hidden page.
+      const limit = networkObserved ? 20000 :
+        network.kind === "none" ? 8000 : 15000;
+      if (performance.now() - unobservedSince >= limit) {
+        const editor = ["prompt_present","empty","different","missing"].includes(snapshot?.editorState)
+          ? snapshot.editorState : "unknown";
+        const send = ["enabled","disabled","missing"].includes(snapshot?.sendState)
+          ? snapshot.sendState : "unknown";
+        const visibility = ["visible","hidden"].includes(snapshot?.pageVisibility)
+          ? snapshot.pageVisibility : "unknown";
+        const stage = networkObserved ?
+          "QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_NETWORK_WRITE" :
+          "QWEN_POST_SUBMIT_START_UNOBSERVED";
         throw new Error(
-          "QWEN_POST_SUBMIT_START_UNOBSERVED: no page navigation, active generation or new answer within 15s" +
-          " editor=" + (["prompt_present", "empty", "different", "missing"].includes(snapshot?.editorState)
-            ? snapshot.editorState : "unknown") +
-          " send=" + (["enabled", "disabled", "missing"].includes(snapshot?.sendState)
-            ? snapshot.sendState : "unknown") +
-          " visibility=" + (["visible", "hidden"].includes(snapshot?.pageVisibility)
-            ? snapshot.pageVisibility : "unknown") +
-          "; inspect Qwen before any manual retry; no automatic replay"
+          stage + ": no response DOM or generation observed; " +
+          "write=" + network.kind + " network=" + network.status +
+          " http=" + (network.responseCode || "unknown") +
+          " editor=" + editor + " send=" + send +
+          " visibility=" + visibility +
+          "; no automatic replay; inspect Qwen before another send"
         );
       }
     }
@@ -660,6 +730,7 @@ async function _cwaQwenHandleTurn(message) {
   const debuggee = { tabId: tab.id };
   let attached = false;
   let networkStream = null;
+  let writeObserver = null;
   const ageState = {};
 
   try {
@@ -679,6 +750,8 @@ async function _cwaQwenHandleTurn(message) {
       initialUrl: before?.url || initialUrl
     };
 
+    // Enable passive write metadata before the one-and-only Send.
+    writeObserver = await _cwaQwenObserveWriteLifecycle(debuggee);
     if (message.streamNetwork === true) networkStream = await _cwaQwenObserveStream(debuggee, message);
     await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message, ageState, true);
     try {
@@ -694,7 +767,8 @@ async function _cwaQwenHandleTurn(message) {
           event: {providerId: CWA_QWEN_PROVIDER_ID, type: "text_snapshot", text}
         }) : null,
         message,
-        ageState
+        ageState,
+        writeObserver
       );
       if (networkStream) await networkStream.verify();
       const finalTab = await chrome.tabs.get(tab.id);
@@ -728,6 +802,7 @@ async function _cwaQwenHandleTurn(message) {
     }
   } finally {
     if (networkStream) networkStream.close();
+    if (writeObserver) writeObserver.close();
     if (attached) {
       try { await chrome.debugger.detach(debuggee); } catch {}
     }
