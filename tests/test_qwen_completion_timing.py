@@ -417,3 +417,64 @@ ctx._cwaQwenEvaluate=async()=>({
         [node, "-e", script, str(worker)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_qwen_dual_response_is_not_treated_as_a_single_canonical_answer():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const vm = require('node:vm'), fs = require('node:fs'), assert = require('node:assert/strict');
+let now = 0, rendered = 0;
+const ctx = vm.createContext({
+  performance: {now: () => now},
+  registerProductProviderTurnHandler() {},
+  sleep: async ms => {now += ms}
+});
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), ctx);
+ctx._cwaQwenHandleAgeGate = async () => false;
+ctx._cwaQwenEvaluate = async (_, expression) => (
+  expression.includes("InputEvent")
+    ? {found:false, dualPending:true}
+    : {
+      generating:false, dualPending:true, answerCount:2,
+      texts:["Candidate 1", "Candidate 2"], url:"https://chat.qwen.ai/c/dual"
+    }
+);
+(async () => {
+  await assert.rejects(
+    () => vm.runInContext(
+      '_cwaQwenWaitForFinalText({}, "prompt", {answerCount:0,initialUrl:"https://chat.qwen.ai/"}, 20000, () => {throw Error("MUST_NOT_STREAM_DUAL")})',
+      ctx
+    ),
+    /QWEN_DUAL_RESPONSE_SELECTION_REQUIRED/
+  );
+  assert.equal(now, 0, 'no delayed selection or silent last-node answer');
+  await assert.rejects(
+    () => vm.runInContext('_cwaQwenWaitForComposer({}, 20000, {}, {})', ctx),
+    /QWEN_DUAL_RESPONSE_SELECTION_REQUIRED/
+  );
+
+  // Confirm the text shown by Qwen really maps to our detection, without
+  // relying solely on a test-supplied 'dualPending' flag.
+  ctx.location = {href:"https://chat.qwen.ai/c/dual"};
+  ctx.document = {
+    body:{innerText:"This feedback will help us evaluate and improve Qwen's performance.\\nWhich response do you prefer? Select one to continue.\\nResponse 1\\nResponse 2"},
+    visibilityState:"visible",
+    querySelectorAll: () => [],
+    querySelector: () => null
+  };
+  const snap = vm.runInContext(vm.runInContext('_cwaQwenSnapshotExpression("prompt")',ctx),ctx);
+  assert.equal(snap.dualPending,true);
+  const ready = vm.runInContext(vm.runInContext('_cwaQwenComposerExpression()',ctx),ctx);
+  assert.equal(ready.dualPending,true);
+})().catch(e => {console.error(e); process.exitCode = 1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
