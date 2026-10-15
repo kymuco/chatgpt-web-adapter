@@ -84,7 +84,7 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
     assert "Never automatically resend" in guide
     assert "[Qwen SDK](docs/qwen.md)" in readme
     assert "qwen.md" in index
-    assert "[Qwen-only quickstart](QWEN.md)" in readme
+    assert "[Qwen (EN)](QWEN.md)" in readme
     assert "../QWEN.md" in index
     assert "[Qwen-only quickstart](../QWEN.md)" in guide
     assert "python .\\qwen_sdk.py --stream network" in quickstart
