@@ -228,12 +228,17 @@ async function _cwaQwenHandleAgeGate(debuggee, message, state) {
 
 async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageState = {}) {
   while (performance.now() < deadlineAt) {
-    if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
-      await sleep(250);
-      continue;
+    try {
+      if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
+        await sleep(250);
+        continue;
+      }
+      const snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression());
+      if (snapshot?.found === true) return;
+    } catch (error) {
+      if (!_cwaQwenDebuggerDetached(error)) throw error;
+      await _cwaQwenReattachForObservation(debuggee, deadlineAt);
     }
-    const snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression());
-    if (snapshot?.found === true) return;
     await sleep(250);
   }
   throw new Error("QWEN_COMPOSER_NOT_READY");
@@ -340,20 +345,24 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
   let stableSince = null;
   let idleSince = null;
   while (performance.now() < deadlineAt) {
-    // Age confirmation may appear only when Qwen receives the Send click.
-    // Do not silently attempt to click Send again after acknowledging the gate.
-    if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
-      idleSince = null;
-      stableSince = null;
-      await sleep(250);
-      continue;
-    }
     let snapshot;
+    let gateActive = false;
     try {
-      snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenSnapshotExpression(text));
+      // The gate can open after Send and cause navigation/debugger detachment.
+      // Recover observation, but never replay the submitted prompt.
+      gateActive = await _cwaQwenHandleAgeGate(debuggee, message, ageState);
+      if (!gateActive) {
+        snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenSnapshotExpression(text));
+      }
     } catch (error) {
       if (!_cwaQwenDebuggerDetached(error)) throw error;
       await _cwaQwenReattachForObservation(debuggee, deadlineAt);
+      await sleep(250);
+      continue;
+    }
+    if (gateActive) {
+      idleSince = null;
+      stableSince = null;
       await sleep(250);
       continue;
     }
