@@ -178,7 +178,8 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "canonicalCompletionProven: false" in worker
     assert "QWEN_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED" in worker
     assert "_cwaQwenSubmitExpression" in worker
-    assert "control.click()" not in worker
+    assert "control.click()" in worker
+    assert '_cwaQwenSubmitExpression(text, true)' in worker
     assert '"Input.dispatchMouseEvent"' in worker
     assert "QWEN_PRE_SUBMIT_COMPOSER_VALUE_MISMATCH" not in worker
     assert '"QWEN_PRE_SUBMIT_"' in worker
@@ -195,7 +196,8 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     submit_helper = worker[submit_helper_start:submit_helper_end]
     assert "DebuggerDetached(error)" not in submit_helper
     assert "await _cwaQwenWaitForComposer(" in submit_helper
-    assert '"Input.dispatchMouseEvent"' in submit_helper
+    assert "_cwaQwenSubmitExpression(text, true)" in submit_helper
+    assert '"Input.dispatchMouseEvent"' not in submit_helper
     assert "throw _cwaQwenPostSubmitAmbiguousError(error);" in submit_helper
     assert "throw error;" not in submit_helper
     submit_index = worker.index("await _cwaQwenSubmitOnce(")

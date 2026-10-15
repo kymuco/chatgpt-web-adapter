@@ -306,19 +306,18 @@ async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageSt
   throw new Error("QWEN_COMPOSER_NOT_READY");
 }
 
-function _cwaQwenSubmitExpression(text) {
-  // Pure read: never call the Send button from Runtime.evaluate. Compute the
-  // target only after observing that the current composer contains our text.
-  const expression = function(requestedText) {
+function _cwaQwenSubmitExpression(text, execute = false) {
+  // The send button's DOM click is intentional: CDP mouse dispatch on an
+  // inactive Chrome tab was acknowledged yet never started a Qwen turn.
+  // Keep the readiness check side-effect-free; the write call happens once.
+  const expression = function(requestedText, commit) {
     const visible = (el) => {
       if (!(el instanceof Element)) return false;
       const r = el.getBoundingClientRect(), style = getComputedStyle(el);
       return r.width > 0 && r.height > 0 && style.display !== "none" && style.visibility !== "hidden";
     };
     const dialog = document.querySelector('.age-confirmation-modal[role="dialog"]');
-    if (dialog && visible(dialog)) {
-      return {ready: false, reason: "age_dialog_active"};
-    }
+    if (dialog && visible(dialog)) return {ready: false, reason: "age_dialog_active"};
     const composer = Array.from(document.querySelectorAll(
       "textarea.message-input-textarea,textarea[placeholder='How can I help you today?']"
     )).find(visible);
@@ -333,17 +332,16 @@ function _cwaQwenSubmitExpression(text) {
       "button.send-button,.chat-prompt-send-button button,div.message-input-right-button-send button"
     )).find(el => visible(el) && !el.disabled && el.getAttribute("aria-disabled") !== "true");
     if (!control) return {ready: false, reason: "send_control_not_ready"};
-    const r = control.getBoundingClientRect();
-    const x = r.left + r.width / 2, y = r.top + r.height / 2;
-    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 ||
-        x >= window.innerWidth || y >= window.innerHeight) {
-      return {ready: false, reason: "send_control_out_of_view"};
+    if (!commit) return {ready: true};
+    // The control can become detached in between checking and executing.
+    if (!control.isConnected || !composer.isConnected) {
+      return {ready: false, reason: "composer_remounted_before_send"};
     }
-    return {ready: true, x, y};
+    control.click();
+    return {ready: true, submitted: true, mechanism: "dom_click"};
   };
-  return "(" + expression.toString() + ")(" + JSON.stringify(text) + ")";
+  return "(" + expression.toString() + ")(" + JSON.stringify(text) + "," + (execute === true) + ")";
 }
-
 function _cwaQwenDebuggerDetached(error) {
   const message = String(error?.message || error || "");
   return message.includes("Debugger is not attached to the tab");
@@ -399,24 +397,21 @@ async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}, ageS
     }
     const submit = await _cwaQwenEvaluate(debuggee, _cwaQwenSubmitExpression(text));
     if (submit?.ready === true) {
-      // One trusted pointer click, precisely once. A failure of ANY dispatch
-      // after this point is ambiguous; never automatically repeat the prompt.
+      // Single send attempt through the site's own DOM control; unlike a
+      // background-tab pointer event, this works without tab activation.
+      // Evaluate may click before its response is lost: never replay it.
+      let committed;
       try {
-        await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
-          type: "mouseMoved", x: submit.x, y: submit.y, button: "none"
-        });
-        await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
-          type: "mousePressed", x: submit.x, y: submit.y,
-          button: "left", clickCount: 1
-        });
-        await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
-          type: "mouseReleased", x: submit.x, y: submit.y,
-          button: "left", clickCount: 1
-        });
+        committed = await _cwaQwenEvaluate(
+          debuggee, _cwaQwenSubmitExpression(text, true)
+        );
       } catch (error) {
         throw _cwaQwenPostSubmitAmbiguousError(error);
       }
-      return;
+      if (committed?.submitted === true && committed?.mechanism === "dom_click") return;
+      throw new Error(
+        "QWEN_PRE_SUBMIT_" + (committed?.reason || "COMMIT_UNCONFIRMED").toUpperCase()
+      );
     }
     if (submit?.reason !== "send_control_not_ready") {
       throw new Error("QWEN_PRE_SUBMIT_" + (submit?.reason || "STATE_UNKNOWN").toUpperCase());

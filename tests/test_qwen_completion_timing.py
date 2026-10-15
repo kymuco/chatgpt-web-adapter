@@ -250,9 +250,7 @@ const ctx=vm.createContext({
   registerProductProviderTurnHandler(){},
   sleep:async ms=>{now+=ms},
   _cwaBaseSendCommand:async (_,method,params)=>{
-    if(method!=='Input.dispatchMouseEvent') throw Error('unexpected '+method);
-    events.push(params.type);
-    return {};
+    throw Error('unexpected '+method);
   }
 });
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
@@ -264,15 +262,19 @@ ctx._cwaQwenEvaluate=async(_,expr)=>{
     return {written:true};
   }
   if(expr.includes('send_control_not_ready')){
+    if(expr.endsWith(',true)')){
+      events.push('clicked');
+      return {ready:true,submitted:true,mechanism:'dom_click'};
+    }
     events.push('checked');
     return reset ? {ready:false,reason:'composer_value_mismatch'} :
-      {ready:true,x:100,y:200};
+      {ready:true};
   }
   throw Error('unexpected expression');
 };
 (async()=>{
  await vm.runInContext('_cwaQwenSubmitOnce({}, "My question", 6000)',ctx);
- assert.deepEqual(events,['page_ready','typed','checked','mouseMoved','mousePressed','mouseReleased']);
+ assert.deepEqual(events,['page_ready','typed','checked','clicked']);
  events.length=0;reset=true;now=0;
  await assert.rejects(
   ()=>vm.runInContext('_cwaQwenSubmitOnce({}, "My question", 6000)',ctx),
@@ -316,6 +318,60 @@ ctx._cwaQwenEvaluate=async()=>({
  );
  assert.ok(now>=15000&&now<16000, 'no silent 150-second wait');
 })().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_background_tab_send_uses_single_dom_click_and_is_not_sent_by_cdp_mouse():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+let clicks=0;
+class Element {}
+const composer=Object.assign(new Element(),{
+ value:'привет',isConnected:true,
+ getBoundingClientRect(){return {width:100,height:50}}
+});
+const send=Object.assign(new Element(),{
+ disabled:false,isConnected:true,
+ getBoundingClientRect(){return {width:30,height:30}},
+ getAttribute(){return null},
+ click(){clicks++}
+});
+const ctx=vm.createContext({
+  registerProductProviderTurnHandler(){},
+  Element,
+  getComputedStyle:()=>({display:'block',visibility:'visible'}),
+  document:{
+    querySelector:()=>null,
+    querySelectorAll:(selector)=>{
+      if(selector.includes('textarea.message-input-textarea')) return [composer];
+      if(selector.includes('button.send-button')) return [send];
+      return [];
+    }
+  }
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+const observe=vm.runInContext(vm.runInContext('_cwaQwenSubmitExpression("привет")',ctx),ctx);
+assert.equal(observe.ready,true);
+assert.equal(clicks,0,'readiness check never sends');
+const submit=vm.runInContext(vm.runInContext('_cwaQwenSubmitExpression("привет",true)',ctx),ctx);
+assert.equal(submit.submitted,true);
+assert.equal(submit.mechanism,'dom_click');
+assert.equal(clicks,1);
+composer.value=''; // textarea was reset after a navigation
+const lost=vm.runInContext(vm.runInContext('_cwaQwenSubmitExpression("привет",true)',ctx),ctx);
+assert.equal(lost.reason,'composer_value_mismatch');
+assert.equal(clicks,1,'no send from a cleared composer');
 """
     result = subprocess.run(
         [node, "-e", script, str(worker)], capture_output=True, text=True
