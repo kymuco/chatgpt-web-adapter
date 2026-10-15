@@ -59,11 +59,11 @@ async function run(states) {
 const state = (generating, text) => ({generating, texts: text ? [text] : [], url: 'https://chat.qwen.ai/c/test'});
 (async () => {
   let r = await run([state(true, 'A'), state(false, 'A')]);
-  assert.equal(r.now, 9250); // A transient Stop-button disappearance is not finality.
+  assert.equal(r.now, 3750); // A transient Stop-button disappearance is not finality.
   r = await run([state(false, 'A')]);
-  assert.equal(r.now, 9000); // Same stability threshold even when no Stop transition was seen.
+  assert.equal(r.now, 3500); // Same stability threshold even when no Stop transition was seen.
   r = await run([state(true, 'A'), state(false, 'A'), state(true, 'AB'), state(false, 'AB'), state(false, 'ABC')]);
-  assert.equal(r.now, 10000); // Resumed generation and late rendering reset the quiet window.
+  assert.equal(r.now, 4500); // Resumed generation and late rendering reset the quiet window.
   assert.equal(r.result.text, 'ABC');
   r = await run([
     state(true, 'По состоянию на сезон 2026 года'),
@@ -73,10 +73,10 @@ const state = (generating, text) => ({generating, texts: text ? [text] : [], url
     state(false, 'По состоянию на сезон 2026 года лидером является пилот'),
   ]);
   assert.equal(r.result.text, 'По состоянию на сезон 2026 года лидером является пилот');
-  assert.ok(r.now >= 12000, 'the first 3-second pause must not finalize the partial answer');
+  assert.ok(r.now >= 7000, 'the first 3-second pause must not finalize the partial answer');
   const busy = Array.from({length: 40}, () => state(true, 'A'));
   r = await run([...busy, state(false, 'A')]);
-  assert.equal(r.now, 19000); // Never return while generating even if the text is stable.
+  assert.equal(r.now, 13500); // Never return while generating even if the text is stable.
   await assert.rejects(
     () => run(Array.from({length: 90}, () => state(true, 'A'))),
     /PAGE_FINALITY_TIMEOUT/
@@ -124,7 +124,7 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
  const out=await vm.runInContext('_cwaQwenWaitForFinalText({}, "question", {answerCount:0}, 30000, null, {autoConfirmAge:true,birthYear:2000},{})',ctx);
  assert.equal(out.text,'Full answer');
  assert.equal(clicks,1,'age clicked once after write');
- assert.ok(now>=9000);
+ assert.ok(now>=3500);
  // Background dialog is stuck after the click. Fail quickly rather than hang until the turn timeout.
  now=0; ageCalls=0; clicks=0;
  ctx._cwaQwenEvaluate=async ()=>{ageCalls++; return ageCalls===1?{action:'confirm_age',x:120,y:240}:'waiting'};

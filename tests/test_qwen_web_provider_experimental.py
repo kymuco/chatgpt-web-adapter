@@ -163,7 +163,7 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "https://chat.qwen.ai" in worker
     assert "div.response-message-content.phase-answer" in worker
     assert "button.stop-button" in worker
-    assert "CWA_QWEN_STABLE_MS = 9000" in worker
+    assert "CWA_QWEN_STABLE_MS = 3500" in worker
     assert "_cwaQwenIsConversationRoute" in worker
     assert "textarea.message-input-textarea" in worker
     assert "button.send-button" in worker
