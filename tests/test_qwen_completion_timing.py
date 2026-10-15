@@ -231,3 +231,93 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
         [node, "-e", script, str(worker)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_qwen_single_send_is_after_composer_ready_and_fails_before_click_on_reset():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+const events=[];
+let now=0, reset=false;
+const ctx=vm.createContext({
+  performance:{now:()=>now},
+  registerProductProviderTurnHandler(){},
+  sleep:async ms=>{now+=ms},
+  _cwaBaseSendCommand:async (_,method,params)=>{
+    if(method!=='Input.dispatchMouseEvent') throw Error('unexpected '+method);
+    events.push(params.type);
+    return {};
+  }
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+ctx._cwaQwenWaitForComposer=async()=>{events.push('page_ready')};
+ctx._cwaQwenHandleAgeGate=async()=>false;
+ctx._cwaQwenEvaluate=async(_,expr)=>{
+  if(expr.includes('message-input-textarea') && expr.includes('InputEvent')){
+    events.push('typed');
+    return {written:true};
+  }
+  if(expr.includes('send_control_not_ready')){
+    events.push('checked');
+    return reset ? {ready:false,reason:'composer_value_mismatch'} :
+      {ready:true,x:100,y:200};
+  }
+  throw Error('unexpected expression');
+};
+(async()=>{
+ await vm.runInContext('_cwaQwenSubmitOnce({}, "My question", 6000)',ctx);
+ assert.deepEqual(events,['page_ready','typed','checked','mouseMoved','mousePressed','mouseReleased']);
+ events.length=0;reset=true;now=0;
+ await assert.rejects(
+  ()=>vm.runInContext('_cwaQwenSubmitOnce({}, "My question", 6000)',ctx),
+  /QWEN_PRE_SUBMIT_COMPOSER_VALUE_MISMATCH/
+ );
+ assert.deepEqual(events,['page_ready','typed','checked'],
+   'composer erased after age handling must never wait 150s or click Send');
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_qwen_no_postclick_start_fails_within_15s_not_at_bridge_timeout():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+let now=0;
+const ctx=vm.createContext({
+  performance:{now:()=>now},
+  registerProductProviderTurnHandler(){},
+  sleep:async ms=>{now+=ms}
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+ctx._cwaQwenHandleAgeGate=async()=>false;
+ctx._cwaQwenEvaluate=async()=>({
+  generating:false,answerCount:0,texts:[],url:'https://chat.qwen.ai/'
+});
+(async()=>{
+ await assert.rejects(
+  ()=>vm.runInContext('_cwaQwenWaitForFinalText({}, "prompt", {answerCount:0, initialUrl:"https://chat.qwen.ai/"}, 30000)',ctx),
+  /QWEN_POST_SUBMIT_START_UNOBSERVED/
+ );
+ assert.ok(now>=15000&&now<16000, 'no silent 150-second wait');
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
