@@ -478,3 +478,89 @@ ctx._cwaQwenEvaluate = async (_, expression) => (
         [node, "-e", script, str(worker)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_qwen_passive_network_evidence_avoids_ambiguous_hidden_tab_guess():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+let now=0, listener=null, enables=0;
+const ctx=vm.createContext({
+ performance:{now:()=>now}, URL,
+ registerProductProviderTurnHandler(){},
+ sleep:async ms=>{now+=ms},
+ _cwaBaseSendCommand:async (_,method)=>{
+  assert.equal(method,'Network.enable');
+  enables++;
+  return {};
+ },
+ chrome:{debugger:{onEvent:{
+   addListener(fn){assert.equal(listener,null);listener=fn;},
+   removeListener(fn){assert.equal(listener,fn);listener=null;}
+ }}}
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+const emit=(method,params)=>listener({tabId:11},method,params);
+ctx._cwaQwenHandleAgeGate=async()=>false;
+ctx._cwaQwenEvaluate=async()=>({
+ generating:false,answerCount:0,texts:[],url:'https://chat.qwen.ai/',
+ editorState:'empty',sendState:'missing',pageVisibility:'hidden'
+});
+(async()=>{
+ const watch=await vm.runInContext('_cwaQwenObserveWriteLifecycle({tabId:11})',ctx);
+ assert.equal(enables,1);
+ assert.equal(watch.snapshot().kind,'none');
+ // No Qwen POST: shorter timeout and explicitly absent network evidence.
+ await assert.rejects(
+  ()=>vm.runInContext(
+    '_cwaQwenWaitForFinalText({}, "PRIVATE-PROMPT", {answerCount:0,initialUrl:"https://chat.qwen.ai/"}, 30000, null, {}, {}, watch)',
+    Object.assign(ctx,{watch})),
+  err=>{
+   assert.match(err.message,/QWEN_POST_SUBMIT_START_UNOBSERVED/);
+   assert.match(err.message,/write=none network=unobserved/);
+   assert.match(err.message,/editor=empty send=missing visibility=hidden/);
+   assert.ok(!err.message.includes('PRIVATE-PROMPT'));
+   return true;
+  }
+ );
+ assert.ok(now>=8000&&now<9000,'no silent 15-second wait without a POST');
+ // Ignore unrelated requests, never inspect the body of the real request.
+ emit('Network.requestWillBeSent',{requestId:'other',request:{
+   method:'POST',url:'https://other.example.com/api/v2/chat/completions',
+   postData:'PRIVATE-PROMPT'
+ }});
+ assert.equal(watch.snapshot().kind,'none');
+ emit('Network.requestWillBeSent',{requestId:'req',request:{
+   method:'POST',url:'https://chat.qwen.ai/api/v2/chat/completions',
+   postData:'PRIVATE-PROMPT'
+ }});
+ assert.equal(watch.snapshot().kind,'completion');
+ emit('Network.responseReceived',{requestId:'req',response:{status:200}});
+ assert.equal(watch.snapshot().responseCode,200);
+ assert.equal(watch.snapshot().status,'responded');
+ now=0;
+ await assert.rejects(
+  ()=>vm.runInContext(
+    '_cwaQwenWaitForFinalText({}, "PRIVATE-PROMPT", {answerCount:0,initialUrl:"https://chat.qwen.ai/"}, 30000, null, {}, {}, watch)',ctx),
+  err=>{
+   assert.match(err.message,/QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_NETWORK_WRITE/);
+   assert.match(err.message,/write=completion network=responded http=200/);
+   assert.ok(!err.message.includes('PRIVATE-PROMPT'));
+   return true;
+  }
+ );
+ assert.ok(now>=20000&&now<21000);
+ watch.close();
+ assert.equal(listener,null,'no event-listener leak on cleanup');
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
