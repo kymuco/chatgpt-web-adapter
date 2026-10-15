@@ -107,23 +107,31 @@ def test_tagged_gate_requires_exact_version_match(tmp_path: Path) -> None:
 def test_installed_smoke_normalizes_release_tag_versions() -> None:
     assert installed_wheel_smoke.normalize_expected_version("0.3.0") == VERSION
     assert installed_wheel_smoke.normalize_expected_version("v0.3.0") == VERSION
-    assert installed_wheel_smoke.normalize_expected_version("refs/tags/v0.3.0") == VERSION
+    assert (
+        installed_wheel_smoke.normalize_expected_version("refs/tags/v0.3.0") == VERSION
+    )
 
 
-def test_installed_smoke_can_derive_expected_version_from_source_pyproject(tmp_path: Path) -> None:
+def test_installed_smoke_can_derive_expected_version_from_source_pyproject(
+    tmp_path: Path,
+) -> None:
     root = _root(tmp_path)
-    assert installed_wheel_smoke.source_project_version(root / "pyproject.toml") == VERSION
+    assert (
+        installed_wheel_smoke.source_project_version(root / "pyproject.toml") == VERSION
+    )
 
 
-def test_installed_smoke_source_version_parser_is_project_scoped(tmp_path: Path) -> None:
+def test_installed_smoke_source_version_parser_is_project_scoped(
+    tmp_path: Path,
+) -> None:
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
-        "version = \"9.9.9\"\n\n"
+        'version = "9.9.9"\n\n'
         "[project]\n"
-        "name = \"chatgpt-web-adapter\"\n"
-        "version = \"0.3.0\"\n\n"
+        'name = "chatgpt-web-adapter"\n'
+        'version = "0.3.0"\n\n'
         "[tool.example]\n"
-        "version = \"8.8.8\"\n",
+        'version = "8.8.8"\n',
         encoding="utf-8",
     )
     assert installed_wheel_smoke.source_project_version(pyproject) == VERSION
@@ -141,14 +149,18 @@ def test_release_gate_accepts_complete_wheel_and_sdist(tmp_path: Path) -> None:
 def test_release_gate_rejects_omitted_extension_package_data(tmp_path: Path) -> None:
     root = _root(tmp_path)
     dist = _write_dist(root, omit_extra_js=True)
-    with pytest.raises(release_gate.ReleaseGateError, match="omitted packaged browser extension"):
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="omitted packaged browser extension"
+    ):
         release_gate.run_release_gate(root=root, dist_dir=dist)
 
 
 def test_release_gate_rejects_console_entrypoint_drift(tmp_path: Path) -> None:
     root = _root(tmp_path)
     dist = _write_dist(root, broken_entry_points=True)
-    with pytest.raises(release_gate.ReleaseGateError, match="console entry points mismatch"):
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="console entry points mismatch"
+    ):
         release_gate.run_release_gate(root=root, dist_dir=dist)
 
 
