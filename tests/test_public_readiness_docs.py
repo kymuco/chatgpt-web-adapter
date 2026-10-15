@@ -30,6 +30,7 @@ def test_current_repository_entrypoints_exist() -> None:
         "docs/capabilities.md",
         "docs/agent_integration.md",
         "docs/adding_capability.md",
+        "QWEN.md",
         "docs/qwen.md",
         "llms.txt",
     ):
@@ -56,6 +57,7 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
 
 def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
     guide = _read("docs/qwen.md")
+    quickstart = _read("QWEN.md")
     index = _read("docs/README.md")
     readme = _read("README.md")
 
@@ -80,6 +82,13 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
     assert "Never automatically resend" in guide
     assert "[Qwen SDK](docs/qwen.md)" in readme
     assert "qwen.md" in index
+    assert "[Qwen-only quickstart](QWEN.md)" in readme
+    assert "../QWEN.md" in index
+    assert "[Qwen-only quickstart](../QWEN.md)" in guide
+    assert "python .\\qwen_sdk.py --stream network" in quickstart
+    assert "python -m chatgpt_web_adapter.qwen_native" in quickstart
+    assert "--extension-id YOUR_QWEN_EXTENSION_ID" in quickstart
+    assert "No ChatGPT authentication" in quickstart
 
 
 def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() -> None:
