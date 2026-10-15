@@ -169,39 +169,72 @@ async function _cwaQwenEvaluate(debuggee, expression) {
 }
 
 function _cwaQwenAgeExpression(year, allow, submitted) {
+  // Read the age dialog without mutating it. Synthetic Element.click() is not a
+  // reliable substitute for an actual pointer interaction in the Qwen UI.
   const expression = function(year, allow, submitted) {
     const dialog = document.querySelector('.age-confirmation-modal[role="dialog"]');
     if (!dialog || dialog.getAttribute?.("aria-hidden") === "true" ||
-        getComputedStyle(dialog).display === "none") return "absent";
+        getComputedStyle(dialog).display === "none" ||
+        getComputedStyle(dialog).visibility === "hidden") return "absent";
+    const rect = dialog.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return "absent";
     if (!allow) return "required";
     if (submitted) return "waiting";
+    const target = (element, action) => {
+      if (!element || element.disabled || element.getAttribute?.("aria-disabled") === "true") {
+        return "age_control_unavailable";
+      }
+      const r = element.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0)) return "age_control_unavailable";
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 ||
+          x >= window.innerWidth || y >= window.innerHeight) return "age_control_unavailable";
+      return {action, x, y};
+    };
     const selected = dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-select-label');
     if (!selected) return "year_selector_missing";
     if (selected.textContent.trim() !== String(year)) {
       const menu = document.querySelector('.qwen-chat-v2-dropdown-menu-popup[role="menu"]');
       if (menu) {
-        const option = Array.from(menu.querySelectorAll('[role="menuitem"]')).find(el => el.textContent.trim() === String(year));
-        if (!option) return "year_unavailable";
-        option.click();
-      } else {
-        const trigger = dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-trigger');
-        if (!trigger) return "year_selector_missing";
-        trigger.click();
+        const option = Array.from(menu.querySelectorAll('[role="menuitem"]')).find(
+          el => el.textContent.trim() === String(year));
+        return option ? target(option, "select_year") : "year_unavailable";
       }
-      return "selecting";
+      return target(
+        dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-trigger'),
+        "open_years"
+      );
     }
     const button = Array.from(dialog.querySelectorAll('button')).find(el =>
       /^(continue|продолжить|continuer|继续|繼續)$/i.test(el.textContent.trim()));
     if (!button) return "continue_button_missing";
-    if (button.disabled || button.getAttribute?.("aria-disabled") === "true") return "button_disabled";
-    button.click();
-    return "submitted";
+    return target(button, "confirm_age");
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(year) + "," + (allow === true) + "," + (submitted === true) + ")";
 }
 
-// A Qwen age dialog can appear AFTER the Send click, not just at page load.
-// Never resend the user's prompt to clear it: handle only the explicit age action.
+async function _cwaQwenAgeTrustedClick(debuggee, target) {
+  if (!target || !["open_years", "select_year", "confirm_age"].includes(target.action) ||
+      !Number.isFinite(target.x) || !Number.isFinite(target.y) ||
+      target.x < 0 || target.y < 0) {
+    throw new Error("QWEN_AGE_CLICK_TARGET_INVALID");
+  }
+  const point = {x: target.x, y: target.y};
+  // CDP input uses Chrome's input pipeline. No Qwen API calls, age bypass, or
+  // second submission of the user's text. Only the explicit age dialog.
+  await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
+    type: "mouseMoved", ...point, button: "none"
+  });
+  await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
+    type: "mousePressed", ...point, button: "left", clickCount: 1
+  });
+  await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
+    type: "mouseReleased", ...point, button: "left", clickCount: 1
+  });
+}
+
+// Age verification can appear before or after Send. An apparent click is not
+// confirmation; the dialog must actually disappear before the turn proceeds.
 async function _cwaQwenHandleAgeGate(debuggee, message, state) {
   const age = await _cwaQwenEvaluate(
     debuggee,
@@ -210,6 +243,7 @@ async function _cwaQwenHandleAgeGate(debuggee, message, state) {
   if (age === "absent") {
     state.since = null;
     state.submitted = false;
+    state.lastAction = null;
     return false;
   }
   if (age === "required") throw new Error("QWEN_AGE_CONFIRMATION_REQUIRED: confirm on Qwen or explicitly provide --auto-confirm-age --birth-year");
@@ -219,9 +253,26 @@ async function _cwaQwenHandleAgeGate(debuggee, message, state) {
   }
   const now = performance.now();
   if (state.since === null || state.since === undefined) state.since = now;
-  if (age === "submitted") state.submitted = true;
   if (now - state.since >= 12000) {
-    throw new Error("QWEN_AGE_CONFIRMATION_STALLED: verify the background Qwen tab manually; no prompt was resent");
+    throw new Error("QWEN_AGE_CONFIRMATION_STALLED: age dialog remains open after click; open the Qwen tab for manual verification; no prompt was resent");
+  }
+  if (age && typeof age === "object" && age.action) {
+    if (!["open_years", "select_year", "confirm_age"].includes(age.action)) {
+      throw new Error("QWEN_AGE_DIALOG_STRUCTURE_CHANGED");
+    }
+    // Avoid repeatedly clicking a still-rendering dropdown. Never repeat the
+    // final Continue action: verification could be in flight.
+    if (age.action === "confirm_age") {
+      state.submitted = true;
+      await _cwaQwenAgeTrustedClick(debuggee, age);
+    } else if (state.lastAction !== age.action ||
+               now - (state.lastActionAt ?? -Infinity) >= 1000) {
+      state.lastAction = age.action;
+      state.lastActionAt = now;
+      await _cwaQwenAgeTrustedClick(debuggee, age);
+    }
+  } else if (age !== "waiting" && age !== "age_control_unavailable") {
+    throw new Error("QWEN_AGE_DIALOG_STRUCTURE_CHANGED");
   }
   return true;
 }
