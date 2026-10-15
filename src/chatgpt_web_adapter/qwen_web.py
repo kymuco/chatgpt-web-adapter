@@ -191,7 +191,9 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
                     "autoConfirmAge": auto_confirm_age,
                     "birthYear": birth_year,
                 },
-                timeout=total_timeout,
+                # Allow the extension to report its own deadline/finality error
+                # instead of racing the native bridge at the exact same second.
+                timeout=total_timeout + self.connect_timeout + 20.0,
                 on_event=lambda event: (
                     on_text(event["text"])
                     if on_text is not None

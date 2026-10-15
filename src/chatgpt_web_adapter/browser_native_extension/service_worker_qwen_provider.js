@@ -307,26 +307,39 @@ async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageSt
 }
 
 function _cwaQwenSubmitExpression(text) {
+  // Pure read: never call the Send button from Runtime.evaluate. Compute the
+  // target only after observing that the current composer contains our text.
   const expression = function(requestedText) {
     const visible = (el) => {
       if (!(el instanceof Element)) return false;
       const r = el.getBoundingClientRect(), style = getComputedStyle(el);
       return r.width > 0 && r.height > 0 && style.display !== "none" && style.visibility !== "hidden";
     };
+    const dialog = document.querySelector('.age-confirmation-modal[role="dialog"]');
+    if (dialog && visible(dialog)) {
+      return {ready: false, reason: "age_dialog_active"};
+    }
     const composer = Array.from(document.querySelectorAll(
       "textarea.message-input-textarea,textarea[placeholder='How can I help you today?']"
     )).find(visible);
-    if (!composer) return {found: false, submitted: false};
-    if (composer.value !== requestedText) return {found: true, submitted: false, reason: "composer_value_mismatch"};
+    if (!composer) return {ready: false, reason: "composer_not_found"};
+    if (composer.value !== requestedText) {
+      return {ready: false, reason: "composer_value_mismatch"};
+    }
     if (Array.from(document.querySelectorAll("button.stop-button")).some(visible)) {
-      return {found: true, submitted: false, reason: "generation_active"};
+      return {ready: false, reason: "generation_active"};
     }
     const control = Array.from(document.querySelectorAll(
       "button.send-button,.chat-prompt-send-button button,div.message-input-right-button-send button"
-    )).find((el) => visible(el) && el.disabled !== true && el.getAttribute("aria-disabled") !== "true");
-    if (!control) return {found: true, submitted: false, reason: "send_control_not_ready"};
-    control.click();
-    return {found: true, submitted: true};
+    )).find(el => visible(el) && !el.disabled && el.getAttribute("aria-disabled") !== "true");
+    if (!control) return {ready: false, reason: "send_control_not_ready"};
+    const r = control.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 ||
+        x >= window.innerWidth || y >= window.innerHeight) {
+      return {ready: false, reason: "send_control_out_of_view"};
+    }
+    return {ready: true, x, y};
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(text) + ")";
 }
@@ -367,26 +380,50 @@ function _cwaQwenPostSubmitAmbiguousError(error) {
 }
 
 async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}, ageState = {}) {
+  // Page readiness, including age confirmation, MUST precede composer write:
+  // closing the age modal can remount the textarea and erase the user's text.
+  await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
   const written = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression(text));
   if (written?.written !== true) throw new Error("QWEN_COMPOSER_WRITE_FAILED");
 
-  while (performance.now() < deadlineAt) {
-    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
-    try {
-      const submit = await _cwaQwenEvaluate(debuggee, _cwaQwenSubmitExpression(text));
-      if (submit?.submitted === true) return;
-    } catch (error) {
-      if (_cwaQwenDebuggerDetached(error)) {
-        // A navigation may detach CDP after the single click. Never replay the write.
-        return;
+  // The send control may become enabled slightly after React handles input.
+  // A reset/mismatched composer is a PRE-click failure, not a reason to
+  // spin for the entire bridge timeout or silently type into a new page.
+  const sendDeadlineAt = Math.min(deadlineAt, performance.now() + 6000);
+  while (performance.now() < sendDeadlineAt) {
+    const gate = await _cwaQwenHandleAgeGate(debuggee, message, ageState);
+    if (gate) {
+      throw new Error(
+        "QWEN_PRE_SUBMIT_AGE_GATE_REAPPEARED: age verification changed the page after typing; no Send click was attempted"
+      );
+    }
+    const submit = await _cwaQwenEvaluate(debuggee, _cwaQwenSubmitExpression(text));
+    if (submit?.ready === true) {
+      // One trusted pointer click, precisely once. A failure of ANY dispatch
+      // after this point is ambiguous; never automatically repeat the prompt.
+      try {
+        await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mouseMoved", x: submit.x, y: submit.y, button: "none"
+        });
+        await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mousePressed", x: submit.x, y: submit.y,
+          button: "left", clickCount: 1
+        });
+        await _cwaBaseSendCommand(debuggee, "Input.dispatchMouseEvent", {
+          type: "mouseReleased", x: submit.x, y: submit.y,
+          button: "left", clickCount: 1
+        });
+      } catch (error) {
+        throw _cwaQwenPostSubmitAmbiguousError(error);
       }
-      // This Runtime.evaluate can execute control.click() before its result is
-      // lost. Any non-detach failure here is therefore post-submit ambiguous.
-      throw _cwaQwenPostSubmitAmbiguousError(error);
+      return;
+    }
+    if (submit?.reason !== "send_control_not_ready") {
+      throw new Error("QWEN_PRE_SUBMIT_" + (submit?.reason || "STATE_UNKNOWN").toUpperCase());
     }
     await sleep(150);
   }
-  throw new Error("QWEN_SUBMIT_CONTROL_NOT_READY");
+  throw new Error("QWEN_PRE_SUBMIT_SEND_CONTROL_NOT_READY");
 }
 
 function _cwaQwenLatestNewText(snapshot, baseline) {
@@ -406,6 +443,7 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
   let lastText = null;
   let stableSince = null;
   let idleSince = null;
+  let unobservedSince = null;
   while (performance.now() < deadlineAt) {
     let snapshot;
     let gateActive = false;
@@ -436,6 +474,19 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
       idleSince = null;
     }
     const candidate = _cwaQwenLatestNewText(snapshot, baseline);
+    const startObserved = candidate !== null ||
+      snapshot?.generating === true ||
+      (typeof snapshot?.url === "string" && snapshot.url !== baseline?.initialUrl);
+    if (startObserved) {
+      unobservedSince = null;
+    } else if (snapshot?.generating === false && candidate === null) {
+      if (unobservedSince === null) unobservedSince = performance.now();
+      if (performance.now() - unobservedSince >= 15000) {
+        throw new Error(
+          "QWEN_POST_SUBMIT_START_UNOBSERVED: no page navigation, active generation or new answer within 15s; inspect the Qwen tab before manually retrying"
+        );
+      }
+    }
     if (candidate !== null && candidate === lastText) {
       if (stableSince === null) stableSince = performance.now();
     } else {
@@ -571,7 +622,10 @@ async function _cwaQwenHandleTurn(message) {
     await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
 
     const before = await _cwaQwenEvaluate(debuggee, _cwaQwenSnapshotExpression(message.text));
-    const baseline = {answerCount: before?.answerCount || 0};
+    const baseline = {
+      answerCount: before?.answerCount || 0,
+      initialUrl: before?.url || initialUrl
+    };
 
     if (message.streamNetwork === true) networkStream = await _cwaQwenObserveStream(debuggee, message);
     await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message, ageState);

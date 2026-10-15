@@ -178,7 +178,11 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "canonicalCompletionProven: false" in worker
     assert "QWEN_WRITE_OUTCOME_AMBIGUOUS_RECONCILIATION_REQUIRED" in worker
     assert "_cwaQwenSubmitExpression" in worker
-    assert "control.click()" in worker
+    assert "control.click()" not in worker
+    assert '"Input.dispatchMouseEvent"' in worker
+    assert "QWEN_PRE_SUBMIT_COMPOSER_VALUE_MISMATCH" not in worker
+    assert '"QWEN_PRE_SUBMIT_"' in worker
+    assert "QWEN_POST_SUBMIT_START_UNOBSERVED" in worker
     assert "Input.dispatchKeyEvent" not in worker
     assert "_cwaQwenReattachForObservation" in worker
     assert "_cwaQwenPostSubmitAmbiguousError" in worker
