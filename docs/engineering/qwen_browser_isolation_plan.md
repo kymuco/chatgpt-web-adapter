@@ -1,6 +1,9 @@
 # Qwen browser isolation gate (PR #213)
 
-Status: **QUARANTINED — NOT ACCEPTED FOR PRODUCTION** (2026-10-15).
+Status: **ISOLATED SOURCE IMPLEMENTED — LIVE INSTALLED ACCEPTANCE PENDING**
+(2026-10-15). The normal CWA remains quarantined from Qwen. Commit
+`bec72b31` introduced a separate Qwen native host; later PR commits added
+release/package and isolation regression gates.
 
 ## Observed evidence
 
@@ -40,12 +43,16 @@ path can displace each other's descriptor and local request routing.
 Different tabs/profiles are not an independent safety boundary unless the
 native messaging name and state root are also separate.
 
-## Required experimental architecture
+## Independent experimental architecture
 
-Build a dedicated Qwen test deployment that has:
+The branch now includes a dedicated Qwen extension/host implementation.
+A separate Chrome profile is an optional additional safeguard, not a
+substitute for native host and bridge isolation. The essential boundaries are:
 
-1. A distinct unpacked-extension build directory and a distinct Chrome
-   `--user-data-dir`, never the production extension folder/profile.
+1. A distinct unpacked-extension directory and dedicated extension identity.
+   Never overwrite the production extension directory. The same Chrome profile
+   can host two different extension identities, but switching profiles is
+   appropriate for more conservative acceptance testing.
 2. A distinct extension identity and native-messaging host name, with its
    allowlisted extension ID matching only that experimental extension.
 3. An independent native host process and **independent descriptor/state
@@ -88,5 +95,7 @@ production Chrome extension, but it has its own experimental auth/refresh and
 completion semantics. A single successful HTTP generation is not proof of
 long-term session renewal or product compatibility.
 
-This document is a gate and implementation specification, **not** a claim that
-the experimental sidecar, isolated host or live Qwen tests have been built.
+The independent extension/host code now exists. This document is still an
+**acceptance gate**: GitHub tests alone do not prove installed Windows native
+registration, repeated Chrome runs, correct two-response selection, or
+production HDE health under prolonged Qwen use.

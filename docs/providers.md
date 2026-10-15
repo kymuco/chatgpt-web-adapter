@@ -155,8 +155,10 @@ canonical_completion_proven = false
 from chatgpt_web_adapter.qwen_web import QwenWebRuntime
 ```
 
-The Qwen adapter runs through the **existing CWA Chrome extension** and Native
-Messaging bridge, targeting `https://chat.qwen.ai`. It uses Qwen-specific
+The Qwen browser adapter uses its **own experimental extension and Native
+Messaging host**, targeting `https://chat.qwen.ai`. The shared CWA extension
+and its ChatGPT/HDE Native Messaging bridge remain unchanged. The Qwen runtime
+uses Qwen-specific
 composer, send-button, answer-phase and stop-generation DOM evidence rather than
 exporting credentials or reproducing Qwen's private HTTP protocol.
 
@@ -240,11 +242,12 @@ See [architecture.md](architecture.md) and
 > submit failure (`CHATGPT_SUBMIT_NOT_OBSERVED:send_button_click`) cleared
 > after reverting the two shared Qwen extension modifications. This is a
 > correlated rollback observation, not proof of a specific JavaScript collision.
-> Until a separately deployed Chrome profile/extension is established, Qwen
-> browser provider modules are **not imported** by the normal CWA service
-> worker and `chat.qwen.ai` is not included in its host permissions.
-> The Qwen **browser CLI is not operational through this quarantined shared
-> extension**. Do not re-add the Qwen imports or run the Qwen browser CLI against
+> The separate Qwen extension and native host source now exist in PR #213,
+> but the **installed end-to-end browser SDK is not yet accepted**.
+> Qwen browser modules are **not imported** by the normal CWA service worker,
+> and `chat.qwen.ai` is not included in its host permissions.
+> The Qwen **browser CLI cannot use the quarantined shared extension**; it
+> requires the independent Qwen installation. Do not re-add the Qwen imports or run the Qwen browser CLI against
 > the HDE/Codexia production extension. The Qwen source and unit tests are
 > retained for isolated development; experimental direct HTTP is separate.
 
@@ -257,7 +260,7 @@ the other transport. Both remain experimental pending authenticated live proof.
 ```python
 from chatgpt_web_adapter.qwen_client import QwenClient
 
-# Background Chrome tab using the existing CWA extension and Qwen login.
+# Background Chrome tab using the separately installed Qwen extension and login.
 browser = QwenClient(transport="browser")
 reply = browser.send_text("Hello")
 
@@ -294,7 +297,9 @@ renewal remain unverified.
 
 ## Recommended Qwen usage
 
-Keep Chrome running with CWA connected, sign in to Qwen, and keep an authenticated Qwen session. The SDK reuses an empty Qwen tab or
+Install the independent Qwen native extension (see
+[installation instructions](engineering/qwen_native_setup.md)), sign in to
+Qwen, and keep an authenticated Qwen session. The SDK reuses an empty Qwen tab or
 creates a background tab for a new conversation. Choose the model
 and thinking mode in the Qwen interface. An existing empty tab preserves your selected model; a newly created tab uses
 Qwen's site defaults. Tabs are not activated automatically.
@@ -306,12 +311,12 @@ python qwen_sdk.py
 python qwen_sdk.py --foreground-tab --auto-confirm-age --birth-year 2000
 ```
 
-For intermittent empty hidden tabs or unobserved Qwen POSTs, `--foreground-tab`
-is an **opt-in diagnostic workaround**. It activates Qwen's browser tab
+For comparing active and inactive tabs, `--foreground-tab` is an **opt-in
+diagnostic mode**, **not** a proven remedy for unobserved Qwen POSTs. It activates Qwen's browser tab
 (and visibly changes the currently selected tab) before the single Send click.
 The ordinary browser mode remains in the background and unchanged; neither
-mode auto-retries a potentially submitted prompt. A successful foreground run
-supports, but does not prove, hidden-tab lifecycle effects. It is not a
+mode auto-retries a potentially submitted prompt. A successful foreground run alone does not prove hidden-tab lifecycle effects;
+the earlier failure was also reproduced in a visible tab. It is not a
 guarantee of Qwen responsiveness and has not been live-verified.
 
 The default transport is `browser`. Interactive mode preserves the returned
@@ -336,11 +341,14 @@ leave Qwen's internal React composer state stale: text remained visible but
 once. If a previous ambiguous prompt remains in the textarea, the SDK stops
 with `QWEN_PRE_SUBMIT_COMPOSER_NOT_EMPTY` instead of overwriting it; inspect
 and reconcile the previous turn on Qwen before clearing the field manually.
-This input-path change is covered by deterministic tests but is not yet
-verified live in the user's current session.
+This input-path change was checked in a controlled background CDP browser
+experiment using Qwen helper functions; full Python → native host → extension
+→ Qwen end-to-end deployment is not yet verified.
 
-The browser transport returns the complete answer after observing completion in
-the page. The optional `on_text` callback receives full answer-text snapshots approximately
+In `--stream network` mode, the browser transport returns the verified SSE
+answer reconstructed from Qwen's own stream; this is the recommended mode for
+completeness. The default `--stream dom` remains a **heuristic fallback**:
+a hidden-tab DOM can be incomplete even after SSE has finished. The optional `on_text` callback receives full answer-text snapshots approximately
 every 250 ms while the DOM changes. Replace the displayed answer with each
 snapshot; do not concatenate them. Thinking text is excluded. The CLI displays
 updates automatically. These are page updates, not individual model tokens. Model selection through SDK
@@ -348,9 +356,12 @@ arguments, attachments and temporary-chat controls are not implemented for this
 transport. Login or verification must be completed on the Qwen site. Failed or
 ambiguous generations are never automatically replayed.
 
-Live SDK verification: a new chat returned `FIRST_OK` and continuation returned
-`ORCHID` in the same conversation. Total call durations were 20.68 and 14.57
-seconds, including the page completion wait; these are not TTFT measurements.
+Historical shared-extension SDK verification returned `FIRST_OK` and
+`ORCHID` in one conversation, but subsequent production CWA interference
+made that deployment unsuitable. A separate diagnostic browser-CDP experiment
+on 2026-10-15 confirmed hidden-tab Send and SSE completion independently of
+the native host; the **new isolated native installation remains unverified
+end-to-end**. Those observations are not TTFT benchmarks.
 
 ### Experimental direct HTTP
 
