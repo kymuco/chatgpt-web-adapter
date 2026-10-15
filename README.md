@@ -15,7 +15,7 @@ CWA lets local software, assistants and agents use ordinary hosted AI products t
 typed runtime contracts without turning browser details, product observations or
 partial output into implicit authority.
 
-[Quickstart](docs/quickstart.md) · [Qwen-only quickstart](QWEN.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Qwen SDK](docs/qwen.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
+[Quickstart](docs/quickstart.md) · [Qwen (EN)](QWEN.md) · [Qwen (RU)](QWEN.ru.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Qwen SDK](docs/qwen.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
 
 > [!WARNING]
 > CWA is not an official API client for OpenAI, Google or DeepSeek. It works with
@@ -32,7 +32,7 @@ partial output into implicit authority.
 | Building a Python application | [Production Python example](#production-python-example) |
 | Connecting a local assistant or coding agent | [Agent integration](docs/agent_integration.md) |
 | Checking what is actually supported | [Capability map](docs/capabilities.md) |
-| **Only want Qwen in the terminal?** | **[Qwen-only quickstart — install, connect and launch CLI](QWEN.md)** |
+| **Only want Qwen in the terminal?** | **[Qwen quickstart (English)](QWEN.md) · [Русская инструкция](QWEN.ru.md)** |
 | Using experimental Qwen Web in Python | [Complete Qwen SDK guide](docs/qwen.md) |
 | Adding a new hosted product capability | [Capability contribution guide](docs/adding_capability.md) |
 

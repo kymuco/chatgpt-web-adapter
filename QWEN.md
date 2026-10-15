@@ -1,5 +1,7 @@
 # Qwen Web — quickstart (Windows)
 
+**Language:** **English** | [Русский](QWEN.ru.md)
+
 **Want only Qwen in your terminal? Start here.** You do not need to configure ChatGPT, HDE, Gemini, DeepSeek or the normal CWA extension.
 
 This guide uses the **browser-backed Qwen SDK**: Python sends your message through a **separate Qwen Chrome extension** to your signed-in account at [chat.qwen.ai](https://chat.qwen.ai/). The extension can work with a background tab. It is not the official Qwen API or a browserless client.
