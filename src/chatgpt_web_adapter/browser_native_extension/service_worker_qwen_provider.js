@@ -171,35 +171,67 @@ async function _cwaQwenEvaluate(debuggee, expression) {
 function _cwaQwenAgeExpression(year, allow, submitted) {
   const expression = function(year, allow, submitted) {
     const dialog = document.querySelector('.age-confirmation-modal[role="dialog"]');
-    if (!dialog || !dialog.getBoundingClientRect().height) return "absent";
+    if (!dialog || dialog.getAttribute?.("aria-hidden") === "true" ||
+        getComputedStyle(dialog).display === "none") return "absent";
     if (!allow) return "required";
     if (submitted) return "waiting";
     const selected = dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-select-label');
-    if (selected?.textContent.trim() !== String(year)) {
+    if (!selected) return "year_selector_missing";
+    if (selected.textContent.trim() !== String(year)) {
       const menu = document.querySelector('.qwen-chat-v2-dropdown-menu-popup[role="menu"]');
       if (menu) {
         const option = Array.from(menu.querySelectorAll('[role="menuitem"]')).find(el => el.textContent.trim() === String(year));
         if (!option) return "year_unavailable";
         option.click();
-      } else dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-trigger')?.click();
+      } else {
+        const trigger = dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-trigger');
+        if (!trigger) return "year_selector_missing";
+        trigger.click();
+      }
       return "selecting";
     }
-    const button = Array.from(dialog.querySelectorAll('button')).find(el => el.textContent.trim() === "Continue");
-    if (!button || button.disabled) return "waiting";
+    const button = Array.from(dialog.querySelectorAll('button')).find(el =>
+      /^(continue|продолжить|continuer|继续|繼續)$/i.test(el.textContent.trim()));
+    if (!button) return "continue_button_missing";
+    if (button.disabled || button.getAttribute?.("aria-disabled") === "true") return "button_disabled";
     button.click();
     return "submitted";
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(year) + "," + (allow === true) + "," + (submitted === true) + ")";
 }
 
-async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}) {
-  let ageSubmitted = false;
+// A Qwen age dialog can appear AFTER the Send click, not just at page load.
+// Never resend the user's prompt to clear it: handle only the explicit age action.
+async function _cwaQwenHandleAgeGate(debuggee, message, state) {
+  const age = await _cwaQwenEvaluate(
+    debuggee,
+    _cwaQwenAgeExpression(message.birthYear, message.autoConfirmAge, state.submitted === true)
+  );
+  if (age === "absent") {
+    state.since = null;
+    state.submitted = false;
+    return false;
+  }
+  if (age === "required") throw new Error("QWEN_AGE_CONFIRMATION_REQUIRED: confirm on Qwen or explicitly provide --auto-confirm-age --birth-year");
+  if (age === "year_unavailable") throw new Error("QWEN_BIRTH_YEAR_UNAVAILABLE");
+  if (age === "year_selector_missing" || age === "continue_button_missing") {
+    throw new Error("QWEN_AGE_DIALOG_STRUCTURE_CHANGED: manual confirmation on Qwen required");
+  }
+  const now = performance.now();
+  if (state.since === null || state.since === undefined) state.since = now;
+  if (age === "submitted") state.submitted = true;
+  if (now - state.since >= 12000) {
+    throw new Error("QWEN_AGE_CONFIRMATION_STALLED: verify the background Qwen tab manually; no prompt was resent");
+  }
+  return true;
+}
+
+async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageState = {}) {
   while (performance.now() < deadlineAt) {
-    const age = await _cwaQwenEvaluate(debuggee, _cwaQwenAgeExpression(message.birthYear || 2000, message.autoConfirmAge, ageSubmitted));
-    if (age === "required") throw new Error("QWEN_AGE_CONFIRMATION_REQUIRED: confirm on Qwen or configure auto_confirm_age and birth_year");
-    if (age === "year_unavailable") throw new Error("QWEN_BIRTH_YEAR_UNAVAILABLE");
-    if (age === "submitted") ageSubmitted = true;
-    if (age !== "absent") { await sleep(250); continue; }
+    if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
+      await sleep(250);
+      continue;
+    }
     const snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression());
     if (snapshot?.found === true) return;
     await sleep(250);
@@ -267,12 +299,12 @@ function _cwaQwenPostSubmitAmbiguousError(error) {
   );
 }
 
-async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}) {
+async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}, ageState = {}) {
   const written = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression(text));
   if (written?.written !== true) throw new Error("QWEN_COMPOSER_WRITE_FAILED");
 
   while (performance.now() < deadlineAt) {
-    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message);
+    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
     try {
       const submit = await _cwaQwenEvaluate(debuggee, _cwaQwenSubmitExpression(text));
       if (submit?.submitted === true) return;
@@ -303,11 +335,19 @@ function _cwaQwenLatestNewText(snapshot, baseline) {
   return null;
 }
 
-async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, onText = null) {
+async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, onText = null, message = {}, ageState = {}) {
   let lastText = null;
   let stableSince = null;
   let idleSince = null;
   while (performance.now() < deadlineAt) {
+    // Age confirmation may appear only when Qwen receives the Send click.
+    // Do not silently attempt to click Send again after acknowledging the gate.
+    if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
+      idleSince = null;
+      stableSince = null;
+      await sleep(250);
+      continue;
+    }
     let snapshot;
     try {
       snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenSnapshotExpression(text));
@@ -451,18 +491,19 @@ async function _cwaQwenHandleTurn(message) {
   const debuggee = { tabId: tab.id };
   let attached = false;
   let networkStream = null;
+  const ageState = {};
 
   try {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message);
+    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
 
     const before = await _cwaQwenEvaluate(debuggee, _cwaQwenSnapshotExpression(message.text));
     const baseline = {answerCount: before?.answerCount || 0};
 
     if (message.streamNetwork === true) networkStream = await _cwaQwenObserveStream(debuggee, message);
-    await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message);
+    await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message, ageState);
     try {
       const final = await _cwaQwenWaitForFinalText(
         debuggee,
@@ -474,7 +515,9 @@ async function _cwaQwenHandleTurn(message) {
           type: "turn_event",
           request_id: message.request_id,
           event: {providerId: CWA_QWEN_PROVIDER_ID, type: "text_snapshot", text}
-        }) : null
+        }) : null,
+        message,
+        ageState
       );
       if (networkStream) await networkStream.verify();
       const finalTab = await chrome.tabs.get(tab.id);

@@ -62,3 +62,40 @@ def test_browser_model_option_fails_before_send(runner):
     with pytest.raises(SystemExit):
         module.main(["--model", "some-model", "hello"])
     factory.assert_not_called()
+
+
+def test_dom_renderer_rewrites_existing_terminal_text_not_append_revisions(capsys):
+    from io import StringIO
+    from importlib.util import module_from_spec, spec_from_file_location
+    from pathlib import Path
+    from unittest.mock import patch
+
+    spec = spec_from_file_location(
+        "qwen_sdk_live_renderer", Path(__file__).resolve().parents[1] / "qwen_sdk.py"
+    )
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    class Tty(StringIO):
+        def isatty(self):
+            return True
+
+    output = Tty()
+    with patch.object(module.shutil, "get_terminal_size", return_value=(100, 24)):
+        renderer = module._QwenLiveAnswer(output)
+        renderer.update("По состоянию на сезон 2026 года лидирует **Кими")
+        renderer.update("По состоянию на сезон 2026 года лидирует Кими Антонелли")
+        renderer.update("По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes.")
+        renderer.finish("По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes.")
+    out = output.getvalue()
+    assert "\\x1b[1F\\x1b[J" in out
+    assert "[Qwen revised answer]" not in out
+    assert out.count("Mercedes.") == 1
+
+    # When output is captured/piped, partial snapshots do not clutter logs.
+    piped = StringIO()
+    fallback = module._QwenLiveAnswer(piped)
+    fallback.update("old partial")
+    fallback.update("revised")
+    fallback.finish("final")
+    assert piped.getvalue() == "final\\n"

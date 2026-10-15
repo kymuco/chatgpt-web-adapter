@@ -11,9 +11,52 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
+import textwrap
 
 from chatgpt_web_adapter.qwen_client import QwenClient
+
+
+class _QwenLiveAnswer:
+    """Redraw the same terminal region when Qwen revises earlier DOM text.
+
+    Unlike append-only snapshots, this does not duplicate the whole answer on
+    late citations or edits. Non-terminal output emits the final answer once.
+    """
+
+    def __init__(self, output=None) -> None:
+        self._out = output if output is not None else sys.stdout
+        self._interactive = bool(getattr(self._out, "isatty", lambda: False)())
+        self._rows = 0
+        self._current = ""
+
+    def update(self, text: str) -> None:
+        if not isinstance(text, str) or text == self._current:
+            return
+        # Model-generated terminal controls must never execute.
+        safe = "".join(c for c in text if c in "\\n\\t" or (ord(c) >= 32 and ord(c) != 127))
+        self._current = safe
+        if not self._interactive:
+            return
+        width = max(24, shutil.get_terminal_size((80, 24)).columns - 8)
+        lines = []
+        for paragraph in safe.expandtabs(4).split("\\n"):
+            lines.extend(textwrap.wrap(paragraph, width=width, replace_whitespace=False,
+                                       drop_whitespace=False) or [""])
+        rendered = "\\n".join(lines)
+        if self._rows:
+            self._out.write(f"\\x1b[{self._rows}F\\x1b[J")
+        self._out.write(rendered + "\\n")
+        self._out.flush()
+        self._rows = len(lines)
+
+    def finish(self, final_text: str) -> None:
+        self.update(final_text)
+        if not self._interactive:
+            self._out.write(self._current + "\\n")
+            self._out.flush()
+
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,22 +138,11 @@ def main(argv: list[str] | None = None) -> int:
             )
             print()
         elif args.transport == "browser":
-            shown = ""
-
-            def show_snapshot(text: str) -> None:
-                nonlocal shown
-                if text.startswith(shown):
-                    print(text[len(shown) :], end="", flush=True)
-                else:
-                    print("\n[Qwen revised answer]\n" + text, end="", flush=True)
-                shown = text
-
+            live = _QwenLiveAnswer()
             result = client.send_text(
-                message, conversation=browser_conversation, on_text=show_snapshot
+                message, conversation=browser_conversation, on_text=live.update
             )
-            if result.text != shown:
-                show_snapshot(result.text)
-            print()
+            live.finish(result.text)
         else:
             result = client.send_text(
                 message,

@@ -77,3 +77,52 @@ const state = (generating, text) => ({generating, texts: text ? [text] : [], url
         [node, "-e", script, str(worker)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_age_gate_after_send_is_handled_once_or_fails_explicitly():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict');
+let now=0, ageCalls=0, clicks=0, evalCalls=0;
+const ctx=vm.createContext({
+  performance:{now:()=>now},
+  registerProductProviderTurnHandler(){},
+  sleep:async ms=>{now+=ms},
+  _cwaBaseSendCommand:async (_,method,args)=>{
+    if (method!=='Runtime.evaluate') throw Error('unexpected CDP call');
+    evalCalls++;
+    if (args.expression.includes('age-confirmation-modal')) {
+      ageCalls++;
+      const stage=ageCalls===1?'submitted':ageCalls===2?'waiting':'absent';
+      if (stage==='submitted') clicks++;
+      return {result:{value:stage}};
+    }
+    return {result:{value:{generating:false,texts:['Full answer'],answerCount:1,url:'https://chat.qwen.ai/c/id'}}};
+  }
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+(async()=>{
+ const out=await vm.runInContext('_cwaQwenWaitForFinalText({}, "question", {answerCount:0}, 30000, null, {autoConfirmAge:true,birthYear:2000},{})',ctx);
+ assert.equal(out.text,'Full answer');
+ assert.equal(clicks,1,'age clicked once after write');
+ assert.ok(now>=9000);
+ // Background dialog is stuck after the click. Fail quickly rather than hang until the turn timeout.
+ now=0; ageCalls=0; clicks=0;
+ ctx._cwaQwenEvaluate=async ()=>{ageCalls++; if(ageCalls===1){clicks++;return 'submitted'}return 'waiting'};
+ await assert.rejects(
+  ()=>vm.runInContext('_cwaQwenWaitForComposer({}, 30000, {autoConfirmAge:true,birthYear:2000}, {})',ctx),
+  /QWEN_AGE_CONFIRMATION_STALLED/
+ );
+ assert.equal(clicks,1,'never repeat the age confirmation click');
+ assert.ok(now>=12000&&now<14000);
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run([node, "-e", script, str(worker)],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
