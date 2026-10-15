@@ -549,7 +549,7 @@ ctx._cwaQwenEvaluate=async()=>({
   ()=>vm.runInContext(
     '_cwaQwenWaitForFinalText({}, "PRIVATE-PROMPT", {answerCount:0,initialUrl:"https://chat.qwen.ai/"}, 30000, null, {}, {}, watch)',ctx),
   err=>{
-   assert.match(err.message,/QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_NETWORK_WRITE/);
+   assert.match(err.message,/QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_WRITE_OR_NAVIGATION/);
    assert.match(err.message,/write=completion network=responded http=200/);
    assert.ok(!err.message.includes('PRIVATE-PROMPT'));
    return true;
@@ -558,6 +558,48 @@ ctx._cwaQwenEvaluate=async()=>({
  assert.ok(now>=20000&&now<21000);
  watch.close();
  assert.equal(listener,null,'no event-listener leak on cleanup');
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_qwen_changed_route_without_answer_is_bounded_not_a_two_minute_hang():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+let now=0;
+const ctx=vm.createContext({
+ performance:{now:()=>now},
+ registerProductProviderTurnHandler(){},
+ sleep:async ms=>{now+=ms}
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+ctx._cwaQwenHandleAgeGate=async()=>false;
+ctx._cwaQwenEvaluate=async()=>({
+ generating:false,answerCount:0,texts:[],url:'https://chat.qwen.ai/c/new-uuid',
+ editorState:'missing',sendState:'missing',pageVisibility:'hidden'
+});
+(async()=>{
+ await assert.rejects(
+  ()=>vm.runInContext('_cwaQwenWaitForFinalText({}, "secret", {answerCount:0,initialUrl:"https://chat.qwen.ai/"}, 120000)',ctx),
+  error=>{
+   assert.match(error.message,/QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_WRITE_OR_NAVIGATION/);
+   assert.match(error.message,/routeChanged=true/);
+   assert.ok(!error.message.includes('secret'));
+   return true;
+  }
+ );
+ assert.ok(now>=20000&&now<21000,
+   'route transition is not an endlessly renewable generation signal');
 })().catch(e=>{console.error(e);process.exitCode=1});
 """
     result = subprocess.run(
