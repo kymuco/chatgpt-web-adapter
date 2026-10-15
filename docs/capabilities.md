@@ -15,6 +15,7 @@ particular runtime instance.
 | ChatGPT | structured search/tool/source/citation observations | Production on proven paths | runtime observations | Observation is not downstream authority |
 | DeepSeek Web | text new chat + continuation | Experimental | `DeepSeekWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
 | Gemini Web | text new chat + continuation | Experimental | `GeminiWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
+| Qwen Web | text new chat, continuation, network SSE and `--chat` reattachment (Windows live-verified) | Experimental / **isolated Qwen extension** | `QwenClient(transport="browser")` | Network stream verified on observed turns; canonical finality unproven |
 | Google Translate Web | text translation | Experimental | `GoogleTranslateWebCapability` module-only | `PAGE_DOM_STABLE_TRANSLATION`, noncanonical |
 | Gemini Notebook Web | add web URL source | Experimental | `GeminiNotebookWebCapability` module-only | `PAGE_DOM_DURABLE_SOURCE_ADMISSION`, noncanonical |
 | Gemini Notebook Web | generate + observe Audio Overview | Experimental | `GeminiNotebookWebCapability` module-only | background acceptance, then `PAGE_DOM_DURABLE_BACKGROUND_ARTIFACT_COMPLETION` after reload verification; noncanonical |
@@ -29,7 +30,8 @@ local application
 -> hosted conversational product
 ```
 
-The current chat family includes ChatGPT, DeepSeek Web, and Gemini Web.
+The current chat family includes ChatGPT, DeepSeek Web, Gemini Web and isolated
+experimental Qwen Web (see [Qwen SDK guide](qwen.md)).
 
 `ProductProviderBoundary schema 2` is a metadata/invariant view over those runtimes.
 It is not a request router.

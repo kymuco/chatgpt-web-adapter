@@ -30,6 +30,7 @@ def test_current_repository_entrypoints_exist() -> None:
         "docs/capabilities.md",
         "docs/agent_integration.md",
         "docs/adding_capability.md",
+        "docs/qwen.md",
         "llms.txt",
     ):
         assert (ROOT / path).is_file(), path
@@ -51,6 +52,34 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
     assert (
         "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY" in text
     )
+
+
+def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
+    guide = _read("docs/qwen.md")
+    index = _read("docs/README.md")
+    readme = _read("README.md")
+
+    for example in (
+        "python -m chatgpt_web_adapter.qwen_native",
+        "python .\\qwen_sdk.py --stream network",
+        "--auto-confirm-age",
+        "--foreground-tab",
+        "--chat",
+        "/retry",
+        'QwenClient(transport="browser")',
+        "client.retry(conversation=chat)",
+        "on_token=lambda fragment:",
+        "client.import_browser_auth()",
+        'QwenClient(transport="http")',
+    ):
+        assert example in guide, example
+
+    assert "com.kymuco.qwen_web_adapter" in guide
+    assert "com.kymuco.chatgpt_web_adapter" in guide
+    assert "not live-proven" in guide
+    assert "Never automatically resend" in guide
+    assert "[Qwen SDK](docs/qwen.md)" in readme
+    assert "qwen.md" in index
 
 
 def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() -> None:
@@ -176,8 +205,10 @@ def test_post_pr17_2_checkpoint_is_bounded_to_source_and_proven_evidence() -> No
     readme = _read("README.md")
     checkpoint = _read("docs/engineering/pr17_2_canonical_product_checkpoint.md")
 
-    assert "_Last updated: 2026-10-08_" in status
-    assert "PR17.2 merged; canonical checkpoint / release hygiene" in status
+    # The current status may advance; PR17.2 is a retained historical checkpoint.
+    assert "_Last updated:" in status
+    assert "PR17.2 merged" in status
+    assert "Historical canonical `main` baseline after PR17.2" in status
     assert "CONVERSATION_LOCAL_DURABLE" in status
     assert "LAST_SELECTED_MODE_OBSERVED" in status
     assert "TURN_REQUIREMENT" in status
