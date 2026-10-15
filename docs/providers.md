@@ -316,6 +316,17 @@ second = client.send_text("What word?", conversation=first.conversation)
 print(second.text)
 ```
 
+Qwen's browser composer input uses one Chrome DevTools Protocol
+`Input.insertText` operation after the empty textarea is focused and checked.
+This replaces synthetic `textarea.value` + `InputEvent` writes, which could
+leave Qwen's internal React composer state stale: text remained visible but
+`control.click()` produced no turn. The Send control is still clicked exactly
+once. If a previous ambiguous prompt remains in the textarea, the SDK stops
+with `QWEN_PRE_SUBMIT_COMPOSER_NOT_EMPTY` instead of overwriting it; inspect
+and reconcile the previous turn on Qwen before clearing the field manually.
+This input-path change is covered by deterministic tests but is not yet
+verified live in the user's current session.
+
 The browser transport returns the complete answer after observing completion in
 the page. The optional `on_text` callback receives full answer-text snapshots approximately
 every 250 ms while the DOM changes. Replace the displayed answer with each
