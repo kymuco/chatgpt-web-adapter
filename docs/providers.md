@@ -162,10 +162,12 @@ uses Qwen-specific
 composer, send-button, answer-phase and stop-generation DOM evidence rather than
 exporting credentials or reproducing Qwen's private HTTP protocol.
 
-Text, new chat and continuation are implemented **but not yet live-verified** on
-an authenticated Chrome session. The advertised capability states remain
-`UNKNOWN` until a successful live acceptance gate; all other advanced
-capabilities remain unimplemented or unknown. Canonical finality is unproven.
+Text new-chat, multi-turn continuation, network-streamed responses and
+`--chat` reattachment have **user-confirmed installed Windows SDK evidence**
+from 2026-10-15. The advertised capability states remain `UNKNOWN` in the
+current experimental metadata until separately reviewed/updated. This does
+not imply absent live evidence: intermittent failures and advanced feature
+gaps remain. Canonical/durable answer finality is still not generally proven.
 
 An ambiguous result after potential submission requires reconciliation, never
 an automatic retry. This experiment does not export Qwen tokens/cookies or
@@ -243,7 +245,8 @@ See [architecture.md](architecture.md) and
 > after reverting the two shared Qwen extension modifications. This is a
 > correlated rollback observation, not proof of a specific JavaScript collision.
 > The separate Qwen extension and native host source now exist in PR #213,
-> but the **installed end-to-end browser SDK is not yet accepted**.
+> and the **installed Qwen SDK already passed a user-run text/continuation
+> end-to-end baseline**. Intermittent reliability defects remain open.
 > Qwen browser modules are **not imported** by the normal CWA service worker,
 > and `chat.qwen.ai` is not included in its host permissions.
 > The Qwen **browser CLI cannot use the quarantined shared extension**; it
@@ -255,7 +258,8 @@ See [architecture.md](architecture.md) and
 
 The Qwen provider now offers explicit browser and HTTP modes through `QwenClient`.
 Neither transport silently retries a possibly completed write or falls back to
-the other transport. Both remain experimental pending authenticated live proof.
+the other transport. Both remain experimental; live basic browser operation
+is user-confirmed but full reliability and advanced behaviors are not.
 
 ```python
 from chatgpt_web_adapter.qwen_client import QwenClient
@@ -317,7 +321,9 @@ diagnostic mode**, **not** a proven remedy for unobserved Qwen POSTs. It activat
 The ordinary browser mode remains in the background and unchanged; neither
 mode auto-retries a potentially submitted prompt. A successful foreground run alone does not prove hidden-tab lifecycle effects;
 the earlier failure was also reproduced in a visible tab. It is not a
-guarantee of Qwen responsiveness and has not been live-verified.
+guarantee of Qwen responsiveness. The visible-tab failure was reproduced
+before the separate-bridge update; the user later confirmed basic operation
+without requiring the diagnostic flag.
 
 The default transport is `browser`. Interactive mode preserves the returned
 conversation for subsequent messages; `/exit` ends the session. A new process starts a new SDK conversation. Existing conversations are never
@@ -341,9 +347,9 @@ leave Qwen's internal React composer state stale: text remained visible but
 once. If a previous ambiguous prompt remains in the textarea, the SDK stops
 with `QWEN_PRE_SUBMIT_COMPOSER_NOT_EMPTY` instead of overwriting it; inspect
 and reconcile the previous turn on Qwen before clearing the field manually.
-This input-path change was checked in a controlled background CDP browser
-experiment using Qwen helper functions; full Python → native host → extension
-→ Qwen end-to-end deployment is not yet verified.
+The focus/input path was checked both in the background CDP diagnostic and
+by successful user-run Python SDK turns through the separate native extension.
+An intermittent first-turn failure remains open.
 
 In `--stream network` mode, the browser transport returns the verified SSE
 answer reconstructed from Qwen's own stream; this is the recommended mode for
@@ -356,12 +362,18 @@ arguments, attachments and temporary-chat controls are not implemented for this
 transport. Login or verification must be completed on the Qwen site. Failed or
 ambiguous generations are never automatically replayed.
 
-Historical shared-extension SDK verification returned `FIRST_OK` and
-`ORCHID` in one conversation, but subsequent production CWA interference
-made that deployment unsuitable. A separate diagnostic browser-CDP experiment
-on 2026-10-15 confirmed hidden-tab Send and SSE completion independently of
-the native host; the **new isolated native installation remains unverified
-end-to-end**. Those observations are not TTFT benchmarks.
+**User-run installed Qwen SDK (2026-10-15):** `--stream network`
+successfully delivered `привет`, a complete count from **1 to 100**, and a
+third reply in one conversation. Another turn (Formula 1) showed
+`POST_SUBMIT_UI_UNOBSERVED_AFTER_WRITE_OR_NAVIGATION` despite
+`write=completion network=finished http=200`. After restarting the CLI and
+using `--chat e7f86959-2bf8-4803-a244-ba19cd8e3b08`, Qwen listed the
+previous questions **including** the Formula 1 prompt. Thus message
+persistence succeeded even though SDK response observation failed. A separate
+first-send attempt failed with `write=none network=unobserved` (outcome still
+uncertain). Basic end-to-end operation is confirmed; consistent reliability,
+`/retry` and dual-response handling remain to be demonstrated. No accurate
+TTFT benchmark has yet been recorded.
 
 ### Experimental direct HTTP
 
@@ -458,5 +470,6 @@ support or incomplete SSE finality raises an error without resending the prompt
 or silently substituting DOM snapshots. Partial output may precede an error.
 
 CLI: `python qwen_sdk.py --stream network`. The default `--stream dom` remains
-available. Network streaming is implemented and unit-tested, but live validation
-requires reloading the updated extension; no latency claim is established yet.
+available. Network streaming is both unit-tested and **live-verified by the
+user** on the installed Qwen SDK (including a complete 1–100 answer).
+No reliable latency benchmark has been established yet.

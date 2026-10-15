@@ -1,9 +1,10 @@
 # Qwen browser isolation gate (PR #213)
 
-Status: **ISOLATED SOURCE IMPLEMENTED — LIVE INSTALLED ACCEPTANCE PENDING**
-(2026-10-15). The normal CWA remains quarantined from Qwen. Commit
-`bec72b31` introduced a separate Qwen native host; later PR commits added
-release/package and isolation regression gates.
+Status: **INSTALLED WINDOWS QWEN SDK LIVE BASELINE VERIFIED — RELIABILITY
+GAPS OPEN** (2026-10-15). The user and Codex ran Python SDK → isolated
+Qwen bridge → Chrome → Qwen end-to-end *before* pushing `bec72b31`.
+Normal ChatGPT/HDE CWA remains separate; later commits repaired the
+release/package gate and added isolation regression tests.
 
 ## Observed evidence
 
@@ -15,9 +16,14 @@ release/package and isolation regression gates.
 - This is strong rollback evidence implicating the shared extension deployment
   or its runtime coupling. It **does not isolate** one of the two modified files
   or prove that the Qwen provider JS itself directly caused the failure.
-- Separately, Qwen browser Send repeatedly failed with
-  `QWEN_POST_SUBMIT_START_UNOBSERVED`, including an explicitly foreground tab.
-  No authenticated live acceptance proof exists for the latest input changes.
+- Qwen browser Send intermittently failed, including one visible-tab
+  `QWEN_POST_SUBMIT_START_UNOBSERVED`. But the user's post-fix Windows
+  `--stream network` transcript also proves successful new-chat and multiple
+  consecutive turns. After a Formula 1 prompt, an ambiguous observation
+  returned `write=completion network=finished http=200`. Reattaching via
+  `--chat` in a fresh process showed that the prompt was indeed in Qwen's
+  conversation history. Treat this as **write succeeded, UI readback failed**,
+  and NEVER blindly replay the prompt.
 
 ## Current source boundary
 
@@ -77,10 +83,11 @@ substitute for native host and bridge isolation. The essential boundaries are:
 - **Offline integration gate:** simulate one Send, one ambiguous Send and
   a stale previous prompt. Any unconfirmed commit must remain fenced and
   must never be retried automatically.
-- **Single live Qwen gate:** only after isolation is proven, send at most one
-  user-authorized test prompt and collect timing/evidence for
-  `compose_ready → text_inserted → commit_attempted → request_seen →
-  first_answer_observed → finality`. No credentials or request bodies in logs.
+- **Live Qwen baseline:** user-confirmed installed end-to-end text, SSE and
+  `--chat` attach are already accepted. New probes should target previously
+  unresolved intermittent sends and UI observation after a finished HTTP 200,
+  measuring `compose_ready → insertion → Send → POST → first fragment →
+  SSE finality → DOM readback`. No credentials or request bodies in logs.
 - **Production regression gate:** confirm ordinary ChatGPT/HDE remains healthy.
   If not, stop and restore the last known-good shared deployment.
 - **Promotion:** do not merge experimental Qwen browser integration into
@@ -96,6 +103,7 @@ completion semantics. A single successful HTTP generation is not proof of
 long-term session renewal or product compatibility.
 
 The independent extension/host code now exists. This document is still an
-**acceptance gate**: GitHub tests alone do not prove installed Windows native
-registration, repeated Chrome runs, correct two-response selection, or
-production HDE health under prolonged Qwen use.
+**acceptance gate**: the user's actual Windows SDK runs prove the installed
+text/continuation/reattachment baseline. GitHub tests and those transcripts
+still do not prove long-run reliability, correct two-response selection,
+an exercised `/retry` branch, or production HDE health under prolonged use.

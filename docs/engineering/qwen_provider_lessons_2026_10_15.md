@@ -1,7 +1,9 @@
 # Qwen provider: verified findings and engineering rules (2026-10-15)
 
-Scope: draft PR #213. This is a durable engineering record, not a claim of
-production readiness or of installed Windows end-to-end acceptance.
+Scope: draft PR #213. This is a durable engineering record. The user and
+Codex performed successful **installed Windows Python SDK end-to-end tests
+before pushing commit `bec72b31`**. This proves a working baseline, not
+uninterrupted reliability or production readiness.
 
 ## Evidence levels (do not confuse these)
 
@@ -14,12 +16,26 @@ production readiness or of installed Windows end-to-end acceptance.
    helper functions using a diagnostic CDP event adapter, **not** the installed
    Python SDK/native messaging path. The trace is described in the repo but is
    not a separately replayable full E2E CI fixture.
-3. **Native extension deployment:** distinct Qwen native host and worker have
-   been implemented, with offline source/packaging tests. A live Windows
-   install + first browser send + continuation + restart still needs acceptance.
-4. **Production promotion:** would additionally require repeated success with
-   no regression to ordinary CWA/HDE, measured responsiveness, explicit choice
-   handling and no uncertain-write replay. PR #213 stays Draft.
+3. **Installed Windows SDK end-to-end (USER CONFIRMED):** before the Codex
+   commit was pushed, the user ran
+   `python qwen_sdk.py --auto-confirm-age --birth-year 2000 --stream network`.
+   In one interactive session, Qwen answered `привет`, enumerated **1–100**
+   completely, and replied to `круто молодец`. A later query about Formula 1
+   returned `QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_WRITE_OR_NAVIGATION` with
+   `write=completion network=finished http=200`. In a **new SDK process**,
+   `python qwen_sdk.py --chat e7f86959-2bf8-4803-a244-ba19cd8e3b08
+   --auto-confirm-age --birth-year 2000 --stream network` correctly recovered
+   the previous messages, **including** the Formula 1 question. This proves
+   successful new-chat, continuation, network answer delivery and explicit
+   conversation reattachment across processes. It also proves that the
+   ambiguous UI error can occur **after a durable user message**.
+   A separate initial run reported `write=none network=unobserved`,
+   `editor=empty send=missing visibility=visible`; this remains a real
+   intermittent failure, not proof of a rejected request.
+4. **Production promotion:** repeated reliable startup/sends, handling of
+   ambiguous completed writes, observed explicit `/retry` and dual-response
+   cases, measured responsiveness, and no regression to ordinary CWA/HDE
+   remain open. PR #213 stays Draft.
 
 ## What our earlier debugging got wrong
 
@@ -122,10 +138,12 @@ tab/site ready
 4. Verify engineering quality, Python/OS matrix, **build release artifacts**,
    installed wheel and native-host script/worker packaging. A green unit suite
    alone is insufficient. Inspect workflow job logs and repair actual failures.
-5. When offline and packaging gates pass, ask for **one** controlled
-   authenticated end-to-end test of the isolated Qwen runtime. Capture
+5. **Do not repeat acceptance tests already demonstrated by user transcripts.**
+   Preserve the user-confirmed successful new-chat, continuation, SSE delivery
+   and `--chat` reattachment as the baseline. For *new regressions* capture
    `readiness → insertion → commit → POST → first text → finished` timing with
-   safe metadata, but no credentials or prompt bodies in diagnostic output.
+   safe metadata and no credentials or prompt bodies. Prioritize specifically
+   the intermittent first-send failure and post-write UI observation gap.
 6. Check HDE/ChatGPT separately after changes to common packaging or
    installation code; keep the ordinary installed CWA unchanged.
 7. Update this record with verified results, open questions and reproduction
@@ -137,11 +155,14 @@ not a prerequisite for ordinary diagnosis, commits, CI inspection or docs.
 
 ## Outstanding acceptance requirements
 
-- Install and authorize the separate Qwen extension in Chrome; verify native
-  registration, `qwen-native/bridge.json` and end-to-end SDK `--stream network`
-  operation **without touching production CWA**.
-- Check fresh new-chat, `--chat` continuation, session restart, explicit
-  high-demand `/retry`, and delayed/dual-response UI.
+- **Already verified on user's Windows machine:** installed Qwen SDK browser
+  transport, new-chat, multi-turn continuation, network SSE text and explicit
+  `--chat` reattachment in a new process. Do not reclassify these as untested.
+- **Still outstanding:** reproducible handling of intermittent cold/start Send
+  failure; recovery/readback when `completion network=finished http=200` but
+  UI observation fails; explicit high-demand `/retry`, delayed/dual-response
+  choice, longer sessions and measured latency. If deployment setup needs
+  retesting, make it a focused regression gate, not a restart of E2E discovery.
 - Measure real TTFT and finality separately. Do not infer latency from wall
   clock duration or from the interval between DOM snapshots.
 - Preserve security of Qwen auth export and avoid logging request bodies,
