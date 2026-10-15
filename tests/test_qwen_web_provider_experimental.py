@@ -180,6 +180,10 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "textarea.message-input-textarea" in worker
     assert "button.send-button" in worker
     assert "composer.value !== requestedText" in worker
+    assert '"Input.insertText"' in worker
+    assert "composer.setSelectionRange(0, 0)" in worker
+    assert 'new InputEvent("input"' not in worker
+    assert "composer_not_empty" in worker
     assert "fetch(" not in worker
     assert "XMLHttpRequest" not in worker
     assert "Network.getResponseBody" not in worker

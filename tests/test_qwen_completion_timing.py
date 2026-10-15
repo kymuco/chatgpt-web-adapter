@@ -250,16 +250,19 @@ const ctx=vm.createContext({
   registerProductProviderTurnHandler(){},
   sleep:async ms=>{now+=ms},
   _cwaBaseSendCommand:async (_,method,params)=>{
-    throw Error('unexpected '+method);
+    assert.equal(method,'Input.insertText');
+    assert.equal(params.text,'My question');
+    events.push('inserted');
+    return {};
   }
 });
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
 ctx._cwaQwenWaitForComposer=async()=>{events.push('page_ready')};
 ctx._cwaQwenHandleAgeGate=async()=>false;
 ctx._cwaQwenEvaluate=async(_,expr)=>{
-  if(expr.includes('message-input-textarea') && expr.includes('InputEvent')){
-    events.push('typed');
-    return {written:true};
+  if(expr.includes('message-input-textarea') && expr.includes('setSelectionRange')){
+    events.push('prepared');
+    return {prepared:true};
   }
   if(expr.includes('send_control_not_ready')){
     if(expr.endsWith(',true)')){
@@ -274,14 +277,14 @@ ctx._cwaQwenEvaluate=async(_,expr)=>{
 };
 (async()=>{
  await vm.runInContext('_cwaQwenSubmitOnce({}, "My question", 6000)',ctx);
- assert.deepEqual(events,['page_ready','typed','checked','clicked']);
+ assert.deepEqual(events,['page_ready','prepared','inserted','checked','checked','clicked']);
  events.length=0;reset=true;now=0;
  await assert.rejects(
   ()=>vm.runInContext('_cwaQwenSubmitOnce({}, "My question", 6000)',ctx),
   /QWEN_PRE_SUBMIT_COMPOSER_VALUE_MISMATCH/
  );
- assert.deepEqual(events,['page_ready','typed','checked'],
-   'composer erased after age handling must never wait 150s or click Send');
+ assert.deepEqual(events,['page_ready','prepared','inserted','checked'],
+   'composer erased after browser text input must not click Send or wait 150s');
 })().catch(e=>{console.error(e);process.exitCode=1});
 """
     result = subprocess.run(
@@ -438,7 +441,7 @@ const ctx = vm.createContext({
 vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'), ctx);
 ctx._cwaQwenHandleAgeGate = async () => false;
 ctx._cwaQwenEvaluate = async (_, expression) => (
-  expression.includes("InputEvent")
+  expression.includes("setSelectionRange(0, 0)")
     ? {found:false, dualPending:true}
     : {
       generating:false, dualPending:true, answerCount:2,
@@ -657,6 +660,54 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
  assert.equal(actions[2].active,true);
  assert.equal(actions.length,3,'existing tab must be reused');
 })().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_qwen_composer_preflight_preserves_nonempty_previous_prompt():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+class Element {}
+let content='stale ambiguous prompt', focuses=0, selections=0;
+const composer=Object.assign(new Element(),{
+  disabled:false,
+  getBoundingClientRect:()=>({width:250,height:60}),
+  focus(){focuses++; ctx.document.activeElement=this},
+  setSelectionRange(){selections++}
+});
+Object.defineProperty(composer,'value',{get:()=>content,set:value=>{throw Error('forbidden synthetic value write')}});
+const ctx=vm.createContext({
+  registerProductProviderTurnHandler(){},
+  Element,
+  getComputedStyle:()=>({display:'block',visibility:'visible'}),
+  document:{
+    body:{innerText:''},activeElement:null,
+    querySelectorAll:(selector)=>selector.includes('textarea.message-input-textarea')?[composer]:[]
+  }
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+const inspect=()=>vm.runInContext(vm.runInContext('_cwaQwenComposerExpression("new question")',ctx),ctx);
+let result=inspect();
+assert.equal(result.reason,'composer_not_empty');
+assert.equal(result.prepared,false);
+assert.equal(focuses,0);
+assert.equal(content,'stale ambiguous prompt');
+content='';
+result=inspect();
+assert.equal(result.prepared,true);
+assert.equal(focuses,1);
+assert.equal(selections,1);
+assert.equal(content,'','preflight never directly sets textarea.value');
 """
     result = subprocess.run(
         [node, "-e", script, str(worker)], capture_output=True, text=True
