@@ -1,6 +1,6 @@
 # Qwen Web SDK — setup and reference examples
 
-> **Want only Qwen running in a terminal?** Follow the shorter **[Qwen-only quickstart](../QWEN.md)**. It includes first-time Chrome extension setup and the exact one-command CLI launch: `python .\\qwen_sdk.py --stream network` (from the repository root). The full reference continues below.
+> **Want only Qwen running in a terminal?** Follow the shorter **[Qwen-only quickstart](../QWEN.md)**. It includes first-time Chrome extension setup and the exact one-command CLI launch: `python .\qwen_sdk.py --stream network` (from the repository root). The full reference continues below.
 
 CWA's **Qwen Web adapter** exposes the signed-in [chat.qwen.ai](https://chat.qwen.ai/) product through a Python SDK and CLI. It is an **experimental provider**, not the official Qwen API and not the default ChatGPT/HDE runtime.
 
