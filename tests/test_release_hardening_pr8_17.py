@@ -6,7 +6,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
 from tools import installed_wheel_smoke, release_gate
 
 
