@@ -42,7 +42,7 @@ ctx._cwaBaseSendCommand = async (_, method) => method === 'Network.enable' ? {} 
  emit('Network.responseReceived',{requestId:'r',response:{status:200,mimeType:'text/event-stream'}});
  emit('Network.dataReceived',{requestId:'r',data:Buffer.from(frame({phase:'answer',content:'B'})+frame({phase:'answer',status:'finished'})).toString('base64')});
  resolveEnable({bufferedData:Buffer.from(frame({phase:'answer',content:'A'})).toString('base64')});
- await observer.verify();
+ assert.equal(await observer.verify(), 'AB');
  assert.deepEqual(events.map(e=>e.event.text),['A','B']);
  observer.close(); assert.equal(listener,null);
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -53,7 +53,13 @@ async function _cwaQwenStoreRoute(conversationId, url) {
 async function _cwaQwenRouteForConversation(conversationId) {
   const routes = await _cwaQwenStoredRoutes();
   const value = routes?.[conversationId];
-  return typeof value === "string" && _cwaQwenIsConversationRoute(value) ? value : null;
+  if (typeof value === "string" && _cwaQwenIsConversationRoute(value)) return value;
+  if (typeof conversationId === "string" && _cwaQwenIsConversationRoute(conversationId)) {
+    const url = new URL(conversationId);
+    if (url.search || url.hash || url.username || url.password) return null;
+    return url.origin + url.pathname.replace(/\/$/, "");
+  }
+  return null;
 }
 
 async function _cwaQwenExistingTab() {
@@ -97,8 +103,8 @@ async function _cwaQwenEnsureTab(conversationId, foregroundTab = false) {
   let tab = conversationId === null
     ? available.find(candidate => _cwaQwenIsEmptyChatRoute(candidate.url || ""))
     : available.find(candidate => candidate.url === expectedRoute);
-  if (!tab && conversationId === null) {
-    tab = await chrome.tabs.create({url: CWA_QWEN_ORIGIN + "/", active: foregroundTab === true});
+  if (!tab) {
+    tab = await chrome.tabs.create({url: expectedRoute || CWA_QWEN_ORIGIN + "/", active: foregroundTab === true});
   }
   if (!tab || !Number.isInteger(tab.id)) {
     throw new Error(conversationId === null
@@ -188,12 +194,15 @@ function _cwaQwenSnapshotExpression(promptText) {
         ? "disabled" : "enabled";
     const pageVisibility = document.visibilityState === "hidden" ? "hidden" : "visible";
     const pageText = document.body?.innerText || "";
+    const latestResponse = Array.from(document.querySelectorAll('[id^="chat-response-message-"]')).at(-1);
+    const serviceBusy = (latestResponse?.innerText || "").includes("The service is currently experiencing high demand.");
+
     const dualPending = pageText.includes("This feedback will help us evaluate and improve Qwen's performance.") &&
       pageText.includes("Which response do you prefer?");
     // Keep answer candidates on Qwen's page. No inferred canonical index and
     // no automatic feedback vote or persistence of user conversations.
     return {url: location.href, texts, generating, answerCount: answers.length,
-      editorState, sendState, pageVisibility, dualPending};
+      editorState, sendState, pageVisibility, dualPending, serviceBusy};
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(promptText) + ")";
 }
@@ -562,11 +571,12 @@ function _cwaQwenLatestNewText(snapshot, baseline) {
   return null;
 }
 
-async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, onText = null, message = {}, ageState = {}, writeObserver = null) {
+async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, onText = null, message = {}, ageState = {}, writeObserver = null, networkStream = null) {
   let lastText = null;
   let stableSince = null;
   let idleSince = null;
   let unobservedSince = null;
+  const startedAtRetry = performance.now();
   while (performance.now() < deadlineAt) {
     let snapshot;
     let gateActive = false;
@@ -589,6 +599,9 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
       await sleep(250);
       continue;
     }
+    if (snapshot?.serviceBusy === true && (message.operation !== "regenerate" || performance.now() - startedAtRetry > 2000)) {
+      throw new Error("QWEN_SERVICE_BUSY: Qwen reports high demand; use Regenerate in the existing chat; no automatic resend");
+    }
     // An absent Stop button can be a temporary phase transition.
     // Only explicit idle observations count towards a continuous quiet window.
     if (snapshot?.generating === false) {
@@ -600,6 +613,9 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
     // response. Never stream an arbitrary last DOM node as authoritative.
     if (snapshot?.dualPending === true) {
       throw new Error("QWEN_DUAL_RESPONSE_SELECTION_REQUIRED: Qwen displayed Response 1 and Response 2; choose one in the tab to establish the continuation; no automatic vote or text replay");
+    }
+    if (networkStream?.completed && _cwaQwenIsConversationRoute(snapshot?.url)) {
+      return {text: await networkStream.verify(), url: snapshot.url};
     }
     const candidate = _cwaQwenLatestNewText(snapshot, baseline);
     // A route change proves the UI navigated, NOT that the answer is being
@@ -760,7 +776,11 @@ async function _cwaQwenHandleTurn(message) {
   const timeoutMs = Math.max(5000, Math.min(Number(message?.timeoutMs) || 120000, 180000));
   const deadlineAt = performance.now() + timeoutMs;
   const startedAt = performance.now();
-  const tab = await _cwaQwenEnsureTab(conversationId, message.foregroundTab === true);
+  const retry = message.operation === "regenerate";
+  const tab = retry && conversationId === null
+    ? await _cwaQwenExistingTab()
+    : await _cwaQwenEnsureTab(conversationId, message.foregroundTab === true);
+  if (!tab || (retry && !_cwaQwenIsConversationRoute(tab.url))) throw new Error("QWEN_RETRY_CHAT_NOT_OPEN");
   const initialUrl = tab.url || CWA_QWEN_ORIGIN + "/";
   const debuggee = { tabId: tab.id };
   let attached = false;
@@ -788,7 +808,16 @@ async function _cwaQwenHandleTurn(message) {
     // Enable passive write metadata before the one-and-only Send.
     writeObserver = await _cwaQwenObserveWriteLifecycle(debuggee);
     if (message.streamNetwork === true) networkStream = await _cwaQwenObserveStream(debuggee, message);
-    await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message, ageState, true);
+    if (retry) {
+      const committed = await _cwaQwenEvaluate(debuggee, `(() => {
+        const response = Array.from(document.querySelectorAll('[id^="chat-response-message-"]')).at(-1);
+        if (!response || !(response.innerText || "").includes("The service is currently experiencing high demand.")) return false;
+        const button = Array.from(response.querySelectorAll('button')).find(el => el.getAttribute('aria-label') === 'Regenerate' || el.textContent.trim() === 'Regenerate' || el.getAttribute('title') === 'Regenerate');
+        if (!button || button.disabled) return false;
+        button.click(); return true;
+      })()`);
+      if (!committed) throw new Error("QWEN_RETRY_CONTROL_UNAVAILABLE");
+    } else await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message, ageState, true);
     try {
       const final = await _cwaQwenWaitForFinalText(
         debuggee,
@@ -803,16 +832,17 @@ async function _cwaQwenHandleTurn(message) {
         }) : null,
         message,
         ageState,
-        writeObserver
+        writeObserver,
+        networkStream
       );
-      if (networkStream) await networkStream.verify();
+      if (networkStream) final.text = await networkStream.verify();
       const finalTab = await chrome.tabs.get(tab.id);
       const finalUrl = typeof finalTab?.url === "string" ? finalTab.url : final.url;
       if (!_cwaQwenIsConversationRoute(finalUrl)) throw new Error("QWEN_FINAL_ROUTE_INVALID");
 
       let resolvedConversationId = conversationId;
       if (resolvedConversationId === null) {
-        if (finalUrl === initialUrl) {
+        if (finalUrl === initialUrl && !retry) {
           throw new Error("QWEN_NEW_CHAT_ROUTE_IDENTITY_UNPROVEN");
         }
         resolvedConversationId = crypto.randomUUID();

@@ -31,9 +31,11 @@ function _cwaQwenSseParser(onDelta) {
 async function _cwaQwenObserveStream(debuggee, message) {
   let requestId = null, ready = false, closed = false, failure = null;
   let pending = [], count = 0;
+  let answerText = "";
   let enabling = Promise.resolve();
   const parser = _cwaQwenSseParser(text => {
     count++;
+    answerText += text;
     postNative({protocol: BRIDGE_PROTOCOL_VERSION, type: "turn_event",
       request_id: message.request_id,
       event: {providerId: "qwen", type: "text_delta", text}});
@@ -50,7 +52,7 @@ async function _cwaQwenObserveStream(debuggee, message) {
         if (url.origin === "https://chat.qwen.ai" && url.pathname === "/api/v2/chat/completions" && params.request.method === "POST") {
           // Only bind the turn we submitted, not another request in the tab.
           const body = JSON.parse(params.request.postData || "null");
-          if (body?.messages?.some(item => item.role === "user" && item.content === message.text)) requestId = params.requestId;
+          if (message.operation === "regenerate" || body?.messages?.some(item => item.role === "user" && item.content === message.text)) requestId = params.requestId;
         }
       } catch {}
     }
@@ -77,9 +79,11 @@ async function _cwaQwenObserveStream(debuggee, message) {
   try { await _cwaBaseSendCommand(debuggee, "Network.enable", {maxPostDataSize: 1048576}); }
   catch (error) { chrome.debugger.onEvent.removeListener(observer); throw error; }
   return {
+    get completed() { return ready && !failure && count > 0 && parser.finished; },
     async verify() {
       await enabling;
       if (failure || !count || !parser.finished) throw new Error(failure || "QWEN_NETWORK_STREAM_INCOMPLETE");
+      return answerText;
     },
     close() { closed = true; chrome.debugger.onEvent.removeListener(observer); pending = []; }
   };

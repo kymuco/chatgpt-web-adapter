@@ -100,6 +100,41 @@ class QwenClient:
             )
         return self._http
 
+    @staticmethod
+    def chat(value: str):
+        """Attach by a Qwen conversation URL or UUID, without sending a message."""
+        import re
+        from urllib.parse import urlsplit
+
+        from .types import ChatConversation
+
+        if not isinstance(value, str):
+            raise ValueError("Qwen chat URL or ID required")
+        value = value.strip()
+        if re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", value):
+            value = "https://chat.qwen.ai/c/" + value
+        url = urlsplit(value)
+        if (
+            url.scheme != "https"
+            or url.netloc != "chat.qwen.ai"
+            or url.query
+            or url.fragment
+            or not re.fullmatch(
+                r"/c/[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/?", url.path
+            )
+        ):
+            raise ValueError("Expected https://chat.qwen.ai/c/UUID or UUID")
+        return ChatConversation(
+            conversation_id="https://chat.qwen.ai" + url.path.rstrip("/")
+        )
+
+    def retry(self, *, conversation=None, on_token=None, on_text=None):
+        if self.transport != "browser":
+            raise ValueError("Retry requires browser transport")
+        return self.send_text(
+            "/retry", conversation=conversation, on_token=on_token, on_text=on_text
+        )
+
     def send_text(
         self,
         text: str,

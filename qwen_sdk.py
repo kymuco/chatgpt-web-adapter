@@ -35,15 +35,24 @@ class _QwenLiveAnswer:
         if not isinstance(text, str) or text == self._current:
             return
         # Model-generated terminal controls must never execute.
-        safe = "".join(c for c in text if c in "\n\t" or (ord(c) >= 32 and ord(c) != 127))
+        safe = "".join(
+            c for c in text if c in "\n\t" or (ord(c) >= 32 and ord(c) != 127)
+        )
         self._current = safe
         if not self._interactive:
             return
         width = max(24, shutil.get_terminal_size((80, 24)).columns - 8)
         lines = []
         for paragraph in safe.expandtabs(4).split("\n"):
-            lines.extend(textwrap.wrap(paragraph, width=width, replace_whitespace=False,
-                                       drop_whitespace=False) or [""])
+            lines.extend(
+                textwrap.wrap(
+                    paragraph,
+                    width=width,
+                    replace_whitespace=False,
+                    drop_whitespace=False,
+                )
+                or [""]
+            )
         rendered = "\n".join(lines)
         if self._rows:
             self._out.write(f"\x1b[{self._rows}F\x1b[J")
@@ -56,7 +65,6 @@ class _QwenLiveAnswer:
         if not self._interactive:
             self._out.write(self._current + "\n")
             self._out.flush()
-
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,6 +112,9 @@ def main(argv: list[str] | None = None) -> int:
         default="dom",
         help="browser streaming source",
     )
+    parser.add_argument(
+        "--chat", help="existing Qwen chat URL or ID; omit for a new chat"
+    )
     args = parser.parse_args(argv)
 
     args.transport = args.transport or ("http" if args.import_auth else "browser")
@@ -128,7 +139,12 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
-    browser_conversation = None
+    if args.chat and args.transport != "browser":
+        parser.error("--chat currently requires browser transport")
+    try:
+        browser_conversation = QwenClient.chat(args.chat) if args.chat else None
+    except ValueError as error:
+        parser.error(str(error))
 
     def send(message: str, *, interactive: bool) -> None:
         nonlocal browser_conversation
@@ -139,11 +155,23 @@ def main(argv: list[str] | None = None) -> int:
             )
             print()
         elif args.transport == "browser" and args.stream == "network":
+            network_chunks = []
+
+            def show_network(fragment):
+                network_chunks.append(fragment)
+                print(fragment, end="", flush=True)
+
             result = client.send_text(
                 message,
                 conversation=browser_conversation,
-                on_token=lambda fragment: print(fragment, end="", flush=True),
+                on_token=show_network,
             )
+            if not network_chunks:
+                print(
+                    "[No live fragments received; displaying final answer]",
+                    file=sys.stderr,
+                )
+                print(result.text, end="", flush=True)
             print()
         elif args.transport == "browser":
             live = _QwenLiveAnswer()
@@ -185,7 +213,11 @@ def main(argv: list[str] | None = None) -> int:
             if message.lower() in {"/exit", "/quit"}:
                 break
             if message:
-                send(message, interactive=True)
+                try:
+                    send(message, interactive=True)
+                except Exception as error:
+                    print("Qwen SDK error: " + str(error), file=sys.stderr)
+                    print("For Qwen overload: /retry. Exit: /exit", file=sys.stderr)
         return 0
     except KeyboardInterrupt:
         print()

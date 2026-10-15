@@ -101,6 +101,12 @@ class QwenWebWriteOutcomeAmbiguousError(RequestError):
 class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
     """Experimental Qwen Web turn provider over the existing local bridge."""
 
+    def __init__(self, **kwargs):
+        from .qwen_native import state_dir
+
+        kwargs.setdefault("state_dir", state_dir())
+        super().__init__(**kwargs)
+
     @staticmethod
     def _conversation_id(value: Any) -> str | None:
         if value is None:
@@ -184,10 +190,12 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
                     "type": "turn",
                     "request_id": uuid.uuid4().hex,
                     "providerId": QWEN_PROVIDER_ID,
+                    "operation": "regenerate" if text == "/retry" else "send",
                     "conversationId": conversation_id,
                     "text": text,
                     "timeoutMs": int(total_timeout * 1000),
-                    "streamTextObservations": on_text is not None,
+                    "streamTextObservations": on_text is not None
+                    or on_token is not None,
                     "streamNetwork": on_token is not None,
                     "autoConfirmAge": auto_confirm_age,
                     "birthYear": birth_year,
