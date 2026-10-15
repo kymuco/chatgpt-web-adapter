@@ -66,11 +66,11 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
         "--foreground-tab",
         "--chat",
         "/retry",
-        "QwenClient(transport=\"browser\")",
+        'QwenClient(transport="browser")',
         "client.retry(conversation=chat)",
         "on_token=lambda fragment:",
         "client.import_browser_auth()",
-        "QwenClient(transport=\"http\")",
+        'QwenClient(transport="http")',
     ):
         assert example in guide, example
 
