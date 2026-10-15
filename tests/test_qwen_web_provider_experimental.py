@@ -144,29 +144,22 @@ def test_qwen_streaming_callbacks_fail_before_write() -> None:
     assert provider.requests == []
 
 
-def test_extension_assembles_qwen_handler_outside_chatgpt_turn_layers() -> None:
+def test_qwen_browser_source_is_quarantined_from_production_cwa_extension() -> None:
+    # The working ChatGPT/HDE Native Messaging installation must not import
+    # experimental Qwen code or acquire extra host permissions by default.
     manifest = (EXT / "manifest.json").read_text(encoding="utf-8")
     base = (EXT / "service_worker.js").read_text(encoding="utf-8")
     runtime = (EXT / "service_worker_runtime.js").read_text(encoding="utf-8")
     worker = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
+    stream = (EXT / "service_worker_qwen_stream.js").read_text(encoding="utf-8")
 
-    assert "https://chat.qwen.ai/*" in manifest
-    assert 'importScripts("service_worker_qwen_provider.js");' in runtime
-    assert runtime.index("service_worker_qwen_provider.js") < runtime.index(
-        "service_worker_native_message_router.js"
-    )
+    assert "https://chat.qwen.ai/*" not in manifest
+    assert "service_worker_qwen_provider.js" not in runtime
+    assert "service_worker_qwen_stream.js" not in runtime
+    assert "service_worker_qwen_provider.js" not in base
+    assert "service_worker_qwen_stream.js" not in base
     assert "registerProductProviderTurnHandler(" in worker
-    assert "registerNativeTurnDiagnosticHandler(" not in worker
-    assert "CWA_NATIVE_TURN_LAYERS" not in worker
-    assert "productProviderTurnHandlers = new Map()" in base
-
-    start = base.index("async function dispatchNativeTurn(message)")
-    end = base.index("\nfunction sleep(", start)
-    dispatch = base[start:end]
-    assert "await dispatchProductProviderTurn(message)" in dispatch
-    assert dispatch.index(
-        "await dispatchProductProviderTurn(message)"
-    ) < dispatch.index("const matching = []")
+    assert "_cwaQwenObserveStream(" in stream
 
 
 def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:

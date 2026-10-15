@@ -236,6 +236,18 @@ review:
 See [architecture.md](architecture.md) and
 [engineering/pr15_56_provider_architecture_closure.md](engineering/pr15_56_provider_architecture_closure.md).
 
+> **Shared CWA runtime quarantined (2026-10-15):** A production HDE/ChatGPT
+> submit failure (`CHATGPT_SUBMIT_NOT_OBSERVED:send_button_click`) cleared
+> after reverting the two shared Qwen extension modifications. This is a
+> correlated rollback observation, not proof of a specific JavaScript collision.
+> Until a separately deployed Chrome profile/extension is established, Qwen
+> browser provider modules are **not imported** by the normal CWA service
+> worker and `chat.qwen.ai` is not included in its host permissions.
+> The Qwen **browser CLI is not operational through this quarantined shared
+> extension**. Do not re-add the Qwen imports or run the Qwen browser CLI against
+> the HDE/Codexia production extension. The Qwen source and unit tests are
+> retained for isolated development; experimental direct HTTP is separate.
+
 ## Qwen two transport experiment (PR #213)
 
 The Qwen provider now offers explicit browser and HTTP modes through `QwenClient`.
