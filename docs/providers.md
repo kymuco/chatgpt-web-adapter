@@ -1,6 +1,6 @@
 # Providers
 
-_Last updated: 2026-10-14_
+_Last updated: 2026-10-15_
 
 This document describes the provider-specific support surface on current `main`.
 
@@ -63,6 +63,21 @@ incremental_observation_is_canonical_finality = false
 | Multimodal continuation | AVAILABLE on proven path | UNIMPLEMENTED | UNIMPLEMENTED |
 
 The table describes current `main`, not necessarily the latest published wheel.
+
+### Qwen Web (isolated experimental provider)
+
+Qwen is intentionally described separately from the shared-provider table above:
+its browser worker runs in a **dedicated extension and native host** rather than
+through production CWA. An installed Windows Python SDK session verified new chat,
+multiple text turns, network SSE response delivery and cross-process `--chat`
+reattachment. The explicit `/retry` operation is implemented for a confirmed
+Qwen high-demand response; it is not automatic message replay. Browser model
+selection, rich input and canonical/durable readback are not claimed.
+
+For copyable, implementation-aligned setup and code examples, use
+[**Qwen SDK — setup and reference examples**](qwen.md). Direct HTTP support
+remains experimental and not live-proven.
+
 
 ## ChatGPT
 
