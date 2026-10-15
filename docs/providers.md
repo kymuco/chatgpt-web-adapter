@@ -290,7 +290,17 @@ Qwen's site defaults. Tabs are not activated automatically.
 ```sh
 python qwen_sdk.py "Hello"
 python qwen_sdk.py
+# Explicit diagnostic mode: make Qwen's tab active before sending.
+python qwen_sdk.py --foreground-tab --auto-confirm-age --birth-year 2000
 ```
+
+For intermittent empty hidden tabs or unobserved Qwen POSTs, `--foreground-tab`
+is an **opt-in diagnostic workaround**. It activates Qwen's browser tab
+(and visibly changes the currently selected tab) before the single Send click.
+The ordinary browser mode remains in the background and unchanged; neither
+mode auto-retries a potentially submitted prompt. A successful foreground run
+supports, but does not prove, hidden-tab lifecycle effects. It is not a
+guarantee of Qwen responsiveness and has not been live-verified.
 
 The default transport is `browser`. Interactive mode preserves the returned
 conversation for subsequent messages; `/exit` ends the session. A new process starts a new SDK conversation. Existing conversations are never
