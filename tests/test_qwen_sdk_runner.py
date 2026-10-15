@@ -82,7 +82,9 @@ def test_dom_renderer_rewrites_existing_terminal_text_not_append_revisions(capsy
             return True
 
     output = Tty()
-    with patch.object(module.shutil, "get_terminal_size", return_value=terminal_size((100, 24))):
+    with patch.object(
+        module.shutil, "get_terminal_size", return_value=terminal_size((100, 24))
+    ):
         renderer = module._QwenLiveAnswer(output)
         renderer.update("По состоянию на сезон 2026 года лидирует **Кими")
         renderer.update("По состоянию на сезон 2026 года лидирует Кими Антонелли")
