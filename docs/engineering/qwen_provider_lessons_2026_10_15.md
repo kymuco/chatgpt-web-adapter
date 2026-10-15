@@ -23,7 +23,7 @@ uninterrupted reliability or production readiness.
    completely, and replied to `круто молодец`. A later query about Formula 1
    returned `QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_WRITE_OR_NAVIGATION` with
    `write=completion network=finished http=200`. In a **new SDK process**,
-   `python qwen_sdk.py --chat e7f86959-2bf8-4803-a244-ba19cd8e3b08
+   `python qwen_sdk.py --chat REDACTED_QWEN_CHAT_UUID
    --auto-confirm-age --birth-year 2000 --stream network` correctly recovered
    the previous messages, **including** the Formula 1 question. This proves
    successful new-chat, continuation, network answer delivery and explicit
