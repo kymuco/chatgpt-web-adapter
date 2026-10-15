@@ -105,12 +105,15 @@ const ctx=vm.createContext({
   registerProductProviderTurnHandler(){},
   sleep:async ms=>{now+=ms},
   _cwaBaseSendCommand:async (_,method,args)=>{
+    if (method==='Input.dispatchMouseEvent') {
+      if (args.type==='mouseReleased') clicks++;
+      return {};
+    }
     if (method!=='Runtime.evaluate') throw Error('unexpected CDP call');
     evalCalls++;
     if (args.expression.includes('age-confirmation-modal')) {
       ageCalls++;
-      const stage=ageCalls===1?'submitted':ageCalls===2?'waiting':'absent';
-      if (stage==='submitted') clicks++;
+      const stage=ageCalls===1?{action:'confirm_age',x:120,y:240}:ageCalls===2?'waiting':'absent';
       return {result:{value:stage}};
     }
     return {result:{value:{generating:false,texts:['Full answer'],answerCount:1,url:'https://chat.qwen.ai/c/id'}}};
@@ -124,7 +127,7 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
  assert.ok(now>=9000);
  // Background dialog is stuck after the click. Fail quickly rather than hang until the turn timeout.
  now=0; ageCalls=0; clicks=0;
- ctx._cwaQwenEvaluate=async ()=>{ageCalls++; if(ageCalls===1){clicks++;return 'submitted'}return 'waiting'};
+ ctx._cwaQwenEvaluate=async ()=>{ageCalls++; return ageCalls===1?{action:'confirm_age',x:120,y:240}:'waiting'};
  await assert.rejects(
   ()=>vm.runInContext('_cwaQwenWaitForComposer({}, 30000, {autoConfirmAge:true,birthYear:2000}, {})',ctx),
   /QWEN_AGE_CONFIRMATION_STALLED/
