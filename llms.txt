@@ -8,6 +8,7 @@
 - [Quickstart](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/quickstart.md)
 - [Capability map](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/capabilities.md)
 - [Provider matrix](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/providers.md)
+- [Qwen-only terminal quickstart](https://github.com/kymuco/chatgpt-web-adapter/blob/main/QWEN.md)
 - [Qwen Web SDK and reference examples](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/qwen.md)
 - [Agent integration](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/agent_integration.md)
 - [Architecture](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/architecture.md)
