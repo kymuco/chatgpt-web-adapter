@@ -105,7 +105,7 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
         "--chat YOUR_CHAT_UUID --stream network",
         "--auto-confirm-age --birth-year YOUR_BIRTH_YEAR",
         "--foreground-tab --stream network",
-        "QwenClient(transport=" + '"browser"' + ")",
+        'QwenClient(transport="browser")',
         "conversation=first.conversation",
     ):
         assert command in quickstart, command
@@ -119,7 +119,6 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
     ):
         assert limit in quickstart, limit
         assert limit in quickstart_ru, limit
-
 
 
 def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() -> None:
