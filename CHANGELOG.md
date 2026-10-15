@@ -6,6 +6,7 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- Qwen Web docs: add a complete Russian translation of the Windows Qwen-only quickstart (`QWEN.ru.md`), with reciprocal language links and unchanged terminal CLI/Python commands; no website generator or runtime change
 - Qwen Web documentation: add a self-contained Qwen-only Windows quickstart with independent extension/native-host installation and the existing `python .\\qwen_sdk.py --stream network` terminal chat entrypoint; no changes to runtime, PyPI version or production ChatGPT extension
 - Qwen Web: add an isolated experimental Chrome extension and Native Messaging host, a Python/CLI text-turn SDK with user-verified Windows network streaming, continuation and cross-process chat reattachment; introduce explicit gated `/retry` for Qwen high-demand responses without automatically replaying user prompts; document reference examples and keep direct HTTP experimental/unverified
 
