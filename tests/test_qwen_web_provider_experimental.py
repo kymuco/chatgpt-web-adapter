@@ -170,7 +170,7 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "composer.value !== requestedText" in worker
     assert "fetch(" not in worker
     assert "XMLHttpRequest" not in worker
-    assert "/api/" not in worker
+    assert "Network.getResponseBody" not in worker
     assert "Network.enable" in worker
     assert "Network.requestWillBeSent" in worker
     assert "_cwaQwenObserveWriteLifecycle" in worker
