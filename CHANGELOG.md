@@ -6,6 +6,7 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- Qwen Web documentation: add a self-contained Qwen-only Windows quickstart with independent extension/native-host installation and the existing `python .\\qwen_sdk.py --stream network` terminal chat entrypoint; no changes to runtime, PyPI version or production ChatGPT extension
 - Qwen Web: add an isolated experimental Chrome extension and Native Messaging host, a Python/CLI text-turn SDK with user-verified Windows network streaming, continuation and cross-process chat reattachment; introduce explicit gated `/retry` for Qwen high-demand responses without automatically replaying user prompts; document reference examples and keep direct HTTP experimental/unverified
 
 - Gemini Notebook Web: add experimental module-only default Audio Overview generation as a re-enterable background-artifact lifecycle; generation returns after stable artifact acceptance, exact artifact observation remains read-only while pending, completed finality requires the same observed artifact ref to survive ordinary reload, and ambiguous generation is never automatically replayed
