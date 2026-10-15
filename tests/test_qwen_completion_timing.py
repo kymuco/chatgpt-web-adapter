@@ -377,3 +377,43 @@ assert.equal(clicks,1,'no send from a cleared composer');
         [node, "-e", script, str(worker)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_qwen_no_start_error_contains_bounded_private_data_free_dom_evidence():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+let now=0;
+const ctx=vm.createContext({
+ performance:{now:()=>now},
+ registerProductProviderTurnHandler(){},
+ sleep:async ms=>{now+=ms}
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+ctx._cwaQwenHandleAgeGate=async()=>false;
+ctx._cwaQwenEvaluate=async()=>({
+ generating:false,answerCount:0,texts:[],url:'https://chat.qwen.ai/',
+ editorState:'prompt_present',sendState:'enabled',pageVisibility:'hidden'
+});
+(async()=>{
+ await assert.rejects(
+  ()=>vm.runInContext('_cwaQwenWaitForFinalText({}, "PRIVATE-PROMPT", {answerCount:0,initialUrl:"https://chat.qwen.ai/"}, 30000)',ctx),
+  error=>{
+   assert.match(error.message,/editor=prompt_present send=enabled visibility=hidden/);
+   assert.equal(error.message.includes('PRIVATE-PROMPT'),false);
+   return true;
+  }
+ );
+ assert.ok(now>=15000&&now<16000);
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr

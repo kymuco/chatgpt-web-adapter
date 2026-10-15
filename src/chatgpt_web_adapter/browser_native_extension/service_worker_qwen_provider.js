@@ -154,7 +154,22 @@ function _cwaQwenSnapshotExpression(promptText) {
     const texts = answers.map((el) => normalize(el.innerText || el.textContent)).filter(Boolean).slice(-80);
     // Qwen retains awaiting-response classes after completion, so use only stop-button.
     const generating = Array.from(document.querySelectorAll("button.stop-button")).some(visible);
-    return {url: location.href, texts, generating, answerCount: answers.length};
+    // Only coarse UI states leave this DOM evaluation; never expose prompt text,
+    // message content beyond normal stream, cookies, or page HTML in diagnostics.
+    const composer = Array.from(document.querySelectorAll(
+      "textarea.message-input-textarea,textarea[placeholder='How can I help you today?']"
+    )).find(visible);
+    const editorState = !composer ? "missing" : composer.value === prompt
+      ? "prompt_present" : !composer.value ? "empty" : "different";
+    const control = Array.from(document.querySelectorAll(
+      "button.send-button,.chat-prompt-send-button button,div.message-input-right-button-send button"
+    )).find(visible);
+    const sendState = !control ? "missing" :
+      control.disabled || control.getAttribute("aria-disabled") === "true"
+        ? "disabled" : "enabled";
+    const pageVisibility = document.visibilityState === "hidden" ? "hidden" : "visible";
+    return {url: location.href, texts, generating, answerCount: answers.length,
+      editorState, sendState, pageVisibility};
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(promptText) + ")";
 }
@@ -478,7 +493,14 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
       if (unobservedSince === null) unobservedSince = performance.now();
       if (performance.now() - unobservedSince >= 15000) {
         throw new Error(
-          "QWEN_POST_SUBMIT_START_UNOBSERVED: no page navigation, active generation or new answer within 15s; inspect the Qwen tab before manually retrying"
+          "QWEN_POST_SUBMIT_START_UNOBSERVED: no page navigation, active generation or new answer within 15s" +
+          " editor=" + (["prompt_present", "empty", "different", "missing"].includes(snapshot?.editorState)
+            ? snapshot.editorState : "unknown") +
+          " send=" + (["enabled", "disabled", "missing"].includes(snapshot?.sendState)
+            ? snapshot.sendState : "unknown") +
+          " visibility=" + (["visible", "hidden"].includes(snapshot?.pageVisibility)
+            ? snapshot.pageVisibility : "unknown") +
+          "; inspect Qwen before any manual retry; no automatic replay"
         );
       }
     }
