@@ -78,7 +78,7 @@ function _cwaQwenIsEmptyChatRoute(url) {
   }
 }
 
-async function _cwaQwenEnsureTab(conversationId) {
+async function _cwaQwenEnsureTab(conversationId, foregroundTab = false) {
   // Reuse an empty tab or create a background tab; never replace an existing chat.
   // This prevents new Qwen onboarding/age-verification windows on every send.
   const expectedRoute = conversationId === null
@@ -98,12 +98,18 @@ async function _cwaQwenEnsureTab(conversationId) {
     ? available.find(candidate => _cwaQwenIsEmptyChatRoute(candidate.url || ""))
     : available.find(candidate => candidate.url === expectedRoute);
   if (!tab && conversationId === null) {
-    tab = await chrome.tabs.create({url: CWA_QWEN_ORIGIN + "/", active: false});
+    tab = await chrome.tabs.create({url: CWA_QWEN_ORIGIN + "/", active: foregroundTab === true});
   }
   if (!tab || !Number.isInteger(tab.id)) {
     throw new Error(conversationId === null
       ? "QWEN_NEW_CHAT_TAB_NOT_OPEN: open a new Qwen chat and finish account setup yourself"
       : "QWEN_CONTINUATION_TAB_NOT_OPEN: open the existing conversation in Qwen");
+  }
+  if (foregroundTab === true && tab.active !== true) {
+    // Explicit opt-in to avoid background-tab throttling during a turn.
+    // Activation changes only the selected Chrome tab; never open a new user
+    // prompt or send anything while performing the activation.
+    tab = await chrome.tabs.update(tab.id, {active: true});
   }
   await _cwaQwenStorageSet(CWA_QWEN_RUNTIME_TAB_KEY, tab.id);
   const ready = await _cwaBaseWaitForTabComplete(tab.id, 45000);
@@ -727,7 +733,7 @@ async function _cwaQwenHandleTurn(message) {
   const timeoutMs = Math.max(5000, Math.min(Number(message?.timeoutMs) || 120000, 180000));
   const deadlineAt = performance.now() + timeoutMs;
   const startedAt = performance.now();
-  const tab = await _cwaQwenEnsureTab(conversationId);
+  const tab = await _cwaQwenEnsureTab(conversationId, message.foregroundTab === true);
   const initialUrl = tab.url || CWA_QWEN_ORIGIN + "/";
   const debuggee = { tabId: tab.id };
   let attached = false;

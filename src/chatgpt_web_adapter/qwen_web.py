@@ -166,6 +166,7 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
         on_text: Any = None,
         auto_confirm_age: bool = False,
         birth_year: int = 2000,
+        foreground_tab: bool = False,
         on_token: Any = None,
     ) -> QwenBrowserTurnResult:
         if not isinstance(text, str) or not text.strip():
@@ -190,6 +191,7 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
                     "streamNetwork": on_token is not None,
                     "autoConfirmAge": auto_confirm_age,
                     "birthYear": birth_year,
+                    "foregroundTab": foreground_tab,
                 },
                 # Allow the extension to report its own deadline/finality error
                 # instead of racing the native bridge at the exact same second.
@@ -384,6 +386,7 @@ class QwenWebTransport:
         on_text: Any = None,
         auto_confirm_age: bool = False,
         birth_year: int = 2000,
+        foreground_tab: bool = False,
     ) -> ChatResponse:
         return self.send_text_observed(
             text,
@@ -395,6 +398,7 @@ class QwenWebTransport:
             on_text=on_text,
             auto_confirm_age=auto_confirm_age,
             birth_year=birth_year,
+            foreground_tab=foreground_tab,
         ).response
 
     def send_text_observed(
@@ -409,6 +413,7 @@ class QwenWebTransport:
         on_text: Any = None,
         auto_confirm_age: bool = False,
         birth_year: int = 2000,
+        foreground_tab: bool = False,
     ) -> ProductRuntimeExecution:
         if poll_interval <= 0:
             raise ValueError("poll_interval must be positive")
@@ -426,6 +431,7 @@ class QwenWebTransport:
             on_token=on_token,
             auto_confirm_age=auto_confirm_age,
             birth_year=birth_year,
+            foreground_tab=foreground_tab,
         )
         response = ChatResponse(
             text=turn.response_text,

@@ -29,6 +29,7 @@ class QwenClient:
         session_refresh_interval: float = 300.0,
         auto_confirm_age: bool = False,
         birth_year: int = 2000,
+        foreground_tab: bool = False,
     ) -> None:
         if transport not in {"browser", "http"}:
             raise ValueError("transport must be browser or http")
@@ -40,6 +41,9 @@ class QwenClient:
             or not 1900 <= birth_year <= time.localtime().tm_year
         ):
             raise ValueError("birth_year must be a valid year")
+        if not isinstance(foreground_tab, bool):
+            raise ValueError("foreground_tab must be a bool")
+        self.foreground_tab = foreground_tab
         self.auto_confirm_age = auto_confirm_age
         self.birth_year = birth_year
         self.browser_session_refresh = browser_session_refresh
@@ -134,4 +138,5 @@ class QwenClient:
             on_token=on_token,
             auto_confirm_age=self.auto_confirm_age,
             birth_year=self.birth_year,
+            foreground_tab=self.foreground_tab,
         )

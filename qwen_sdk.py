@@ -94,6 +94,11 @@ def main(argv: list[str] | None = None) -> int:
         help="your birth year (default: 2000, matching site)",
     )
     parser.add_argument(
+        "--foreground-tab",
+        action="store_true",
+        help="opt in: activate Qwen's Chrome tab before sending (diagnose hidden-tab stalls)",
+    )
+    parser.add_argument(
         "--stream",
         choices=("dom", "network"),
         default="dom",
@@ -109,10 +114,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--import-auth does not send messages; run it separately")
     if args.model and args.transport == "browser":
         parser.error("--model is currently supported only with --transport http")
+    if args.foreground_tab and args.transport != "browser":
+        parser.error("--foreground-tab requires browser transport")
 
     client = QwenClient(
         transport=args.transport,
         **({"model": args.model} if args.model else {}),
+        **({"foreground_tab": True} if args.foreground_tab else {}),
         **(
             {"auto_confirm_age": True, "birth_year": args.birth_year}
             if args.auto_confirm_age
