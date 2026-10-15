@@ -39,9 +39,9 @@ def test_qwen_native_descriptor_and_host_are_independent(monkeypatch, tmp_path):
 def test_qwen_worker_is_not_loaded_by_shared_cwa():
     runtime = (EXT / "service_worker_runtime.js").read_text(encoding="utf-8")
     manifest = (EXT / "manifest.json").read_text(encoding="utf-8")
-    qwen_worker = (
-        ROOT / "src/chatgpt_web_adapter/qwen_native_worker.js"
-    ).read_text(encoding="utf-8")
+    qwen_worker = (ROOT / "src/chatgpt_web_adapter/qwen_native_worker.js").read_text(
+        encoding="utf-8"
+    )
     assert "service_worker_qwen_provider.js" not in runtime
     assert "service_worker_qwen_stream.js" not in runtime
     assert "https://chat.qwen.ai/*" not in manifest

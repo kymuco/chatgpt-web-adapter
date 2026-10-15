@@ -35,6 +35,7 @@ def _entry_points_text(*, broken: bool = False) -> str:
         f"cwa = {target}\n"
         f"chatgpt-web-adapter = {target}\n"
         "chatgpt-web-adapter-native-host = chatgpt_web_adapter.browser_native_host:main\n"
+        "qwen-web-adapter-native-host = chatgpt_web_adapter.qwen_native:host_main\n"
     )
 
 
@@ -152,6 +153,8 @@ def test_pyproject_freezes_console_scripts_and_extension_package_data() -> None:
     assert 'cwa = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'chatgpt-web-adapter = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'chatgpt-web-adapter-native-host = "chatgpt_web_adapter.browser_native_host:main"' in text
+    assert 'qwen-web-adapter-native-host = "chatgpt_web_adapter.qwen_native:host_main"' in text
+    assert '"qwen_native_worker.js"' in text
     assert '"browser_native_extension/*.json"' in text
     assert '"browser_native_extension/*.js"' in text
 

@@ -76,7 +76,9 @@ REQUIRED_SDIST_SUFFIXES = {
     "/src/chatgpt_web_adapter/browser_native_extension/icon128.png",
 }
 _VERSION_RE = re.compile(r'^version\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
-_PROJECT_RE = re.compile(r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE)
+_PROJECT_RE = re.compile(
+    r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE
+)
 _RELEASE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -151,7 +153,9 @@ def _source_extension_files(root: Path) -> set[str]:
 def verify_wheel(wheel: Path, *, root: Path, version: str) -> dict[str, Any]:
     expected_name = f"{DIST_BASENAME}-{version}-py3-none-any.whl"
     if wheel.name != expected_name:
-        raise ReleaseGateError(f"unexpected wheel filename: {wheel.name}; expected {expected_name}")
+        raise ReleaseGateError(
+            f"unexpected wheel filename: {wheel.name}; expected {expected_name}"
+        )
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
         dist_info = f"{DIST_BASENAME}-{version}.dist-info"
@@ -161,12 +165,18 @@ def verify_wheel(wheel: Path, *, root: Path, version: str) -> dict[str, Any]:
             raise ReleaseGateError("wheel is missing METADATA")
         metadata = Parser().parsestr(archive.read(metadata_name).decode("utf-8"))
         if metadata.get("Name") != PROJECT_NAME:
-            raise ReleaseGateError(f"wheel metadata Name mismatch: {metadata.get('Name')!r}")
+            raise ReleaseGateError(
+                f"wheel metadata Name mismatch: {metadata.get('Name')!r}"
+            )
         if metadata.get("Version") != version:
-            raise ReleaseGateError(f"wheel metadata Version mismatch: {metadata.get('Version')!r}")
+            raise ReleaseGateError(
+                f"wheel metadata Version mismatch: {metadata.get('Version')!r}"
+            )
         missing_required = sorted(REQUIRED_WHEEL_FILES - names)
         if missing_required:
-            raise ReleaseGateError(f"wheel is missing required files: {missing_required}")
+            raise ReleaseGateError(
+                f"wheel is missing required files: {missing_required}"
+            )
         source_extension_files = _source_extension_files(root)
         wheel_extension_files = {
             Path(name).name
@@ -181,9 +191,13 @@ def verify_wheel(wheel: Path, *, root: Path, version: str) -> dict[str, Any]:
             )
         if entry_points_name not in names:
             raise ReleaseGateError("wheel is missing console entry-point metadata")
-        actual_entry_points = _entry_points(archive.read(entry_points_name).decode("utf-8"))
+        actual_entry_points = _entry_points(
+            archive.read(entry_points_name).decode("utf-8")
+        )
         if actual_entry_points != EXPECTED_ENTRY_POINTS:
-            raise ReleaseGateError(f"console entry points mismatch: {actual_entry_points!r}")
+            raise ReleaseGateError(
+                f"console entry points mismatch: {actual_entry_points!r}"
+            )
     return {
         "path": str(wheel),
         "filename": wheel.name,
@@ -196,7 +210,9 @@ def verify_wheel(wheel: Path, *, root: Path, version: str) -> dict[str, Any]:
 def verify_sdist(sdist: Path, *, version: str) -> dict[str, Any]:
     expected_name = f"{DIST_BASENAME}-{version}.tar.gz"
     if sdist.name != expected_name:
-        raise ReleaseGateError(f"unexpected sdist filename: {sdist.name}; expected {expected_name}")
+        raise ReleaseGateError(
+            f"unexpected sdist filename: {sdist.name}; expected {expected_name}"
+        )
     with tarfile.open(sdist, "r:gz") as archive:
         names = set(archive.getnames())
     missing = [
@@ -267,15 +283,25 @@ def run_release_gate(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate the CWA release candidate contract")
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser = argparse.ArgumentParser(
+        description="Validate the CWA release candidate contract"
+    )
+    parser.add_argument(
+        "--root", type=Path, default=Path(__file__).resolve().parents[1]
+    )
     parser.add_argument("--dist-dir", type=Path)
     parser.add_argument("--tag")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
         report = run_release_gate(root=args.root, dist_dir=args.dist_dir, tag=args.tag)
-    except (OSError, ValueError, ReleaseGateError, zipfile.BadZipFile, tarfile.TarError) as error:
+    except (
+        OSError,
+        ValueError,
+        ReleaseGateError,
+        zipfile.BadZipFile,
+        tarfile.TarError,
+    ) as error:
         if args.json:
             print(json.dumps({"schema": 1, "ok": False, "error": str(error)}, indent=2))
         else:
