@@ -166,8 +166,10 @@ Text new-chat, multi-turn continuation, network-streamed responses and
 `--chat` reattachment have **user-confirmed installed Windows SDK evidence**
 from 2026-10-15. The advertised capability states remain `UNKNOWN` in the
 current experimental metadata until separately reviewed/updated. This does
-not imply absent live evidence: intermittent failures and advanced feature
-gaps remain. Canonical/durable answer finality is still not generally proven.
+not imply absent live evidence: the user/Codex attributed earlier failing
+turns to Qwen overload, with an explicit `/retry` recovery now implemented.
+Advanced feature gaps remain. Canonical/durable answer finality is still not
+generally proven.
 
 An ambiguous result after potential submission requires reconciliation, never
 an automatic retry. This experiment does not export Qwen tokens/cookies or
@@ -349,7 +351,8 @@ with `QWEN_PRE_SUBMIT_COMPOSER_NOT_EMPTY` instead of overwriting it; inspect
 and reconcile the previous turn on Qwen before clearing the field manually.
 The focus/input path was checked both in the background CDP diagnostic and
 by successful user-run Python SDK turns through the separate native extension.
-An intermittent first-turn failure remains open.
+The historical failing turns were attributed by the user and Codex to
+Qwen high demand; the SDK implements an explicit gated `/retry` command.
 
 In `--stream network` mode, the browser transport returns the verified SSE
 answer reconstructed from Qwen's own stream; this is the recommended mode for
@@ -370,10 +373,14 @@ third reply in one conversation. Another turn (Formula 1) showed
 using `--chat e7f86959-2bf8-4803-a244-ba19cd8e3b08`, Qwen listed the
 previous questions **including** the Formula 1 prompt. Thus message
 persistence succeeded even though SDK response observation failed. A separate
-first-send attempt failed with `write=none network=unobserved` (outcome still
-uncertain). Basic end-to-end operation is confirmed; consistent reliability,
-`/retry` and dual-response handling remain to be demonstrated. No accurate
-TTFT benchmark has yet been recorded.
+first-send attempt failed with `write=none network=unobserved`. The user
+and Codex attributed these historical failures to Qwen's busy/high-demand
+state; the error strings alone do not identify that cause, but do not
+establish a separate SDK defect either. `/retry` is implemented as a
+one-shot, user-invoked **Regenerate** of the same response, gated on Qwen's
+visible high-demand message. Basic end-to-end operation is confirmed;
+dual-response handling and accurate TTFT benchmarks remain open.
+No automatic replay is permitted.
 
 ### Experimental direct HTTP
 

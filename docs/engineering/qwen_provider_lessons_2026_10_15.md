@@ -30,12 +30,21 @@ uninterrupted reliability or production readiness.
    conversation reattachment across processes. It also proves that the
    ambiguous UI error can occur **after a durable user message**.
    A separate initial run reported `write=none network=unobserved`,
-   `editor=empty send=missing visibility=visible`; this remains a real
-   intermittent failure, not proof of a rejected request.
-4. **Production promotion:** repeated reliable startup/sends, handling of
-   ambiguous completed writes, observed explicit `/retry` and dual-response
-   cases, measured responsiveness, and no regression to ordinary CWA/HDE
-   remain open. PR #213 stays Draft.
+   `editor=empty send=missing visibility=visible`. **User/Codex diagnosis:**
+   the encountered failures corresponded to Qwen's busy/high-demand state,
+   rather than an independent known transport defect. These coarse diagnostic
+   fields do not independently prove that attribution: `write=none` means
+   only no matching POST was observed. The documented recovery is the
+   explicit `/retry` command, not submitting the same prompt again.
+4. **Recovery implemented:** `/retry` already exists. It dispatches a
+   dedicated `regenerate` operation, checks the last response for the
+   Qwen high-demand message, and clicks its enabled **Regenerate** control
+   once in the *same* chat; it does not replay the user prompt. This addresses
+   the overload scenario diagnosed by the user and Codex. No automatic retry.
+5. **Production promotion:** operational reliability under changing Qwen
+   behavior, dual-response selection, measured responsiveness and no
+   regression to ordinary CWA/HDE remain separate concerns. PR #213 stays
+   Draft; do not invent a distinct Send/DOM bug merely from these busy traces.
 
 ## What our earlier debugging got wrong
 
@@ -143,7 +152,8 @@ tab/site ready
    and `--chat` reattachment as the baseline. For *new regressions* capture
    `readiness → insertion → commit → POST → first text → finished` timing with
    safe metadata and no credentials or prompt bodies. Prioritize specifically
-   the intermittent first-send failure and post-write UI observation gap.
+   evidence of overload versus any genuinely new failure. Do not reopen
+   the already diagnosed busy incidents as unrelated Send/DOM defects.
 6. Check HDE/ChatGPT separately after changes to common packaging or
    installation code; keep the ordinary installed CWA unchanged.
 7. Update this record with verified results, open questions and reproduction
@@ -158,11 +168,13 @@ not a prerequisite for ordinary diagnosis, commits, CI inspection or docs.
 - **Already verified on user's Windows machine:** installed Qwen SDK browser
   transport, new-chat, multi-turn continuation, network SSE text and explicit
   `--chat` reattachment in a new process. Do not reclassify these as untested.
-- **Still outstanding:** reproducible handling of intermittent cold/start Send
-  failure; recovery/readback when `completion network=finished http=200` but
-  UI observation fails; explicit high-demand `/retry`, delayed/dual-response
-  choice, longer sessions and measured latency. If deployment setup needs
-  retesting, make it a focused regression gate, not a restart of E2E discovery.
+- **Already implemented to address the user-observed busy incidents:**
+  explicit `/retry` -> one gated Regenerate in the same chat. This is
+  separate from prohibited automatic retry/replaying a submitted prompt.
+- **Potential future coverage:** changing high-demand UI selectors,
+  delayed/dual-response selection, long-running sessions and measured latency.
+  Do not classify the supplied `write=none` / HTTP-200-without-DOM traces
+  as unsolved transport bugs without new evidence beyond the known busy state.
 - Measure real TTFT and finality separately. Do not infer latency from wall
   clock duration or from the interval between DOM snapshots.
 - Preserve security of Qwen auth export and avoid logging request bodies,

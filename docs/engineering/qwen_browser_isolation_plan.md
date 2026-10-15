@@ -16,14 +16,15 @@ release/package gate and added isolation regression tests.
 - This is strong rollback evidence implicating the shared extension deployment
   or its runtime coupling. It **does not isolate** one of the two modified files
   or prove that the Qwen provider JS itself directly caused the failure.
-- Qwen browser Send intermittently failed, including one visible-tab
-  `QWEN_POST_SUBMIT_START_UNOBSERVED`. But the user's post-fix Windows
-  `--stream network` transcript also proves successful new-chat and multiple
-  consecutive turns. After a Formula 1 prompt, an ambiguous observation
-  returned `write=completion network=finished http=200`. Reattaching via
-  `--chat` in a fresh process showed that the prompt was indeed in Qwen's
-  conversation history. Treat this as **write succeeded, UI readback failed**,
-  and NEVER blindly replay the prompt.
+- Qwen browser previously produced `QWEN_POST_SUBMIT_START_UNOBSERVED`
+  and an ambiguous observation after a Formula 1 prompt with
+  `write=completion network=finished http=200`. The user's subsequent
+  `--chat` attachment proved the latter prompt was stored, so NEVER
+  blindly replay it. **User/Codex attributed these incidents to Qwen
+  busy/high demand**; they should not be listed as independently established
+  SDK Send or DOM defects. The SDK now provides an explicit overload-recovery
+  command `/retry`, gated on Qwen's high-demand response and an enabled
+  Regenerate button. The broad error signatures alone do not prove busy.
 
 ## Current source boundary
 
@@ -84,10 +85,12 @@ substitute for native host and bridge isolation. The essential boundaries are:
   a stale previous prompt. Any unconfirmed commit must remain fenced and
   must never be retried automatically.
 - **Live Qwen baseline:** user-confirmed installed end-to-end text, SSE and
-  `--chat` attach are already accepted. New probes should target previously
-  unresolved intermittent sends and UI observation after a finished HTTP 200,
-  measuring `compose_ready → insertion → Send → POST → first fragment →
-  SSE finality → DOM readback`. No credentials or request bodies in logs.
+  `--chat` attach are already accepted. Busy incidents are diagnosed and the
+  explicit `/retry` recovery is implemented. New probes should focus only
+  on newly observed regressions, not repeat known overload scenarios or
+  invent separate send/readback defects. If needed, measure
+  `compose_ready → insertion → Send → POST → first fragment →
+  SSE finality → DOM readback` without request bodies or credentials.
 - **Production regression gate:** confirm ordinary ChatGPT/HDE remains healthy.
   If not, stop and restore the last known-good shared deployment.
 - **Promotion:** do not merge experimental Qwen browser integration into
@@ -106,4 +109,6 @@ The independent extension/host code now exists. This document is still an
 **acceptance gate**: the user's actual Windows SDK runs prove the installed
 text/continuation/reattachment baseline. GitHub tests and those transcripts
 still do not prove long-run reliability, correct two-response selection,
-an exercised `/retry` branch, or production HDE health under prolonged use.
+all future Qwen busy-UI variants or production HDE health under prolonged use.
+  The `/retry` operation is implemented; no need to treat its absence as a
+  remaining feature gap.

@@ -12,9 +12,11 @@ This deployment passed offline checks and was also exercised **end-to-end by
 the user on Windows before commit `bec72b31` was pushed**. The Python CLI
 returned answers across multiple turns with `--stream network`; a later
 `--chat UUID` invocation in a fresh process recovered prior conversation
-history. There are still intermittent Send/observation errors; passing this
-baseline is not a reliability guarantee. Production ChatGPT/HDE extension
-installation remains separate.
+history. Earlier failures were attributed by the user and Codex to
+Qwen's **busy/high-demand** state; `/retry` is the implemented explicit
+recovery. Do not treat those historical cases as separate unresolved Send or
+stream-reading defects. Production ChatGPT/HDE extension installation
+remains separate.
 
 ## Retry
 
