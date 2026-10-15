@@ -428,7 +428,7 @@ async function _cwaQwenObserveWriteLifecycle(debuggee) {
         if (request?.method !== "POST" || typeof request.url !== "string") return;
         const url = new URL(request.url);
         if (url.origin !== CWA_QWEN_ORIGIN) return;
-        const path = url.pathname.replace(/\\/+$/, "");
+        const path = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
         const nextKind = path === "/api/v2/chat/completions"
           ? "completion" : path === "/api/v2/chats/new" ? "create" : null;
         if (!nextKind) return;
