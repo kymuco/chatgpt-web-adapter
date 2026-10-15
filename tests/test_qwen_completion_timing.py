@@ -606,3 +606,59 @@ ctx._cwaQwenEvaluate=async()=>({
         [node, "-e", script, str(worker)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_qwen_foreground_tab_activates_only_on_explicit_user_opt_in():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
+const actions = [];
+let tabId = 20, stored = {};
+const ctx = vm.createContext({
+  URL,
+  registerProductProviderTurnHandler(){},
+  CWA_QWEN_ORIGIN: 'https://chat.qwen.ai',
+  _cwaBaseWaitForTabComplete:async id=>({id,url:'https://chat.qwen.ai/',status:'complete'}),
+  chrome:{
+    storage:{local:{
+      get:async key=>({[key]:stored[key]}),
+      set:async obj=>{Object.assign(stored,obj)}
+    }},
+    tabs:{
+      query:async()=>[],
+      create:async options=>{
+        actions.push(options);
+        return {id:++tabId,url:options.url,active:options.active};
+      },
+      update:async (id,options)=>{
+        actions.push(options);
+        return {id,url:'https://chat.qwen.ai/',active:options.active};
+      }
+    }
+  }
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+(async()=>{
+ await vm.runInContext('_cwaQwenEnsureTab(null,false)',ctx);
+ assert.equal(actions[0].active,false);
+ assert.equal(actions.length,1,'default is not activated');
+ await vm.runInContext('_cwaQwenEnsureTab(null,true)',ctx);
+ assert.equal(actions[1].active,true);
+ assert.equal(actions.length,2,'cold foreground tab must be created active directly');
+ // Existing tab needs activation but must not be replaced or navigated.
+ ctx.chrome.tabs.query=async()=>[{id:91,url:'https://chat.qwen.ai/',active:false}];
+ await vm.runInContext('_cwaQwenEnsureTab(null,true)',ctx);
+ assert.equal(actions[2].active,true);
+ assert.equal(actions.length,3,'existing tab must be reused');
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr

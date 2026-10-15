@@ -106,3 +106,12 @@ def test_dom_renderer_rewrites_existing_terminal_text_not_append_revisions(capsy
     fallback.update("revised")
     fallback.finish("final")
     assert piped.getvalue() == "final\n"
+
+
+def test_foreground_tab_option_is_explicit_and_rejected_for_http(runner):
+    module, factory, client = runner
+    assert module.main(["--foreground-tab", "hello"]) == 0
+    factory.assert_called_once_with(transport="browser", foreground_tab=True)
+    client.send_text.assert_called_once()
+    with pytest.raises(SystemExit):
+        module.main(["--transport", "http", "--foreground-tab", "hello"])

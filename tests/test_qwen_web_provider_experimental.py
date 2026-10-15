@@ -91,6 +91,18 @@ def test_qwen_capability_surface_is_minimal_and_experimental() -> None:
     assert capabilities.state(CONTINUATION) is CapabilityState.UNKNOWN
 
 
+def test_qwen_foreground_tab_is_explicit_opt_in_not_default() -> None:
+    provider = _FakeQwenProvider()
+    transport = QwenWebTransport(provider)
+
+    transport.send_text("background")
+    transport.send_text("foreground", foreground_tab=True)
+
+    assert provider.requests[0]["foregroundTab"] is False
+    assert provider.requests[1]["foregroundTab"] is True
+    assert len(provider.requests) == 2
+
+
 def test_qwen_new_chat_and_continuation_use_one_rpc_each() -> None:
     provider = _FakeQwenProvider()
 
@@ -301,8 +313,9 @@ def test_qwen_auth_export_is_explicit_and_separate_from_page_turn() -> None:
 
 def test_qwen_browser_turn_creates_background_tab_without_replacing_chats() -> None:
     source = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
-    assert 'chrome.tabs.create({url: CWA_QWEN_ORIGIN + "/", active: false})' in source
-    assert "chrome.tabs.update(" not in source
+    assert 'chrome.tabs.create({url: CWA_QWEN_ORIGIN + "/", active: foregroundTab === true})' in source
+    assert "chrome.tabs.update(tab.id, {active: true})" in source
+    assert "message.foregroundTab === true" in source
     assert "chrome.tabs.query(" in source
     assert "QWEN_NEW_CHAT_TAB_NOT_OPEN" in source
     assert "QWEN_CONTINUATION_TAB_NOT_OPEN" in source
