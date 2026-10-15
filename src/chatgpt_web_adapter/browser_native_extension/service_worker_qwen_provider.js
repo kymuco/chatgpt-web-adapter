@@ -144,13 +144,18 @@ function _cwaQwenComposerExpression(text) {
     if (dualPending) return {found: false, dualPending: true};
     if (!composer) return {found: false};
     if (requestedText === null) return {found: true};
+    // Side-effect-free with respect to the message. Only focus a verified
+    // empty textarea; Chrome's input pipeline performs the actual insertion.
+    // A nonempty composer could be a previously ambiguous unsent turn.
+    if (composer.value !== "") {
+      return {found: true, prepared: false, reason: "composer_not_empty"};
+    }
     composer.focus();
-    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
-    if (typeof setter === "function") setter.call(composer, requestedText);
-    else composer.value = requestedText;
-    composer.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data: requestedText}));
-    composer.dispatchEvent(new Event("change", {bubbles: true}));
-    return {found: true, written: composer.value === requestedText};
+    if (document.activeElement !== composer) {
+      return {found: true, prepared: false, reason: "focus_not_acquired"};
+    }
+    composer.setSelectionRange(0, 0);
+    return {found: true, prepared: true};
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(text === undefined ? null : text) + ")";
 }
@@ -482,8 +487,30 @@ async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}, ageS
   } else if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
     throw new Error("QWEN_PRE_SUBMIT_AGE_GATE_REAPPEARED: wait for age verification before typing");
   }
-  const written = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression(text));
-  if (written?.written !== true) throw new Error("QWEN_COMPOSER_WRITE_FAILED");
+  // A visible DOM value is not proof that Qwen's React composer accepted the
+  // text. Use CDP Input.insertText instead of synthetic input/change events:
+  // one browser-generated insertion updates the framework's input pipeline.
+  const prepared = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression(text));
+  if (prepared?.prepared !== true) {
+    throw new Error(
+      "QWEN_PRE_SUBMIT_" + (prepared?.reason || "COMPOSER_NOT_READY").toUpperCase() +
+      ": no text was inserted; inspect Qwen before retrying"
+    );
+  }
+  try {
+    await _cwaBaseSendCommand(debuggee, "Input.insertText", {text});
+  } catch (error) {
+    // The page may have received the insertion even when CDP loses its reply.
+    // Never blindly type again: a visible stale prompt needs reconciliation.
+    throw new Error("QWEN_PRE_SUBMIT_TEXT_INSERTION_UNCONFIRMED: " +
+      String(error?.message || error || "CDP_ERROR"));
+  }
+  const written = await _cwaQwenEvaluate(debuggee, _cwaQwenSubmitExpression(text));
+  if (written?.ready !== true && written?.reason !== "send_control_not_ready") {
+    throw new Error(
+      "QWEN_PRE_SUBMIT_" + (written?.reason || "COMPOSER_INPUT_NOT_ACCEPTED").toUpperCase()
+    );
+  }
 
   // The send control may become enabled slightly after React handles input.
   // A reset/mismatched composer is a PRE-click failure, not a reason to
