@@ -171,8 +171,11 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "fetch(" not in worker
     assert "XMLHttpRequest" not in worker
     assert "/api/" not in worker
-    assert "Network.enable" not in worker
-    assert "Network.request" not in worker
+    assert "Network.enable" in worker
+    assert "Network.requestWillBeSent" in worker
+    assert "_cwaQwenObserveWriteLifecycle" in worker
+    assert "request.postData" not in worker
+    assert "fetch(" not in worker
     assert "automaticWriteRetry: false" in worker
     assert 'finalityEvidence: "PAGE_DOM_STABLE_COMPLETION"' in worker
     assert "canonicalCompletionProven: false" in worker
