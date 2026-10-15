@@ -15,6 +15,7 @@ EXPECTED_ENTRY_POINTS = {
     "cwa": "chatgpt_web_adapter.cli_v02:main",
     "chatgpt-web-adapter": "chatgpt_web_adapter.cli_v02:main",
     "chatgpt-web-adapter-native-host": "chatgpt_web_adapter.browser_native_host:main",
+    "qwen-web-adapter-native-host": "chatgpt_web_adapter.qwen_native:host_main",
 }
 EXTENSION_PACKAGE_PATTERNS = ("*.json", "*.js", "*.html", "*.css", "*.png")
 EXTENSION_PACKAGE_SUFFIXES = (".json", ".js", ".html", ".css", ".png")
@@ -27,6 +28,10 @@ REQUIRED_WHEEL_FILES = {
     "chatgpt_web_adapter/export.py",
     # Session/auth transport required by the stable client lifecycle.
     "chatgpt_web_adapter/auth_refresh_worker.py",
+    # The experimental Qwen worker runs under its OWN host and descriptor.
+    # Guard packaging: local editable-install tests cannot prove wheel contents.
+    "chatgpt_web_adapter/qwen_native.py",
+    "chatgpt_web_adapter/qwen_native_worker.js",
     # CWA 0.3 product-runtime/public-surface freeze.
     "chatgpt_web_adapter/product_runtime.py",
     "chatgpt_web_adapter/product_transport.py",
@@ -56,6 +61,8 @@ REQUIRED_SDIST_SUFFIXES = {
     "/CHANGELOG.md",
     "/LICENSE",
     "/src/chatgpt_web_adapter/auth_refresh_worker.py",
+    "/src/chatgpt_web_adapter/qwen_native.py",
+    "/src/chatgpt_web_adapter/qwen_native_worker.js",
     "/src/chatgpt_web_adapter/product_runtime.py",
     "/src/chatgpt_web_adapter/product_observations.py",
     "/src/chatgpt_web_adapter/public_surface.py",
