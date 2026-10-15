@@ -184,3 +184,50 @@ ctx._cwaQwenEvaluate=async()=>{
         [node, "-e", script, str(worker)], capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_delayed_age_modal_blocks_send_until_it_disappears_and_composer_stabilizes():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node.js not installed")
+    worker = (
+        Path(__file__).resolve().parents[1]
+        / "src/chatgpt_web_adapter/browser_native_extension/service_worker_qwen_provider.js"
+    )
+    script = r"""
+const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict');
+let now=0, confirmed=false;
+const events=[];
+const ctx=vm.createContext({
+ performance:{now:()=>now},
+ registerProductProviderTurnHandler(){},
+ sleep:async ms=>{now+=ms},
+ _cwaBaseSendCommand:async (_d,method,args)=>{
+  if(method==='Input.dispatchMouseEvent'){
+   events.push(args.type);
+   if(args.type==='mouseReleased') confirmed=true;
+   return {};
+  }
+  if(method==='Runtime.evaluate'){
+   if(args.expression.includes('age-confirmation-modal')){
+    if(now>=500&&!confirmed)return {result:{value:{action:'confirm_age',x:120,y:240}}};
+    return {result:{value:'absent'}};
+   }
+   return {result:{value:{found:true}}};
+  }
+  throw Error('unexpected CDP method '+method);
+ }
+});
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+(async()=>{
+ await vm.runInContext('_cwaQwenWaitForComposer({}, 5000, {autoConfirmAge:true,birthYear:2000}, {})',ctx);
+ assert.ok(confirmed, 'the late age dialog must be acknowledged');
+ assert.deepEqual(events,['mouseMoved','mousePressed','mouseReleased']);
+ assert.ok(now>=2000, 'composer must be stable again after the late dialog');
+ assert.ok(now<5000);
+})().catch(e=>{console.error(e);process.exitCode=1});
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
