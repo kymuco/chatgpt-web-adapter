@@ -6,6 +6,7 @@ const CWA_QWEN_ROUTE_MAP_KEY = "qwenWebConversationRoutesV1";
 // DOM quiet time is an observation heuristic, not authoritative server finality.
 // Never shorten it just because Qwen briefly hides the Stop button.
 const CWA_QWEN_STABLE_MS = 9000;
+const CWA_QWEN_PRE_SUBMIT_READY_MS = 1500;
 
 function _cwaQwenIsUrl(url) {
   try {
@@ -278,16 +279,26 @@ async function _cwaQwenHandleAgeGate(debuggee, message, state) {
 }
 
 async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageState = {}) {
+  // A newly created background tab may mount the age modal shortly AFTER the
+  // textarea. Do not type or click Send until both remain ready for a while.
+  let readySince = null;
   while (performance.now() < deadlineAt) {
     try {
       if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
+        readySince = null;
         await sleep(250);
         continue;
       }
       const snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression());
-      if (snapshot?.found === true) return;
+      if (snapshot?.found === true) {
+        if (readySince === null) readySince = performance.now();
+        if (performance.now() - readySince >= CWA_QWEN_PRE_SUBMIT_READY_MS) return;
+      } else {
+        readySince = null;
+      }
     } catch (error) {
       if (!_cwaQwenDebuggerDetached(error)) throw error;
+      readySince = null;
       await _cwaQwenReattachForObservation(debuggee, deadlineAt);
     }
     await sleep(250);
