@@ -35,26 +35,26 @@ class _QwenLiveAnswer:
         if not isinstance(text, str) or text == self._current:
             return
         # Model-generated terminal controls must never execute.
-        safe = "".join(c for c in text if c in "\\n\\t" or (ord(c) >= 32 and ord(c) != 127))
+        safe = "".join(c for c in text if c in "\n\t" or (ord(c) >= 32 and ord(c) != 127))
         self._current = safe
         if not self._interactive:
             return
         width = max(24, shutil.get_terminal_size((80, 24)).columns - 8)
         lines = []
-        for paragraph in safe.expandtabs(4).split("\\n"):
+        for paragraph in safe.expandtabs(4).split("\n"):
             lines.extend(textwrap.wrap(paragraph, width=width, replace_whitespace=False,
                                        drop_whitespace=False) or [""])
-        rendered = "\\n".join(lines)
+        rendered = "\n".join(lines)
         if self._rows:
-            self._out.write(f"\\x1b[{self._rows}F\\x1b[J")
-        self._out.write(rendered + "\\n")
+            self._out.write(f"\x1b[{self._rows}F\x1b[J")
+        self._out.write(rendered + "\n")
         self._out.flush()
         self._rows = len(lines)
 
     def finish(self, final_text: str) -> None:
         self.update(final_text)
         if not self._interactive:
-            self._out.write(self._current + "\\n")
+            self._out.write(self._current + "\n")
             self._out.flush()
 
 

@@ -88,7 +88,7 @@ def test_dom_renderer_rewrites_existing_terminal_text_not_append_revisions(capsy
         renderer.update("По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes.")
         renderer.finish("По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes.")
     out = output.getvalue()
-    assert "\\x1b[1F\\x1b[J" in out
+    assert "\x1b[1F\x1b[J" in out
     assert "[Qwen revised answer]" not in out
     assert out.count("Mercedes.") == 1
 
@@ -98,4 +98,4 @@ def test_dom_renderer_rewrites_existing_terminal_text_not_append_revisions(capsy
     fallback.update("old partial")
     fallback.update("revised")
     fallback.finish("final")
-    assert piped.getvalue() == "final\\n"
+    assert piped.getvalue() == "final\n"

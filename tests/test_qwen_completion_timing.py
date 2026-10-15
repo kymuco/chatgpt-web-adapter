@@ -23,8 +23,12 @@ async function run(states) {
   const ctx = vm.createContext({
     performance: {now: () => now},
     registerProductProviderTurnHandler() {},
+    getComputedStyle: () => ({display:'block'}),
     sleep: async ms => {now += ms;},
-    _cwaBaseSendCommand: async () => ({result: {value: states[Math.min(index++, states.length - 1)]}})
+    _cwaBaseSendCommand: async (_, command, args) => ({result: {value:
+      args?.expression?.includes('age-confirmation-modal') ? 'absent' :
+      states[Math.min(index++, states.length - 1)]
+    }})
   });
   vm.runInContext(source, ctx);
   let clicked = 0;
