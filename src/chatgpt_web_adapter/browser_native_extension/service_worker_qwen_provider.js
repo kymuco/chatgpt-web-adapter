@@ -306,7 +306,7 @@ async function _cwaQwenHandleAgeGate(debuggee, message, state) {
   return true;
 }
 
-async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageState = {}) {
+async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageState = {}, settleMs = CWA_QWEN_PRE_SUBMIT_READY_MS) {
   // A newly created background tab may mount the age modal shortly AFTER the
   // textarea. Do not type or click Send until both remain ready for a while.
   let readySince = null;
@@ -323,7 +323,7 @@ async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageSt
       }
       if (snapshot?.found === true) {
         if (readySince === null) readySince = performance.now();
-        if (performance.now() - readySince >= CWA_QWEN_PRE_SUBMIT_READY_MS) return;
+        if (performance.now() - readySince >= settleMs) return;
       } else {
         readySince = null;
       }
@@ -666,7 +666,12 @@ async function _cwaQwenHandleTurn(message) {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
+    // New tabs need a longer age-dialog fence; existing confirmed chats can
+    // reuse their mounted composer without the full onboarding delay.
+    await _cwaQwenWaitForComposer(
+      debuggee, deadlineAt, message, ageState,
+      conversationId === null ? CWA_QWEN_PRE_SUBMIT_READY_MS : 350
+    );
 
     const before = await _cwaQwenEvaluate(debuggee, _cwaQwenSnapshotExpression(message.text));
     const baseline = {
