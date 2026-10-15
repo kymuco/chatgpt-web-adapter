@@ -5,7 +5,9 @@ const CWA_QWEN_RUNTIME_TAB_KEY = "qwenWebRuntimeTabIdV1";
 const CWA_QWEN_ROUTE_MAP_KEY = "qwenWebConversationRoutesV1";
 // DOM quiet time is an observation heuristic, not authoritative server finality.
 // Never shorten it just because Qwen briefly hides the Stop button.
-const CWA_QWEN_STABLE_MS = 9000;
+// UI-idle finality is only a heuristic. Avoid the old 9-second extra wait
+// while retaining a window longer than Qwen's observed short phase gaps.
+const CWA_QWEN_STABLE_MS = 3500;
 const CWA_QWEN_PRE_SUBMIT_READY_MS = 1500;
 
 function _cwaQwenIsUrl(url) {
@@ -128,6 +130,12 @@ function _cwaQwenComposerExpression(text) {
     const composer = Array.from(document.querySelectorAll(
       "textarea.message-input-textarea,textarea[placeholder='How can I help you today?']"
     )).find((el) => visible(el) && !el.disabled);
+    // Dual-response feedback is a required choice in Qwen, not a final reply.
+    // Never type a new user turn while the previous one awaits that choice.
+    const pageText = document.body?.innerText || "";
+    const dualPending = pageText.includes("This feedback will help us evaluate and improve Qwen's performance.") &&
+      pageText.includes("Which response do you prefer?");
+    if (dualPending) return {found: false, dualPending: true};
     if (!composer) return {found: false};
     if (requestedText === null) return {found: true};
     composer.focus();
@@ -168,8 +176,13 @@ function _cwaQwenSnapshotExpression(promptText) {
       control.disabled || control.getAttribute("aria-disabled") === "true"
         ? "disabled" : "enabled";
     const pageVisibility = document.visibilityState === "hidden" ? "hidden" : "visible";
+    const pageText = document.body?.innerText || "";
+    const dualPending = pageText.includes("This feedback will help us evaluate and improve Qwen's performance.") &&
+      pageText.includes("Which response do you prefer?");
+    // Keep answer candidates on Qwen's page. No inferred canonical index and
+    // no automatic feedback vote or persistence of user conversations.
     return {url: location.href, texts, generating, answerCount: answers.length,
-      editorState, sendState, pageVisibility};
+      editorState, sendState, pageVisibility, dualPending};
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(promptText) + ")";
 }
@@ -305,6 +318,9 @@ async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}, ageSt
         continue;
       }
       const snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression());
+      if (snapshot?.dualPending === true) {
+        throw new Error("QWEN_DUAL_RESPONSE_SELECTION_REQUIRED: choose Response 1 or Response 2 in Qwen before continuing; neither is canonical yet");
+      }
       if (snapshot?.found === true) {
         if (readySince === null) readySince = performance.now();
         if (performance.now() - readySince >= CWA_QWEN_PRE_SUBMIT_READY_MS) return;
@@ -333,6 +349,11 @@ function _cwaQwenSubmitExpression(text, execute = false) {
     };
     const dialog = document.querySelector('.age-confirmation-modal[role="dialog"]');
     if (dialog && visible(dialog)) return {ready: false, reason: "age_dialog_active"};
+    const pageText = document.body?.innerText || "";
+    if (pageText.includes("This feedback will help us evaluate and improve Qwen's performance.") &&
+        pageText.includes("Which response do you prefer?")) {
+      return {ready: false, reason: "dual_response_selection_required"};
+    }
     const composer = Array.from(document.querySelectorAll(
       "textarea.message-input-textarea,textarea[placeholder='How can I help you today?']"
     )).find(visible);
@@ -392,10 +413,14 @@ function _cwaQwenPostSubmitAmbiguousError(error) {
   );
 }
 
-async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}, ageState = {}) {
-  // Page readiness, including age confirmation, MUST precede composer write:
-  // closing the age modal can remount the textarea and erase the user's text.
-  await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
+async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}, ageState = {}, readyConfirmed = false) {
+  // The caller that captured the baseline has ALREADY awaited a stable
+  // composer. Do not pay another 1.5-second fence per message.
+  if (!readyConfirmed) {
+    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message, ageState);
+  } else if (await _cwaQwenHandleAgeGate(debuggee, message, ageState)) {
+    throw new Error("QWEN_PRE_SUBMIT_AGE_GATE_REAPPEARED: wait for age verification before typing");
+  }
   const written = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression(text));
   if (written?.written !== true) throw new Error("QWEN_COMPOSER_WRITE_FAILED");
 
@@ -482,6 +507,11 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
       if (idleSince === null) idleSince = performance.now();
     } else {
       idleSince = null;
+    }
+    // Two candidates and a required feedback choice are not one assistant
+    // response. Never stream an arbitrary last DOM node as authoritative.
+    if (snapshot?.dualPending === true) {
+      throw new Error("QWEN_DUAL_RESPONSE_SELECTION_REQUIRED: Qwen displayed Response 1 and Response 2; choose one in the tab to establish the continuation; no automatic vote or text replay");
     }
     const candidate = _cwaQwenLatestNewText(snapshot, baseline);
     const startObserved = candidate !== null ||
@@ -645,7 +675,7 @@ async function _cwaQwenHandleTurn(message) {
     };
 
     if (message.streamNetwork === true) networkStream = await _cwaQwenObserveStream(debuggee, message);
-    await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message, ageState);
+    await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message, ageState, true);
     try {
       const final = await _cwaQwenWaitForFinalText(
         debuggee,
