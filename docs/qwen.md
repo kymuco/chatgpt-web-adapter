@@ -93,7 +93,7 @@ Use **your actual birth year**. This opt-in handles the site's own age dialog; i
 ### Resume a specific chat — verified across processes
 
 ```powershell
-python .\qwen_sdk.py --chat "e7f86959-2bf8-4803-a244-ba19cd8e3b08" --stream network
+python .\qwen_sdk.py --chat "00000000-0000-4000-8000-000000000001" --stream network
 ```
 
 Or use the exact Qwen URL: `https://chat.qwen.ai/c/UUID`. The SDK validates its origin and UUID. It **does not** silently create another conversation when the requested chat is unknown.
@@ -175,7 +175,7 @@ Always use the returned `conversation` to preserve conversation identity. A new 
 from chatgpt_web_adapter.qwen_client import QwenClient
 
 client = QwenClient(transport="browser")
-chat = QwenClient.chat("e7f86959-2bf8-4803-a244-ba19cd8e3b08")
+chat = QwenClient.chat("00000000-0000-4000-8000-000000000001")
 result = client.send_text("Продолжим наш разговор.", conversation=chat)
 print(result.text)
 ```
@@ -188,7 +188,7 @@ print(result.text)
 from chatgpt_web_adapter.qwen_client import QwenClient
 
 client = QwenClient(transport="browser")
-chat = QwenClient.chat("e7f86959-2bf8-4803-a244-ba19cd8e3b08")
+chat = QwenClient.chat("00000000-0000-4000-8000-000000000001")
 
 # Use only after the last answer is visibly Qwen's high-demand error:
 result = client.retry(conversation=chat)
