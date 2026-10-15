@@ -127,6 +127,7 @@ vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
  assert.ok(now>=12000&&now<14000);
 })().catch(e=>{console.error(e);process.exitCode=1});
 """
-    result = subprocess.run([node, "-e", script, str(worker)],
-                            capture_output=True, text=True)
+    result = subprocess.run(
+        [node, "-e", script, str(worker)], capture_output=True, text=True
+    )
     assert result.returncode == 0, result.stderr

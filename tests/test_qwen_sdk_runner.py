@@ -65,8 +65,8 @@ def test_browser_model_option_fails_before_send(runner):
 
 
 def test_dom_renderer_rewrites_existing_terminal_text_not_append_revisions(capsys):
-    from io import StringIO
     from importlib.util import module_from_spec, spec_from_file_location
+    from io import StringIO
     from pathlib import Path
     from unittest.mock import patch
 
@@ -85,8 +85,12 @@ def test_dom_renderer_rewrites_existing_terminal_text_not_append_revisions(capsy
         renderer = module._QwenLiveAnswer(output)
         renderer.update("По состоянию на сезон 2026 года лидирует **Кими")
         renderer.update("По состоянию на сезон 2026 года лидирует Кими Антонелли")
-        renderer.update("По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes.")
-        renderer.finish("По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes.")
+        renderer.update(
+            "По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes."
+        )
+        renderer.finish(
+            "По состоянию на сезон 2026 года лидирует Кими Антонелли, Mercedes."
+        )
     out = output.getvalue()
     assert "\x1b[1F\x1b[J" in out
     assert "[Qwen revised answer]" not in out
