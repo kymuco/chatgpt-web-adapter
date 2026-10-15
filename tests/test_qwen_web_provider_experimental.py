@@ -193,7 +193,9 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
         submit_helper_start,
     )
     submit_helper = worker[submit_helper_start:submit_helper_end]
-    assert "DebuggerDetached(error)" in submit_helper
+    assert "DebuggerDetached(error)" not in submit_helper
+    assert "await _cwaQwenWaitForComposer(" in submit_helper
+    assert '"Input.dispatchMouseEvent"' in submit_helper
     assert "throw _cwaQwenPostSubmitAmbiguousError(error);" in submit_helper
     assert "throw error;" not in submit_helper
     submit_index = worker.index("await _cwaQwenSubmitOnce(")
