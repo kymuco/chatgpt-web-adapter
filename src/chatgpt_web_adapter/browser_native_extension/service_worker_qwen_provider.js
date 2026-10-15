@@ -3,6 +3,8 @@ const CWA_QWEN_PROVIDER_ID = "qwen";
 const CWA_QWEN_ORIGIN = "https://chat.qwen.ai";
 const CWA_QWEN_RUNTIME_TAB_KEY = "qwenWebRuntimeTabIdV1";
 const CWA_QWEN_ROUTE_MAP_KEY = "qwenWebConversationRoutesV1";
+// DOM quiet time is an observation heuristic, not authoritative server finality.
+// Never shorten it just because Qwen briefly hides the Stop button.
 const CWA_QWEN_STABLE_MS = 9000;
 
 function _cwaQwenIsUrl(url) {
@@ -74,7 +76,7 @@ function _cwaQwenIsEmptyChatRoute(url) {
 }
 
 async function _cwaQwenEnsureTab(conversationId) {
-  // Never create, activate, navigate or replace a user's Chrome tab.
+  // Reuse an empty tab or create a background tab; never replace an existing chat.
   // This prevents new Qwen onboarding/age-verification windows on every send.
   const expectedRoute = conversationId === null
     ? null
@@ -89,9 +91,12 @@ async function _cwaQwenEnsureTab(conversationId) {
   if (stored && !available.some(tab => tab.id === stored.id)) {
     available.push(stored);
   }
-  const tab = conversationId === null
+  let tab = conversationId === null
     ? available.find(candidate => _cwaQwenIsEmptyChatRoute(candidate.url || ""))
     : available.find(candidate => candidate.url === expectedRoute);
+  if (!tab && conversationId === null) {
+    tab = await chrome.tabs.create({url: CWA_QWEN_ORIGIN + "/", active: false});
+  }
   if (!tab || !Number.isInteger(tab.id)) {
     throw new Error(conversationId === null
       ? "QWEN_NEW_CHAT_TAB_NOT_OPEN: open a new Qwen chat and finish account setup yourself"
@@ -148,7 +153,7 @@ function _cwaQwenSnapshotExpression(promptText) {
     const texts = answers.map((el) => normalize(el.innerText || el.textContent)).filter(Boolean).slice(-80);
     // Qwen retains awaiting-response classes after completion, so use only stop-button.
     const generating = Array.from(document.querySelectorAll("button.stop-button")).some(visible);
-    return {url: location.href, texts, generating};
+    return {url: location.href, texts, generating, answerCount: answers.length};
   };
   return "(" + expression.toString() + ")(" + JSON.stringify(promptText) + ")";
 }
@@ -163,8 +168,38 @@ async function _cwaQwenEvaluate(debuggee, expression) {
   return result?.result?.value;
 }
 
-async function _cwaQwenWaitForComposer(debuggee, deadlineAt) {
+function _cwaQwenAgeExpression(year, allow, submitted) {
+  const expression = function(year, allow, submitted) {
+    const dialog = document.querySelector('.age-confirmation-modal[role="dialog"]');
+    if (!dialog || !dialog.getBoundingClientRect().height) return "absent";
+    if (!allow) return "required";
+    if (submitted) return "waiting";
+    const selected = dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-select-label');
+    if (selected?.textContent.trim() !== String(year)) {
+      const menu = document.querySelector('.qwen-chat-v2-dropdown-menu-popup[role="menu"]');
+      if (menu) {
+        const option = Array.from(menu.querySelectorAll('[role="menuitem"]')).find(el => el.textContent.trim() === String(year));
+        if (!option) return "year_unavailable";
+        option.click();
+      } else dialog.querySelector('.age-confirmation-year .qwen-chat-v2-dropdown-menu-trigger')?.click();
+      return "selecting";
+    }
+    const button = Array.from(dialog.querySelectorAll('button')).find(el => el.textContent.trim() === "Continue");
+    if (!button || button.disabled) return "waiting";
+    button.click();
+    return "submitted";
+  };
+  return "(" + expression.toString() + ")(" + JSON.stringify(year) + "," + (allow === true) + "," + (submitted === true) + ")";
+}
+
+async function _cwaQwenWaitForComposer(debuggee, deadlineAt, message = {}) {
+  let ageSubmitted = false;
   while (performance.now() < deadlineAt) {
+    const age = await _cwaQwenEvaluate(debuggee, _cwaQwenAgeExpression(message.birthYear || 2000, message.autoConfirmAge, ageSubmitted));
+    if (age === "required") throw new Error("QWEN_AGE_CONFIRMATION_REQUIRED: confirm on Qwen or configure auto_confirm_age and birth_year");
+    if (age === "year_unavailable") throw new Error("QWEN_BIRTH_YEAR_UNAVAILABLE");
+    if (age === "submitted") ageSubmitted = true;
+    if (age !== "absent") { await sleep(250); continue; }
     const snapshot = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression());
     if (snapshot?.found === true) return;
     await sleep(250);
@@ -232,11 +267,12 @@ function _cwaQwenPostSubmitAmbiguousError(error) {
   );
 }
 
-async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt) {
+async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt, message = {}) {
   const written = await _cwaQwenEvaluate(debuggee, _cwaQwenComposerExpression(text));
   if (written?.written !== true) throw new Error("QWEN_COMPOSER_WRITE_FAILED");
 
   while (performance.now() < deadlineAt) {
+    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message);
     try {
       const submit = await _cwaQwenEvaluate(debuggee, _cwaQwenSubmitExpression(text));
       if (submit?.submitted === true) return;
@@ -256,6 +292,10 @@ async function _cwaQwenSubmitOnce(debuggee, text, deadlineAt) {
 
 function _cwaQwenLatestNewText(snapshot, baseline) {
   if (!Array.isArray(snapshot?.texts)) return null;
+  if (Number.isInteger(baseline?.answerCount)) {
+    if (snapshot.answerCount <= baseline.answerCount) return null;
+    return snapshot.texts.at(-1) || null;
+  }
   for (let index = snapshot.texts.length - 1; index >= 0; index -= 1) {
     const text = snapshot.texts[index];
     if (typeof text === "string" && text.trim() && !baseline.has(text)) return text.trim();
@@ -263,9 +303,10 @@ function _cwaQwenLatestNewText(snapshot, baseline) {
   return null;
 }
 
-async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt) {
+async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, onText = null) {
   let lastText = null;
   let stableSince = null;
+  let idleSince = null;
   while (performance.now() < deadlineAt) {
     let snapshot;
     try {
@@ -276,15 +317,25 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt) {
       await sleep(250);
       continue;
     }
+    // An absent Stop button can be a temporary phase transition.
+    // Only explicit idle observations count towards a continuous quiet window.
+    if (snapshot?.generating === false) {
+      if (idleSince === null) idleSince = performance.now();
+    } else {
+      idleSince = null;
+    }
     const candidate = _cwaQwenLatestNewText(snapshot, baseline);
     if (candidate !== null && candidate === lastText) {
       if (stableSince === null) stableSince = performance.now();
     } else {
+      if (candidate !== null && onText) onText(candidate);
       lastText = candidate;
       stableSince = candidate === null ? null : performance.now();
     }
-    if (candidate !== null && snapshot?.generating !== true &&
-        stableSince !== null && performance.now() - stableSince >= CWA_QWEN_STABLE_MS) {
+    const quietlySettled = candidate !== null &&
+      idleSince !== null && stableSince !== null &&
+      performance.now() - Math.max(idleSince, stableSince) >= CWA_QWEN_STABLE_MS;
+    if (snapshot?.generating === false && quietlySettled) {
       return { text: candidate, url: snapshot.url };
     }
     await sleep(250);
@@ -305,7 +356,7 @@ function _cwaQwenAuthProbeExpression() {
       "value=>typeof value==='string'&&value.length>8)||null;" +
     "const expiresAt=[state?.expires_at,state?.expiresAt,state?.at_expire_time," +
       "localStorage.getItem('at_expire_time')].find(value=>value!=null)||null;" +
-    "return {token,expiresAt};" +
+    "return {token,expiresAt,userAgent:navigator.userAgent,language:navigator.language};" +
   "})()";
 }
 
@@ -324,7 +375,29 @@ async function _cwaQwenExportAuth(message) {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-    const probe = await _cwaQwenEvaluate(debuggee, _cwaQwenAuthProbeExpression());
+    let probe = await _cwaQwenEvaluate(debuggee, _cwaQwenAuthProbeExpression());
+    let snapshotExpiry = Number(probe?.expiresAt);
+    if (snapshotExpiry > 0 && snapshotExpiry < 1e12) snapshotExpiry *= 1000;
+    if (snapshotExpiry > 0 && snapshotExpiry <= Date.now() + 60000) {
+      const previousToken = probe?.token;
+      await chrome.tabs.reload(tab.id);
+      const renewDeadline = Date.now() + 15000;
+      let renewed = false;
+      while (Date.now() < renewDeadline) {
+        await new Promise(resolve => setTimeout(resolve, 250));
+        try {
+          const next = await _cwaQwenEvaluate(debuggee, _cwaQwenAuthProbeExpression());
+          let expiry = Number(next?.expiresAt);
+          if (expiry > 0 && expiry < 1e12) expiry *= 1000;
+          if (next?.token && next.token !== previousToken && expiry > Date.now() + 60000) {
+            probe = next;
+            renewed = true;
+            break;
+          }
+        } catch {}
+      }
+      if (!renewed) throw new Error("QWEN_AUTH_RENEWAL_REQUIRES_USER");
+    }
     if (typeof probe?.token !== "string" || !probe.token) {
       throw new Error("QWEN_AUTH_ACCESS_TOKEN_UNAVAILABLE");
     }
@@ -346,7 +419,8 @@ async function _cwaQwenExportAuth(message) {
       operation: "auth_snapshot",
       accessToken: probe.token,
       cookies,
-      expiresAt
+      expiresAt,
+      headers: {"user-agent":probe.userAgent || "", "accept-language":probe.language || "en-US", "origin":CWA_QWEN_ORIGIN, "referer":CWA_QWEN_ORIGIN + "/"}
     };
   } finally {
     if (attached) {
@@ -376,24 +450,33 @@ async function _cwaQwenHandleTurn(message) {
   const initialUrl = tab.url || CWA_QWEN_ORIGIN + "/";
   const debuggee = { tabId: tab.id };
   let attached = false;
+  let networkStream = null;
 
   try {
     await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
     attached = true;
     await _cwaBaseSendCommand(debuggee, "Runtime.enable");
-    await _cwaQwenWaitForComposer(debuggee, deadlineAt);
+    await _cwaQwenWaitForComposer(debuggee, deadlineAt, message);
 
     const before = await _cwaQwenEvaluate(debuggee, _cwaQwenSnapshotExpression(message.text));
-    const baseline = new Set(Array.isArray(before?.texts) ? before.texts : []);
+    const baseline = {answerCount: before?.answerCount || 0};
 
-    await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt);
+    if (message.streamNetwork === true) networkStream = await _cwaQwenObserveStream(debuggee, message);
+    await _cwaQwenSubmitOnce(debuggee, message.text, deadlineAt, message);
     try {
       const final = await _cwaQwenWaitForFinalText(
         debuggee,
         message.text,
         baseline,
-        deadlineAt
+        deadlineAt,
+        message.streamTextObservations === true ? (text) => postNative({
+          protocol: BRIDGE_PROTOCOL_VERSION,
+          type: "turn_event",
+          request_id: message.request_id,
+          event: {providerId: CWA_QWEN_PROVIDER_ID, type: "text_snapshot", text}
+        }) : null
       );
+      if (networkStream) await networkStream.verify();
       const finalTab = await chrome.tabs.get(tab.id);
       const finalUrl = typeof finalTab?.url === "string" ? finalTab.url : final.url;
       if (!_cwaQwenIsConversationRoute(finalUrl)) throw new Error("QWEN_FINAL_ROUTE_INVALID");
@@ -417,12 +500,14 @@ async function _cwaQwenHandleTurn(message) {
         finalityEvidence: "PAGE_DOM_STABLE_COMPLETION",
         canonicalCompletionProven: false,
         routeIdentityProven: true,
-        automaticWriteRetry: false
+        automaticWriteRetry: false,
+        networkStreamVerified: networkStream !== null
       };
     } catch (error) {
       throw _cwaQwenPostSubmitAmbiguousError(error);
     }
   } finally {
+    if (networkStream) networkStream.close();
     if (attached) {
       try { await chrome.debugger.detach(debuggee); } catch {}
     }

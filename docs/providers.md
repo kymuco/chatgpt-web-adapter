@@ -267,52 +267,152 @@ are written outside Git to `%LOCALAPPDATA%/chatgpt-web-adapter/qwen_auth.dat`.
 On Windows, the file is encrypted with user-scoped DPAPI; on POSIX,
 the file uses mode `0600`.
 
-Direct HTTP uses `urllib` and Qwen's private `/api/v2/chats/new` and
+Direct HTTP uses the `curl` executable and Qwen's private `/api/v2/chats/new` and
 `/api/v2/chat/completions` endpoints; this is not an official stable API.
 Token refresh is never guessed: callers must supply a separately verified
-`refresh_path`, and expired credentials without it fail before sending.
+`refresh_path`. Without it, an expiry hint does not trigger renewal; the client
+attempts the operation once and reports the server response.
 Neither HTTP generation nor browser completion can safely auto-replay an
 ambiguous write. `QwenHttpConversation` can explicitly carry chat and parent
 ids between HTTP calls; cross-transport migration is not established.
 
-Authentication export, model identifiers, Qwen login refresh and live
-generation behavior still need user-machine verification.
+Authentication export has been verified on the user machine. A direct generation
+with `qwen3.7-plus` succeeded once; repeated operation and independent token
+renewal remain unverified.
 
-## Normal usage (no automated probes)
+## Recommended Qwen usage
 
-Run `python qwen_sdk.py --import-auth` only once with an already signed-in Qwen tab.
-This operation never sends a chat message or opens a new tab. Thereafter
-`python qwen_sdk.py "Your message"` uses direct HTTPS without Chrome.
+Keep Chrome running with CWA connected, sign in to Qwen, and keep an authenticated Qwen session. The SDK reuses an empty Qwen tab or
+creates a background tab for a new conversation. Choose the model
+and thinking mode in the Qwen interface. An existing empty tab preserves your selected model; a newly created tab uses
+Qwen's site defaults. Tabs are not activated automatically.
 
-`python qwen_sdk.py --transport browser "Your message"` reuses **only** an
-already-open new Qwen chat tab. The SDK never opens, navigates, or activates
-Chrome tabs for Qwen. Qwen's account age/onboarding verification must be
-completed in Qwen by the account holder; CWA neither bypasses it nor repeatedly
-opens the verification page. If no suitable tab exists, it fails clearly.
-
-The old `scripts/prove_qwen_dual_transport.py` live-probe has been removed.
-
-
-### Optional, browserless Qwen Web client
-
-Qwen Web's unofficial v2 endpoints may return a 200-HTML challenge instead of JSON
-even when Chrome auth is imported: the consumer website uses dynamic WAF headers
-in addition to the bearer token and cookie jar. Importing only a token does not
-prove that `--transport http` will work.
-
-To use an **explicit, optional, third-party** Python HTTP implementation:
-
-```powershell
-python -m pip install qwen-reverse==0.1.6
-python .\qwen_sdk.py --transport reverse "Привет!"
-python .\qwen_sdk.py --transport reverse
+```sh
+python qwen_sdk.py "Hello"
+python qwen_sdk.py
 ```
 
-`reverse` uses the previously saved Qwen account token, remains browserless,
-and sends only the user's messages. The experimental `http` transport is left
-unchanged; no automatic fallback from `http` to `reverse` is performed.
-The optional third-party library is unaffiliated with Qwen and its behaviour
-has not been live-verified with this user's account. Review its source and
-dependencies before installing it. Browser/account challenges must be handled
-by the user through the provider's normal verification flow; the SDK does not
-open verification tabs or complete age checks.
+The default transport is `browser`. Interactive mode preserves the returned
+conversation for subsequent messages; `/exit` ends the session. A new process starts a new SDK conversation. Existing conversations are never
+replaced to start a new one. Continuation requires its original tab to remain open. Keep the selected tab open and avoid editing its composer
+while a turn is running.
+
+```python
+from chatgpt_web_adapter.qwen_client import QwenClient
+
+client = QwenClient()  # browser
+first = client.send_text("Remember ORCHID")
+second = client.send_text("What word?", conversation=first.conversation)
+print(second.text)
+```
+
+The browser transport returns the complete answer after observing completion in
+the page. The optional `on_text` callback receives full answer-text snapshots approximately
+every 250 ms while the DOM changes. Replace the displayed answer with each
+snapshot; do not concatenate them. Thinking text is excluded. The CLI displays
+updates automatically. These are page updates, not individual model tokens. Model selection through SDK
+arguments, attachments and temporary-chat controls are not implemented for this
+transport. Login or verification must be completed on the Qwen site. Failed or
+ambiguous generations are never automatically replayed.
+
+Live SDK verification: a new chat returned `FIRST_OK` and continuation returned
+`ORCHID` in the same conversation. Total call durations were 20.68 and 14.57
+seconds, including the page completion wait; these are not TTFT measurements.
+
+### Experimental direct HTTP
+
+```sh
+python qwen_sdk.py --import-auth
+python qwen_sdk.py --transport http "Hello"
+```
+
+Auth import never sends a message or opens a tab. It may reload an existing Qwen
+tab if its token is near expiry. Credentials are stored outside the repository.
+HTTP is an explicit experimental option: importing valid credentials does not
+guarantee generation access, and there is no automatic browser fallback.
+
+### Qwen HTTP with periodic browser session snapshots (experimental)
+
+```python
+from chatgpt_web_adapter.qwen_client import QwenClient
+
+client = QwenClient(transport="http", model="qwen3.7-plus",
+                    browser_session_refresh=True, session_refresh_interval=300)
+response = client.send_text("Hello", on_token=print)
+```
+
+Before a send, the opt-in mode imports the existing Qwen tab session when the
+interval expires or imported expiry is near. If the page token is near expiry,
+the extension reloads the existing tab and waits up to 15 seconds for a different,
+unexpired token. This renewal branch still needs live verification. Keep an authenticated Qwen tab
+available; if it needs login or verification, complete that on the site. The
+HTTP client never sends a prompt through the browser or replays a failed write.
+`refresh_browser_auth()` explicitly refreshes the snapshot while preserving the
+HTTP conversation parent. Default HTTP mode never contacts the browser.
+
+Snapshots preserve cookies and browser User-Agent in the existing private auth
+store. This does not implement Aliyun CAPTCHA solving or guarantee that imported
+credentials satisfy per-request WAF checks. Live standalone HTTP generation has
+passed once, but subsequent probes received `FAIL_SYS_USER_VALIDATE`; sustained
+operation and independent token refresh are still unverified.
+
+Live check on 2026-10-15: the installed extension exported an unexpired token
+and 19 cookies, but the first direct chat-creation request returned HTTP 200
+with HTML instead of JSON. No completion was sent and the series stopped.
+Refreshing account credentials alone therefore did not establish stable HTTP
+access; there is no successful TTFT measurement for this run.
+
+### Controlled browser/HTTP comparison (2026-10-15)
+
+A fresh browser chat returned `QWEN_COMPARE_OK`. With the same captured account
+session, direct chat creation failed with the SDK headers, both for a generated
+`chatId` and an empty `chatId`. The SDK now matches the observed empty value.
+Adding the ordinary application headers (`Accept`, `Version`, `source`,
+`Timezone`, `X-Request-Id`) allowed creation; changing only `Accept` did not.
+The individual necessary headers have not been isolated. Captured values should
+not be treated as permanent defaults or shipped as authentication fixtures.
+
+Two separate direct generations, each in a newly created chat, returned
+`FAIL_SYS_USER_VALIDATE`: one with ordinary browser request headers and one
+also carrying the captured `bx-*` headers. No failed generation was replayed.
+The browser completion used HTTP/1.1 and received `text/event-stream`; the
+completion body had the same top-level/message fields and feature configuration
+as the SDK. This rules out a simple HTTP/2 requirement or missing body field in
+this sample, but does not identify the exact verification dependency. Stable
+browserless generation remains unsupported by the live evidence.
+
+Browser completion latency: after observing generation and then disappearance of
+the Stop control, the adapter waits 500 ms of unchanged answer text and idle UI
+(poll interval 250 ms). Resumed generation resets that wait. If generation was
+never observed, the conservative 9-second text-stability fallback remains.
+This is DOM completion detection, not token streaming or server finality.
+
+```python
+client = QwenClient()
+reply = client.send_text("Explain briefly", on_text=lambda text: print(repr(text)))
+# reply.text is the final answer; partial snapshots do not prove completion.
+```
+
+### Age dialog
+
+`QwenClient(auto_confirm_age=True, birth_year=2000)` selects the configured birth
+year and clicks Continue once in Qwen's age dialog, before sending the message.
+Use your actual year. The configurable default is 2000, matching the site's
+initial selection; automatic confirmation is disabled unless explicitly enabled.
+CLI: `python qwen_sdk.py --auto-confirm-age --birth-year 2000`.
+Without opt-in the SDK reports `QWEN_AGE_CONFIRMATION_REQUIRED` instead of waiting
+for the blocked composer. This does not handle CAPTCHA or other dialogs.
+
+### Browser network streaming (experimental)
+
+`client.send_text("Hello", on_token=lambda delta: print(delta, end="", flush=True))`
+uses Chrome `Network.streamResourceContent` to observe the site's own completion
+SSE request. It emits answer-phase content deltas, excluding thinking summaries.
+Chunks can contain multiple model tokens. No direct HTTP generation is issued.
+The final response still uses the page completion/route checks. Missing stream
+support or incomplete SSE finality raises an error without resending the prompt
+or silently substituting DOM snapshots. Partial output may precede an error.
+
+CLI: `python qwen_sdk.py --stream network`. The default `--stream dom` remains
+available. Network streaming is implemented and unit-tested, but live validation
+requires reloading the updated extension; no latency claim is established yet.

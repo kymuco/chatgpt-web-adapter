@@ -74,6 +74,7 @@ def save_qwen_credentials(
             "access_token": credentials.access_token,
             "cookies": credentials.cookies,
             "expires_at": credentials.expires_at,
+            "headers": credentials.headers,
         }
     ).encode("utf-8")
     if os.name == "nt":
@@ -114,6 +115,7 @@ def load_qwen_credentials(*, path: Path = AUTH_FILE) -> QwenHttpCredentials:
             access_token=body["access_token"],
             cookies=body.get("cookies", {}),
             expires_at=body.get("expires_at"),
+            headers=body.get("headers", {}),
         )
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise QwenAuthStoreError(
