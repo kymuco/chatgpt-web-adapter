@@ -16,6 +16,7 @@ Do not treat every PR-numbered document as current getting-started guidance.
 - [`agent_integration.md`](agent_integration.md) — local assistants, coding agents and tool wrappers;
 - [`../README.md`](../README.md) — project overview, provider status and production
   quick start;
+- [`../QWEN.md`](../QWEN.md) — **Qwen-only** Windows quickstart with the one-command terminal chat CLI;
 - [`qwen.md`](qwen.md) — isolated experimental Qwen SDK: installation, CLI,
   Python recipes, streaming, continuation, recovery and HTTP limitations;
 - [`../STATUS.md`](../STATUS.md) — current release vs `main` checkpoint;
