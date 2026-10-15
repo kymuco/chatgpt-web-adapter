@@ -21,7 +21,7 @@ def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") 
     (extension / "service_worker.js").write_text("// worker\n", encoding="utf-8")
     (extension / "extra.js").write_text("// extra\n", encoding="utf-8")
     (root / "pyproject.toml").write_text(
-        "[project]\nname = \"chatgpt-web-adapter\"\nversion = \"0.3.0\"\n",
+        '[project]\nname = "chatgpt-web-adapter"\nversion = "0.3.0"\n',
         encoding="utf-8",
     )
     (root / "CHANGELOG.md").write_text(changelog, encoding="utf-8")
@@ -29,7 +29,9 @@ def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") 
 
 
 def _entry_points_text(*, broken: bool = False) -> str:
-    target = "chatgpt_web_adapter.cli:main" if broken else "chatgpt_web_adapter.cli_v02:main"
+    target = (
+        "chatgpt_web_adapter.cli:main" if broken else "chatgpt_web_adapter.cli_v02:main"
+    )
     return (
         "[console_scripts]\n"
         f"cwa = {target}\n"
@@ -39,18 +41,27 @@ def _entry_points_text(*, broken: bool = False) -> str:
     )
 
 
-def _write_dist(root: Path, *, broken_entry_points: bool = False, omit_extra_js: bool = False) -> Path:
+def _write_dist(
+    root: Path, *, broken_entry_points: bool = False, omit_extra_js: bool = False
+) -> Path:
     dist = root / "dist"
     dist.mkdir()
     wheel = dist / f"chatgpt_web_adapter-{VERSION}-py3-none-any.whl"
     dist_info = f"chatgpt_web_adapter-{VERSION}.dist-info"
     with zipfile.ZipFile(wheel, "w") as archive:
-        archive.writestr(f"{dist_info}/METADATA", f"Name: chatgpt-web-adapter\nVersion: {VERSION}\n")
-        archive.writestr(f"{dist_info}/entry_points.txt", _entry_points_text(broken=broken_entry_points))
+        archive.writestr(
+            f"{dist_info}/METADATA", f"Name: chatgpt-web-adapter\nVersion: {VERSION}\n"
+        )
+        archive.writestr(
+            f"{dist_info}/entry_points.txt",
+            _entry_points_text(broken=broken_entry_points),
+        )
         for required in release_gate.REQUIRED_WHEEL_FILES:
             archive.writestr(required, "x\n")
         if not omit_extra_js:
-            archive.writestr("chatgpt_web_adapter/browser_native_extension/extra.js", "x\n")
+            archive.writestr(
+                "chatgpt_web_adapter/browser_native_extension/extra.js", "x\n"
+            )
     sdist = dist / f"chatgpt_web_adapter-{VERSION}.tar.gz"
     root_name = f"chatgpt_web_adapter-{VERSION}"
     with tarfile.open(sdist, "w:gz") as archive:
@@ -67,7 +78,9 @@ def test_repository_package_version_is_staged_for_0_3() -> None:
     assert release_gate.project_version(repo / "pyproject.toml") == VERSION
 
 
-def test_candidate_gate_allows_changelog_finalization_to_remain_separate(tmp_path: Path) -> None:
+def test_candidate_gate_allows_changelog_finalization_to_remain_separate(
+    tmp_path: Path,
+) -> None:
     root = _root(tmp_path)
     report = release_gate.run_release_gate(root=root)
     assert report["ok"] is True
