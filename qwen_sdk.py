@@ -4,7 +4,7 @@ Requires: pip install -e .   (from chatgpt-web-adapter checkout)
 Usage:
     python qwen_sdk.py --import-auth
     python qwen_sdk.py "Привет!"
-    python qwen_sdk.py --transport browser "Привет!"
+    python qwen_sdk.py --transport http "Привет!"  # experimental
     python qwen_sdk.py
 """
 
@@ -17,12 +17,14 @@ from chatgpt_web_adapter.qwen_client import QwenClient
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Qwen SDK: background browser or direct HTTP")
+    parser = argparse.ArgumentParser(
+        description="Qwen SDK: background browser or direct HTTP"
+    )
     parser.add_argument(
         "--transport",
         choices=("http", "browser"),
-        default="http",
-        help="http (default): no browser; browser: existing Qwen tab only",
+        default=None,
+        help="browser (default): existing Qwen tab; http: experimental direct requests",
     )
     parser.add_argument(
         "--import-auth",
@@ -34,8 +36,29 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Qwen model identifier (direct HTTP only; not validated by the SDK)",
     )
-    parser.add_argument("message", nargs="*", help="message to send; omit for interactive mode")
+    parser.add_argument(
+        "message", nargs="*", help="message to send; omit for interactive mode"
+    )
+    parser.add_argument(
+        "--auto-confirm-age",
+        action="store_true",
+        help="confirm Qwen age dialog using --birth-year",
+    )
+    parser.add_argument(
+        "--birth-year",
+        type=int,
+        default=2000,
+        help="your birth year (default: 2000, matching site)",
+    )
+    parser.add_argument(
+        "--stream",
+        choices=("dom", "network"),
+        default="dom",
+        help="browser streaming source",
+    )
     args = parser.parse_args(argv)
+
+    args.transport = args.transport or ("http" if args.import_auth else "browser")
 
     if args.import_auth and args.transport != "http":
         parser.error("--import-auth is only supported with --transport http")
@@ -47,12 +70,12 @@ def main(argv: list[str] | None = None) -> int:
     client = QwenClient(
         transport=args.transport,
         **({"model": args.model} if args.model else {}),
+        **(
+            {"auto_confirm_age": True, "birth_year": args.birth_year}
+            if args.auto_confirm_age
+            else {}
+        ),
     )
-
-    if args.import_auth:
-        client.import_browser_auth()
-        print("Авторизация Qwen сохранена локально. Сообщений не отправлено.")
-        return 0
 
     browser_conversation = None
 
@@ -64,16 +87,51 @@ def main(argv: list[str] | None = None) -> int:
                 message, on_token=lambda fragment: print(fragment, end="", flush=True)
             )
             print()
+        elif args.transport == "browser" and args.stream == "network":
+            result = client.send_text(
+                message,
+                conversation=browser_conversation,
+                on_token=lambda fragment: print(fragment, end="", flush=True),
+            )
+            print()
+        elif args.transport == "browser":
+            shown = ""
+
+            def show_snapshot(text: str) -> None:
+                nonlocal shown
+                if text.startswith(shown):
+                    print(text[len(shown) :], end="", flush=True)
+                else:
+                    print("\n[Qwen revised answer]\n" + text, end="", flush=True)
+                shown = text
+
+            result = client.send_text(
+                message, conversation=browser_conversation, on_text=show_snapshot
+            )
+            if result.text != shown:
+                show_snapshot(result.text)
+            print()
         else:
             result = client.send_text(
                 message,
-                conversation=browser_conversation if args.transport == "browser" else None,
+                conversation=browser_conversation
+                if args.transport == "browser"
+                else None,
             )
             print(result.text)
         if args.transport == "browser":
             browser_conversation = result.conversation
 
     try:
+        if args.import_auth:
+            client.import_browser_auth()
+            print("Авторизация Qwen сохранена локально. Сообщений не отправлено.")
+            return 0
+        if args.transport == "http":
+            print(
+                "Qwen HTTP is experimental: valid credentials may still require browser verification.",
+                file=sys.stderr,
+            )
         if args.message:
             send(" ".join(args.message), interactive=False)
             return 0

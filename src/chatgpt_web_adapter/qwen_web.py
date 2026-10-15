@@ -153,6 +153,7 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
         return QwenHttpCredentials(
             access_token=token,
             cookies=cookies,
+            headers=response.get("headers", {}),
             expires_at=float(expires) if isinstance(expires, (int, float)) else None,
         )
 
@@ -162,6 +163,10 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
         *,
         conversation: Any = None,
         timeout: float | None = None,
+        on_text: Any = None,
+        auto_confirm_age: bool = False,
+        birth_year: int = 2000,
+        on_token: Any = None,
     ) -> QwenBrowserTurnResult:
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text is required")
@@ -181,8 +186,25 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
                     "conversationId": conversation_id,
                     "text": text,
                     "timeoutMs": int(total_timeout * 1000),
+                    "streamTextObservations": on_text is not None,
+                    "streamNetwork": on_token is not None,
+                    "autoConfirmAge": auto_confirm_age,
+                    "birthYear": birth_year,
                 },
                 timeout=total_timeout,
+                on_event=lambda event: (
+                    on_text(event["text"])
+                    if on_text is not None
+                    and event.get("providerId") == QWEN_PROVIDER_ID
+                    and event.get("type") == "text_snapshot"
+                    and isinstance(event.get("text"), str)
+                    else on_token(event["text"])
+                    if on_token is not None
+                    and event.get("providerId") == QWEN_PROVIDER_ID
+                    and event.get("type") == "text_delta"
+                    and isinstance(event.get("text"), str)
+                    else None
+                ),
             )
         except RequestError as error:
             if str(error).startswith(
@@ -204,6 +226,11 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
                 )
             raise RequestError(
                 f"QWEN_WEB_TURN_FAILED: {error}",
+                request_stage="qwen_web_turn",
+            )
+        if on_token is not None and response.get("networkStreamVerified") is not True:
+            raise QwenWebWriteOutcomeAmbiguousError(
+                "QWEN_NETWORK_STREAM_NOT_VERIFIED: reload the updated CWA extension; do not resend automatically",
                 request_stage="qwen_web_turn",
             )
         if response.get("providerId") != QWEN_PROVIDER_ID:
@@ -352,6 +379,9 @@ class QwenWebTransport:
         poll_interval: float = 0.5,
         on_token: Any = None,
         on_event: Any = None,
+        on_text: Any = None,
+        auto_confirm_age: bool = False,
+        birth_year: int = 2000,
     ) -> ChatResponse:
         return self.send_text_observed(
             text,
@@ -360,6 +390,9 @@ class QwenWebTransport:
             poll_interval=poll_interval,
             on_token=on_token,
             on_event=on_event,
+            on_text=on_text,
+            auto_confirm_age=auto_confirm_age,
+            birth_year=birth_year,
         ).response
 
     def send_text_observed(
@@ -371,10 +404,13 @@ class QwenWebTransport:
         poll_interval: float = 0.5,
         on_token: Any = None,
         on_event: Any = None,
+        on_text: Any = None,
+        auto_confirm_age: bool = False,
+        birth_year: int = 2000,
     ) -> ProductRuntimeExecution:
         if poll_interval <= 0:
             raise ValueError("poll_interval must be positive")
-        if on_token is not None or on_event is not None:
+        if on_event is not None:
             raise ValueError(
                 "Qwen Web streaming callbacks are outside QWEN-PRELIVE scope"
             )
@@ -384,6 +420,10 @@ class QwenWebTransport:
             text,
             conversation=conversation,
             timeout=timeout,
+            on_text=on_text,
+            on_token=on_token,
+            auto_confirm_age=auto_confirm_age,
+            birth_year=birth_year,
         )
         response = ChatResponse(
             text=turn.response_text,

@@ -64,6 +64,7 @@ def test_http_new_chat_streams_and_continues_without_browser():
     assert all(
         request.full_url.startswith("https://chat.qwen.ai/api/") for request in requests
     )
+    assert json.loads(requests[0].data)["chatId"] == ""
     assert requests[-1].get_header("Authorization") == "Bearer example"
     body = json.loads(requests[-1].data.decode("utf-8"))
     assert body["parent_id"] == "parent-2"
@@ -186,7 +187,7 @@ def test_imported_qwen_token_is_sent_as_cookie_without_losing_other_cookies():
         QwenHttpCredentials("user-token", {"session": "qwen-session"})
     )
     headers = client._headers()
-    assert "token=user-token" in headers["Cookie"]
+    assert "token=user-token" not in headers["Cookie"]
     assert "session=qwen-session" in headers["Cookie"]
     assert headers["Authorization"] == "Bearer user-token"
     assert "QwenDirectExperimental" not in headers["User-Agent"]
@@ -256,3 +257,54 @@ def test_completion_html_does_not_attempt_second_write():
     ):
         client.send_text("message", conversation=QwenHttpConversation("existing"))
     assert len(requests) == 1
+
+
+def test_current_answer_phase_finished_without_done():
+    def open_(request, timeout):
+        return _Reply(
+            [
+                {"response.created": {"response_id": "answer-id"}},
+                {
+                    "choices": [
+                        {"delta": {"content": "private", "phase": "thinking_summary"}}
+                    ]
+                },
+                {"choices": [{"delta": {"content": "OK", "phase": "answer"}}]},
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "content": "",
+                                "phase": "answer",
+                                "status": "finished",
+                            }
+                        }
+                    ]
+                },
+            ]
+        )
+
+    client = QwenHttpClient(QwenHttpCredentials("example"), opener=open_)
+    result = client.send_text("test", conversation=QwenHttpConversation("chat"))
+    assert result.text == "OK"
+    assert client.conversation.parent_id == "answer-id"
+
+
+def test_waf_json_requires_verification_and_never_replays():
+    from chatgpt_web_adapter.qwen_http import QwenHttpVerificationRequiredError
+
+    calls = []
+
+    def open_(request, timeout):
+        calls.append(request)
+        response = _Reply(
+            {"ret": ["FAIL_SYS_USER_VALIDATE"], "data": {"url": "SECRET_CHALLENGE_URL"}}
+        )
+        response.headers["Content-Type"] = "application/json"
+        return response
+
+    client = QwenHttpClient(QwenHttpCredentials("example"), opener=open_)
+    with pytest.raises(QwenHttpVerificationRequiredError) as caught:
+        client.send_text("test", conversation=QwenHttpConversation("chat"))
+    assert "SECRET" not in str(caught.value)
+    assert len(calls) == 1

@@ -14,7 +14,7 @@ from http.cookies import SimpleCookie
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .types import ChatConversation, ChatResponse
 
@@ -23,6 +23,13 @@ QWEN_ORIGIN = "https://chat.qwen.ai"
 
 class QwenHttpError(RuntimeError):
     """Direct Qwen API failure; never includes bearer or cookie values."""
+
+
+class QwenHttpVerificationRequiredError(QwenHttpError):
+    """Aliyun requests user verification; no automatic generation replay."""
+
+    automatic_retry_allowed = False
+    reconciliation_required = True
 
 
 class QwenHttpWriteOutcomeAmbiguousError(QwenHttpError):
@@ -35,6 +42,7 @@ class QwenHttpCredentials:
     access_token: str = field(repr=False)
     cookies: dict[str, str] = field(default_factory=dict, repr=False)
     expires_at: float | None = None
+    headers: dict[str, str] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         self.access_token = self.access_token.removeprefix("Bearer ").strip()
@@ -66,9 +74,9 @@ class QwenHttpClient:
         self,
         credentials: QwenHttpCredentials,
         *,
-        model: str = "qwen-max-latest",
+        model: str = "qwen3.7-plus",
         timeout: float = 180.0,
-        opener: Callable[..., Any] = urlopen,
+        opener: Callable[..., Any] | None = None,
         refresh_path: str | None = None,
         on_auth_updated: Callable[[QwenHttpCredentials], None] | None = None,
     ) -> None:
@@ -85,7 +93,9 @@ class QwenHttpClient:
         self.credentials = credentials
         self.model = model
         self.timeout = timeout
-        self._open = opener
+        from .qwen_curl import curl_open
+
+        self._open = opener or curl_open
         self.refresh_path = refresh_path
         self.on_auth_updated = on_auth_updated
         self.conversation: QwenHttpConversation | None = None
@@ -106,7 +116,14 @@ class QwenHttpClient:
         # Qwen Web uses the account token as a cookie as well as, in some
         # deployments, Authorization. Preserve imported cookies verbatim.
         cookies = dict(self.credentials.cookies)
-        cookies.setdefault("token", self.credentials.access_token)
+        headers.update(
+            {
+                k: v
+                for k, v in self.credentials.headers.items()
+                if k.lower()
+                not in {"authorization", "cookie", "host", "content-length"}
+            }
+        )
         headers["Cookie"] = "; ".join(
             name + "=" + value for name, value in cookies.items()
         )
@@ -250,7 +267,7 @@ class QwenHttpClient:
         self._preflight_auth()
         selected = model or self.model
         payload = {
-            "title": "Qwen Direct",
+            "chatId": "",
             "models": [selected],
             "chat_mode": "normal",
             "chat_type": "t2t",
@@ -273,6 +290,8 @@ class QwenHttpClient:
             "stream": True,
             "version": "2.1",
             "incremental_output": True,
+            "chatId": state.chat_id,
+            "parentId": state.parent_id or "",
             "chat_id": state.chat_id,
             "chat_mode": "normal",
             "model": model,
@@ -280,10 +299,12 @@ class QwenHttpClient:
             "timestamp": timestamp,
             "messages": [
                 {
+                    "id": None,
                     "fid": str(uuid.uuid4()),
                     "parentId": state.parent_id,
                     "parent_id": state.parent_id,
-                    "childrenIds": [],
+                    "childrenIds": [str(uuid.uuid4())],
+                    "model": "",
                     "role": "user",
                     "content": text,
                     "user_action": "chat",
@@ -293,9 +314,13 @@ class QwenHttpClient:
                     "chat_type": "t2t",
                     "sub_chat_type": "t2t",
                     "feature_config": {
-                        "thinking_enabled": False,
-                        "thinking_budget": 0,
-                        "output_schema": None,
+                        "thinking_enabled": True,
+                        "research_mode": "normal",
+                        "auto_thinking": True,
+                        "thinking_mode": "Auto",
+                        "thinking_format": "summary",
+                        "auto_search": True,
+                        "output_schema": "phase",
                     },
                     "extra": {"meta": {"subChatType": "t2t"}},
                 }
@@ -339,6 +364,20 @@ class QwenHttpClient:
                         "QWEN_COMPLETION_NON_SSE_RESPONSE: body_class=html "
                         "(possible Qwen account verification)"
                     )
+                if mime == "application/json":
+                    envelope = self._read_json_response(response, stage="COMPLETION")
+                    ret = envelope.get("ret", [])
+                    if isinstance(ret, list) and any(
+                        isinstance(item, str)
+                        and item.startswith("FAIL_SYS_USER_VALIDATE")
+                        for item in ret
+                    ):
+                        raise QwenHttpVerificationRequiredError(
+                            "QWEN_USER_VERIFICATION_REQUIRED"
+                        )
+                    raise QwenHttpWriteOutcomeAmbiguousError(
+                        "QWEN_COMPLETION_JSON_REJECTED"
+                    )
                 for line in response:
                     raw = (
                         line.decode("utf-8", "replace")
@@ -372,11 +411,19 @@ class QwenHttpClient:
                     choice = choices[0]
                     delta = choice.get("delta")
                     chunk = delta.get("content") if isinstance(delta, dict) else None
-                    if isinstance(chunk, str) and chunk:
+                    if (
+                        isinstance(chunk, str)
+                        and chunk
+                        and delta.get("phase") in (None, "answer")
+                    ):
                         chunks.append(chunk)
                         if on_token is not None:
                             on_token(chunk)
-                    if choice.get("finish_reason") in {"stop", "length"}:
+                    if (
+                        isinstance(delta, dict)
+                        and delta.get("phase") == "answer"
+                        and delta.get("status") == "finished"
+                    ) or choice.get("finish_reason") in {"stop", "length"}:
                         finished = True
         except QwenHttpError:
             raise

@@ -42,9 +42,7 @@ def test_client_explicit_transport_and_rejects_cross_transport_conversation():
         QwenClient(transport="http").send_text("x", conversation="browser-opaque-id")
 
 
-def test_browser_model_and_streaming_fail_before_write():
+def test_browser_model_fails_before_write():
     client = QwenClient(transport="browser")
     with pytest.raises(ValueError):
         client.send_text("x", model="any")
-    with pytest.raises(ValueError):
-        client.send_text("x", on_token=lambda chunk: None)

@@ -51,6 +51,7 @@ class _FakeQwenProvider(QwenBrowserTurnProvider):
             "canonicalCompletionProven": False,
             "routeIdentityProven": True,
             "automaticWriteRetry": False,
+            "networkStreamVerified": payload.get("streamNetwork") is True,
         }
 
     def status(self):
@@ -287,11 +288,48 @@ def test_qwen_auth_export_is_explicit_and_separate_from_page_turn() -> None:
     assert '["new-chat", "guest"]' in worker
 
 
-def test_qwen_browser_turn_never_spawns_or_navigates_tabs() -> None:
+def test_qwen_browser_turn_creates_background_tab_without_replacing_chats() -> None:
     source = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
-    assert "chrome.tabs.create(" not in source
+    assert 'chrome.tabs.create({url: CWA_QWEN_ORIGIN + "/", active: false})' in source
     assert "chrome.tabs.update(" not in source
     assert "chrome.tabs.query(" in source
     assert "QWEN_NEW_CHAT_TAB_NOT_OPEN" in source
     assert "QWEN_CONTINUATION_TAB_NOT_OPEN" in source
     assert "_cwaQwenIsEmptyChatRoute" in source
+
+
+def test_qwen_browser_stream_delivers_snapshots_including_revisions():
+    provider = _FakeQwenProvider()
+    original_rpc = provider._rpc
+
+    def rpc(payload, *, timeout, on_event=None):
+        assert payload["streamTextObservations"] is True
+        for text in ["Hello", "Hello world", "Corrected answer"]:
+            on_event({"providerId": "qwen", "type": "text_snapshot", "text": text})
+        on_event({"providerId": "other", "type": "text_snapshot", "text": "wrong"})
+        return original_rpc(payload, timeout=timeout)
+
+    provider._rpc = rpc
+    snapshots = []
+    result = QwenWebTransport(provider).send_text("hello", on_text=snapshots.append)
+    assert snapshots == ["Hello", "Hello world", "Corrected answer"]
+    assert result.text == "proof response"
+    assert len(provider.requests) == 1
+
+
+def test_qwen_network_tokens_pass_through_without_dom_substitution():
+    provider = _FakeQwenProvider()
+    original_rpc = provider._rpc
+
+    def rpc(payload, *, timeout, on_event=None):
+        assert payload["streamNetwork"] is True
+        assert payload["streamTextObservations"] is False
+        on_event({"providerId": "qwen", "type": "text_delta", "text": "A"})
+        on_event({"providerId": "qwen", "type": "text_snapshot", "text": "ignored"})
+        on_event({"providerId": "qwen", "type": "text_delta", "text": "B"})
+        return original_rpc(payload, timeout=timeout)
+
+    provider._rpc = rpc
+    tokens = []
+    QwenWebTransport(provider).send_text("hello", on_token=tokens.append)
+    assert tokens == ["A", "B"]

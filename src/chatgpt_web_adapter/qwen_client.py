@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any, Callable, Literal
 
 from .qwen_auth_store import load_qwen_credentials, save_qwen_credentials
@@ -14,18 +15,36 @@ class QwenClient:
     """Choose browser or direct HTTP without implicit fallback.
 
     HTTP may outlive Chrome once imported credentials remain valid.
-    Browser session import happens only when import_browser_auth() is invoked.
+    Browser session import is explicit, or opt-in before sends via
+    browser_session_refresh=True.
     """
 
     def __init__(
         self,
         *,
         transport: Literal["browser", "http"] = "browser",
-        model: str = "qwen-max-latest",
+        model: str = "qwen3.7-plus",
         refresh_path: str | None = None,
+        browser_session_refresh: bool = False,
+        session_refresh_interval: float = 300.0,
+        auto_confirm_age: bool = False,
+        birth_year: int = 2000,
     ) -> None:
         if transport not in {"browser", "http"}:
             raise ValueError("transport must be browser or http")
+        if session_refresh_interval <= 0:
+            raise ValueError("session_refresh_interval must be positive")
+        if (
+            isinstance(birth_year, bool)
+            or not isinstance(birth_year, int)
+            or not 1900 <= birth_year <= time.localtime().tm_year
+        ):
+            raise ValueError("birth_year must be a valid year")
+        self.auto_confirm_age = auto_confirm_age
+        self.birth_year = birth_year
+        self.browser_session_refresh = browser_session_refresh
+        self.session_refresh_interval = session_refresh_interval
+        self._last_browser_auth_import = None
         self.transport = transport
         self.model = model
         self.refresh_path = refresh_path
@@ -35,6 +54,7 @@ class QwenClient:
     def import_browser_auth(self) -> None:
         """Explicit local opt-in; requires Chrome with an authenticated Qwen tab."""
         credentials = QwenBrowserTurnProvider().export_auth()
+        previous_conversation = self._http.conversation if self._http else None
         save_qwen_credentials(credentials)
         self._http = QwenHttpClient(
             credentials,
@@ -42,6 +62,29 @@ class QwenClient:
             refresh_path=self.refresh_path,
             on_auth_updated=save_qwen_credentials,
         )
+
+        self._http.conversation = previous_conversation
+        self._last_browser_auth_import = time.monotonic()
+
+    def refresh_browser_auth(self) -> None:
+        """Refresh the local snapshot from an existing Qwen tab; never sends a prompt."""
+        self.import_browser_auth()
+
+    def _prepare_http_session(self) -> None:
+        if not self.browser_session_refresh:
+            return
+        expired = (
+            self._http is not None
+            and self._http.credentials.expires_at is not None
+            and self._http.credentials.expires_at <= time.time() + 60
+        )
+        due = (
+            self._last_browser_auth_import is None
+            or time.monotonic() - self._last_browser_auth_import
+            >= self.session_refresh_interval
+        )
+        if expired or due:
+            self.refresh_browser_auth()
 
     def _http_client(self) -> QwenHttpClient:
         if self._http is None:
@@ -60,8 +103,14 @@ class QwenClient:
         conversation: Any = None,
         model: str | None = None,
         on_token: Callable[[str], None] | None = None,
+        on_text: Callable[[str], None] | None = None,
     ) -> ChatResponse:
         if self.transport == "http":
+            if on_text is not None:
+                raise ValueError(
+                    "on_text snapshots are supported only by browser transport"
+                )
+            self._prepare_http_session()
             if conversation is not None and not isinstance(
                 conversation, QwenHttpConversation
             ):
@@ -74,10 +123,15 @@ class QwenClient:
                 model=model,
                 on_token=on_token,
             )
-        if model is not None or on_token is not None:
-            raise ValueError(
-                "Browser provider does not support model selection or token streaming"
-            )
+        if model is not None:
+            raise ValueError("Browser provider does not support model selection")
         if self._browser is None:
             self._browser = QwenWebTransport()
-        return self._browser.send_text(text, conversation=conversation)
+        return self._browser.send_text(
+            text,
+            conversation=conversation,
+            on_text=on_text,
+            on_token=on_token,
+            auto_confirm_age=self.auto_confirm_age,
+            birth_year=self.birth_year,
+        )
