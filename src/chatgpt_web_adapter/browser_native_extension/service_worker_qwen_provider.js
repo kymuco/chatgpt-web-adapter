@@ -569,20 +569,21 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
       throw new Error("QWEN_DUAL_RESPONSE_SELECTION_REQUIRED: Qwen displayed Response 1 and Response 2; choose one in the tab to establish the continuation; no automatic vote or text replay");
     }
     const candidate = _cwaQwenLatestNewText(snapshot, baseline);
-    const startObserved = candidate !== null ||
-      snapshot?.generating === true ||
-      (typeof snapshot?.url === "string" && snapshot.url !== baseline?.initialUrl);
-    if (startObserved) {
+    // A route change proves the UI navigated, NOT that the answer is being
+    // generated. A blank new-chat route must not mask an absent answer for the
+    // rest of the 120-second turn deadline.
+    if (candidate !== null || snapshot?.generating === true) {
       unobservedSince = null;
     } else if (snapshot?.generating === false && candidate === null) {
       if (unobservedSince === null) unobservedSince = performance.now();
       const network = writeObserver?.snapshot?.() ||
         {kind:"unknown", status:"unavailable", responseCode:null};
       const networkObserved = network.kind === "create" || network.kind === "completion";
-      // If the browser emitted no Qwen POST at all, report promptly instead
-      // of waiting for a DOM answer that could never arrive. A confirmed POST
-      // gets more time: Qwen may be generating in an unmounted hidden page.
-      const limit = networkObserved ? 20000 :
+      const routeAdvanced = typeof snapshot?.url === "string" &&
+        snapshot.url !== baseline?.initialUrl;
+      // No observed POST and no route change: fail promptly. A Qwen POST or
+      // navigation gets a longer window for background-page remounts.
+      const limit = networkObserved || routeAdvanced ? 20000 :
         network.kind === "none" ? 8000 : 15000;
       if (performance.now() - unobservedSince >= limit) {
         const editor = ["prompt_present","empty","different","missing"].includes(snapshot?.editorState)
@@ -591,13 +592,14 @@ async function _cwaQwenWaitForFinalText(debuggee, text, baseline, deadlineAt, on
           ? snapshot.sendState : "unknown";
         const visibility = ["visible","hidden"].includes(snapshot?.pageVisibility)
           ? snapshot.pageVisibility : "unknown";
-        const stage = networkObserved ?
-          "QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_NETWORK_WRITE" :
+        const stage = networkObserved || routeAdvanced ?
+          "QWEN_POST_SUBMIT_UI_UNOBSERVED_AFTER_WRITE_OR_NAVIGATION" :
           "QWEN_POST_SUBMIT_START_UNOBSERVED";
         throw new Error(
           stage + ": no response DOM or generation observed; " +
           "write=" + network.kind + " network=" + network.status +
           " http=" + (network.responseCode || "unknown") +
+          " routeChanged=" + routeAdvanced +
           " editor=" + editor + " send=" + send +
           " visibility=" + visibility +
           "; no automatic replay; inspect Qwen before another send"
