@@ -2765,6 +2765,7 @@ class ChatGPTWebClient:
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
+
             def record_token(token: str) -> None:
                 nonlocal first_token_latency, last_token_latency
                 if not token:
