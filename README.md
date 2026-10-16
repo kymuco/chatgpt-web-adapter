@@ -77,7 +77,6 @@ extension and Native Messaging host; it does not replace the production ChatGPT/
 bridge. Google Translate and Gemini Notebook retain their own module-only,
 non-chat capability contracts, rather than pretending to be conversations.
 
-
 The shared architecture preserves explicit:
 
 - provider identity and product semantics;
