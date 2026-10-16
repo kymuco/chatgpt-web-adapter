@@ -56,6 +56,39 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
     )
 
 
+def test_readme_architecture_map_distinguishes_product_lanes() -> None:
+    readme = _read("README.md")
+    section = readme.split("## What CWA is\n", 1)[1].split(
+        "## Provider status on current `main`\n", 1
+    )[0]
+    diagram = section.split("```text\n", 1)[1].split("\n```", 1)[0]
+
+    for expected in (
+        "Conversational runtimes",
+        "ChatGPT",
+        "PRODUCTION / default",
+        "DeepSeek Web",
+        "Gemini Web",
+        "EXPERIMENTAL / module-only",
+        "Isolated Qwen SDK",
+        "own Chrome extension + Native Messaging host",
+        "Qwen Web",
+        "Non-chat capabilities",
+        "lower CWA browser / authority lane",
+        "Google Translate Web",
+        "translate_text",
+        "Gemini Notebook Web",
+        "add_url_source",
+        "generate_audio_overview",
+    ):
+        assert expected in diagram, expected
+
+    assert "ProductProviderBoundary" in section
+    assert "not** an execution router" in section
+    assert "not a universal provider selector" in section
+    assert "[the capability map](docs/capabilities.md)" in readme
+
+
 def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
     guide = _read("docs/qwen.md")
     quickstart = _read("QWEN.md")
