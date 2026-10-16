@@ -81,7 +81,9 @@ def test_direct_new_chat_streams_and_retains_conversation_identity(harness):
     assert client.last_timing["total_seconds"] >= 0
 
 
-def test_continuation_temporary_and_media_forwarded_without_browser_fallback(harness, monkeypatch):
+def test_continuation_temporary_and_media_forwarded_without_browser_fallback(
+    harness, monkeypatch
+):
     client, calls, _ = harness
     requested_files = ["notes-a.md", "notes-b.md"]
     attached = SimpleNamespace(conversation=ChatConversation(
