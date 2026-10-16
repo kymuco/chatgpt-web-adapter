@@ -8,7 +8,7 @@ Node.js 24+; it relies on a changeable private ChatGPT web protocol.
 
 ## Python API
 
-Use one consistent installation/check-out of the PR #212 source; do not mix
+Use one consistent installed package or source checkout; do not mix
 an editable install from another CWA branch with selected files copied here.
 
 ```python
@@ -57,7 +57,7 @@ library. Inspect `client.last_timing` after a send to understand latency.
   default progress output.
 - Fail closed if the session expires, server challenge cannot be legitimately
   completed, or the pinned public module changes. No browser fallback.
-- For a future interactive E2E, report distinct, **sanitized** stages:
+- For downstream interactive E2E, report distinct, **sanitized** stages:
   preflight, claim/handoff committed, direct submit attempt, visible token
   stream (explicit opt-in), canonical readback, provider IDs verified,
   Work admission / yielded result. Do not report `submitted` as proven
@@ -67,10 +67,18 @@ library. Inspect `client.last_timing` after a send to understand latency.
 
 User-run continuous text conversations, ordinary and Temporary Chat, streaming
 and more-than-one-hour session reuse have been reported on the separate PR #212
-checkout. Earlier PR live notes also report single PNG/TXT uploads. Multiple
-files, broad model/reasoning selection, generated-artifact retrieval and
-long-term auth renewal are **not** claimed as generally proven. This module
-is experimental and PR #212 has not been merged into `main`.
+checkout. Earlier live notes also report single PNG/TXT uploads.
+
+One Codexia delegated-Work E2E with three Markdown attachments was observed:
+GPT-6 with requested `high` mapped to observed `extended`, streamed text,
+verified exact assistant message readback and `CAPTURED_UNADMITTED`. This is
+transport evidence, **not** Gen2 cognition admission or Work completion. It
+does not prove general reliability across models, attachment formats, session
+renewal or changing web-protocol revisions.
+
+This module remains **experimental and explicitly opt-in**, even when included
+in `main`. Existing browser-owned ChatGPT and isolated Qwen SDK behavior remain
+the default; the HTTP client has no automatic browser fallback.
 
 No live requests are made by the `test_browserless_http_client_contract.py`
 regressions; they exercise the client boundary with a mocked underlying send.
