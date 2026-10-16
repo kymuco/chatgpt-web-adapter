@@ -16,6 +16,10 @@ Do not treat every PR-numbered document as current getting-started guidance.
 - [`agent_integration.md`](agent_integration.md) — local assistants, coding agents and tool wrappers;
 - [`../README.md`](../README.md) — project overview, provider status and production
   quick start;
+- [`../QWEN.md`](../QWEN.md) — **Qwen-only** Windows quickstart with the one-command terminal chat CLI;
+- [`../QWEN.ru.md`](../QWEN.ru.md) — тот же быстрый старт Qwen на русском языке;
+- [`qwen.md`](qwen.md) — isolated experimental Qwen SDK: installation, CLI,
+  Python recipes, streaming, continuation, recovery and HTTP limitations;
 - [`../STATUS.md`](../STATUS.md) — current release vs `main` checkpoint;
 - [`../USAGE.md`](../USAGE.md) — usage guide;
 - [`../ROADMAP.md`](../ROADMAP.md) — current development direction;
@@ -32,8 +36,8 @@ Do not treat every PR-numbered document as current getting-started guidance.
 
 - [`architecture.md`](architecture.md) — provider-specific runtimes, schema-2
   provider boundary, canonical/finality differences and authority separation;
-- [`providers.md`](providers.md) — ChatGPT production/default vs DeepSeek/Gemini
-  experimental support;
+- [`providers.md`](providers.md) — ChatGPT production/default vs experimental
+  DeepSeek, Gemini and isolated Qwen support;
 - [`browser_owned.md`](browser_owned.md) — browser-owned vs browserless execution;
 - [`browser_owned_v1_contract.md`](browser_owned_v1_contract.md) — ChatGPT
   production browser-owned contract;

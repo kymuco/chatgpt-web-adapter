@@ -7,7 +7,7 @@ README = ROOT / "README.md"
 
 TAGLINE = "Local product-runtime bridge for authenticated consumer AI web products."
 REQUIRED_WARNING_LINES = [
-    "CWA is not an official API client for OpenAI, Google or DeepSeek.",
+    "CWA is not an official API client for OpenAI, Google, DeepSeek or Qwen.",
     "ordinary consumer web products",
     "Ambiguous writes are never automatically retried.",
 ]

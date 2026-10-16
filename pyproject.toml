@@ -62,6 +62,7 @@ browser = ["zendriver==0.15.3"]
 chatgpt-web-adapter = "chatgpt_web_adapter.cli_v02:main"
 cwa = "chatgpt_web_adapter.cli_v02:main"
 chatgpt-web-adapter-native-host = "chatgpt_web_adapter.browser_native_host:main"
+qwen-web-adapter-native-host = "chatgpt_web_adapter.qwen_native:host_main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -71,7 +72,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 chatgpt_web_adapter = [
-    "browserless_js/*.cjs",
+  "qwen_native_worker.js",
+  "browserless_js/*.cjs",
   "browser_native_extension/*.json",
   "browser_native_extension/*.js",
   "browser_native_extension/*.html",

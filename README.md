@@ -15,10 +15,10 @@ CWA lets local software, assistants and agents use ordinary hosted AI products t
 typed runtime contracts without turning browser details, product observations or
 partial output into implicit authority.
 
-[Quickstart](docs/quickstart.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
+[Quickstart](docs/quickstart.md) · [Qwen (EN)](QWEN.md) · [Qwen (RU)](QWEN.ru.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Qwen SDK](docs/qwen.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
 
 > [!WARNING]
-> CWA is not an official API client for OpenAI, Google or DeepSeek. It works with
+> CWA is not an official API client for OpenAI, Google, DeepSeek or Qwen. It works with
 > ordinary consumer web products and depends on product behavior that may change.
 
 > **Product observation is not authority. Incremental output is not canonical finality.
@@ -32,6 +32,8 @@ partial output into implicit authority.
 | Building a Python application | [Production Python example](#production-python-example) |
 | Connecting a local assistant or coding agent | [Agent integration](docs/agent_integration.md) |
 | Checking what is actually supported | [Capability map](docs/capabilities.md) |
+| **Only want Qwen in the terminal?** | **[Qwen quickstart (English)](QWEN.md) · [Русская инструкция](QWEN.ru.md)** |
+| Using experimental Qwen Web in Python | [Complete Qwen SDK guide](docs/qwen.md) |
 | Adding a new hosted product capability | [Capability contribution guide](docs/adding_capability.md) |
 
 Current proven product surfaces include:
@@ -39,6 +41,7 @@ Current proven product surfaces include:
 - **ChatGPT** — production/default conversational runtime;
 - **DeepSeek Web** — experimental text new-chat + continuation;
 - **Gemini Web** — experimental text new-chat + continuation;
+- **Qwen Web** — isolated experimental text, network streaming and conversation reattachment (user-verified on Windows);
 - **Google Translate Web** — experimental non-chat `translate_text` capability;
 - **Gemini Notebook Web** — experimental persistent-workspace `add_url_source` and background `generate_audio_overview` capabilities.
 
@@ -47,24 +50,32 @@ conversation-shaped provider contract. See [docs/capabilities.md](docs/capabilit
 
 ## What CWA is
 
-CWA sits between a local application and an authenticated consumer AI product:
+CWA sits between a local application and an authenticated consumer AI
+product. The integration surfaces are **not** one interchangeable chat backend:
 
 ```text
-application / HDE / Codexia / terminal
-                  |
-                  v
-        provider-specific runtime
-          /          |          \
-         /           |           \
-   ChatGPT      DeepSeek Web    Gemini Web
- production     experimental    experimental
-       |
-       +---- each runtime is inspected / validated through
-             ProductProviderBoundary schema 2
+local application / assistant / agent / terminal
+  |
+  +-- Conversational runtimes (provider-specific)
+  |   +-- ChatGPT .............. PRODUCTION / default
+  |   +-- DeepSeek Web ......... EXPERIMENTAL / module-only
+  |   `-- Gemini Web ........... EXPERIMENTAL / module-only
+  |
+  +-- Isolated Qwen SDK (own Chrome extension + Native Messaging host)
+  |   `-- Qwen Web ............. EXPERIMENTAL / browser-backed
+  |
+  `-- Non-chat capabilities (lower CWA browser / authority lane)
+      +-- Google Translate Web  EXPERIMENTAL: translate_text
+      `-- Gemini Notebook Web   EXPERIMENTAL: add_url_source
+                                              + generate_audio_overview
 ```
 
-`ProductProviderBoundary` is **not** an execution router. It is a provider-neutral
-metadata and invariant view over an already-created runtime.
+`ProductProviderBoundary` (schema 2) is **not** an execution router. It is a
+provider-neutral metadata/invariant view over an already-created conversational
+runtime, not a universal provider selector. The Qwen SDK uses a **separate**
+extension and Native Messaging host; it does not replace the production ChatGPT/HDE
+bridge. Google Translate and Gemini Notebook retain their own module-only,
+non-chat capability contracts, rather than pretending to be conversations.
 
 The shared architecture preserves explicit:
 
@@ -81,6 +92,10 @@ Provider differences remain visible instead of being forced into a fake universa
 API.
 
 ## Provider status on current `main`
+
+The table below compares the shared conversational runtime track. The isolated
+Qwen SDK and non-chat capability contracts are deliberately described separately;
+see [the capability map](docs/capabilities.md) for all six product surfaces.
 
 | Capability / property | ChatGPT | DeepSeek Web | Gemini Web |
 | --- | --- | --- | --- |
@@ -100,6 +115,14 @@ DeepSeek and Gemini are deliberately not presented as equally mature alternative
 ChatGPT. Their current purpose is a real, live-proven provider implementation plus
 evidence that the shared provider architecture is not ChatGPT-specific.
 
+**Qwen Web** is an additional *isolated experimental* provider rather than a new
+production path. A user-run installed Windows SDK confirmed text turns, network
+streaming, continuation and cross-process chat reattachment. It requires a
+**separate Qwen extension and Native Messaging host**; the production CWA/HDE
+extension is not modified. See the [Qwen SDK guide](docs/qwen.md) for setup,
+reference code, explicit overload `/retry`, safety boundaries and unsupported
+features. Direct Qwen HTTP remains unproven.
+
 See [docs/providers.md](docs/providers.md) for the detailed matrix and finality model.
 
 ## Release vs current `main`
@@ -107,8 +130,9 @@ See [docs/providers.md](docs/providers.md) for the detailed matrix and finality 
 - **Latest public release:** `v0.3.0` — 2026-09-01.
 - **Published package version:** `0.3.0`.
 - **Current `main`:** includes post-0.3 PR15 architecture, PR16 non-chat
-  capabilities and private artifact research, plus PR17.1/17.2 background
-  ChatGPT selection/submit repair and conversation-local reasoning scope proof.
+  capabilities and private artifact research, PR17.1/17.2 background ChatGPT
+  selection/submit repair and conversation-local reasoning scope proof, plus the
+  isolated **experimental Qwen Web** source and SDK examples.
   The exact PR17.2 checkpoint is [documented here](docs/engineering/pr17_2_canonical_product_checkpoint.md).
 
 Do not assume every behavior described for current `main` exists in the published

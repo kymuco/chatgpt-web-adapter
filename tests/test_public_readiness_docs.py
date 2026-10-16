@@ -30,6 +30,9 @@ def test_current_repository_entrypoints_exist() -> None:
         "docs/capabilities.md",
         "docs/agent_integration.md",
         "docs/adding_capability.md",
+        "QWEN.md",
+        "QWEN.ru.md",
+        "docs/qwen.md",
         "llms.txt",
     ):
         assert (ROOT / path).is_file(), path
@@ -51,6 +54,104 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
     assert (
         "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY" in text
     )
+
+
+def test_readme_architecture_map_distinguishes_product_lanes() -> None:
+    readme = _read("README.md")
+    section = readme.split("## What CWA is\n", 1)[1].split(
+        "## Provider status on current `main`\n", 1
+    )[0]
+    diagram = section.split("```text\n", 1)[1].split("\n```", 1)[0]
+
+    for expected in (
+        "Conversational runtimes",
+        "ChatGPT",
+        "PRODUCTION / default",
+        "DeepSeek Web",
+        "Gemini Web",
+        "EXPERIMENTAL / module-only",
+        "Isolated Qwen SDK",
+        "own Chrome extension + Native Messaging host",
+        "Qwen Web",
+        "Non-chat capabilities",
+        "lower CWA browser / authority lane",
+        "Google Translate Web",
+        "translate_text",
+        "Gemini Notebook Web",
+        "add_url_source",
+        "generate_audio_overview",
+    ):
+        assert expected in diagram, expected
+
+    assert "ProductProviderBoundary" in section
+    assert "is **not** an execution router" in section
+    assert "not a universal provider selector" in section
+    assert "[the capability map](docs/capabilities.md)" in readme
+
+
+def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
+    guide = _read("docs/qwen.md")
+    quickstart = _read("QWEN.md")
+    quickstart_ru = _read("QWEN.ru.md")
+    index = _read("docs/README.md")
+    readme = _read("README.md")
+
+    for example in (
+        "python -m chatgpt_web_adapter.qwen_native",
+        "python .\\qwen_sdk.py --stream network",
+        "--auto-confirm-age",
+        "--foreground-tab",
+        "--chat",
+        "/retry",
+        'QwenClient(transport="browser")',
+        "client.retry(conversation=chat)",
+        "on_token=lambda fragment:",
+        "client.import_browser_auth()",
+        'QwenClient(transport="http")',
+    ):
+        assert example in guide, example
+
+    assert "com.kymuco.qwen_web_adapter" in guide
+    assert "com.kymuco.chatgpt_web_adapter" in guide
+    assert "not live-proven" in guide
+    assert "Never automatically resend" in guide
+    assert "[Qwen SDK](docs/qwen.md)" in readme
+    assert "qwen.md" in index
+    assert "[Qwen (EN)](QWEN.md)" in readme
+    assert "../QWEN.md" in index
+    assert "[Qwen-only quickstart](../QWEN.md)" in guide
+    assert "python .\\qwen_sdk.py --stream network" in quickstart
+    assert "python -m chatgpt_web_adapter.qwen_native" in quickstart
+    assert "--extension-id YOUR_QWEN_EXTENSION_ID" in quickstart
+    assert "No ChatGPT authentication" in quickstart
+    assert "[Русский](QWEN.ru.md)" in quickstart
+    assert "[English](QWEN.md)" in quickstart_ru
+    assert "[Qwen (RU)](QWEN.ru.md)" in readme
+    assert "[Русская инструкция](QWEN.ru.md)" in readme
+    assert "../QWEN.ru.md" in index
+    for command in (
+        "git clone https://github.com/kymuco/chatgpt-web-adapter.git",
+        "python -m pip install -e .",
+        "python -m chatgpt_web_adapter.qwen_native",
+        "--extension-id YOUR_QWEN_EXTENSION_ID",
+        "python .\\qwen_sdk.py --stream network",
+        "--chat YOUR_CHAT_UUID --stream network",
+        "--auto-confirm-age --birth-year YOUR_BIRTH_YEAR",
+        "--foreground-tab --stream network",
+        'QwenClient(transport="browser")',
+        "conversation=first.conversation",
+    ):
+        assert command in quickstart, command
+        assert command in quickstart_ru, command
+
+    for limit in (
+        "com.kymuco.qwen_web_adapter",
+        "com.kymuco.chatgpt_web_adapter",
+        "/retry",
+        "transport http",
+    ):
+        assert limit in quickstart, limit
+        assert limit in quickstart_ru, limit
 
 
 def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() -> None:
@@ -176,8 +277,10 @@ def test_post_pr17_2_checkpoint_is_bounded_to_source_and_proven_evidence() -> No
     readme = _read("README.md")
     checkpoint = _read("docs/engineering/pr17_2_canonical_product_checkpoint.md")
 
-    assert "_Last updated: 2026-10-08_" in status
-    assert "PR17.2 merged; canonical checkpoint / release hygiene" in status
+    # The current status may advance; PR17.2 is a retained historical checkpoint.
+    assert "_Last updated:" in status
+    assert "PR17.2 merged" in status
+    assert "Historical canonical `main` baseline after PR17.2" in status
     assert "CONVERSATION_LOCAL_DURABLE" in status
     assert "LAST_SELECTED_MODE_OBSERVED" in status
     assert "TURN_REQUIREMENT" in status

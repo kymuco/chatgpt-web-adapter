@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-10-08_
+_Last updated: 2026-10-15_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -16,7 +16,7 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           PR17.2 merged; canonical checkpoint / release hygiene
+current phase           PR17.2 merged; isolated experimental Qwen SDK on main
 license                 MIT
 python                  3.10-3.14
 ```
@@ -35,6 +35,7 @@ Current provider/capability status:
 ChatGPT               PRODUCTION / default conversational runtime
 DeepSeek Web          EXPERIMENTAL conversational runtime
 Gemini Web            EXPERIMENTAL conversational runtime
+Qwen Web              EXPERIMENTAL isolated Chrome/Native Host SDK
 Google Translate Web  EXPERIMENTAL non-chat translate_text capability
 Gemini Notebook Web    EXPERIMENTAL add_url_source + background Audio Overview lifecycle
 ```
@@ -105,7 +106,19 @@ support tier       EXPERIMENTAL
 finality           PAGE_DOM_STABLE_COMPLETION (noncanonical)
 ```
 
-Both concrete runtimes remain module-only and are not root production exports.
+Both DeepSeek/Gemini concrete runtimes remain module-only and are not root production exports.
+
+### Qwen Web
+
+The Qwen provider uses a separate Chrome extension and native host. **User-run
+installed Windows SDK evidence** confirms new chat, multi-turn text, network-SSE
+answer delivery and cross-process `--chat` reattachment. Explicit `/retry` handles
+a *confirmed* high-demand/Regenerate state; it never automatically resends a
+possibly accepted prompt. Direct HTTP, canonical durable readback and advanced
+rich-input/model features are **not** production claims.
+
+The regular ChatGPT/HDE extension, host and bridge remain separate. The source
+and reference examples are in [`docs/qwen.md`](docs/qwen.md).
 
 See [`docs/providers.md`](docs/providers.md).
 
@@ -207,7 +220,7 @@ The detailed PR15 lineage remains preserved in `docs/engineering/`.
 
 ## Current checkpoint
 
-Canonical `main` baseline after PR17.2: `02b56911ae132d91d35d8bb87511141351968f80`.
+Historical canonical `main` baseline after PR17.2: `02b56911ae132d91d35d8bb87511141351968f80`.
 GitHub Actions push CI #1945 passed on this exact revision. It is newer than
 published `v0.3.0`: source support must not be inferred for the released wheel.
 
