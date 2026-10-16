@@ -32,10 +32,13 @@ function createElement(tag) {
 }
 const document = {scripts:[],createElement,documentElement:{getAttribute:()=>null},body:{appendChild(n){return n;},removeChild(n){return n;}}};
 const window = globalThis;
-window.location = {search:'',href:'https://chatgpt.com/',origin:'https://chatgpt.com'};
-window.history = {length:1};
-window.localStorage = {length:0,getItem(){return null;},setItem(){},removeItem(){},key(){return null;}};
-window.sessionStorage = window.localStorage;
+const storage = {length:0,getItem(){return null;},setItem(){},removeItem(){},key(){return null;}};
+Object.assign(window, {
+  location: {search:'',href:'https://chatgpt.com/',origin:'https://chatgpt.com'},
+  history: {length:1},
+  localStorage: storage,
+  sessionStorage: storage,
+});
 class URLSearchParams { keys(){return [][Symbol.iterator]();} }
 Object.assign(window,{performance,screen,navigator,document,TextEncoder,URLSearchParams});
 const timers=[];
@@ -43,7 +46,7 @@ function setTimeout(fn) {timers.push(fn);return timers.length;}
 function clearTimeout() {}
 const exports={};
 const req=(id)=>{if(id!=='DD')throw Error('unsupported import');return {a:()=>INPUT.uuid};};
-req.d=(target, defs)=>{for(const [k,v] of Object.entries(defs))Object.defineProperty(target,k,{get:v});};
+Object.assign(req, {d:(target, defs)=>{for(const [k,v] of Object.entries(defs))Object.defineProperty(target,k,{get:v});}});
 (${source})({},exports,req);
 let result;
 if(INPUT.mode==='prepare') result={prepareInput:exports.d()};

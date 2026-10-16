@@ -29,7 +29,9 @@ class PrepareResult:
     conduit_token: str | None = field(default=None, repr=False, compare=False)
 
 
-def _conversation_dict(value: ChatConversation | dict[str, Any] | None) -> dict[str, Any]:
+def _conversation_dict(
+    value: ChatConversation | dict[str, Any] | None,
+) -> dict[str, Any]:
     if isinstance(value, ChatConversation):
         return value.to_dict()
     if isinstance(value, dict):

@@ -86,9 +86,11 @@ def test_continuation_temporary_and_media_forwarded_without_browser_fallback(
 ):
     client, calls, _ = harness
     requested_files = ["notes-a.md", "notes-b.md"]
-    attached = SimpleNamespace(conversation=ChatConversation(
-        conversation_id="existing", message_id="assistant-last"
-    ))
+    attached = SimpleNamespace(
+        conversation=ChatConversation(
+            conversation_id="existing", message_id="assistant-last"
+        )
+    )
     monkeypatch.setattr(client, "attach_conversation", lambda identity: attached)
 
     client.send(

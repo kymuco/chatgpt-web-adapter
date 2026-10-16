@@ -25,7 +25,14 @@ from .model_detection import (
     detect_reasoning_effort_from_conversation_payload,
 )
 from .status import _status_from_payload
-from .types import AuthData, ChatConversation, ChatMetrics, ChatRequestDiagnostics, ChatResponse, MediaItem
+from .types import (
+    AuthData,
+    ChatConversation,
+    ChatMetrics,
+    ChatRequestDiagnostics,
+    ChatResponse,
+    MediaItem,
+)
 
 CHAT_REQUIREMENTS_URL = "https://chatgpt.com/backend-api/sentinel/chat-requirements"
 CHAT_BACKEND_URL = "https://chatgpt.com/backend-api/f/conversation"
@@ -79,9 +86,17 @@ def _generate_answer(
     max_attempts: int = 500_000,
 ) -> tuple[str, bool]:
     seed_encoded = seed.encode()
-    p1 = (json.dumps(config[:3], separators=(",", ":"), ensure_ascii=False)[:-1] + ",").encode()
-    p2 = ("," + json.dumps(config[4:9], separators=(",", ":"), ensure_ascii=False)[1:-1] + ",").encode()
-    p3 = ("," + json.dumps(config[10:], separators=(",", ":"), ensure_ascii=False)[1:]).encode()
+    p1 = (
+        json.dumps(config[:3], separators=(",", ":"), ensure_ascii=False)[:-1] + ","
+    ).encode()
+    p2 = (
+        ","
+        + json.dumps(config[4:9], separators=(",", ":"), ensure_ascii=False)[1:-1]
+        + ","
+    ).encode()
+    p3 = (
+        "," + json.dumps(config[10:], separators=(",", ":"), ensure_ascii=False)[1:]
+    ).encode()
     target_diff = bytes.fromhex(diff)
     diff_len = len(target_diff)
     for i in range(max_attempts):
@@ -197,18 +212,27 @@ def _get_jpeg_size(data: bytes) -> tuple[int | None, int | None]:
             continue
         if index + 2 > len(data):
             break
-        segment_length = int.from_bytes(data[index:index + 2], "big")
+        segment_length = int.from_bytes(data[index : index + 2], "big")
         if segment_length < 2 or index + segment_length > len(data):
             break
         if marker in {
-            0xC0, 0xC1, 0xC2, 0xC3,
-            0xC5, 0xC6, 0xC7,
-            0xC9, 0xCA, 0xCB,
-            0xCD, 0xCE, 0xCF,
+            0xC0,
+            0xC1,
+            0xC2,
+            0xC3,
+            0xC5,
+            0xC6,
+            0xC7,
+            0xC9,
+            0xCA,
+            0xCB,
+            0xCD,
+            0xCE,
+            0xCF,
         }:
             if index + 7 <= len(data):
-                height = int.from_bytes(data[index + 3:index + 5], "big")
-                width = int.from_bytes(data[index + 5:index + 7], "big")
+                height = int.from_bytes(data[index + 3 : index + 5], "big")
+                width = int.from_bytes(data[index + 5 : index + 7], "big")
                 return width, height
             break
         index += segment_length
@@ -280,7 +304,9 @@ class ChatGPTWebClient:
             state["resume_conduit_cluster"] = cluster.strip()
 
     @staticmethod
-    def _capture_handoff_option_diagnostics(options: Any, state: dict[str, Any]) -> None:
+    def _capture_handoff_option_diagnostics(
+        options: Any, state: dict[str, Any]
+    ) -> None:
         if not isinstance(options, list):
             return
         state["stream_handoff_options"] = options
@@ -370,7 +396,9 @@ class ChatGPTWebClient:
         self.prefetched_proof_header: str | None = None
         self.prefetched_ts = 0.0
         self._file_cache: dict[str, dict[str, Any]] = {}
-        self.debug_trace_dir = Path(debug_trace_dir) if debug_trace_dir is not None else None
+        self.debug_trace_dir = (
+            Path(debug_trace_dir) if debug_trace_dir is not None else None
+        )
         self.debug_trace_sanitize = bool(debug_trace_sanitize)
         self._debug_trace_counter = 0
         self.persist_browser_auth = bool(persist_refreshed_auth and auth is None)
@@ -411,14 +439,20 @@ class ChatGPTWebClient:
                     ).auth
                     self.base_headers = build_base_headers(self.auth)
 
-    def _build_headers(self, extra: dict[str, str | None] | None = None) -> dict[str, str]:
+    def _build_headers(
+        self, extra: dict[str, str | None] | None = None
+    ) -> dict[str, str]:
         headers = dict(self.base_headers)
         if self.auth.accessToken:
             headers["authorization"] = f"Bearer {self.auth.accessToken}"
         if self.auth.cookies:
-            headers["cookie"] = "; ".join(f"{key}={value}" for key, value in self.auth.cookies.items())
+            headers["cookie"] = "; ".join(
+                f"{key}={value}" for key, value in self.auth.cookies.items()
+            )
         if extra:
-            headers.update({key: value for key, value in extra.items() if value is not None})
+            headers.update(
+                {key: value for key, value in extra.items() if value is not None}
+            )
         return headers
 
     @staticmethod
@@ -440,7 +474,9 @@ class ChatGPTWebClient:
             raise MediaError(f"Failed to read media file {path}: {error}") from error
 
     @staticmethod
-    def _cleanup_process(process: subprocess.Popen | None, *, timeout: float = 1.0) -> None:
+    def _cleanup_process(
+        process: subprocess.Popen | None, *, timeout: float = 1.0
+    ) -> None:
         if process is None:
             return
         try:
@@ -533,7 +569,9 @@ class ChatGPTWebClient:
             "text": text[:max_chars],
         }
 
-    def _trace_bytes_repr(self, body: bytes | None, *, max_chars: int = 200_000) -> dict[str, Any] | None:
+    def _trace_bytes_repr(
+        self, body: bytes | None, *, max_chars: int = 200_000
+    ) -> dict[str, Any] | None:
         if body is None:
             return None
         try:
@@ -628,7 +666,9 @@ class ChatGPTWebClient:
             raw_body = result.stdout
             return_code = result.returncode
             stderr_text = result.stderr.decode("utf-8", errors="replace")
-            header_text = Path(header_path).read_text(encoding="utf-8", errors="replace")
+            header_text = Path(header_path).read_text(
+                encoding="utf-8", errors="replace"
+            )
             if persist_cookies:
                 self._update_cookies_from_text(header_text)
             status = self._extract_status_code(header_text)
@@ -671,7 +711,11 @@ class ChatGPTWebClient:
         payload: dict[str, Any] | None,
         headers: dict[str, str],
     ) -> tuple[int, Any]:
-        body = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        body = (
+            None
+            if payload is None
+            else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        )
         status, raw_body, _ = self._run_curl(method, url, headers, body)
         if not raw_body:
             return status, None
@@ -724,12 +768,18 @@ class ChatGPTWebClient:
                 req_input = _get_requirements_token(self.auth.proof_token)
             except Exception:
                 req_input = None
-        headers = self._build_headers({"accept": "*/*", "content-type": "application/json"})
-        status, data = self._json_request("POST", CHAT_REQUIREMENTS_URL, {"p": req_input}, headers)
+        headers = self._build_headers(
+            {"accept": "*/*", "content-type": "application/json"}
+        )
+        status, data = self._json_request(
+            "POST", CHAT_REQUIREMENTS_URL, {"p": req_input}, headers
+        )
         if status in {401, 403}:
             raise RequestError(f"chat-requirements request rejected: status={status}")
         if status >= 400:
-            raise RequestError(f"chat-requirements request failed: status={status}: {data}")
+            raise RequestError(
+                f"chat-requirements request failed: status={status}: {data}"
+            )
         if not isinstance(data, dict):
             raise RequestError("chat-requirements response expected JSON object")
         return data
@@ -738,7 +788,9 @@ class ChatGPTWebClient:
         headers = self._build_headers({"accept": "application/json, text/plain, */*"})
         status, data = self._json_request("GET", CELSIUS_WS_USER_URL, None, headers)
         if status >= 400:
-            raise RequestError(f"celsius ws user request failed: status={status}: {data}")
+            raise RequestError(
+                f"celsius ws user request failed: status={status}: {data}"
+            )
         if not isinstance(data, dict):
             raise RequestError("celsius ws user response expected JSON object")
         websocket_url = data.get("websocket_url")
@@ -793,14 +845,26 @@ class ChatGPTWebClient:
         state["resume_ws_url"] = websocket_url
         self._capture_ws_url_diagnostics(websocket_url, state)
         headers = self._build_headers({"origin": CHAT_URL.rstrip("/")})
-        connect_command = {"id": 1, "command": {"type": "connect", "presence": {"type": "presence", "state": "foreground"}}}
-        subscribe_command = {"id": 2, "command": {"type": "subscribe", "topic_id": topic_id, "offset": "0"}}
+        connect_command = {
+            "id": 1,
+            "command": {
+                "type": "connect",
+                "presence": {"type": "presence", "state": "foreground"},
+            },
+        }
+        subscribe_command = {
+            "id": 2,
+            "command": {"type": "subscribe", "topic_id": topic_id, "offset": "0"},
+        }
         completed = False
 
         def process_ws_message(message: dict[str, Any]) -> None:
             nonlocal completed
             payload = message.get("payload")
-            if not isinstance(payload, dict) or payload.get("type") != "conversation-turn-stream":
+            if (
+                not isinstance(payload, dict)
+                or payload.get("type") != "conversation-turn-stream"
+            ):
                 return
             inner = payload.get("payload")
             if not isinstance(inner, dict):
@@ -863,15 +927,23 @@ class ChatGPTWebClient:
                 websocket_url_host=state.get("resume_ws_url_host"),
                 websocket_url_scheme=state.get("resume_ws_url_scheme"),
             )
-            await websocket.send(json.dumps([connect_command, subscribe_command], ensure_ascii=False))
+            await websocket.send(
+                json.dumps([connect_command, subscribe_command], ensure_ascii=False)
+            )
             while not completed:
                 try:
-                    raw_frame = await asyncio.wait_for(websocket.recv(), timeout=max(float(self.timeout), 30.0))
+                    raw_frame = await asyncio.wait_for(
+                        websocket.recv(), timeout=max(float(self.timeout), 30.0)
+                    )
                 except TimeoutError as error:
-                    raise RequestError("ws topic stream timed out while waiting for a frame") from error
+                    raise RequestError(
+                        "ws topic stream timed out while waiting for a frame"
+                    ) from error
                 if not isinstance(raw_frame, str):
                     continue
-                self._emit_event(on_event, "raw_ws_frame", topic_id=topic_id, raw=raw_frame)
+                self._emit_event(
+                    on_event, "raw_ws_frame", topic_id=topic_id, raw=raw_frame
+                )
                 try:
                     items = json.loads(raw_frame)
                 except ValueError:
@@ -881,7 +953,10 @@ class ChatGPTWebClient:
                 for item in items:
                     if not isinstance(item, dict):
                         continue
-                    if item.get("type") == "message" and item.get("topic_id") == topic_id:
+                    if (
+                        item.get("type") == "message"
+                        and item.get("topic_id") == topic_id
+                    ):
                         process_ws_message(item)
                         continue
                     reply = item.get("reply")
@@ -936,7 +1011,9 @@ class ChatGPTWebClient:
             seed=str(proof_block.get("seed") or ""),
             difficulty=str(proof_block.get("difficulty") or ""),
             user_agent=self.base_headers.get("user-agent"),
-            proof_token=self.auth.proof_token if isinstance(self.auth.proof_token, list) else None,
+            proof_token=self.auth.proof_token
+            if isinstance(self.auth.proof_token, list)
+            else None,
         )
 
     def _media_to_bytes(self, media_data: Any) -> bytes:
@@ -966,7 +1043,9 @@ class ChatGPTWebClient:
         raise MediaError("Unsupported media type")
 
     @staticmethod
-    def _normalize_media_items(media: Sequence[MediaItem] | None) -> list[tuple[Any, str | None]]:
+    def _normalize_media_items(
+        media: Sequence[MediaItem] | None,
+    ) -> list[tuple[Any, str | None]]:
         if not media:
             return []
         items: list[tuple[Any, str | None]] = []
@@ -977,7 +1056,9 @@ class ChatGPTWebClient:
                 items.append((item, None))
         return items
 
-    def _upload_media_files(self, media: Sequence[tuple[Any, str | None]]) -> list[dict[str, Any]]:
+    def _upload_media_files(
+        self, media: Sequence[tuple[Any, str | None]]
+    ) -> list[dict[str, Any]]:
         uploaded: list[dict[str, Any]] = []
         for media_data, filename in media:
             data_bytes = self._media_to_bytes(media_data)
@@ -1002,13 +1083,19 @@ class ChatGPTWebClient:
                 "file_size": len(data_bytes),
                 "use_case": "multimodal",
             }
-            status, created = self._json_request("POST", CHAT_FILES_URL, create_payload, create_headers)
+            status, created = self._json_request(
+                "POST", CHAT_FILES_URL, create_payload, create_headers
+            )
             if status >= 400 or not isinstance(created, dict):
-                raise RequestError(f"file create failed: status={status} body={created}")
+                raise RequestError(
+                    f"file create failed: status={status} body={created}"
+                )
             upload_url = created.get("upload_url")
             file_id = created.get("file_id")
             if not isinstance(upload_url, str) or not upload_url:
-                raise RequestError(f"file create response missing upload_url: {created}")
+                raise RequestError(
+                    f"file create response missing upload_url: {created}"
+                )
             if not isinstance(file_id, str) or not file_id:
                 raise RequestError(f"file create response missing file_id: {created}")
             upload_headers = {
@@ -1048,7 +1135,9 @@ class ChatGPTWebClient:
                 "extension": extension,
                 "width": width,
                 "height": height,
-                "download_url": finalized.get("download_url") if isinstance(finalized, dict) else None,
+                "download_url": finalized.get("download_url")
+                if isinstance(finalized, dict)
+                else None,
             }
             self._file_cache[cache_key] = payload.copy()
             uploaded.append(payload)
@@ -1072,7 +1161,10 @@ class ChatGPTWebClient:
                 {
                     "id": str(uuid.uuid4()),
                     "author": {"role": message["role"]},
-                    "content": {"content_type": "text", "parts": [str(message["content"])]},
+                    "content": {
+                        "content_type": "text",
+                        "parts": [str(message["content"])],
+                    },
                     "metadata": {
                         "serialization_metadata": {"custom_symbol_offsets": []},
                         **({"system_hints": system_hints} if system_hints else {}),
@@ -1108,7 +1200,8 @@ class ChatGPTWebClient:
                                 "height": image_request.get("height"),
                                 "width": image_request.get("width"),
                             }
-                            if image_request.get("width") and image_request.get("height")
+                            if image_request.get("width")
+                            and image_request.get("height")
                             else {}
                         ),
                     }
@@ -1118,14 +1211,18 @@ class ChatGPTWebClient:
         return payload
 
     @staticmethod
-    def _parse_event(payload: Any, state: dict[str, Any]) -> tuple[list[str], str | None]:
+    def _parse_event(
+        payload: Any, state: dict[str, Any]
+    ) -> tuple[list[str], str | None]:
         if not isinstance(payload, dict):
             return [], None
         if payload.get("error"):
             raise RequestError(str(payload.get("error")))
         if payload.get("type") == "title_generation":
             title = payload.get("title")
-            return [], title.strip() if isinstance(title, str) and title.strip() else None
+            return [], title.strip() if isinstance(
+                title, str
+            ) and title.strip() else None
         if payload.get("type") == "resume_conversation_token":
             kind = payload.get("kind")
             token = payload.get("token")
@@ -1161,26 +1258,41 @@ class ChatGPTWebClient:
                     state["parent_message_id"] = message["id"]
             return output, None
         if isinstance(value, str):
-            if state.get("recipient", "all") == "all" and path in (None, "/message/content/parts/0"):
+            if state.get("recipient", "all") == "all" and path in (
+                None,
+                "/message/content/parts/0",
+            ):
                 output.append(value)
             return output, None
         if isinstance(value, list):
             for item in value:
                 if not isinstance(item, dict):
                     continue
-                if item.get("p") == "/message/content/parts/0" and state.get("recipient", "all") == "all":
+                if (
+                    item.get("p") == "/message/content/parts/0"
+                    and state.get("recipient", "all") == "all"
+                ):
                     token = item.get("v")
                     if isinstance(token, str):
                         output.append(token)
-                elif item.get("p") == "/message/metadata" and state.get("recipient", "all") == "all":
+                elif (
+                    item.get("p") == "/message/metadata"
+                    and state.get("recipient", "all") == "all"
+                ):
                     metadata = item.get("v")
                     ChatGPTWebClient._capture_metadata_diagnostics(metadata, state)
-                    finish_reason = metadata.get("finish_details", {}).get("type") if isinstance(metadata, dict) else None
+                    finish_reason = (
+                        metadata.get("finish_details", {}).get("type")
+                        if isinstance(metadata, dict)
+                        else None
+                    )
                     if finish_reason:
                         state["finish_reason"] = finish_reason
             return output, None
         if payload.get("type") == "server_ste_metadata":
-            ChatGPTWebClient._capture_metadata_diagnostics(payload.get("metadata"), state)
+            ChatGPTWebClient._capture_metadata_diagnostics(
+                payload.get("metadata"), state
+            )
         return output, None
 
     @staticmethod
@@ -1218,7 +1330,9 @@ class ChatGPTWebClient:
         if isinstance(turn_exchange_id, str) and turn_exchange_id.strip():
             state["turn_exchange_id"] = turn_exchange_id.strip()
         if "resume_with_websockets" in metadata:
-            state["resume_with_websockets"] = bool(metadata.get("resume_with_websockets"))
+            state["resume_with_websockets"] = bool(
+                metadata.get("resume_with_websockets")
+            )
 
     @staticmethod
     def _conversation_to_dict(
@@ -1288,7 +1402,13 @@ class ChatGPTWebClient:
             if not isinstance(message_id, str) or not message_id:
                 continue
             create_time = message.get("create_time")
-            candidates.append((float(create_time or 0), message, cls._conversation_message_text(message)))
+            candidates.append(
+                (
+                    float(create_time or 0),
+                    message,
+                    cls._conversation_message_text(message),
+                )
+            )
         if not candidates:
             return None, ""
         _create_time, message, text = max(candidates, key=lambda item: item[0])
@@ -1323,7 +1443,10 @@ class ChatGPTWebClient:
             if not isinstance(jit_plugin_data, dict):
                 continue
             from_server = jit_plugin_data.get("from_server")
-            if not isinstance(from_server, dict) or from_server.get("type") != "confirm_action":
+            if (
+                not isinstance(from_server, dict)
+                or from_server.get("type") != "confirm_action"
+            ):
                 continue
             body = from_server.get("body")
             if not isinstance(body, dict):
@@ -1336,7 +1459,9 @@ class ChatGPTWebClient:
                 if not isinstance(action, dict) or action.get("type") != "allow":
                     continue
                 allow = action.get("allow")
-                if isinstance(allow, dict) and isinstance(allow.get("target_message_id"), str):
+                if isinstance(allow, dict) and isinstance(
+                    allow.get("target_message_id"), str
+                ):
                     target_message_id = allow["target_message_id"]
                     break
             if not target_message_id:
@@ -1351,10 +1476,14 @@ class ChatGPTWebClient:
             if not isinstance(recipient, str) or not recipient:
                 continue
             create_time = message.get("create_time")
-            candidates.append((float(create_time or 0), message_id, target_message_id, recipient))
+            candidates.append(
+                (float(create_time or 0), message_id, target_message_id, recipient)
+            )
         if not candidates:
             return None, None, None
-        _create_time, tool_id, target_message_id, recipient = max(candidates, key=lambda item: item[0])
+        _create_time, tool_id, target_message_id, recipient = max(
+            candidates, key=lambda item: item[0]
+        )
         return tool_id, target_message_id, recipient
 
     @staticmethod
@@ -1403,7 +1532,9 @@ class ChatGPTWebClient:
         return data
 
     def _list_recent_conversations(self, *, limit: int = 10) -> list[dict[str, Any]]:
-        headers = self._build_headers({"accept": "application/json", "referer": CHAT_URL})
+        headers = self._build_headers(
+            {"accept": "application/json", "referer": CHAT_URL}
+        )
         status, data = self._json_request(
             "GET",
             f"{CHAT_CONVERSATIONS_URL}?offset=0&limit={max(1, limit)}&order=updated",
@@ -1419,7 +1550,9 @@ class ChatGPTWebClient:
             return []
         return [item for item in items if isinstance(item, dict)]
 
-    def _get_recent_conversation_summary(self, conversation_id: str) -> dict[str, Any] | None:
+    def _get_recent_conversation_summary(
+        self, conversation_id: str
+    ) -> dict[str, Any] | None:
         for item in self._list_recent_conversations(limit=20):
             item_id = item.get("id")
             if isinstance(item_id, str) and item_id == conversation_id:
@@ -1428,7 +1561,11 @@ class ChatGPTWebClient:
 
     @staticmethod
     def _normalize_reasoning_effort(reasoning_effort: str | None) -> str | None:
-        normalized_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
+        normalized_effort = (
+            reasoning_effort.strip().lower()
+            if isinstance(reasoning_effort, str)
+            else None
+        )
         if normalized_effort == "medium":
             normalized_effort = "standard"
         elif normalized_effort == "high":
@@ -1448,9 +1585,15 @@ class ChatGPTWebClient:
             model = model.strip()
             if not model:
                 raise ValueError("model must not be empty")
-            normalized_model = MODEL_ALIASES.get(model.lower(), MODEL_ALIASES.get(model, model))
+            normalized_model = MODEL_ALIASES.get(
+                model.lower(), MODEL_ALIASES.get(model, model)
+            )
 
-        requested_mode = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else None
+        requested_mode = (
+            reasoning_effort.strip().lower()
+            if isinstance(reasoning_effort, str)
+            else None
+        )
         if normalized_model is not None:
             return normalized_model
         if requested_mode in {"medium", "high", "standard", "extended"}:
@@ -1458,7 +1601,9 @@ class ChatGPTWebClient:
         return DEFAULT_MODEL
 
     @staticmethod
-    def _current_message_from_conversation(payload: dict[str, Any]) -> dict[str, Any] | None:
+    def _current_message_from_conversation(
+        payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
         current_node = payload.get("current_node")
         mapping = payload.get("mapping")
         if not isinstance(current_node, str) or not isinstance(mapping, dict):
@@ -1493,7 +1638,11 @@ class ChatGPTWebClient:
     ) -> list[dict[str, Any]]:
         mapping = payload.get("mapping")
         current_node = payload.get("current_node")
-        if not isinstance(mapping, dict) or not isinstance(current_node, str) or not current_node.strip():
+        if (
+            not isinstance(mapping, dict)
+            or not isinstance(current_node, str)
+            or not current_node.strip()
+        ):
             return []
         messages: list[dict[str, Any]] = []
         seen: set[str] = set()
@@ -1558,7 +1707,12 @@ class ChatGPTWebClient:
             return None, ""
         message, text = cls._latest_assistant_from_conversation(payload)
         message_id = message.get("id") if isinstance(message, dict) else None
-        if isinstance(message_id, str) and message_id and message_id != previous_message_id and text:
+        if (
+            isinstance(message_id, str)
+            and message_id
+            and message_id != previous_message_id
+            and text
+        ):
             return message, text
         return None, ""
 
@@ -1580,14 +1734,26 @@ class ChatGPTWebClient:
         )
         if selected_message is None:
             return None
-        message_id = selected_message.get("id") if isinstance(selected_message.get("id"), str) else None
-        metadata = selected_message.get("metadata") if isinstance(selected_message, dict) else None
+        message_id = (
+            selected_message.get("id")
+            if isinstance(selected_message.get("id"), str)
+            else None
+        )
+        metadata = (
+            selected_message.get("metadata")
+            if isinstance(selected_message, dict)
+            else None
+        )
         finish_reason = status.finish_reason or "stop"
         if isinstance(metadata, dict):
             finish_details = metadata.get("finish_details")
-            if isinstance(finish_details, dict) and isinstance(finish_details.get("type"), str):
+            if isinstance(finish_details, dict) and isinstance(
+                finish_details.get("type"), str
+            ):
                 finish_reason = finish_details["type"]
-        is_completed = status.status == "completed" and status.message_id != previous_message_id
+        is_completed = (
+            status.status == "completed" and status.message_id != previous_message_id
+        )
         has_completed_message_fallback = (
             status.status == "unknown"
             and isinstance(message_id, str)
@@ -1600,7 +1766,9 @@ class ChatGPTWebClient:
         return ChatResponse(
             text=text,
             conversation=ChatConversation(
-                conversation_id=str(payload.get("conversation_id") or fallback_conversation_id),
+                conversation_id=str(
+                    payload.get("conversation_id") or fallback_conversation_id
+                ),
                 message_id=message_id,
                 user_id=fallback_user_id,
                 finish_reason=finish_reason,
@@ -1621,17 +1789,29 @@ class ChatGPTWebClient:
         assistant_message, text = cls._latest_assistant_from_conversation(payload)
         current_message = cls._current_message_from_conversation(payload)
         selected_message = assistant_message or current_message or {}
-        message_id = selected_message.get("id") if isinstance(selected_message.get("id"), str) else None
-        metadata = selected_message.get("metadata") if isinstance(selected_message, dict) else None
+        message_id = (
+            selected_message.get("id")
+            if isinstance(selected_message.get("id"), str)
+            else None
+        )
+        metadata = (
+            selected_message.get("metadata")
+            if isinstance(selected_message, dict)
+            else None
+        )
         finish_reason = "stop"
         if isinstance(metadata, dict):
             finish_details = metadata.get("finish_details")
-            if isinstance(finish_details, dict) and isinstance(finish_details.get("type"), str):
+            if isinstance(finish_details, dict) and isinstance(
+                finish_details.get("type"), str
+            ):
                 finish_reason = finish_details["type"]
         return ChatResponse(
             text=text,
             conversation=ChatConversation(
-                conversation_id=str(payload.get("conversation_id") or fallback_conversation_id),
+                conversation_id=str(
+                    payload.get("conversation_id") or fallback_conversation_id
+                ),
                 message_id=message_id,
                 user_id=fallback_user_id,
                 finish_reason=finish_reason,
@@ -1740,7 +1920,9 @@ class ChatGPTWebClient:
                         conversation_id=conversation_id,
                         previous_message_id=previous_message_id,
                         attempt=attempt,
-                        latest_message_id=last_message.get("id") if isinstance(last_message, dict) else None,
+                        latest_message_id=last_message.get("id")
+                        if isinstance(last_message, dict)
+                        else None,
                         text_length=len(last_text),
                         reason=reason,
                     )
@@ -1755,8 +1937,12 @@ class ChatGPTWebClient:
                 allow_global_fallback=allow_global_fallback,
             )
             metadata = message.get("metadata") if isinstance(message, dict) else None
-            finish_details = metadata.get("finish_details") if isinstance(metadata, dict) else None
-            finish_type = finish_details.get("type") if isinstance(finish_details, dict) else None
+            finish_details = (
+                metadata.get("finish_details") if isinstance(metadata, dict) else None
+            )
+            finish_type = (
+                finish_details.get("type") if isinstance(finish_details, dict) else None
+            )
             completed_via_status = status.status == "completed"
             completed_via_fallback = (
                 status.status == "unknown"
@@ -1823,7 +2009,9 @@ class ChatGPTWebClient:
                     conversation_id=conversation_id,
                     previous_message_id=previous_message_id,
                     attempt=attempt,
-                    latest_message_id=last_message.get("id") if isinstance(last_message, dict) else None,
+                    latest_message_id=last_message.get("id")
+                    if isinstance(last_message, dict)
+                    else None,
                     text_length=len(last_text),
                     reason=reason,
                 )
@@ -1850,7 +2038,9 @@ class ChatGPTWebClient:
             header_path = header_file.name
         try:
             with tempfile.NamedTemporaryFile(delete=False) as payload_file:
-                payload_file.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+                payload_file.write(
+                    json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                )
                 payload_path = payload_file.name
             command = self._build_curl_command(
                 "POST",
@@ -1882,13 +2072,18 @@ class ChatGPTWebClient:
                 if raw_line.startswith(b"data: [DONE]"):
                     raw_events.append("[DONE]")
                     break
-                raw_events.append(raw_line[6:].decode("utf-8", errors="replace").strip())
+                raw_events.append(
+                    raw_line[6:].decode("utf-8", errors="replace").strip()
+                )
                 try:
                     event_payload = json.loads(raw_line[6:])
                 except ValueError:
                     continue
                 tokens, _maybe_title = self._parse_event(event_payload, state)
-                if isinstance(state.get("conversation_id"), str) and state["conversation_id"]:
+                if (
+                    isinstance(state.get("conversation_id"), str)
+                    and state["conversation_id"]
+                ):
                     latest_conversation_id = state["conversation_id"]
                 if isinstance(state.get("message_id"), str) and state["message_id"]:
                     latest_message_id = state["message_id"]
@@ -1902,7 +2097,9 @@ class ChatGPTWebClient:
             if process.stderr is not None:
                 stderr_text = process.stderr.read().decode("utf-8", errors="replace")
             return_code = process.wait()
-            header_text = Path(header_path).read_text(encoding="utf-8", errors="replace")
+            header_text = Path(header_path).read_text(
+                encoding="utf-8", errors="replace"
+            )
             self._update_cookies_from_text(header_text)
             status = self._extract_status_code(header_text)
             if status >= 400:
@@ -1919,11 +2116,15 @@ class ChatGPTWebClient:
                     "method": "POST",
                     "url": CHAT_BACKEND_URL,
                     "request_headers": self._sanitize_headers_mapping(headers),
-                    "request_body": self._trace_text_repr(json.dumps(payload, ensure_ascii=False)),
+                    "request_body": self._trace_text_repr(
+                        json.dumps(payload, ensure_ascii=False)
+                    ),
                     "response_status": status,
                     "response_headers": self._sanitize_header_lines(header_text),
                     "events": raw_events,
-                    "stream_text": "".join(full_chunks) if "full_chunks" in locals() else "",
+                    "stream_text": "".join(full_chunks)
+                    if "full_chunks" in locals()
+                    else "",
                     "stderr": stderr_text or None,
                     "return_code": return_code,
                     "error": error_text,
@@ -1973,7 +2174,9 @@ class ChatGPTWebClient:
 
         normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
         conversation_payload = self._get_conversation_payload(conversation_id)
-        tool_id, target_message_id, recipient = self._latest_confirm_action_leaf(conversation_payload)
+        tool_id, target_message_id, recipient = self._latest_confirm_action_leaf(
+            conversation_payload
+        )
         if not (tool_id and target_message_id and recipient):
             raise RequestError(
                 f"pending tool approval not found in conversation payload: conversation_id={conversation_id}"
@@ -2018,11 +2221,15 @@ class ChatGPTWebClient:
             }
         )
         started_at = time.perf_counter()
-        status, data = self._json_request("POST", CHAT_CONVERSATION_PREPARE_URL, prepare_payload, prepare_headers)
+        status, data = self._json_request(
+            "POST", CHAT_CONVERSATION_PREPARE_URL, prepare_payload, prepare_headers
+        )
         if status >= 400:
             raise RequestError(f"conversation prepare status={status}: {data}")
         if not isinstance(data, dict) or data.get("status") != "ok":
-            raise RequestError(f"conversation prepare response expected status=ok: {data}")
+            raise RequestError(
+                f"conversation prepare response expected status=ok: {data}"
+            )
         conduit_token = data.get("conduit_token")
         if not isinstance(conduit_token, str) or not conduit_token:
             raise RequestError("conversation prepare response missing conduit_token")
@@ -2059,11 +2266,13 @@ class ChatGPTWebClient:
                 target_message_id=target_message_id,
             )
         ]
-        observed_conversation_id, _observed_message_id, streamed_text = self._stream_backend_payload(
-            stream_payload,
-            stream_headers,
-            on_token=on_token,
-            on_event=on_event,
+        observed_conversation_id, _observed_message_id, streamed_text = (
+            self._stream_backend_payload(
+                stream_payload,
+                stream_headers,
+                on_token=on_token,
+                on_event=on_event,
+            )
         )
         self._emit_event(
             on_event,
@@ -2170,7 +2379,9 @@ class ChatGPTWebClient:
         waiting_announced = False
         while True:
             payload = self._get_conversation_payload(conversation_id)
-            tool_id, target_message_id, recipient = self._latest_confirm_action_leaf(payload)
+            tool_id, target_message_id, recipient = self._latest_confirm_action_leaf(
+                payload
+            )
             if tool_id and target_message_id and recipient:
                 waiting_announced = False
                 round_index += 1
@@ -2194,7 +2405,9 @@ class ChatGPTWebClient:
                     on_event=on_event,
                 )
                 conversation_dict = last_response.conversation.to_dict()
-                conversation_id = str(last_response.conversation.conversation_id or conversation_id)
+                conversation_id = str(
+                    last_response.conversation.conversation_id or conversation_id
+                )
                 self._emit_event(
                     on_event,
                     "approval_round_finished",
@@ -2231,7 +2444,9 @@ class ChatGPTWebClient:
                         verified=verified,
                     )
                     if not verified:
-                        raise RequestError("verification failed after workflow completion")
+                        raise RequestError(
+                            "verification failed after workflow completion"
+                        )
                 return final_response
             if not waiting_announced:
                 self._emit_event(
@@ -2323,7 +2538,9 @@ class ChatGPTWebClient:
                 if active_conversation.conversation_id:
                     break
                 if time.monotonic() >= deadline:
-                    raise RequestError("Timed out while waiting for the new conversation to appear")
+                    raise RequestError(
+                        "Timed out while waiting for the new conversation to appear"
+                    )
                 time.sleep(max(0.5, pending_poll_interval))
 
         if not active_conversation.conversation_id:
@@ -2358,7 +2575,10 @@ class ChatGPTWebClient:
         on_event: Callable[[dict[str, Any]], None] | None = None,
         conversation_origin: str | None = None,
     ) -> ChatResponse:
-        if conversation_origin is not None and conversation_origin not in {"flora", "tpp"}:
+        if conversation_origin is not None and conversation_origin not in {
+            "flora",
+            "tpp",
+        }:
             raise ValueError("conversation_origin must be flora or tpp")
         normalized_effort = self._normalize_reasoning_effort(reasoning_effort)
         resolved_model = self._resolve_model(model, reasoning_effort)
@@ -2367,11 +2587,15 @@ class ChatGPTWebClient:
         use_prepared_sentinel = prepared_send_active()
 
         normalized_media = self._normalize_media_items(media)
-        image_requests = self._upload_media_files(normalized_media) if normalized_media else None
+        image_requests = (
+            self._upload_media_files(normalized_media) if normalized_media else None
+        )
 
         conversation_dict = self._conversation_to_dict(conversation)
         conversation_id = None
-        parent_message_id = "client-created-root" if use_prepared_sentinel else str(uuid.uuid4())
+        parent_message_id = (
+            "client-created-root" if use_prepared_sentinel else str(uuid.uuid4())
+        )
         user_id = None
         if isinstance(conversation_dict, dict):
             conversation_id = conversation_dict.get("conversation_id") or None
@@ -2389,7 +2613,9 @@ class ChatGPTWebClient:
             system_hints=["search"] if web_search else None,
         )
         user_message = messages[-1] if messages else None
-        user_message_id = user_message.get("id") if isinstance(user_message, dict) else None
+        user_message_id = (
+            user_message.get("id") if isinstance(user_message, dict) else None
+        )
         if not isinstance(user_message_id, str) or not user_message_id.strip():
             raise RequestError(
                 "conversation prepare could not resolve user message id",
@@ -2414,9 +2640,15 @@ class ChatGPTWebClient:
                 include_partial_query=bool(conversation_id and not normalized_media),
                 client_prepare_state="none",
                 client_prepare_dispatch="immediate" if conversation_id else "debounced",
-                client_prepare_source="context_change" if conversation_id else "window_focus",
+                client_prepare_source="context_change"
+                if conversation_id
+                else "window_focus",
                 initial_conduit_token="no-token" if conversation_id else None,
-                **({"conversation_origin": conversation_origin} if conversation_origin else {}),
+                **(
+                    {"conversation_origin": conversation_origin}
+                    if conversation_origin
+                    else {}
+                ),
             )
             if not prepare_result.status_ok:
                 raise RequestError(
@@ -2425,7 +2657,10 @@ class ChatGPTWebClient:
                     endpoint=CHAT_CONVERSATION_PREPARE_URL,
                     request_stage="conversation_prepare",
                 )
-            if not prepare_result.conduit_token_present or not prepare_result.conduit_token:
+            if (
+                not prepare_result.conduit_token_present
+                or not prepare_result.conduit_token
+            ):
                 raise RequestError(
                     "conversation prepare response missing conduit token",
                     status_code=prepare_result.status_code,
@@ -2475,13 +2710,13 @@ class ChatGPTWebClient:
         )
 
         header_overrides: dict[str, str | None] = {
-                "accept": "text/event-stream",
-                "content-type": "application/json",
-                "openai-sentinel-chat-requirements-token": chat_token,
-                "openai-sentinel-proof-token": proof_header,
-                "openai-sentinel-turnstile-token": self.auth.turnstile_token
-                if (requirements.get("turnstile") or {}).get("required")
-                else None,
+            "accept": "text/event-stream",
+            "content-type": "application/json",
+            "openai-sentinel-chat-requirements-token": chat_token,
+            "openai-sentinel-proof-token": proof_header,
+            "openai-sentinel-turnstile-token": self.auth.turnstile_token
+            if (requirements.get("turnstile") or {}).get("required")
+            else None,
         }
         if use_prepared_sentinel and prepare_result is not None:
             header_overrides.update(
@@ -2505,7 +2740,9 @@ class ChatGPTWebClient:
         state = {
             "recipient": "all",
             "conversation_id": conversation_id,
-            "message_id": conversation_dict.get("message_id") if isinstance(conversation_dict, dict) else None,
+            "message_id": conversation_dict.get("message_id")
+            if isinstance(conversation_dict, dict)
+            else None,
             "parent_message_id": parent_message_id,
             "finish_reason": "stop",
             "observed_model": None,
@@ -2541,7 +2778,9 @@ class ChatGPTWebClient:
                     on_token(token)
 
             with tempfile.NamedTemporaryFile(delete=False) as payload_file:
-                payload_file.write(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+                payload_file.write(
+                    json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                )
                 payload_path = payload_file.name
             command = self._build_curl_command(
                 "POST",
@@ -2585,13 +2824,15 @@ class ChatGPTWebClient:
                     raw=raw_text,
                     parsed=event_payload,
                 )
-                if isinstance(event_payload, dict) and event_payload.get("type") == "stream_handoff":
+                if (
+                    isinstance(event_payload, dict)
+                    and event_payload.get("type") == "stream_handoff"
+                ):
                     options = event_payload.get("options")
                     self._capture_handoff_option_diagnostics(options, state)
-                    if (
-                        state.get("resume_transport_preference") == "ws_topic"
-                        and not bool(state.get("resume_ws_url_present"))
-                    ):
+                    if state.get(
+                        "resume_transport_preference"
+                    ) == "ws_topic" and not bool(state.get("resume_ws_url_present")):
                         try:
                             ws_payload = self._probe_celsius_ws_user()
                         except RequestError as error:
@@ -2605,13 +2846,17 @@ class ChatGPTWebClient:
                         else:
                             websocket_url = ws_payload.get("websocket_url")
                             if isinstance(websocket_url, str) and websocket_url.strip():
-                                self._capture_ws_url_diagnostics(websocket_url.strip(), state)
+                                self._capture_ws_url_diagnostics(
+                                    websocket_url.strip(), state
+                                )
                             self._emit_event(
                                 on_event,
                                 "stream_handoff_transport_probe",
                                 transport="ws_topic",
                                 success=True,
-                                websocket_url_present=bool(state.get("resume_ws_url_present")),
+                                websocket_url_present=bool(
+                                    state.get("resume_ws_url_present")
+                                ),
                                 websocket_url_scheme=state.get("resume_ws_url_scheme"),
                                 websocket_url_host=state.get("resume_ws_url_host"),
                             )
@@ -2625,8 +2870,12 @@ class ChatGPTWebClient:
                         resume_turn_topic_id=state.get("resume_turn_topic_id"),
                         resume_sse_topic_id=state.get("resume_sse_topic_id"),
                         resume_ws_topic_id=state.get("resume_ws_topic_id"),
-                        handoff_option_types=list(state.get("handoff_option_types", ()) or ()),
-                        resume_transport_preference=state.get("resume_transport_preference"),
+                        handoff_option_types=list(
+                            state.get("handoff_option_types", ()) or ()
+                        ),
+                        resume_transport_preference=state.get(
+                            "resume_transport_preference"
+                        ),
                         resume_token_present=bool(state.get("resume_token")),
                         resume_ws_url_present=bool(state.get("resume_ws_url_present")),
                         resume_ws_url_scheme=state.get("resume_ws_url_scheme"),
@@ -2679,7 +2928,9 @@ class ChatGPTWebClient:
             if process.stderr is not None:
                 stderr_text = process.stderr.read().decode("utf-8", errors="replace")
             return_code = process.wait()
-            header_text = Path(header_path).read_text(encoding="utf-8", errors="replace")
+            header_text = Path(header_path).read_text(
+                encoding="utf-8", errors="replace"
+            )
             self._update_cookies_from_text(header_text)
             status = self._extract_status_code(header_text)
             if status >= 400:
@@ -2696,7 +2947,9 @@ class ChatGPTWebClient:
                     "method": "POST",
                     "url": CHAT_BACKEND_URL,
                     "request_headers": self._sanitize_headers_mapping(headers),
-                    "request_body": self._trace_text_repr(json.dumps(payload, ensure_ascii=False)),
+                    "request_body": self._trace_text_repr(
+                        json.dumps(payload, ensure_ascii=False)
+                    ),
                     "response_status": status,
                     "response_headers": self._sanitize_header_lines(header_text),
                     "events": raw_events,
@@ -2724,11 +2977,16 @@ class ChatGPTWebClient:
         recovered_observed_model = state.get("observed_model")
         recovered_observed_reasoning_effort = state.get("observed_reasoning_effort")
         allow_global_recovery_fallback = not bool(conversation_id)
-        if not ws_handoff_consumed and isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
-            not recovered_text or not recovered_message_id
+        if (
+            not ws_handoff_consumed
+            and isinstance(recovered_conversation_id, str)
+            and recovered_conversation_id
+            and (not recovered_text or not recovered_message_id)
         ):
             try:
-                conversation_payload = self._get_conversation_payload(recovered_conversation_id)
+                conversation_payload = self._get_conversation_payload(
+                    recovered_conversation_id
+                )
             except RequestError as error:
                 self._emit_event(
                     on_event,
@@ -2778,11 +3036,18 @@ class ChatGPTWebClient:
                 if recovered_observed_model is None:
                     recovered_observed_model = recovered_payload_model
                 if recovered_observed_reasoning_effort is None:
-                    recovered_observed_reasoning_effort = recovered_payload_reasoning_effort
-        if not ws_handoff_consumed and isinstance(recovered_conversation_id, str) and recovered_conversation_id and (
-            not recovered_text
-            or not recovered_message_id
-            or recovered_message_id == parent_message_id
+                    recovered_observed_reasoning_effort = (
+                        recovered_payload_reasoning_effort
+                    )
+        if (
+            not ws_handoff_consumed
+            and isinstance(recovered_conversation_id, str)
+            and recovered_conversation_id
+            and (
+                not recovered_text
+                or not recovered_message_id
+                or recovered_message_id == parent_message_id
+            )
         ):
             preferred_transport = state.get("resume_transport_preference")
             if isinstance(preferred_transport, str) and preferred_transport:
@@ -2799,18 +3064,20 @@ class ChatGPTWebClient:
                     resume_ws_topic_id=state.get("resume_ws_topic_id"),
                 )
             try:
-                recovered_message, polled_text, polled_payload = self._poll_conversation_after_prepare(
-                    recovered_conversation_id,
-                    previous_message_id=parent_message_id,
-                    timeout=max(
-                        DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
-                        float(self.timeout),
-                    ),
-                    interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
-                    on_token=on_token,
-                    on_event=on_event,
-                    reason="stream_handoff_recovery",
-                    allow_global_fallback=allow_global_recovery_fallback,
+                recovered_message, polled_text, polled_payload = (
+                    self._poll_conversation_after_prepare(
+                        recovered_conversation_id,
+                        previous_message_id=parent_message_id,
+                        timeout=max(
+                            DEFAULT_STREAM_RECOVERY_POLL_TIMEOUT_SECONDS,
+                            float(self.timeout),
+                        ),
+                        interval=DEFAULT_STREAM_RECOVERY_POLL_INTERVAL_SECONDS,
+                        on_token=on_token,
+                        on_event=on_event,
+                        reason="stream_handoff_recovery",
+                        allow_global_fallback=allow_global_recovery_fallback,
+                    )
                 )
             except RequestError:
                 recovered_message, polled_text, polled_payload = None, "", None
@@ -2825,7 +3092,9 @@ class ChatGPTWebClient:
                 if recovered_observed_model is None:
                     recovered_observed_model = poll_state.get("observed_model")
                 if recovered_observed_reasoning_effort is None:
-                    recovered_observed_reasoning_effort = poll_state.get("observed_reasoning_effort")
+                    recovered_observed_reasoning_effort = poll_state.get(
+                        "observed_reasoning_effort"
+                    )
             if isinstance(polled_payload, dict):
                 self._capture_message_diagnostics(
                     self._current_message_from_conversation(polled_payload),
@@ -2845,14 +3114,19 @@ class ChatGPTWebClient:
                         previous_message_id=parent_message_id,
                         allow_global_fallback=allow_global_recovery_fallback,
                     )
-                    if isinstance(polled_payload_message_id, str) and polled_payload_message_id:
+                    if (
+                        isinstance(polled_payload_message_id, str)
+                        and polled_payload_message_id
+                    ):
                         recovered_message_id = polled_payload_message_id
                     if polled_payload_text:
                         recovered_text = polled_payload_text
                     if recovered_observed_model is None:
                         recovered_observed_model = polled_payload_model
                     if recovered_observed_reasoning_effort is None:
-                        recovered_observed_reasoning_effort = polled_payload_reasoning_effort
+                        recovered_observed_reasoning_effort = (
+                            polled_payload_reasoning_effort
+                        )
         self.prefetched_requirements = None
         self.prefetched_proof_header = None
         self.prefetched_ts = 0.0
@@ -2873,7 +3147,9 @@ class ChatGPTWebClient:
                 total=total_latency,
             ),
             request=ChatRequestDiagnostics(
-                requested_model=model.strip() if isinstance(model, str) and model.strip() else None,
+                requested_model=model.strip()
+                if isinstance(model, str) and model.strip()
+                else None,
                 requested_reasoning_effort=reasoning_effort.strip()
                 if isinstance(reasoning_effort, str) and reasoning_effort.strip()
                 else None,
