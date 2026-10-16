@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Callable
 
 from .canonical_conversation_snapshot import CanonicalConversationSnapshot
 from .status import _status_from_payload
@@ -60,6 +60,7 @@ def reconcile_post_delegation_failure(
     *,
     conversation_id: str,
     user_message_id: str,
+    terminal_message_sink: Callable[[Any], None] | None = None,
 ) -> PostDelegationReconciliation:
     """Classify one already-delegated ordinary-turn failure without replay.
 
@@ -154,6 +155,8 @@ def reconcile_post_delegation_failure(
         None,
     )
     if terminal_assistant is not None:
+        if terminal_message_sink is not None:
+            terminal_message_sink(terminal_assistant)
         return PostDelegationReconciliation(
             outcome=POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
             canonical_read_performed=True,

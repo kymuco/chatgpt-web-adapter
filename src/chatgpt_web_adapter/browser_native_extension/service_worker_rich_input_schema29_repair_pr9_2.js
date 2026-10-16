@@ -582,6 +582,45 @@ function _pr92Schema29ExtractSafeStreamMetadata(
   };
 }
 
+// A streaming POST may abort in Chrome after ChatGPT has persisted the turn.
+// Do not grant response/finality authority from the route. Export only an
+// exact request-correlated user id plus a candidate for one canonical read.
+async function _pr92Schema29AnnotateAbortedRichNewChat(context, tabId, error) {
+  if (
+    !(error instanceof Error) ||
+    error.message !== "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED" ||
+    context.schema19RequestedConversationId !== null ||
+    context.schema29ExpectedAttachmentCount <= 0 ||
+    context.schema20ProtectedSubmitMarkerObserved !== true
+  ) {
+    return;
+  }
+
+  try {
+    await _pr92Schema29AwaitPostDataLookups(context);
+    const correlation = _pr92Schema29EvaluateSubmitCorrelation(context);
+    _pr92Schema29LastSubmitCorrelationDiagnostics = { ...correlation };
+    const first = context.schema29PostArmConversationRequests[0];
+    if (!correlation.ok || typeof first?.logicalMessageId !== "string") return;
+
+    const tab = await _pr92Schema7RunUntil(
+      context.deadlineAt,
+      "SCHEMA29_ABORTED_ROUTE_LOOKUP",
+      () => chrome.tabs.get(tabId)
+    );
+    const candidate = conversationIdFromUrl(tab?.url || "");
+    if (typeof candidate !== "string" || !candidate.trim()) return;
+
+    error.cwaPostDelegationRequestCorrelationProven = true;
+    error.cwaPostDelegationUserMessageId = first.logicalMessageId;
+    error.cwaPostDelegationConversationId = candidate;
+    error.cwaPostDelegationRuntimeTabId = tabId;
+    error.cwaPostDelegationNewChatRouteCandidateOnly = true;
+  } catch {
+    // No exact request identity / valid tab route: leave original error unchanged.
+  }
+}
+
 async function _pr92Schema29ExecuteOfficialPageTurn(args, next, bypassSchema20) {
   const context = _pr92ActiveRichInputContext;
   if (context === null) return next(args);
@@ -654,6 +693,7 @@ async function _pr92Schema29ExecuteOfficialPageTurn(args, next, bypassSchema20) 
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    await _pr92Schema29AnnotateAbortedRichNewChat(context, tabId, error);
     if (
       detail.startsWith(PR92_SCHEMA29_COMMITTED_IDENTITY_ERROR) &&
       _pr92Schema29LastSubmitCorrelationDiagnostics === null

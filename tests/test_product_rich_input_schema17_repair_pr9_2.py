@@ -65,7 +65,15 @@ def test_schema_17_composer_mutation_setup_is_outer_deadline_bounded_before_subm
     ]
     for stage in required_stages:
         assert f'"{stage}"' in block
-    assert "() => locateAndFocusComposer(debuggee)" in block
+    assert "() => _pr117FocusRichComposerWithProof(debuggee)" in block
+    assert '"SCHEMA17_RICH_KEYBOARD_FOCUS_SETUP"' in text
+    assert "() => _pr113EnableBackgroundKeyboardFocus(debuggee)" in text
+    assert '"SCHEMA17_PAGE_TURN_TEXT_INSERT_PROOF"' in block
+    assert "() => _pr117RequireRichInsertedTextProof(debuggee, text)" in block
+    assert '"SCHEMA17_RICH_KEYBOARD_FOCUS_RESTORE"' in block
+    assert (
+        "() => _pr113DisableBackgroundKeyboardFocus(debuggee, keyboardFocus)" in block
+    )
     assert "() => clearComposer(debuggee)" in block
     assert (
         '() => chrome.debugger.sendCommand(debuggee, "Input.insertText", { text })'

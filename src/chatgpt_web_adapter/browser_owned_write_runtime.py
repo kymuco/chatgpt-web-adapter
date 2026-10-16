@@ -26,6 +26,7 @@ from .post_delegation_reconciliation import (
     POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT,
     reconcile_post_delegation_failure,
 )
+from .product_media import current_browser_owned_attachment_paths
 from .types import ChatConversation, ChatResponse, ConversationRef
 
 READY = "READY_FOR_BROWSER_OWNED_WRITE"
@@ -993,6 +994,81 @@ class BrowserOwnedProductWriteRuntime:
             post_delegation_runtime_tab_id = None
             post_delegation_recovery_continuation_observed = False
             post_delegation_observer_failure_probe_triggered = False
+
+            # After an aborted rich-stream observer, a new-chat route is only a
+            # lookup candidate, not conversation identity authority. Recover
+            # without replay only if one complete canonical snapshot proves
+            # the exact request-bound user id and its terminal assistant.
+            route_only_candidate = (
+                getattr(error, "post_delegation_new_chat_route_candidate_only", False)
+                is True
+            )
+            correlated_request = (
+                getattr(error, "post_delegation_request_correlation_proven", False)
+                is True
+            )
+            if (
+                not readback_failure
+                and delegated_conversation_id is None
+                and route_only_candidate
+                and correlated_request
+            ):
+                candidate_id = getattr(error, "post_delegation_conversation_id", None)
+                user_id = getattr(error, "post_delegation_user_message_id", None)
+                candidate_tab = getattr(error, "post_delegation_runtime_tab_id", None)
+                if (
+                    isinstance(candidate_id, str)
+                    and candidate_id.strip()
+                    and isinstance(user_id, str)
+                    and user_id.strip()
+                    and isinstance(candidate_tab, int)
+                    and not isinstance(candidate_tab, bool)
+                ):
+                    terminal_messages: list[Any] = []
+                    post_reconciliation = reconcile_post_delegation_failure(
+                        self.client,
+                        conversation_id=candidate_id,
+                        user_message_id=user_id,
+                        terminal_message_sink=terminal_messages.append,
+                    )
+                    post_delegation_runtime_tab_id = candidate_tab
+                    if (
+                        post_reconciliation.outcome
+                        == POST_DELEGATION_SUBMITTED_TERMINAL_ASSISTANT
+                        and len(terminal_messages) == 1
+                        and isinstance(terminal_messages[0].text, str)
+                        and terminal_messages[0].text.strip()
+                    ):
+                        assistant = terminal_messages[0]
+                        runtime_event(
+                            {
+                                "type": "browser_native_write_completed",
+                                "conversation_id": candidate_id,
+                                "runtime_tab_id": candidate_tab,
+                                "attachment_count": len(
+                                    current_browser_owned_attachment_paths() or ()
+                                ),
+                                "recovered_from_aborted_rich_stream": True,
+                                "recovery_evidence": (
+                                    "REQUEST_BOUND_USER_AND_CANONICAL_TERMINAL_ASSISTANT"
+                                ),
+                            }
+                        )
+                        runtime_event(
+                            {
+                                "type": "browser_native_readback_completed",
+                                "conversation_id": candidate_id,
+                                "recovered_from_aborted_rich_stream": True,
+                            }
+                        )
+                        return ChatResponse(
+                            text=assistant.text,
+                            conversation=ChatConversation(
+                                conversation_id=candidate_id,
+                                message_id=assistant.message_id,
+                            ),
+                        )
+
             if (
                 not readback_failure
                 and delegated_conversation_id is not None
@@ -1115,7 +1191,14 @@ class BrowserOwnedProductWriteRuntime:
                     else "browser_owned_write"
                 ),
                 conversation_id=(
-                    getattr(error, "conversation_id", None) or delegated_conversation_id
+                    getattr(error, "conversation_id", None)
+                    or delegated_conversation_id
+                    or (
+                        post_reconciliation.conversation_id
+                        if post_reconciliation is not None
+                        and post_reconciliation.user_turn_persisted is True
+                        else None
+                    )
                 ),
                 reason_code=getattr(error, "reason_code", None),
                 status_code=getattr(error, "status_code", None),

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import json
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
@@ -121,3 +126,87 @@ def test_schema_13_gate_requires_complete_staging_deadline_contract():
     assert "PRODUCT_WRITE_BUDGET = _v12.PRODUCT_WRITE_BUDGET" in text
     assert "--acknowledge-live-writes" in text
     assert "performs exactly three product writes" in text
+
+
+@pytest.mark.parametrize(
+    ("multiple", "expected_batches"),
+    [
+        (True, [["a.md", "b.md", "c.md"]]),
+        (False, [["a.md"], ["b.md"], ["c.md"]]),
+    ],
+)
+def test_three_file_stage_selects_all_files_without_submit(
+    multiple: bool, expected_batches: list[list[str]]
+) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js unavailable")
+    script = r"""
+const fs = require("node:fs");
+const vm = require("node:vm");
+const code = fs.readFileSync(process.argv[1], "utf8");
+const multiple = process.argv[2] === "true";
+const batches = [], staged = [], verified = [];
+const chrome = {debugger: {
+  attach: async () => {},
+  detach: async () => {},
+  sendCommand: async (_target, command, payload) => {
+    if (command === "Runtime.callFunctionOn") {
+      return {result: {value: multiple}};
+    }
+    if (command === "DOM.setFileInputFiles") {
+      if (!multiple && payload.files.length !== 1) {
+        throw Error("input cannot receive multiple files");
+      }
+      batches.push(payload.files);
+      staged.push(...payload.files);
+    }
+    return {};
+  }
+}};
+const ctx = {
+  chrome, performance, console,
+  CDP_PROTOCOL_VERSION: "1.3",
+  DEFAULT_READY_TIMEOUT_MS: 1000,
+  _pr92DirtyAttachmentTabId: null,
+  _pr92Schema7RunUntil: async (_deadline, _stage, op) => op(),
+  _pr92RemainingTurnMs: () => 10000,
+  _pr92BoundedSleep: async () => {},
+  _pr92FindFileInputObjectId: async () => "file-input",
+  _pr92PersistDirtyAttachmentFence: async (tabId) => {
+    ctx._pr92DirtyAttachmentTabId = tabId;
+  },
+  _pr92ClosureWaitForPageOwnedAttachmentEvidence: async (
+    _target, expected
+  ) => {
+    verified.push(expected);
+    if (JSON.stringify(expected) !== JSON.stringify(staged)) {
+      throw Error("partial attachment set not accepted");
+    }
+    return expected.length;
+  },
+  waitForComposerReady: async () => {},
+};
+vm.createContext(ctx);
+vm.runInContext(code, ctx);
+vm.runInContext(
+  "_pr92Schema13StageFileSelection(7, ['a.md','b.md','c.md'], {deadlineAt: 1e10})",
+  ctx
+).then((count) => {
+  console.log(JSON.stringify({count, batches, verified}));
+}).catch((error) => {
+  console.error(error.stack);
+  process.exitCode = 1;
+});
+"""
+    completed = subprocess.run(
+        [node, "-e", script, str(SCHEMA13), str(multiple).lower()],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    result = json.loads(completed.stdout)
+    assert result["count"] == 3
+    assert result["batches"] == expected_batches
+    assert len(result["verified"]) == (0 if multiple else 3)

@@ -202,21 +202,49 @@ async function _pr92Schema17ExecuteOfficialPageTurn({ tabId, text, timeoutMs }, 
     };
     chrome.tabs.onUpdated.addListener(tabUpdateListener);
 
-    diagnostics.composerStrategy = await _pr92Schema17RunUntil(
+    // Attachment staging may run in an inactive runtime tab. Ordinary text
+    // already uses proven background focus emulation; rich input must not rely
+    // on AX selection of an arbitrary textbox or assume insertText took effect.
+    const keyboardFocus = await _pr92Schema17RunUntil(
       context,
-      "SCHEMA17_PAGE_TURN_COMPOSER_FOCUS",
-      () => locateAndFocusComposer(debuggee)
+      "SCHEMA17_RICH_KEYBOARD_FOCUS_SETUP",
+      () => _pr113EnableBackgroundKeyboardFocus(debuggee)
     );
-    await _pr92Schema17RunUntil(
-      context,
-      "SCHEMA17_PAGE_TURN_COMPOSER_CLEAR",
-      () => clearComposer(debuggee)
-    );
-    await _pr92Schema17RunUntil(
-      context,
-      "SCHEMA17_PAGE_TURN_TEXT_INSERT",
-      () => chrome.debugger.sendCommand(debuggee, "Input.insertText", { text })
-    );
+    try {
+      diagnostics.composerStrategy = await _pr92Schema17RunUntil(
+        context,
+        "SCHEMA17_PAGE_TURN_COMPOSER_FOCUS",
+        () => _pr117FocusRichComposerWithProof(debuggee)
+      );
+      await _pr92Schema17RunUntil(
+        context,
+        "SCHEMA17_PAGE_TURN_COMPOSER_CLEAR",
+        () => clearComposer(debuggee)
+      );
+      await _pr92Schema17RunUntil(
+        context,
+        "SCHEMA17_PAGE_TURN_TEXT_INSERT",
+        () => chrome.debugger.sendCommand(debuggee, "Input.insertText", { text })
+      );
+      await _pr92Schema17RunUntil(
+        context,
+        "SCHEMA17_PAGE_TURN_TEXT_INSERT_PROOF",
+        () => _pr117RequireRichInsertedTextProof(debuggee, text)
+      );
+    } finally {
+      // Release focus emulation before protected submit, including a failed
+      // insertion. This is still pre-write, so a failed restore must fail closed.
+      if (keyboardFocus?.enabled === true) {
+        const restored = await _pr92Schema17RunUntil(
+          context,
+          "SCHEMA17_RICH_KEYBOARD_FOCUS_RESTORE",
+          () => _pr113DisableBackgroundKeyboardFocus(debuggee, keyboardFocus)
+        );
+        if (restored !== true) {
+          throw new Error("CWA_RICH_BACKGROUND_FOCUS_RESTORE_NOT_PROVEN");
+        }
+      }
+    }
 
     const submitStartedAt = performance.now();
     const submit = await submitOfficialPageTurn(

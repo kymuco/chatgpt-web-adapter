@@ -163,6 +163,50 @@ response = runtime.send("Hello from CWA")
 print(response.text)
 ```
 
+For a **real ChatGPT message with local file attachments**, use the same
+public runtime; no browser-console staging or probe is needed:
+
+```python
+from pathlib import Path
+from chatgpt_web_adapter import assemble_product_runtime
+
+runtime = assemble_product_runtime(
+    transport="browser-owned",
+    auth_file="auth_data.json",
+)
+
+execution = runtime.send_text_observed(
+    "Read the three attached Markdown documents, summarize their current "
+    "project state and next step. Do not perform actions.",
+    media=[
+        Path(r"W:\dev\project\docs\baseline.md"),
+        Path(r"W:\dev\project\docs\decisions.md"),
+        Path(r"W:\dev\project\docs\handoff.md"),
+    ],
+    model_profile=None,
+    conversation_mode="normal",
+)
+print(execution.response.conversation.conversation_id)
+print(execution.response.conversation.message_id)
+print(execution.response.text)
+```
+
+Replace paths with three existing files and use the same authenticated
+`auth_data.json` configured for canonical reads. The file paths are dispatched
+through the existing browser-owned attachment staging and official page. ChatGPT
+may display a collision-suffixed upload name such as `baseline(1).md`; the
+production attachment-evidence matcher must prove a unique full-set association
+before the single Send.
+
+**Effects and retry boundary:** selecting files can create durable account
+uploads before the message is sent. The send operation is attempted only once;
+even if the SDK raises or canonical readback times out, do not automatically
+repeat it. Reconcile the visible conversation and any existing rich-input
+attachment fence first. A leftover fence may require closing its original
+runtime tab; never delete the extension's fence keys blindly. Rich input combined
+with an explicit `model_profile` is not supported by this path; pass `None`.
+
+
 ### Experimental providers on current `main`
 
 DeepSeek Web:

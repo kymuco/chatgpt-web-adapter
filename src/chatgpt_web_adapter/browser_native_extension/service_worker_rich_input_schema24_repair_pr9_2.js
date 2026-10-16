@@ -15,20 +15,78 @@
 
 const PR92_SCHEMA24_REPAIR_SCHEMA = 24;
 
-async function _pr92Schema24WaitForOfficialComposerMounted(debuggee, context) {
-  while (true) {
-    const evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence(
-      debuggee,
-      [],
-      context
-    );
+const PR92_SCHEMA24_MOUNT_OBSERVATION_CAP_MS = 25_000;
+
+async function _pr92Schema24WaitForOfficialComposerMounted(debuggee, context, tabId) {
+  const startedAt = performance.now();
+  const localDeadlineAt = Math.min(
+    context.deadlineAt,
+    startedAt + PR92_SCHEMA24_MOUNT_OBSERVATION_CAP_MS
+  );
+  let lastEvidenceKind = "not-read";
+  let observedPolls = 0;
+
+  while (performance.now() < localDeadlineAt) {
+    let evidence;
+    try {
+      // Runtime.evaluate is not guaranteed to finish promptly on a stalled
+      // inactive tab. Bound the page-owned observation itself, not just its
+      // polling loop, without granting any new write or cleanup authority.
+      evidence = await _pr92Schema7RunUntil(
+        localDeadlineAt,
+        "SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_MOUNT_READ",
+        () => _pr92ClosureReadPageOwnedAttachmentEvidence(debuggee, [], context)
+      );
+    } catch (error) {
+      const detail = typeof error?.message === "string" ? error.message : String(error);
+      if (!detail.startsWith("PR9_2_TOTAL_TURN_TIMEOUT:")) throw error;
+      lastEvidenceKind = "read-timeout";
+      break;
+    }
+    observedPolls += 1;
+    lastEvidenceKind = typeof evidence?.evidenceKind === "string"
+      ? evidence.evidenceKind : "unknown";
     if (evidence?.officialComposerMounted === true) return evidence;
+
+    const remaining = localDeadlineAt - performance.now();
+    if (remaining <= 0) break;
     await _pr92BoundedSleep(
       context,
-      PR92_PAGE_ATTACHMENT_POLL_MS,
+      Math.min(PR92_PAGE_ATTACHMENT_POLL_MS, remaining),
       "SCHEMA24_PRESTAGE_OFFICIAL_COMPOSER_MOUNT_WAIT"
     );
   }
+
+  // The tab's load status is NOT evidence that ChatGPT mounted a composer.
+  // Expose bounded, non-sensitive facts so a blank background tab cannot
+  // silently consume the entire 240s turn without a useful stage verdict.
+  let tab = null;
+  try {
+    tab = await _pr92Schema7RunUntil(
+      Math.min(context.deadlineAt, performance.now() + 1_000),
+      "SCHEMA24_MOUNT_FAILURE_TAB_DIAGNOSTIC",
+      () => chrome.tabs.get(tabId)
+    );
+  } catch {}
+  const facts = {
+    tabStatus: typeof tab?.status === "string" ? tab.status : "unavailable",
+    tabActive: tab?.active === true,
+    tabDiscarded: tab?.discarded === true,
+    tabFrozen: tab?.frozen === true,
+    lastEvidenceKind,
+    observedPolls,
+    elapsedMs: Math.round(performance.now() - startedAt)
+  };
+  console.warn("CWA_PRESTAGE_COMPOSER_MOUNT_NOT_OBSERVED", facts);
+  throw new Error(
+    "PR9_2_OFFICIAL_COMPOSER_MOUNT_NOT_OBSERVED:" +
+      "tabStatus=" + facts.tabStatus +
+      ":tabActive=" + facts.tabActive +
+      ":tabDiscarded=" + facts.tabDiscarded +
+      ":tabFrozen=" + facts.tabFrozen +
+      ":evidence=" + facts.lastEvidenceKind +
+      ":polls=" + facts.observedPolls
+  );
 }
 
 function _pr92Schema24EvidenceIsClean(evidence) {
@@ -37,7 +95,9 @@ function _pr92Schema24EvidenceIsClean(evidence) {
   return evidence?.officialComposerMounted === true &&
     evidence?.exactBasenameAssociation === true &&
     evidence?.exactAttachmentSet === true &&
-    groupCount === 0 && removalCount === 0;
+    groupCount === 0 && removalCount === 0 &&
+    Number(evidence?.previewImageCount || 0) === 0 &&
+    Number(evidence?.inlineFileNameCount || 0) === 0;
 }
 
 async function _pr92Schema24RequireOfficialCleanComposerBeforeStaging(
@@ -82,7 +142,24 @@ async function _pr92Schema24RequireOfficialCleanComposerBeforeStaging(
     // Browser tab load completion is not composer-mount authority. Reuse the exact
     // production attachment-evidence reader and treat `officialComposerMounted=false`
     // as transient until the one outer turn deadline expires.
-    let evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context);
+    let evidence;
+    try {
+      evidence = await _pr92Schema24WaitForOfficialComposerMounted(debuggee, context, tabId);
+    } catch (error) {
+      const detail = typeof error?.message === "string" ? error.message : String(error);
+      if (detail.startsWith("PR9_2_OFFICIAL_COMPOSER_MOUNT_NOT_OBSERVED:")) {
+        // The owning pre-stage observer must be fully detached BEFORE an
+        // unmounted fresh page can be navigated by the caller. A best-effort
+        // asynchronous detach would race the next staging attempt.
+        await _pr92Schema15DetachWithinDeadline(
+          debuggee,
+          context,
+          "SCHEMA24_PRESTAGE_MOUNT_FAILURE_DEBUGGER_DETACH"
+        );
+        attached = false;
+      }
+      throw error;
+    }
 
     // The evidence that first proves mount is also the first clean poll. If the
     // freshly mounted composer already contains any attachment evidence, fail
