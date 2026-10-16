@@ -29,7 +29,9 @@ class PrepareResult:
     conduit_token: str | None = field(default=None, repr=False, compare=False)
 
 
-def _conversation_dict(value: ChatConversation | dict[str, Any] | None) -> dict[str, Any]:
+def _conversation_dict(
+    value: ChatConversation | dict[str, Any] | None,
+) -> dict[str, Any]:
     if isinstance(value, ChatConversation):
         return value.to_dict()
     if isinstance(value, dict):
@@ -60,6 +62,7 @@ def build_text_prepare_payload(
     client_prepare_state: str = "success",
     client_prepare_dispatch: str | None = None,
     client_prepare_source: str | None = None,
+    conversation_origin: str | None = None,
 ) -> dict[str, Any]:
     """Build the observed ordinary-text ``conversation/prepare`` payload shape."""
 
@@ -95,6 +98,10 @@ def build_text_prepare_payload(
         payload["conversation_id"] = conversation_id
     if temporary:
         payload["history_and_training_disabled"] = True
+    if conversation_origin is not None:
+        if conversation_origin not in {"flora", "tpp"}:
+            raise ValueError("conversation_origin must be flora or tpp")
+        payload["conversation_origin"] = conversation_origin
     if reasoning_effort is not None:
         payload["thinking_effort"] = reasoning_effort
     if timezone is not None:
@@ -187,6 +194,7 @@ def prepare_text_turn(
     client_prepare_dispatch: str | None = None,
     client_prepare_source: str | None = None,
     initial_conduit_token: str | None = "no-token",
+    conversation_origin: str | None = None,
 ) -> tuple[PrepareResult, dict[str, Any]]:
     """Issue only the prepare request and return structural evidence plus payload.
 
@@ -208,6 +216,7 @@ def prepare_text_turn(
         client_prepare_state=client_prepare_state,
         client_prepare_dispatch=client_prepare_dispatch,
         client_prepare_source=client_prepare_source,
+        **({"conversation_origin": conversation_origin} if conversation_origin else {}),
     )
     conversation_id = payload.get("conversation_id")
     headers = build_prepare_headers(

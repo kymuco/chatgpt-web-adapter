@@ -73,6 +73,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 chatgpt_web_adapter = [
   "qwen_native_worker.js",
+  "browserless_js/*.cjs",
   "browser_native_extension/*.json",
   "browser_native_extension/*.js",
   "browser_native_extension/*.html",

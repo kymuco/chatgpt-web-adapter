@@ -79,6 +79,8 @@ page/runtime semantics. See `providers.md`.
 
 ### Browserless / backend research
 
+- [`browserless_http_sdk.md`](browserless_http_sdk.md) — opt-in direct ChatGPT HTTP
+  Python SDK (experimental; separate from browser-owned and browserless-request);
 - [`browserless_request_transport_pr9_1.md`](browserless_request_transport_pr9_1.md)
   — experimental ChatGPT browserless transport;
 - [`raw_payload.md`](raw_payload.md) — lower-level experimental payload surface.

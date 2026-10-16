@@ -32,6 +32,7 @@ REQUIRED_WHEEL_FILES = {
     # Guard packaging: local editable-install tests cannot prove wheel contents.
     "chatgpt_web_adapter/qwen_native.py",
     "chatgpt_web_adapter/qwen_native_worker.js",
+    "chatgpt_web_adapter/browserless_js/runtime.cjs",
     # CWA 0.3 product-runtime/public-surface freeze.
     "chatgpt_web_adapter/product_runtime.py",
     "chatgpt_web_adapter/product_transport.py",
@@ -63,6 +64,7 @@ REQUIRED_SDIST_SUFFIXES = {
     "/src/chatgpt_web_adapter/auth_refresh_worker.py",
     "/src/chatgpt_web_adapter/qwen_native.py",
     "/src/chatgpt_web_adapter/qwen_native_worker.js",
+    "/src/chatgpt_web_adapter/browserless_js/runtime.cjs",
     "/src/chatgpt_web_adapter/product_runtime.py",
     "/src/chatgpt_web_adapter/product_observations.py",
     "/src/chatgpt_web_adapter/public_surface.py",
