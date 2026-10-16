@@ -84,7 +84,7 @@ def test_readme_architecture_map_distinguishes_product_lanes() -> None:
         assert expected in diagram, expected
 
     assert "ProductProviderBoundary" in section
-    assert "not** an execution router" in section
+    assert "is **not** an execution router" in section
     assert "not a universal provider selector" in section
     assert "[the capability map](docs/capabilities.md)" in readme
 
