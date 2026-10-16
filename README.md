@@ -18,7 +18,7 @@ partial output into implicit authority.
 [Quickstart](docs/quickstart.md) · [Qwen (EN)](QWEN.md) · [Qwen (RU)](QWEN.ru.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Qwen SDK](docs/qwen.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
 
 > [!WARNING]
-> CWA is not an official API client for OpenAI, Google or DeepSeek. It works with
+> CWA is not an official API client for OpenAI, Google, DeepSeek or Qwen. It works with
 > ordinary consumer web products and depends on product behavior that may change.
 
 > **Product observation is not authority. Incremental output is not canonical finality.
@@ -50,24 +50,32 @@ conversation-shaped provider contract. See [docs/capabilities.md](docs/capabilit
 
 ## What CWA is
 
-CWA sits between a local application and an authenticated consumer AI product:
+CWA sits between a local application and an authenticated consumer AI
+product. The integration surfaces are **not** one interchangeable chat backend:
 
 ```text
-application / HDE / Codexia / terminal
-                  |
-                  v
-        provider-specific runtime
-          /          |          \
-         /           |           \
-   ChatGPT      DeepSeek Web    Gemini Web
- production     experimental    experimental
-       |
-       +---- each runtime is inspected / validated through
-             ProductProviderBoundary schema 2
+local application / assistant / agent / terminal
+  |
+  +-- Conversational runtimes (provider-specific)
+  |   +-- ChatGPT .............. PRODUCTION / default
+  |   +-- DeepSeek Web ......... EXPERIMENTAL / module-only
+  |   `-- Gemini Web ........... EXPERIMENTAL / module-only
+  |
+  +-- Isolated Qwen SDK (own Chrome extension + Native Messaging host)
+  |   `-- Qwen Web ............. EXPERIMENTAL / browser-backed
+  |
+  `-- Non-chat capabilities (lower CWA browser / authority lane)
+      +-- Google Translate Web  EXPERIMENTAL: translate_text
+      `-- Gemini Notebook Web   EXPERIMENTAL: add_url_source
+                                              + generate_audio_overview
 ```
 
-`ProductProviderBoundary` is **not** an execution router. It is a provider-neutral
-metadata and invariant view over an already-created runtime.
+`ProductProviderBoundary` (schema 2) is **not** an execution router. It is a
+provider-neutral metadata/invariant view over an already-created conversational
+runtime, not a universal provider selector. The Qwen SDK uses a **separate**
+extension and Native Messaging host; it does not replace the production ChatGPT/HDE
+bridge. Google Translate and Gemini Notebook retain their own module-only,
+non-chat capability contracts, rather than pretending to be conversations.
 
 The shared architecture preserves explicit:
 
@@ -84,6 +92,10 @@ Provider differences remain visible instead of being forced into a fake universa
 API.
 
 ## Provider status on current `main`
+
+The table below compares the shared conversational runtime track. The isolated
+Qwen SDK and non-chat capability contracts are deliberately described separately;
+see [the capability map](docs/capabilities.md) for all six product surfaces.
 
 | Capability / property | ChatGPT | DeepSeek Web | Gemini Web |
 | --- | --- | --- | --- |
