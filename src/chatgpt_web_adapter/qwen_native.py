@@ -71,7 +71,9 @@ def main():
             parser.error("Native host registration supports Windows and Linux only")
 
         suffix = ".exe" if os.name == "nt" else ""
-        executable = Path(sys.executable).parent / f"qwen-web-adapter-native-host{suffix}"
+        executable = (
+            Path(sys.executable).parent / f"qwen-web-adapter-native-host{suffix}"
+        )
         if not executable.is_file():
             parser.error("Run pip install -e . first")
         payload = {
@@ -94,9 +96,7 @@ def main():
         else:
             for host in linux_native_messaging_manifest_paths(HOST_NAME):
                 host.parent.mkdir(parents=True, exist_ok=True)
-                host.write_text(
-                    json.dumps(payload, indent=2) + "\n", encoding="utf-8"
-                )
+                host.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
                 os.chmod(host, 0o600)
         print("Qwen native host registered")
     print(extension)
