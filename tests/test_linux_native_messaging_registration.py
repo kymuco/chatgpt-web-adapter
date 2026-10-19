@@ -43,6 +43,18 @@ def test_linux_manifest_paths_use_xdg_configuration(monkeypatch, tmp_path: Path)
     )
 
 
+def test_browser_state_persists_beyond_xdg_runtime_dir(monkeypatch, tmp_path: Path):
+    from chatgpt_web_adapter.browser_native_protocol import (
+        default_browser_native_state_dir,
+    )
+
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    expected = tmp_path / "state" / "chatgpt-web-adapter"
+    assert default_browser_native_state_dir() == expected / "browser-native"
+    assert qwen_native.state_dir() == expected / "qwen-native"
+
+
 def test_chatgpt_installer_registers_both_linux_browsers(
     monkeypatch, tmp_path: Path
 ):
