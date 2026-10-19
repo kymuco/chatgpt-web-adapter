@@ -17,7 +17,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _assert_manifest(path: Path, *, host_name: str, executable: Path, extension_id: str):
+def _assert_manifest(
+    path: Path, *, host_name: str, executable: Path, extension_id: str
+):
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload == {
         "name": host_name,
@@ -55,9 +57,7 @@ def test_browser_state_persists_beyond_xdg_runtime_dir(monkeypatch, tmp_path: Pa
     assert qwen_native.state_dir() == expected / "qwen-native"
 
 
-def test_chatgpt_installer_registers_both_linux_browsers(
-    monkeypatch, tmp_path: Path
-):
+def test_chatgpt_installer_registers_both_linux_browsers(monkeypatch, tmp_path: Path):
     config = tmp_path / "xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.setattr(
@@ -73,9 +73,7 @@ def test_chatgpt_installer_registers_both_linux_browsers(
         host_executable=executable
     )
 
-    paths = browser_native_install.linux_native_messaging_manifest_paths(
-        CWA_HOST_NAME
-    )
+    paths = browser_native_install.linux_native_messaging_manifest_paths(CWA_HOST_NAME)
     assert result.host_manifest == paths[0]
     assert result.host_executable == executable.resolve()
     for path in paths:
@@ -88,16 +86,16 @@ def test_chatgpt_installer_registers_both_linux_browsers(
     assert result.extension_dir.is_dir()
 
 
-def test_qwen_installer_registers_isolated_linux_host(
-    monkeypatch, tmp_path: Path
-):
+def test_qwen_installer_registers_isolated_linux_host(monkeypatch, tmp_path: Path):
     config = tmp_path / "xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.setattr(qwen_native, "state_dir", lambda: tmp_path / "qwen-native")
     executable = tmp_path / "venv" / "bin" / "qwen-web-adapter-native-host"
     executable.parent.mkdir(parents=True)
     executable.write_text("#!/bin/sh\n", encoding="utf-8")
-    monkeypatch.setattr(qwen_native.sys, "executable", str(executable.parent / "python"))
+    monkeypatch.setattr(
+        qwen_native.sys, "executable", str(executable.parent / "python")
+    )
     extension_id = "abcdefghijklmnopabcdefghijklmnop"
     monkeypatch.setattr(
         qwen_native.sys,
