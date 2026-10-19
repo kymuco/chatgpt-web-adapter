@@ -293,6 +293,23 @@ def _resolve_host_executable(value: str | Path | None = None) -> Path:
     )
 
 
+def linux_native_messaging_manifest_paths(
+    host_name: str, *, config_home: Path | None = None
+) -> tuple[Path, Path]:
+    """Linux per-user Native Messaging locations for Chrome and Chromium."""
+    if config_home is None:
+        xdg_home = os.environ.get("XDG_CONFIG_HOME")
+        config_home = (
+            Path(xdg_home).expanduser()
+            if xdg_home and Path(xdg_home).is_absolute()
+            else Path.home() / ".config"
+        )
+    return (
+        config_home / "google-chrome" / "NativeMessagingHosts" / f"{host_name}.json",
+        config_home / "chromium" / "NativeMessagingHosts" / f"{host_name}.json",
+    )
+
+
 def _user_native_manifest_path() -> Path:
     if os.name == "nt":
         return default_browser_native_state_dir() / f"{HOST_NAME}.json"
@@ -306,13 +323,13 @@ def _user_native_manifest_path() -> Path:
             / "NativeMessagingHosts"
             / f"{HOST_NAME}.json"
         )
-    return (
-        Path.home()
-        / ".config"
-        / "google-chrome"
-        / "NativeMessagingHosts"
-        / f"{HOST_NAME}.json"
-    )
+    return linux_native_messaging_manifest_paths(HOST_NAME)[0]
+
+
+def _user_native_manifest_paths() -> tuple[Path, ...]:
+    if sys.platform == "linux":
+        return linux_native_messaging_manifest_paths(HOST_NAME)
+    return (_user_native_manifest_path(),)
 
 
 def install_native_messaging_host(
@@ -331,8 +348,7 @@ def install_native_messaging_host(
     extension_digest = _materialize_extension(source_extension, installed_extension)
 
     executable = _resolve_host_executable(host_executable)
-    manifest_path = _user_native_manifest_path()
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_paths = _user_native_manifest_paths()
     payload = {
         "name": HOST_NAME,
         "description": "ChatGPT Web Adapter browser-native bridge",
@@ -340,9 +356,14 @@ def install_native_messaging_host(
         "type": "stdio",
         "allowed_origins": [f"chrome-extension://{extension_id}/"],
     }
-    manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    if os.name != "nt":
-        os.chmod(manifest_path, 0o600)
+    for manifest_path in manifest_paths:
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(
+            json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+        )
+        if os.name != "nt":
+            os.chmod(manifest_path, 0o600)
+    manifest_path = manifest_paths[0]
     if os.name == "nt":
         import winreg
 
