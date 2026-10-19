@@ -20,10 +20,15 @@ def default_browser_native_state_dir() -> Path:
         return root / "chatgpt-web-adapter" / "browser-native"
     if os.uname().sysname == "Darwin":
         return Path.home() / "Library" / "Application Support" / "chatgpt-web-adapter" / "browser-native"
-    runtime = os.getenv("XDG_RUNTIME_DIR")
-    if runtime:
-        return Path(runtime) / "chatgpt-web-adapter" / "browser-native"
-    return Path.home() / ".cache" / "chatgpt-web-adapter" / "browser-native"
+    # The unpacked Chrome extension and deployment metadata must survive logout.
+    # A volatile XDG_RUNTIME_DIR can disappear between desktop sessions.
+    state = os.getenv("XDG_STATE_HOME")
+    state_root = (
+        Path(state).expanduser()
+        if state and Path(state).is_absolute()
+        else Path.home() / ".local" / "state"
+    )
+    return state_root / "chatgpt-web-adapter" / "browser-native"
 
 
 def bridge_descriptor_path(state_dir: str | Path | None = None) -> Path:
