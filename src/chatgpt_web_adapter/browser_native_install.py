@@ -358,9 +358,7 @@ def install_native_messaging_host(
     }
     for manifest_path in manifest_paths:
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(
-            json.dumps(payload, indent=2) + "\n", encoding="utf-8"
-        )
+        manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         if os.name != "nt":
             os.chmod(manifest_path, 0o600)
     manifest_path = manifest_paths[0]
