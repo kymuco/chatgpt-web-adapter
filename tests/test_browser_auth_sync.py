@@ -171,48 +171,49 @@ def _run_node(mode: str) -> dict:
     script = f"""
 const mode = {json.dumps(mode)};
 const events = [];
-globalThis.CDP_PROTOCOL_VERSION = "1.3";
 globalThis.BRIDGE_PROTOCOL_VERSION = 1;
 globalThis.activeRequestId = null;
 globalThis.safePortPost = () => true;
 globalThis.chrome = {{
   tabs: {{
-    query: async () => {{
-      events.push("query");
-      return mode === "missing" ? [] : [{{
-        id: 42, status: "complete", url: "https://chatgpt.com/"
-      }}];
-    }},
-    create: () => {{ throw new Error("CREATE_FORBIDDEN"); }},
-    update: () => {{ throw new Error("NAVIGATION_FORBIDDEN"); }}
+    query: () => {{ throw new Error("TAB_QUERY_FORBIDDEN"); }},
+    create: () => {{ throw new Error("TAB_CREATE_FORBIDDEN"); }},
+    update: () => {{ throw new Error("TAB_UPDATE_FORBIDDEN"); }}
   }},
   debugger: {{
-    attach: async () => {{ events.push("attach"); }},
-    detach: async () => {{ events.push("detach"); }},
-    sendCommand: async (_target, command, args) => {{
-      events.push(command);
-      if (command === "Runtime.evaluate") {{
-        if (!args.expression.includes("/api/auth/session")) throw new Error("wrong URL");
-        if (mode === "rejected") return {{ result: {{ value: {{
-          ok: false, reason: "BROWSER_AUTH_SESSION_HTTP_ERROR"
-        }} }} }};
-        return {{ result: {{ value: {{
-          ok: true, accessToken: "test-token", sessionToken: "test-session",
-          expires: "2030-01-01"
-        }} }} }};
-      }}
-      if (command === "Network.getCookies") {{
-        return {{ cookies: [{{
-          name: "__Secure-next-auth.session-token", value: "test-session",
-          domain: ".chatgpt.com", path: "/", secure: true, httpOnly: true
-        }}, {{
-          name: "unrelated", value: "private",
-          domain: ".example.org", path: "/"
-        }}] }};
-      }}
-      throw new Error("UNKNOWN_CDP_COMMAND");
+    attach: () => {{ throw new Error("DEBUGGER_FORBIDDEN"); }},
+    sendCommand: () => {{ throw new Error("DEBUGGER_FORBIDDEN"); }}
+  }},
+  cookies: {{
+    getAll: async (options) => {{
+      events.push(["COOKIES", options.url]);
+      if (mode === "no_cookies_permission") throw new Error("No cookies permission");
+      if (mode === "no_session_cookie") return [];
+      return [{{
+        name: "__Secure-next-auth.session-token", value: "test-session",
+        domain: ".chatgpt.com", path: "/", secure: true, httpOnly: true
+      }}, {{
+        name: "unrelated", value: "private",
+        domain: ".example.org", path: "/"
+      }}];
     }}
   }}
+}};
+globalThis.fetch = async (url, options) => {{
+  events.push(["FETCH", url, options.method, options.credentials]);
+  if (url !== "https://chatgpt.com/api/auth/session") {{
+    throw new Error("WRONG_ENDPOINT");
+  }}
+  if (mode === "rejected") return {{ status: 401 }};
+  if (mode === "fetch_exception") throw new Error("network offline");
+  return {{
+    status: 200,
+    json: async () => ({{
+      accessToken: "test-token",
+      sessionToken: "test-session",
+      expires: "2030-01-01"
+    }})
+  }};
 }};
 {source}
 (async () => {{
@@ -239,26 +240,40 @@ globalThis.chrome = {{
     return json.loads(run.stdout)
 
 
-def test_browser_auth_only_uses_existing_tab_and_scoped_cookies() -> None:
+def test_browser_auth_uses_service_worker_only_and_scoped_cookies() -> None:
     result = _run_node("ok")
     assert result["ok"] is True
     assert result["scoped"] == ["__Secure-next-auth.session-token"]
     assert result["events"] == [
-        "query",
-        "attach",
-        "Runtime.evaluate",
-        "Network.getCookies",
-        "detach",
+        ["FETCH", "https://chatgpt.com/api/auth/session", "GET", "include"],
+        ["COOKIES", "https://chatgpt.com/"],
     ]
 
 
-def test_browser_auth_no_tab_fails_without_creating_or_navigating() -> None:
-    result = _run_node("missing")
-    assert result["error"] == "BROWSER_AUTH_EXISTING_TAB_REQUIRED"
-    assert result["events"] == ["query"]
+def test_browser_auth_no_tab_required_even_if_no_tabs_exist() -> None:
+    result = _run_node("no_tabs")
+    assert result["ok"] is True
+    assert len(result["events"]) == 2
 
 
 def test_browser_auth_rejected_session_fails_closed() -> None:
     result = _run_node("rejected")
     assert result["error"] == "BROWSER_AUTH_SESSION_HTTP_ERROR"
-    assert result["events"] == ["query", "attach", "Runtime.evaluate", "detach"]
+    assert result["events"] == [
+        ["FETCH", "https://chatgpt.com/api/auth/session", "GET", "include"]
+    ]
+
+
+def test_browser_auth_cookie_permission_failure_is_specific() -> None:
+    result = _run_node("no_cookies_permission")
+    assert result["error"] == "BROWSER_AUTH_COOKIE_ACCESS_FAILED"
+
+
+def test_browser_auth_without_cookie_fails_closed() -> None:
+    result = _run_node("no_session_cookie")
+    assert result["error"] == "BROWSER_AUTH_SESSION_COOKIE_MISSING"
+
+
+def test_browser_auth_fetch_failure_fails_closed() -> None:
+    result = _run_node("fetch_exception")
+    assert result["error"] == "BROWSER_AUTH_SESSION_REQUEST_FAILED"
