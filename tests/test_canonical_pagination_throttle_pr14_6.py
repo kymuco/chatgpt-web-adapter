@@ -30,7 +30,8 @@ def test_429_retry_is_bounded_and_preserves_exact_page_url() -> None:
     assert "response.status === 429 && retryThrottle" in source
     assert 'response.headers.get("retry-after")' in source
     assert 'reasonCode: "CANONICAL_READ_THROTTLE_EXHAUSTED"' in source
-    assert "attempt >= throttleMaxRetries" in source
+    assert "throttleRetries >= throttleMaxRetries" in source
+    assert "throttleRetries += 1;" in source
     assert "const pageUrl = currentUrl(cursor);" in source
     assert "const older = await fetchBytes(pageUrl, true, true);" in source
     assert "pages.push(older.payload);" in source
