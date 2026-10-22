@@ -181,6 +181,14 @@ _original_send = _core.ChatGPTWebClient.send
 class ChatGPTWebClient(_core.ChatGPTWebClient):
     """Explicitly composed compatibility client over the frozen historical core."""
 
+    def __init__(
+        self, *args: Any, auto_refresh_auth: bool = True, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, auto_refresh_auth=auto_refresh_auth, **kwargs)
+        # Retry authority is explicit and limited to read-only canonical GETs.
+        # Never reinterpret auto_refresh_auth=False as read-recovery consent.
+        self._read_auth_refresh_allowed = bool(auto_refresh_auth)
+
     _normalize_reasoning_effort = staticmethod(_normalize_reasoning_effort)
     _resolve_model = staticmethod(_resolve_model)
     _poll_conversation_after_prepare = gate_browserless_poll_deadline(
