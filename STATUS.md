@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-22_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -16,13 +16,15 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           PR17.2 merged; isolated experimental Qwen SDK on main
+current phase           Qwen Web SDK + opt-in ChatGPT HTTP integrated on main
 license                 MIT
 python                  3.10-3.14
 ```
 
-Current `main` contains substantial product/runtime work newer than the `v0.3.0`
-tag. Do not assume every current-main behavior exists in the published 0.3.0 wheel.
+Current `main` includes #213-#216 (Qwen/docs) and #212 (direct ChatGPT HTTP),
+merged on 2026-10-16 as `2c4a0215c5d3`. CI passed 16/16 jobs on that exact
+commit. The newest published package remains `v0.3.0` from 2026-09-01; **do not**
+assume these source capabilities ship in that published wheel.
 
 ## Product role
 
@@ -58,11 +60,20 @@ Production mutation transport:
 browser-owned = PRODUCTION
 ```
 
-Alternative direct-request transport:
+Alternative direct-request transports (two distinct implementations):
 
 ```text
-browserless-request = EXPERIMENTAL
+browserless-request = EXPERIMENTAL (historical runtime transport)
+BrowserlessHTTPClient = EXPERIMENTAL / explicit opt-in direct HTTP SDK (#212)
 ```
+
+The direct HTTP client uses a saved authenticated session, Node.js 24+ and curl;
+it does not start a tab or silently fall back to the browser-owned runtime. One
+user-run Codexia bootstrap proved three Markdown attachments, GPT-6 High
+requested/extended observed, streaming and exact assistant-message readback.
+The resulting `CAPTURED_UNADMITTED` is transport evidence, **not** Codexia Work
+completion or a general stability claim. See
+[`docs/browserless_http_sdk.md`](docs/browserless_http_sdk.md).
 
 Evidence-backed ChatGPT production capabilities include:
 
@@ -220,7 +231,7 @@ The detailed PR15 lineage remains preserved in `docs/engineering/`.
 
 ## Current checkpoint
 
-Historical canonical `main` baseline after PR17.2: `02b56911ae132d91d35d8bb87511141351968f80`.
+Historical canonical `main` baseline after PR17.2 (not the current branch tip): `02b56911ae132d91d35d8bb87511141351968f80`.
 GitHub Actions push CI #1945 passed on this exact revision. It is newer than
 published `v0.3.0`: source support must not be inferred for the released wheel.
 
@@ -253,6 +264,31 @@ Full evidence and boundaries:
 [PR16/PR17.2 canonical product checkpoint](docs/engineering/pr17_2_canonical_product_checkpoint.md).
 Older engineering documents remain historical evidence rather than overriding
 this current product-status summary.
+
+## Release readiness checkpoint (2026-10-22)
+
+- **No new public release yet.** `v0.3.0` remains the published package;
+  a new version/tag is a separate release decision.
+- **Linux PR [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217)**
+  has 16/16 green CI but remains Draft pending a real
+  EndeavourOS Chrome/Chromium + Qwen Native Messaging E2E.
+- **Browser-extra CI [#218](https://github.com/kymuco/chatgpt-web-adapter/pull/218)**
+  is a separate draft verification gate for installation of the exact built
+  wheel with `[browser]` and import of `zendriver` on the supported boundary
+  matrix. Do not count it as merged before CI and review complete.
+- **Rich-input [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211)**
+  remains Draft with a distinct protected Send/attachment boundary.
+  Do not replay any previously claimed/ambiguous send. Historical
+  [#208](https://github.com/kymuco/chatgpt-web-adapter/pull/208)
+  overlaps merged composer resolver fix #210 and should not be merged wholesale.
+- Open hardening issues include [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168)
+  (read deadline during 429 backoff), [#172](https://github.com/kymuco/chatgpt-web-adapter/issues/172)
+  (PEP 561 typing), and [#114](https://github.com/kymuco/chatgpt-web-adapter/issues/114)
+  (long-history read checkpoints).
+
+Release order: complete minimum install/release gates; reconcile affected live
+browser boundaries; choose version/changelog; run exact-wheel/publish gates; only
+then consider a release. CI green is not equivalent to a live product E2E.
 
 ## Adoption and discovery
 
