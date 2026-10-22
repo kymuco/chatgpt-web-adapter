@@ -188,20 +188,20 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
         *args: Any,
         auto_refresh_auth: bool = True,
         auto_browser_auth_sync: bool = False,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         super().__init__(*args, auto_refresh_auth=auto_refresh_auth, **kwargs)
         # Retry authority is explicit and limited to read-only canonical GETs.
         # Never reinterpret auto_refresh_auth=False as read-recovery consent.
         self._read_auth_refresh_allowed = bool(auto_refresh_auth)
-        self._browser_auth_sync_allowed = bool(auto_browser_auth_sync and auto_refresh_auth)
+        self._browser_auth_sync_allowed = bool(
+            auto_browser_auth_sync and auto_refresh_auth
+        )
 
     def sync_browser_auth(self, *, persist: bool | None = None) -> Any:
         """Explicitly sync from the existing ChatGPT tab without a new window."""
 
-        should_persist = (
-            self.persist_browser_auth if persist is None else bool(persist)
-        )
+        should_persist = self.persist_browser_auth if persist is None else bool(persist)
         result = _sync_browser_auth(self.auth_file, persist=should_persist)
         self.auth = result.auth
         self.base_headers = build_base_headers(self.auth)
