@@ -167,17 +167,18 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
         "Google Translate Web  EXPERIMENTAL non-chat translate_text capability" in text
     )
     normalized = " ".join(text.split())
-    assert (
-        "Current `main` contains substantial product/runtime work newer than the "
-        "`v0.3.0` tag" in normalized
-    )
+    assert "The newest published package remains `v0.3.0`" in normalized
+    assert "direct ChatGPT HTTP" in normalized
+    assert "CAPTURED_UNADMITTED" in text
     assert "PR16  public positioning/documentation alignment" in text
 
 
 def test_roadmap_is_current_and_post_pr15_consumer_driven() -> None:
     text = _read("ROADMAP.md")
 
-    assert "_Last updated: 2026-10-08_" in text
+    assert "_Last updated:" in text
+    assert "## Release readiness work" in text
+    assert "exact built-wheel" in text
     assert "### PR15 — architecture reset and provider proof" in text
     assert "ProductProviderBoundary schema 2" in text
     assert "### PR16.1 — current documentation refresh" in text
@@ -279,7 +280,7 @@ def test_post_pr17_2_checkpoint_is_bounded_to_source_and_proven_evidence() -> No
 
     # The current status may advance; PR17.2 is a retained historical checkpoint.
     assert "_Last updated:" in status
-    assert "PR17.2 merged" in status
+    assert "PR17.1 and PR17.2 fixed" in status
     assert "Historical canonical `main` baseline after PR17.2" in status
     assert "CONVERSATION_LOCAL_DURABLE" in status
     assert "LAST_SELECTED_MODE_OBSERVED" in status

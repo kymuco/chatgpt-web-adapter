@@ -6,6 +6,10 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- ChatGPT direct HTTP (experimental, opt-in): add a standalone authenticated Python HTTP/Node SDK with streaming, ordinary/Temporary Chat, continuation, attachments, explicit model/reasoning routing, no browser fallback and no automatic retry on uncertain writes (#212); one user-run Codexia GPT-6 High three-Markdown E2E achieved exact readback and transport-only `CAPTURED_UNADMITTED`, not application admission or general protocol-stability proof
+- Packaging/transport isolation: include the pinned HTTP Node runtime in built wheel/sdist while preserving production browser-owned ChatGPT and the separate Qwen SDK/native host; the released `v0.3.0` package does **not** contain these post-release additions
+- Release hardening (#218): installed-wheel smoke now resolves the exact built wheel's `[browser]` extra and verifies the `zendriver` metadata/import in a clean Python environment before release, with no real browser launch or authenticated product write
+
 - Qwen Web docs: add a complete Russian translation of the Windows Qwen-only quickstart (`QWEN.ru.md`), with reciprocal language links and unchanged terminal CLI/Python commands; no website generator or runtime change
 - Qwen Web documentation: add a self-contained Qwen-only Windows quickstart with independent extension/native-host installation and the existing `python .\\qwen_sdk.py --stream network` terminal chat entrypoint; no changes to runtime, PyPI version or production ChatGPT extension
 - Qwen Web: add an isolated experimental Chrome extension and Native Messaging host, a Python/CLI text-turn SDK with user-verified Windows network streaming, continuation and cross-process chat reattachment; introduce explicit gated `/retry` for Qwen high-demand responses without automatically replaying user prompts; document reference examples and keep direct HTTP experimental/unverified
