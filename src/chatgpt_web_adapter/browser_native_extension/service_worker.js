@@ -767,6 +767,10 @@ function postNative(message) {
 
 async function _cwaBaseOnNativeMessage(message, port) {
   if (message?.protocol !== BRIDGE_PROTOCOL_VERSION) return;
+  if (message?.type === "auth_sync") {
+    await _cwaHandleBrowserAuthSync(message, port);
+    return;
+  }
   if (message?.type !== "turn") return;
   const requestId = message.request_id;
   if (typeof requestId !== "string" || !requestId) return;

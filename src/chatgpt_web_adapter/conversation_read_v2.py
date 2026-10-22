@@ -350,13 +350,21 @@ def read_conversation_payload_v2(
         ):
             return status, data
 
+        browser_sync = getattr(client, "sync_browser_auth", None)
+        use_browser_sync = bool(
+            getattr(client, "_browser_auth_sync_allowed", False)
+            and callable(browser_sync)
+        )
         refresh = getattr(client, "refresh_auth", None)
-        if not callable(refresh):
+        if not use_browser_sync and not callable(refresh):
             return status, data
         # One bounded refresh per read operation, even across pagination pages.
         # This path is GET-only: never reuse this logic for message submission.
         refresh_attempted = True
-        refresh(persist=bool(getattr(client, "persist_browser_auth", False)))
+        if use_browser_sync:
+            browser_sync(persist=bool(getattr(client, "persist_browser_auth", False)))
+        else:
+            refresh(persist=bool(getattr(client, "persist_browser_auth", False)))
         request_headers.clear()
         request_headers.update(client._build_headers(read_headers))
         return client._json_request("GET", url, None, request_headers)

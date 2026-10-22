@@ -53,6 +53,7 @@ def test_runtime_entrypoint_is_assembly_only_with_explicit_domain_order() -> Non
         'importScripts("service_worker_gemini_provider.js");',
         'importScripts("service_worker_gemini_notebook_capability.js");',
         'importScripts("service_worker_google_translate_capability.js");',
+        'importScripts("service_worker_auth_sync.js");',
         'importScripts("service_worker_native_message_router.js");',
         'importScripts("service_worker_official_page_turn_lifecycle.js");',
         'importScripts("service_worker_native_turn_lifecycle.js");',

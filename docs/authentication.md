@@ -148,3 +148,46 @@ The supported sequence is:
 Copying only `auth_data.json` to a clean server is not guaranteed to reproduce
 the browser session. A completely Chromium-free protected-write mode is not
 currently supported.
+
+## Sync existing Chrome session through CWA (opt-in)
+
+For an authenticated Chrome profile with a connected CWA extension, use:
+
+```powershell
+chatgpt-web-adapter auth sync-browser --auth-file auth_data.json
+```
+
+The extension service worker requests `/api/auth/session` with
+`credentials: "include"` and reads only ChatGPT-scoped cookies via the
+`chrome.cookies` API. **No ChatGPT tab is needed**, and the operation never
+launches Zendriver, opens or activates windows, navigates tabs, or attaches
+the debugger. The existing browser process and extension **must** still be
+running; this is not a credential-free HTTP login.
+
+The feature introduces the Chrome extension `cookies` permission, in
+addition to its existing `https://chatgpt.com/*` host permission. Chrome
+may require reviewing the new permission when reloading/upgrading CWA.
+The resulting credentials are sent only via CWA's authenticated local
+Native Messaging bridge and atomically stored in `auth_data.json`; never
+print or upload this file. If the browser profile has no usable session,
+cookie access is disallowed, or the request fails, synchronization fails
+closed without replacing the existing auth file.
+
+To enable automatic browser synchronization on a canonical conversation
+`401 token_expired`, opt in once in your SDK constructor:
+
+```python
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_browser_auth_sync=True,
+)
+```
+
+The SDK then synchronizes the browser session and repeats **only that GET**,
+at most once. Without the opt-in, existing auth-refresh behavior is unchanged.
+This is a deliberate exception to the normal Native Messaging policy of not
+exporting credentials. It is restricted to the authenticated local broker;
+do not enable it on untrusted local machines or expose the bridge descriptor.
+A successfully updated file is **not** proof that an independent curl request
+will be accepted by the ChatGPT backend.
+

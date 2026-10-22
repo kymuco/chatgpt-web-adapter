@@ -390,6 +390,7 @@ class BrowserNativeBroker:
             "gemini_notebook_video_artifact_observe",
             "gemini_notebook_video_artifact_retrieval",
             "canonical_read",
+            "auth_sync",
             "canonical_read_complete",
             "release_runtime_tab",
         }:
@@ -429,6 +430,7 @@ class BrowserNativeBroker:
                 "gemini_notebook_video_artifact_observe": 60_000,
                 "gemini_notebook_video_artifact_retrieval": 120_000,
                 "canonical_read": 30_000,
+                "auth_sync": 20_000,
                 "release_runtime_tab": 10_000,
             }[operation]
             timeout = max(

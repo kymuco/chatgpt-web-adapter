@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .auth_browser import browser_login
 from .auth_refresh import refresh_auth_session
 from .auth_status import get_auth_status
+from .browser_auth_sync import sync_browser_auth
 from .browser_native_install import (
     EXTENSION_ID,
     browser_native_extension_dir,
@@ -65,7 +66,9 @@ def _build_parser() -> argparse.ArgumentParser:
     def add_auth_file(command: argparse.ArgumentParser) -> None:
         command.add_argument("--auth-file", type=Path, default=DEFAULT_AUTH_FILE)
 
-    login = auth_commands.add_parser("login", help="open a browser and save authorization")
+    login = auth_commands.add_parser(
+        "login", help="open a browser and save authorization"
+    )
     add_auth_file(login)
     login.add_argument("--profile-dir", type=Path)
     login.add_argument("--timeout", type=float, default=300.0)
@@ -80,15 +83,25 @@ def _build_parser() -> argparse.ArgumentParser:
     add_auth_file(status)
     status.add_argument("--profile-dir", type=Path)
 
-    refresh = auth_commands.add_parser("refresh", help="refresh tokens without browser login")
+    refresh = auth_commands.add_parser(
+        "refresh", help="refresh tokens without browser login"
+    )
     add_auth_file(refresh)
+
+    sync_browser = auth_commands.add_parser(
+        "sync-browser",
+        help="sync auth from an existing Chrome ChatGPT tab; no new tab or login",
+    )
+    add_auth_file(sync_browser)
 
     snapshot = commands.add_parser(
         "snapshot",
         help="write a deterministic user/assistant conversation snapshot",
     )
     add_auth_file(snapshot)
-    snapshot.add_argument("conversation", help="raw conversation id or ChatGPT conversation URL")
+    snapshot.add_argument(
+        "conversation", help="raw conversation id or ChatGPT conversation URL"
+    )
     snapshot.add_argument(
         "--name",
         default="conversation",
@@ -256,6 +269,11 @@ def _run_auth(args: argparse.Namespace) -> int:
             )
         )
         return 0 if status.file_exists else 1
+    if args.auth_command == "sync-browser":
+        result = sync_browser_auth(args.auth_file)
+        print("BROWSER_AUTH_SYNC=PASS")
+        print(f"AUTH_FILE={result.auth_file.resolve()}")
+        return 0
     if args.auth_command == "refresh":
         auth = load_auth_data(args.auth_file, allow_expired_session_refresh=True)
         client = ChatGPTWebClient(
@@ -299,7 +317,9 @@ def _run_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
-def _tail_timing_payload(execution: Any, observer: StandaloneTailTimingObserver) -> dict[str, Any]:
+def _tail_timing_payload(
+    execution: Any, observer: StandaloneTailTimingObserver
+) -> dict[str, Any]:
     observation = execution.observation.to_dict()
     lease_id = observation.get("browser_authority_lease_id")
     browser_tail: dict[str, Any]
@@ -332,7 +352,9 @@ def _run_send(args: argparse.Namespace) -> int:
             "requires the same live ChatGPTProductRuntime instance"
         )
     if args.temporary and args.timings:
-        raise ValueError("--timings is not yet defined for Temporary page-owned finality")
+        raise ValueError(
+            "--timings is not yet defined for Temporary page-owned finality"
+        )
 
     runtime = assemble_product_runtime(
         transport=args.transport,
@@ -344,7 +366,9 @@ def _run_send(args: argparse.Namespace) -> int:
         else None
     )
     timing_observer = (
-        StandaloneTailTimingObserver(renderer.on_event if renderer is not None else None)
+        StandaloneTailTimingObserver(
+            renderer.on_event if renderer is not None else None
+        )
         if args.timings
         else None
     )
@@ -390,7 +414,11 @@ def _run_send(args: argparse.Namespace) -> int:
     if timing_observer is not None:
         print(
             json.dumps(
-                {"post_answer_tail_timing": _tail_timing_payload(execution, timing_observer)},
+                {
+                    "post_answer_tail_timing": _tail_timing_payload(
+                        execution, timing_observer
+                    )
+                },
                 indent=2,
                 ensure_ascii=False,
             ),
