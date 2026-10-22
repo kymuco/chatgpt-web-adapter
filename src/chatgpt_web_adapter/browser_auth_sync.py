@@ -95,8 +95,7 @@ def sync_browser_auth(
         ):
             raise AuthError("BROWSER_AUTH_COOKIES_INVALID")
     if not any(
-        key == CHATGPT_SESSION_COOKIE
-        or key.startswith(f"{CHATGPT_SESSION_COOKIE}.")
+        key == CHATGPT_SESSION_COOKIE or key.startswith(f"{CHATGPT_SESSION_COOKIE}.")
         for key in cookies
     ):
         raise AuthError("BROWSER_AUTH_SESSION_COOKIE_MISSING")
