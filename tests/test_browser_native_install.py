@@ -31,6 +31,7 @@ def test_packaged_extension_identity_and_manifest() -> None:
         "debugger",
         "tabs",
         "storage",
+        "cookies",
         "nativeMessaging",
     }
     assert manifest["host_permissions"] == [
