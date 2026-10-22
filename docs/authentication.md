@@ -151,17 +151,27 @@ currently supported.
 
 ## Sync existing Chrome session through CWA (opt-in)
 
-For a logged-in ChatGPT Chrome tab and a connected CWA extension, use:
+For an authenticated Chrome profile with a connected CWA extension, use:
 
 ```powershell
 chatgpt-web-adapter auth sync-browser --auth-file auth_data.json
 ```
 
-This requests `/api/auth/session` inside an **already-open** ChatGPT tab and
-reads only the ChatGPT-scoped cookie records. It atomically updates
-`auth_data.json`, without launching Zendriver/another browser, navigating
-a tab or activating a window. If no tab is present or its session is rejected,
-the operation **fails closed**. Tokens and cookies are never printed.
+The extension service worker requests `/api/auth/session` with
+`credentials: "include"` and reads only ChatGPT-scoped cookies via the
+`chrome.cookies` API. **No ChatGPT tab is needed**, and the operation never
+launches Zendriver, opens or activates windows, navigates tabs, or attaches
+the debugger. The existing browser process and extension **must** still be
+running; this is not a credential-free HTTP login.
+
+The feature introduces the Chrome extension `cookies` permission, in
+addition to its existing `https://chatgpt.com/*` host permission. Chrome
+may require reviewing the new permission when reloading/upgrading CWA.
+The resulting credentials are sent only via CWA's authenticated local
+Native Messaging bridge and atomically stored in `auth_data.json`; never
+print or upload this file. If the browser profile has no usable session,
+cookie access is disallowed, or the request fails, synchronization fails
+closed without replacing the existing auth file.
 
 To enable automatic browser synchronization on a canonical conversation
 `401 token_expired`, opt in once in your SDK constructor:
