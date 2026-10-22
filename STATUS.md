@@ -273,9 +273,10 @@ this current product-status summary.
   has 16/16 green CI but remains Draft pending a real
   EndeavourOS Chrome/Chromium + Qwen Native Messaging E2E.
 - **Browser-extra CI [#218](https://github.com/kymuco/chatgpt-web-adapter/pull/218)**
-  is a separate draft verification gate for installation of the exact built
-  wheel with `[browser]` and import of `zendriver` on the supported boundary
-  matrix. Do not count it as merged before CI and review complete.
+  was merged as `3caa50b96aff` after 16/16 green CI. The installed-wheel
+  release/publish smoke now installs the exact built wheel with `[browser]`,
+  verifies the scoped `zendriver` requirement and imports it from isolated
+  `site-packages` on Linux/Windows Python 3.10 and 3.14.
 - **Rich-input [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211)**
   remains Draft with a distinct protected Send/attachment boundary.
   Do not replay any previously claimed/ambiguous send. Historical
