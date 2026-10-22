@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -252,6 +253,7 @@ def _read_current_page(
     conversation_id: str,
     headers: dict[str, str],
     before: str | None = None,
+    read_get: Callable[[str, dict[str, str]], tuple[int, Any]] | None = None,
 ) -> tuple[int, Any]:
     """Read one current-endpoint page with bounded load-shedding recovery.
 
@@ -281,7 +283,11 @@ def _read_current_page(
                 before=before,
                 num_turns=num_turns,
             )
-            status, data = client._json_request("GET", current_url, None, headers)
+            status, data = (
+                read_get(current_url, headers)
+                if read_get is not None
+                else client._json_request("GET", current_url, None, headers)
+            )
             last_status, last_data = status, data
 
             if status == 429:
@@ -324,24 +330,47 @@ def read_conversation_payload_v2(
     """Read the current conversation endpoint with a cohort-safe legacy fallback."""
 
     ref = ConversationRef(conversation_id)
-    headers = client._build_headers(
-        {
-            "accept": "application/json",
-            "referer": f"https://chatgpt.com/c/{ref.conversation_id}",
-        }
-    )
+    read_headers = {
+        "accept": "application/json",
+        "referer": f"https://chatgpt.com/c/{ref.conversation_id}",
+    }
+    headers = client._build_headers(read_headers)
+    refresh_attempted = False
+
+    def read_get(url: str, request_headers: dict[str, str]) -> tuple[int, Any]:
+        nonlocal refresh_attempted
+        status, data = client._json_request("GET", url, None, request_headers)
+        error = data.get("error") if isinstance(data, dict) else None
+        if not (
+            status == 401
+            and isinstance(error, dict)
+            and error.get("code") == "token_expired"
+            and not refresh_attempted
+            and bool(getattr(client, "_read_auth_refresh_allowed", False))
+        ):
+            return status, data
+
+        refresh = getattr(client, "refresh_auth", None)
+        if not callable(refresh):
+            return status, data
+        # One bounded refresh per read operation, even across pagination pages.
+        # This path is GET-only: never reuse this logic for message submission.
+        refresh_attempted = True
+        refresh(persist=bool(getattr(client, "persist_browser_auth", False)))
+        request_headers.clear()
+        request_headers.update(client._build_headers(read_headers))
+        return client._json_request("GET", url, None, request_headers)
 
     status, data = _read_current_page(
         client,
         current_base_url=current_base_url,
         conversation_id=ref.conversation_id,
         headers=headers,
+        read_get=read_get,
     )
     if status == 404:
         legacy_url = legacy_url_template.format(conversation_id=ref.conversation_id)
-        legacy_status, legacy_data = client._json_request(
-            "GET", legacy_url, None, headers
-        )
+        legacy_status, legacy_data = read_get(legacy_url, headers)
         if not _is_success_status(legacy_status):
             raise RequestError(
                 f"conversation status={legacy_status}: {legacy_data}",
@@ -401,6 +430,7 @@ def read_conversation_payload_v2(
             conversation_id=ref.conversation_id,
             headers=headers,
             before=cursor,
+            read_get=read_get,
         )
         if not _is_success_status(page_status):
             raise RequestError(
