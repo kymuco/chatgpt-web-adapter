@@ -4,7 +4,7 @@ from typing import Any
 
 from . import legacy_client_core as _core
 from .attach import attach_conversation as _attach_conversation
-from .auth import build_base_headers
+from .auth import DEFAULT_AUTH_FILE, build_base_headers
 from .auth_refresh import refresh_auth_session as _refresh_auth_session
 from .browser_auth_sync import sync_browser_auth as _sync_browser_auth
 from .browser_native_client import (
@@ -190,7 +190,26 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
         auto_browser_auth_sync: bool = False,
         **kwargs: Any,
     ) -> None:
-        super().__init__(*args, auto_refresh_auth=auto_refresh_auth, **kwargs)
+        if auto_browser_auth_sync and auto_refresh_auth:
+            # The opt-in browser path avoids the legacy Python-only startup
+            # refresh, which may produce the same expired bearer. Recover a
+            # missing/expired file before constructing the direct HTTP client.
+            try:
+                super().__init__(*args, auto_refresh_auth=False, **kwargs)
+            except _core.AuthError:
+                if (args and args[0] is not None) or kwargs.get("auth") is not None:
+                    raise
+                target = kwargs.get("auth_file", DEFAULT_AUTH_FILE)
+                persist = bool(kwargs.get("persist_refreshed_auth", True))
+                result = _sync_browser_auth(target, persist=persist)
+                retry_kwargs = (
+                    kwargs if persist else {**kwargs, "auth": result.auth}
+                )
+                super().__init__(
+                    *args, auto_refresh_auth=False, **retry_kwargs
+                )
+        else:
+            super().__init__(*args, auto_refresh_auth=auto_refresh_auth, **kwargs)
         # Retry authority is explicit and limited to read-only canonical GETs.
         # Never reinterpret auto_refresh_auth=False as read-recovery consent.
         self._read_auth_refresh_allowed = bool(auto_refresh_auth)
