@@ -4,9 +4,9 @@ from typing import Any
 
 from . import legacy_client_core as _core
 from .attach import attach_conversation as _attach_conversation
+from .auth import build_base_headers
 from .auth_refresh import refresh_auth_session as _refresh_auth_session
 from .browser_auth_sync import sync_browser_auth as _sync_browser_auth
-from .auth import build_base_headers
 from .browser_native_client import (
     send_browser_native as _send_browser_native,
 )
