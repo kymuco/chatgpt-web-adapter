@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from chatgpt_web_adapter.browser_auth_sync import sync_browser_auth
+from chatgpt_web_adapter import ChatGPTWebClient
+from chatgpt_web_adapter.auth_store import persist_auth_data
+from chatgpt_web_adapter.browser_auth_sync import (
+    BrowserAuthSyncResult,
+    sync_browser_auth,
+)
+from chatgpt_web_adapter.types import AuthData
 from chatgpt_web_adapter.conversation_read_v2 import read_conversation_payload_v2
 from chatgpt_web_adapter.exceptions import AuthError
 
@@ -277,3 +283,102 @@ def test_browser_auth_without_cookie_fails_closed() -> None:
 def test_browser_auth_fetch_failure_fails_closed() -> None:
     result = _run_node("fetch_exception")
     assert result["error"] == "BROWSER_AUTH_SESSION_REQUEST_FAILED"
+
+
+def test_opted_in_client_recovers_missing_auth_before_startup_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "auth_data.json"
+    calls: list[tuple[Path, bool]] = []
+
+    def fake_browser_sync(auth_file, *, persist=True):
+        target = Path(auth_file)
+        calls.append((target, persist))
+        auth = AuthData(
+            accessToken="fresh-synthetic-access",
+            cookies={"__Secure-next-auth.session-token": "fresh-synthetic-cookie"},
+        )
+        if persist:
+            persist_auth_data(auth, target)
+        return BrowserAuthSyncResult(auth=auth, persisted=persist, auth_file=target)
+
+    monkeypatch.setattr("chatgpt_web_adapter.client._sync_browser_auth", fake_browser_sync)
+    monkeypatch.setattr(
+        "chatgpt_web_adapter.auth_refresh.refresh_auth_session",
+        lambda *_args, **_kwargs: pytest.fail("legacy refresh must not run"),
+    )
+    client = ChatGPTWebClient(
+        auth_file=path,
+        auto_browser_auth_sync=True,
+        curl_bin="curl",
+    )
+    assert calls == [(path, True)]
+    assert client.auth.accessToken == "fresh-synthetic-access"
+    assert client._browser_auth_sync_allowed is True
+    assert path.exists()
+
+
+def test_opted_in_client_does_not_export_when_valid_file_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "auth_data.json"
+    persist_auth_data(
+        AuthData(
+            accessToken="still-valid-synthetic",
+            cookies={"__Secure-next-auth.session-token": "cookie"},
+        ),
+        path,
+    )
+    monkeypatch.setattr(
+        "chatgpt_web_adapter.client._sync_browser_auth",
+        lambda *_args, **_kwargs: pytest.fail("browser must not be contacted"),
+    )
+    client = ChatGPTWebClient(
+        auth_file=path,
+        auto_browser_auth_sync=True,
+        curl_bin="curl",
+    )
+    assert client.auth.accessToken == "still-valid-synthetic"
+
+
+def test_opted_in_startup_sync_respects_no_persistence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "auth_data.json"
+    auth = AuthData(
+        accessToken="transient-synthetic",
+        cookies={"__Secure-next-auth.session-token": "transient-cookie"},
+    )
+    monkeypatch.setattr(
+        "chatgpt_web_adapter.client._sync_browser_auth",
+        lambda target, *, persist: BrowserAuthSyncResult(
+            auth=auth, persisted=False, auth_file=Path(target)
+        ),
+    )
+    client = ChatGPTWebClient(
+        auth_file=path,
+        auto_browser_auth_sync=True,
+        persist_refreshed_auth=False,
+        curl_bin="curl",
+    )
+    assert client.auth.accessToken == "transient-synthetic"
+    assert not path.exists()
+
+
+def test_supplied_auth_never_replaced_by_browser_bootstrap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "chatgpt_web_adapter.client._sync_browser_auth",
+        lambda *_args, **_kwargs: pytest.fail("explicit auth must not be replaced"),
+    )
+    auth = AuthData(
+        accessToken="explicit-synthetic",
+        cookies={"__Secure-next-auth.session-token": "explicit-cookie"},
+    )
+    client = ChatGPTWebClient(
+        auth=auth,
+        auto_browser_auth_sync=True,
+        curl_bin="curl",
+    )
+    assert client.auth is auth
