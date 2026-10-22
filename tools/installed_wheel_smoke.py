@@ -176,8 +176,8 @@ def _has_browser_extra_requirement(requirements: list[str]) -> bool:
     """Check the installed wheel advertises the browser extra in metadata."""
 
     return any(
-        re.match(r"^zendriver\\b", requirement, flags=re.IGNORECASE)
-        and re.search(r"""extra\\s*==\\s*["']browser["']""", requirement)
+        re.match(r"^zendriver\b", requirement, flags=re.IGNORECASE)
+        and re.search(r"""extra\s*==\s*["']browser["']""", requirement)
         for requirement in requirements
     )
 
@@ -191,7 +191,7 @@ def _validate_browser_extra() -> dict[str, str]:
     module_file = getattr(zendriver, "__file__", None)
     if module_file is None or "site-packages" not in str(
         Path(module_file).resolve()
-    ).lower().replace("\\\\", "/"):
+    ).lower().replace("\\", "/"):
         raise RuntimeError("zendriver was not imported from the isolated installed environment")
 
     return {
