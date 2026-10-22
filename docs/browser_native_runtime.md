@@ -146,6 +146,23 @@ print(follow_up.text)
 `send_browser_native()` returns a normal `ChatResponse`, but its text comes from
 the SDK's canonical conversation readback rather than Native Messaging.
 
+## Canonical history GET recovery
+
+The browser-native canonical read runs in the authenticated ChatGPT page context:
+it reads the session through `/api/auth/session`, then fetches the canonical
+conversation using the page's current Bearer token. It never reads
+`auth_data.json` or invokes `zendriver` for this path.
+
+When a **read-only** canonical conversation page returns HTTP 408, 500 or 504,
+the reader now makes at most two further requests for that same page using the
+server-side `num_turns` hints **20 → 10 → 5**. The conversation identity and
+`before` pagination cursor are preserved, and already fetched pages are
+retained. This does not promise recovery from all HTTP 500 errors. A continued
+error fails closed rather than exporting a partial conversation as complete.
+HTTP 401/403 do not trigger this fallback; the established bounded HTTP 429
+policy remains separate. No writes, message resubmissions, browser login,
+credential export, or additional browser window are involved.
+
 ## PR8.1 scope
 
 Supported:
