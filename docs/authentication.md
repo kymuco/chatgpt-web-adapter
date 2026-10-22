@@ -90,6 +90,20 @@ chatgpt-web-adapter auth refresh --auth-file auth_data.json
 
 or with `client.refresh_auth()`.
 
+Canonical conversation reads (including paginated full-history GETs) can also
+recover **once per read operation** if the server specifically returns
+`401` with `error.code=token_expired`. With the default
+`auto_refresh_auth=True`, CWA refreshes the stored session via the existing
+bounded auth worker and retries **only the failed GET with the same URL/cursor**;
+previously fetched pages are retained. `auto_refresh_auth=False` disables this
+read recovery too. If the saved session cookie has expired, refresh fails and
+normal interactive reauthentication is required.
+
+This is strictly a **read-only** convenience. It never retries a ChatGPT
+message submit, attachment upload, or any other potentially effectful request.
+A generic `401`, `403`, failed refresh, or a second `token_expired` still fails
+closed; there is no silent browser-login or transport fallback.
+
 ## Status Without Exposing Secrets
 
 ```bash
