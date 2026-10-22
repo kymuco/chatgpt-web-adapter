@@ -148,3 +148,36 @@ The supported sequence is:
 Copying only `auth_data.json` to a clean server is not guaranteed to reproduce
 the browser session. A completely Chromium-free protected-write mode is not
 currently supported.
+
+## Sync existing Chrome session through CWA (opt-in)
+
+For a logged-in ChatGPT Chrome tab and a connected CWA extension, use:
+
+```powershell
+chatgpt-web-adapter auth sync-browser --auth-file auth_data.json
+```
+
+This requests `/api/auth/session` inside an **already-open** ChatGPT tab and
+reads only the ChatGPT-scoped cookie records. It atomically updates
+`auth_data.json`, without launching Zendriver/another browser, navigating
+a tab or activating a window. If no tab is present or its session is rejected,
+the operation **fails closed**. Tokens and cookies are never printed.
+
+To enable automatic browser synchronization on a canonical conversation
+`401 token_expired`, opt in once in your SDK constructor:
+
+```python
+client = ChatGPTWebClient(
+    auth_file="auth_data.json",
+    auto_browser_auth_sync=True,
+)
+```
+
+The SDK then synchronizes the browser session and repeats **only that GET**,
+at most once. Without the opt-in, existing auth-refresh behavior is unchanged.
+This is a deliberate exception to the normal Native Messaging policy of not
+exporting credentials. It is restricted to the authenticated local broker;
+do not enable it on untrusted local machines or expose the bridge descriptor.
+A successfully updated file is **not** proof that an independent curl request
+will be accepted by the ChatGPT backend.
+
