@@ -69,10 +69,12 @@ python tools/installed_wheel_smoke.py `
 
 When `--expected-version` is omitted, candidate smoke derives the expected static `[project].version` from the checkout `pyproject.toml`. The publish workflow passes the release tag explicitly and therefore remains stricter.
 
-The smoke installs the wheel through `pip --no-deps --force-reinstall` and verifies:
+The smoke installs the **exact wheel with `[browser]` enabled** in a fresh isolated environment (`pip install --force-reinstall <wheel>[browser]`) and verifies:
 
 - import resolves from `site-packages`, not the repository `src/` tree;
 - installed package metadata reports the expected version;
+- the installed wheel advertises the `zendriver` dependency scoped to the `browser` extra;
+- the browser-extra dependency resolves, installs and imports from the isolated `site-packages` (no browser launch or login);
 - frozen CWA 0.3 product-runtime modules are importable from the installed package;
 - root `PRIMARY_PRODUCTION` observation value types are present;
 - `MediaItem` / `MediaSource` retain `SHARED_SUPPORT` classification;
