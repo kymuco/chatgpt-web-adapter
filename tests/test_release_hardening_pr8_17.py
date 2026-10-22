@@ -103,6 +103,35 @@ def test_tagged_gate_requires_exact_version_match(tmp_path: Path) -> None:
     assert report["changelog_release_date"] == "2026-09-01"
 
 
+@pytest.mark.parametrize(
+    ("requirements", "expected"),
+    [
+        (['zendriver==0.15.3; extra == "browser"'], True),
+        (["zendriver==0.15.3; extra == 'browser'"], True),
+        (['zendriver==0.15.3; extra == "test"'], False),
+        (["zendriver==0.15.3"], False),
+        (['not-zendriver==0.15.3; extra == "browser"'], False),
+        ([], False),
+    ],
+)
+def test_browser_extra_requirement_is_scoped_to_browser(
+    requirements: list[str], expected: bool
+) -> None:
+    assert installed_wheel_smoke._has_browser_extra_requirement(requirements) is expected
+
+
+def test_installed_wheel_browser_validator_fails_without_extra_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        installed_wheel_smoke.importlib.metadata,
+        "requires",
+        lambda _project: [],
+    )
+    with pytest.raises(RuntimeError, match="browser extra metadata"):
+        installed_wheel_smoke._validate_browser_extra()
+
+
 def test_installed_smoke_normalizes_release_tag_versions() -> None:
     assert installed_wheel_smoke.normalize_expected_version("0.3.0") == VERSION
     assert installed_wheel_smoke.normalize_expected_version("v0.3.0") == VERSION
