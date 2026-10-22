@@ -9,6 +9,7 @@ from typing import Any, Sequence
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .auth_browser import browser_login
 from .auth_refresh import refresh_auth_session
+from .browser_auth_sync import sync_browser_auth
 from .auth_status import get_auth_status
 from .browser_native_install import (
     EXTENSION_ID,
@@ -82,6 +83,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     refresh = auth_commands.add_parser("refresh", help="refresh tokens without browser login")
     add_auth_file(refresh)
+
+    sync_browser = auth_commands.add_parser(
+        "sync-browser",
+        help="sync auth from an existing Chrome ChatGPT tab; no new tab or login",
+    )
+    add_auth_file(sync_browser)
 
     snapshot = commands.add_parser(
         "snapshot",
@@ -256,6 +263,11 @@ def _run_auth(args: argparse.Namespace) -> int:
             )
         )
         return 0 if status.file_exists else 1
+    if args.auth_command == "sync-browser":
+        result = sync_browser_auth(args.auth_file)
+        print("BROWSER_AUTH_SYNC=PASS")
+        print(f"AUTH_FILE={result.auth_file.resolve()}")
+        return 0
     if args.auth_command == "refresh":
         auth = load_auth_data(args.auth_file, allow_expired_session_refresh=True)
         client = ChatGPTWebClient(
