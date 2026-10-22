@@ -12,9 +12,9 @@ from chatgpt_web_adapter.browser_auth_sync import (
     BrowserAuthSyncResult,
     sync_browser_auth,
 )
-from chatgpt_web_adapter.types import AuthData
 from chatgpt_web_adapter.conversation_read_v2 import read_conversation_payload_v2
 from chatgpt_web_adapter.exceptions import AuthError
+from chatgpt_web_adapter.types import AuthData
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (
@@ -302,7 +302,9 @@ def test_opted_in_client_recovers_missing_auth_before_startup_refresh(
             persist_auth_data(auth, target)
         return BrowserAuthSyncResult(auth=auth, persisted=persist, auth_file=target)
 
-    monkeypatch.setattr("chatgpt_web_adapter.client._sync_browser_auth", fake_browser_sync)
+    monkeypatch.setattr(
+        "chatgpt_web_adapter.client._sync_browser_auth", fake_browser_sync
+    )
     monkeypatch.setattr(
         "chatgpt_web_adapter.auth_refresh.refresh_auth_session",
         lambda *_args, **_kwargs: pytest.fail("legacy refresh must not run"),
