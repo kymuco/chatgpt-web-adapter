@@ -202,12 +202,8 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
                 target = kwargs.get("auth_file", DEFAULT_AUTH_FILE)
                 persist = bool(kwargs.get("persist_refreshed_auth", True))
                 result = _sync_browser_auth(target, persist=persist)
-                retry_kwargs = (
-                    kwargs if persist else {**kwargs, "auth": result.auth}
-                )
-                super().__init__(
-                    *args, auto_refresh_auth=False, **retry_kwargs
-                )
+                retry_kwargs = kwargs if persist else {**kwargs, "auth": result.auth}
+                super().__init__(*args, auto_refresh_auth=False, **retry_kwargs)
         else:
             super().__init__(*args, auto_refresh_auth=auto_refresh_auth, **kwargs)
         # Retry authority is explicit and limited to read-only canonical GETs.
