@@ -1,9 +1,9 @@
 # chatgpt-web-adapter Roadmap
 
-_Last updated: 2026-10-08_
+_Last updated: 2026-10-22_
 
-This roadmap describes the current direction after CWA 0.3 and the completed PR15
-architecture reset.
+This roadmap describes the current direction after CWA 0.3, the PR15 provider
+architecture reset, the isolated Qwen Web SDK, and opt-in ChatGPT direct HTTP.
 
 Historical PR planning documents remain in `docs/` as evidence and lineage.
 
@@ -280,7 +280,47 @@ See [the exact-main checkpoint](docs/engineering/pr17_2_canonical_product_checkp
 The latest published package remains `v0.3.0`, which does not automatically
 include these post-release source capabilities.
 
-## Current direction after PR17.2
+## Post-0.3 product integration checkpoint
+
+The current `main` (`2c4a0215c5d3`, 2026-10-16) includes:
+
+- Qwen Web experimental isolated SDK, CLI, native host, English/Russian
+  quickstarts (#213-#216). Windows network-streaming/reattachment evidence is
+  user verified, but this does not promote Qwen to the production default.
+- Explicit opt-in direct ChatGPT HTTP SDK (#212) with streaming, attachments,
+  conversation identities and conservative no-retry semantics, distinct from
+  the historical `browserless-request` transport.
+- One Codexia delegated-Work direct HTTP E2E using three Markdown inputs and
+  GPT-6 High, with exact readback and `CAPTURED_UNADMITTED`. This is one
+  bounded transport proof, not generalized model attestation or action authority.
+
+No new public release is implied. The published package is still `v0.3.0`.
+The production ChatGPT browser-owned runtime stays the default.
+
+## Release readiness work
+
+The next step is **shipping quality**, not breadth of providers:
+
+1. Verify `[browser]` installation from the **built wheel**, not just
+   editable-source imports (issue #171 / separate PR #218).
+2. Complete real EndeavourOS Chrome/Chromium Native Messaging validation
+   before promoting Linux support (Draft #217).
+3. Reconcile rich-input guarded Send (#211) without reusing the historical
+   uncertain/claimed Work. Composer-mount research #208 is superseded in
+   scope by merged #210; do not forward-port it blindly.
+4. Decide which of 429 backoff deadline #168, typing metadata #172 and
+   resumable history #114 are true release blockers; the entire backlog is
+   not automatically a release gate.
+5. Update release notes/version separately after the code and live-evidence
+   gates pass. Keep Qwen, browser-owned ChatGPT and opt-in HTTP isolated;
+   preserve supported entry points and run the tagged release smoke before
+   publication.
+
+`STATUS.md` records the dated repository checkpoint. Do not add a general
+agent runtime, implicit retries, transport router or new provider to fill an
+unverified release requirement.
+
+## Current direction after Qwen and HTTP integration
 
 Keep the existing runtime/product contract stable. Prioritize release/install
 reproducibility and bounded consumer-driven or drift-driven repairs. The first
