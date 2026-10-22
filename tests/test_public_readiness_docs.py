@@ -178,7 +178,7 @@ def test_roadmap_is_current_and_post_pr15_consumer_driven() -> None:
 
     assert "_Last updated:" in text
     assert "## Release readiness work" in text
-    assert "exact built wheel" in text
+    assert "exact built-wheel" in text
     assert "### PR15 — architecture reset and provider proof" in text
     assert "ProductProviderBoundary schema 2" in text
     assert "### PR16.1 — current documentation refresh" in text
