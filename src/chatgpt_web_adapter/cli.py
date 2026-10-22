@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any, Sequence
 
 from .auth import DEFAULT_AUTH_FILE, load_auth_data
 from .auth_browser import browser_login
 from .auth_refresh import refresh_auth_session
-from .browser_auth_sync import sync_browser_auth
 from .auth_status import get_auth_status
+from .browser_auth_sync import sync_browser_auth
 from .browser_native_install import (
     EXTENSION_ID,
     browser_native_extension_dir,
