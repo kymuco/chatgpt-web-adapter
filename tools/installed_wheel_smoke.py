@@ -172,6 +172,34 @@ def _validate_installed_0_3_surface(package: object) -> dict[str, object]:
     }
 
 
+def _has_browser_extra_requirement(requirements: list[str]) -> bool:
+    """Check the installed wheel advertises the browser extra in metadata."""
+
+    return any(
+        re.match(r"^zendriver\\b", requirement, flags=re.IGNORECASE)
+        and re.search(r"""extra\\s*==\\s*["']browser["']""", requirement)
+        for requirement in requirements
+    )
+
+
+def _validate_browser_extra() -> dict[str, str]:
+    requirements = importlib.metadata.requires(PROJECT_NAME) or []
+    if not _has_browser_extra_requirement(requirements):
+        raise RuntimeError("installed wheel is missing zendriver browser extra metadata")
+
+    zendriver = importlib.import_module("zendriver")
+    module_file = getattr(zendriver, "__file__", None)
+    if module_file is None or "site-packages" not in str(
+        Path(module_file).resolve()
+    ).lower().replace("\\\\", "/"):
+        raise RuntimeError("zendriver was not imported from the isolated installed environment")
+
+    return {
+        "package": "zendriver",
+        "version": importlib.metadata.version("zendriver"),
+    }
+
+
 def _installed_checks(*, expected_version: str) -> dict[str, object]:
     expected_version = normalize_expected_version(expected_version)
     version = importlib.metadata.version(PROJECT_NAME)
@@ -253,6 +281,7 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         "help_commands": len(HELP_COMMANDS),
         "pre_setup_doctor_exit": 1,
         "product_surface": product_surface,
+        "browser_extra": _validate_browser_extra(),
     }
 
 
@@ -268,7 +297,7 @@ def run_smoke(*, wheel: Path, expected_version: str) -> dict[str, object]:
         if not python.is_file():
             raise RuntimeError(f"isolated venv python was not created: {python}")
         subprocess.run(
-            [str(python), "-m", "pip", "install", "--no-deps", "--force-reinstall", str(wheel)],
+            [str(python), "-m", "pip", "install", "--force-reinstall", f"{wheel}[browser]"],
             cwd=tmp_path,
             check=True,
         )
