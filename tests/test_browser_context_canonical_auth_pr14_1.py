@@ -273,7 +273,9 @@ def test_generic_canonical_500_steps_down_bounded_load_hints() -> None:
     assert outcome["result"]["ok"] is True
     assert outcome["result"]["status"] == 200
     assert [event[2] for event in outcome["events"] if event[0] == "CURRENT"] == [
-        20, 10, 5
+        20,
+        10,
+        5,
     ]
     assert sum(event[0] == "SESSION" for event in outcome["events"]) == 1
     assert outcome["events"][-1][0] == "DETACH"
@@ -295,14 +297,18 @@ def test_load_hint_fallback_preserves_paginated_cursor_and_prefix() -> None:
     assert [message["id"] for message in payload["messages"]] == ["a1", "a2"]
 
 
-def test_load_hint_exhaustion_returns_the_original_failure_without_partial_history() -> None:
+def test_load_hint_exhaustion_returns_the_original_failure_without_partial_history() -> (
+    None
+):
     outcome = _run_harness("load500_exhausted")
 
     assert outcome["result"]["ok"] is False
     assert outcome["result"]["status"] == 500
     assert outcome["result"]["reasonCode"] == "CANONICAL_READ_HTTP_ERROR"
     assert [event[2] for event in outcome["events"] if event[0] == "CURRENT"] == [
-        20, 10, 5
+        20,
+        10,
+        5,
     ]
 
 
