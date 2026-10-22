@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import venv
 from pathlib import Path
@@ -68,7 +67,9 @@ REQUIRED_SHARED_ROOT_EXPORTS = (
     "MediaSource",
 )
 _VERSION_RE = re.compile(r'^version\s*=\s*["\']([^"\']+)["\']\s*$', re.MULTILINE)
-_PROJECT_RE = re.compile(r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE)
+_PROJECT_RE = re.compile(
+    r"^\[project\]\s*$([\s\S]*?)(?=^\[[^\n]+\]\s*$|\Z)", re.MULTILINE
+)
 
 
 def normalize_expected_version(value: str) -> str:
@@ -152,18 +153,26 @@ def _validate_installed_0_3_surface(package: object) -> dict[str, object]:
         if symbol not in exported or not hasattr(package, symbol):
             raise RuntimeError(f"installed primary product export is missing: {symbol}")
         if public_surface_tier(symbol) is not primary:
-            raise RuntimeError(f"installed primary product export has wrong tier: {symbol}")
+            raise RuntimeError(
+                f"installed primary product export has wrong tier: {symbol}"
+            )
 
     for symbol in REQUIRED_SHARED_ROOT_EXPORTS:
         if symbol not in exported or not hasattr(package, symbol):
             raise RuntimeError(f"installed shared product type is missing: {symbol}")
         if public_surface_tier(symbol) is not shared:
-            raise RuntimeError(f"installed shared product type has wrong tier: {symbol}")
+            raise RuntimeError(
+                f"installed shared product type has wrong tier: {symbol}"
+            )
 
     if "ProductObservationCollector" in exported:
-        raise RuntimeError("internal ProductObservationCollector leaked into root public surface")
+        raise RuntimeError(
+            "internal ProductObservationCollector leaked into root public surface"
+        )
     if public_surface_tier("ProductObservationCollector") is not None:
-        raise RuntimeError("internal ProductObservationCollector acquired a public support tier")
+        raise RuntimeError(
+            "internal ProductObservationCollector acquired a public support tier"
+        )
 
     return {
         "product_modules": len(REQUIRED_PRODUCT_MODULES),
@@ -185,14 +194,18 @@ def _has_browser_extra_requirement(requirements: list[str]) -> bool:
 def _validate_browser_extra() -> dict[str, str]:
     requirements = importlib.metadata.requires(PROJECT_NAME) or []
     if not _has_browser_extra_requirement(requirements):
-        raise RuntimeError("installed wheel is missing zendriver browser extra metadata")
+        raise RuntimeError(
+            "installed wheel is missing zendriver browser extra metadata"
+        )
 
     zendriver = importlib.import_module("zendriver")
     module_file = getattr(zendriver, "__file__", None)
     if module_file is None or "site-packages" not in str(
         Path(module_file).resolve()
     ).lower().replace("\\", "/"):
-        raise RuntimeError("zendriver was not imported from the isolated installed environment")
+        raise RuntimeError(
+            "zendriver was not imported from the isolated installed environment"
+        )
 
     return {
         "package": "zendriver",
@@ -204,12 +217,16 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
     expected_version = normalize_expected_version(expected_version)
     version = importlib.metadata.version(PROJECT_NAME)
     if version != expected_version:
-        raise RuntimeError(f"installed version mismatch: {version!r} != {expected_version!r}")
+        raise RuntimeError(
+            f"installed version mismatch: {version!r} != {expected_version!r}"
+        )
 
     package = importlib.import_module("chatgpt_web_adapter")
     package_path = Path(package.__file__).resolve()
     if "site-packages" not in str(package_path).lower().replace("\\", "/"):
-        raise RuntimeError(f"smoke did not import installed wheel from site-packages: {package_path}")
+        raise RuntimeError(
+            f"smoke did not import installed wheel from site-packages: {package_path}"
+        )
 
     cli_v02 = importlib.import_module("chatgpt_web_adapter.cli_v02")
     doctor = importlib.import_module("chatgpt_web_adapter.doctor")
@@ -226,9 +243,14 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
     from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
     extension_dir = browser_native_extension_dir().resolve()
-    required_extension_files = [extension_dir / "manifest.json", extension_dir / "service_worker.js"]
+    required_extension_files = [
+        extension_dir / "manifest.json",
+        extension_dir / "service_worker.js",
+    ]
     if not all(path.is_file() for path in required_extension_files):
-        raise RuntimeError(f"installed browser extension package data is incomplete: {extension_dir}")
+        raise RuntimeError(
+            f"installed browser extension package data is incomplete: {extension_dir}"
+        )
     if not list(extension_dir.glob("*.js")):
         raise RuntimeError("installed browser extension contains no JavaScript files")
 
@@ -257,9 +279,17 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
             f"pre-setup doctor should classify unavailable state with exit 1; got {completed.returncode}: {completed.stderr}"
         )
     payload = json.loads(completed.stdout)
-    if payload.get("schema") != 1 or payload.get("command") != "doctor" or payload.get("ok") is not False:
+    if (
+        payload.get("schema") != 1
+        or payload.get("command") != "doctor"
+        or payload.get("ok") is not False
+    ):
         raise RuntimeError(f"unexpected pre-setup doctor payload: {payload!r}")
-    checks = {item.get("id"): item for item in payload.get("checks", []) if isinstance(item, dict)}
+    checks = {
+        item.get("id"): item
+        for item in payload.get("checks", [])
+        if isinstance(item, dict)
+    }
     for check_id in (
         "environment.python",
         "environment.package_metadata",
@@ -267,7 +297,9 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         "install.extension_package",
     ):
         if checks.get(check_id, {}).get("status") != "PASS":
-            raise RuntimeError(f"installed static doctor check did not pass: {check_id}")
+            raise RuntimeError(
+                f"installed static doctor check did not pass: {check_id}"
+            )
     if checks.get("auth.file", {}).get("status") != "FAIL":
         raise RuntimeError("pre-setup doctor did not classify missing auth as FAIL")
 
@@ -297,7 +329,14 @@ def run_smoke(*, wheel: Path, expected_version: str) -> dict[str, object]:
         if not python.is_file():
             raise RuntimeError(f"isolated venv python was not created: {python}")
         subprocess.run(
-            [str(python), "-m", "pip", "install", "--force-reinstall", f"{wheel}[browser]"],
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--force-reinstall",
+                f"{wheel}[browser]",
+            ],
             cwd=tmp_path,
             check=True,
         )
@@ -328,7 +367,9 @@ def run_smoke(*, wheel: Path, expected_version: str) -> dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Install and smoke-test a built CWA wheel")
+    parser = argparse.ArgumentParser(
+        description="Install and smoke-test a built CWA wheel"
+    )
     parser.add_argument("--wheel-dir", type=Path)
     parser.add_argument(
         "--expected-version",
@@ -337,13 +378,17 @@ def main() -> int:
             "the checkout pyproject.toml"
         ),
     )
-    parser.add_argument("--inside-installed-venv", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--inside-installed-venv", action="store_true", help=argparse.SUPPRESS
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
         if args.inside_installed_venv:
             if args.expected_version is None:
-                raise RuntimeError("--expected-version is required inside the isolated installed-wheel venv")
+                raise RuntimeError(
+                    "--expected-version is required inside the isolated installed-wheel venv"
+                )
             report = _installed_checks(expected_version=args.expected_version)
         else:
             if args.wheel_dir is None:
