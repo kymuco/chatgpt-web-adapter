@@ -66,7 +66,9 @@ def _build_parser() -> argparse.ArgumentParser:
     def add_auth_file(command: argparse.ArgumentParser) -> None:
         command.add_argument("--auth-file", type=Path, default=DEFAULT_AUTH_FILE)
 
-    login = auth_commands.add_parser("login", help="open a browser and save authorization")
+    login = auth_commands.add_parser(
+        "login", help="open a browser and save authorization"
+    )
     add_auth_file(login)
     login.add_argument("--profile-dir", type=Path)
     login.add_argument("--timeout", type=float, default=300.0)
@@ -81,7 +83,9 @@ def _build_parser() -> argparse.ArgumentParser:
     add_auth_file(status)
     status.add_argument("--profile-dir", type=Path)
 
-    refresh = auth_commands.add_parser("refresh", help="refresh tokens without browser login")
+    refresh = auth_commands.add_parser(
+        "refresh", help="refresh tokens without browser login"
+    )
     add_auth_file(refresh)
 
     sync_browser = auth_commands.add_parser(
@@ -95,7 +99,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="write a deterministic user/assistant conversation snapshot",
     )
     add_auth_file(snapshot)
-    snapshot.add_argument("conversation", help="raw conversation id or ChatGPT conversation URL")
+    snapshot.add_argument(
+        "conversation", help="raw conversation id or ChatGPT conversation URL"
+    )
     snapshot.add_argument(
         "--name",
         default="conversation",
@@ -311,7 +317,9 @@ def _run_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
-def _tail_timing_payload(execution: Any, observer: StandaloneTailTimingObserver) -> dict[str, Any]:
+def _tail_timing_payload(
+    execution: Any, observer: StandaloneTailTimingObserver
+) -> dict[str, Any]:
     observation = execution.observation.to_dict()
     lease_id = observation.get("browser_authority_lease_id")
     browser_tail: dict[str, Any]
@@ -344,7 +352,9 @@ def _run_send(args: argparse.Namespace) -> int:
             "requires the same live ChatGPTProductRuntime instance"
         )
     if args.temporary and args.timings:
-        raise ValueError("--timings is not yet defined for Temporary page-owned finality")
+        raise ValueError(
+            "--timings is not yet defined for Temporary page-owned finality"
+        )
 
     runtime = assemble_product_runtime(
         transport=args.transport,
@@ -356,7 +366,9 @@ def _run_send(args: argparse.Namespace) -> int:
         else None
     )
     timing_observer = (
-        StandaloneTailTimingObserver(renderer.on_event if renderer is not None else None)
+        StandaloneTailTimingObserver(
+            renderer.on_event if renderer is not None else None
+        )
         if args.timings
         else None
     )
@@ -402,7 +414,11 @@ def _run_send(args: argparse.Namespace) -> int:
     if timing_observer is not None:
         print(
             json.dumps(
-                {"post_answer_tail_timing": _tail_timing_payload(execution, timing_observer)},
+                {
+                    "post_answer_tail_timing": _tail_timing_payload(
+                        execution, timing_observer
+                    )
+                },
                 indent=2,
                 ensure_ascii=False,
             ),
