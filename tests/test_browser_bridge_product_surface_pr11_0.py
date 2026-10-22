@@ -35,6 +35,7 @@ def test_manifest_presents_a_product_popup_without_expanding_permissions() -> No
         "debugger",
         "tabs",
         "storage",
+        "cookies",
         "nativeMessaging",
     }
     assert manifest["host_permissions"] == [
