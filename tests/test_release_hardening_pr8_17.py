@@ -117,7 +117,9 @@ def test_tagged_gate_requires_exact_version_match(tmp_path: Path) -> None:
 def test_browser_extra_requirement_is_scoped_to_browser(
     requirements: list[str], expected: bool
 ) -> None:
-    assert installed_wheel_smoke._has_browser_extra_requirement(requirements) is expected
+    assert (
+        installed_wheel_smoke._has_browser_extra_requirement(requirements) is expected
+    )
 
 
 def test_installed_wheel_browser_validator_fails_without_extra_metadata(
