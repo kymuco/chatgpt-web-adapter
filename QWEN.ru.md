@@ -1,4 +1,4 @@
-# Qwen Web — быстрый старт (Windows)
+# Qwen Web — быстрый старт (Windows / Linux)
 
 **Язык:** [English](QWEN.md) | **Русский**
 
@@ -6,7 +6,7 @@
 
 В этой инструкции используется **Qwen SDK через браузер**: Python отправляет сообщения через **отдельное расширение Chrome для Qwen** в вашу авторизованную сессию [chat.qwen.ai](https://chat.qwen.ai/). Вкладка может оставаться фоновой. Это не официальный API Qwen и не полностью автономный HTTP-клиент.
 
-**Что понадобится:** Windows, Python **3.10–3.14**, Git, Chrome и собственный аккаунт Qwen. Провайдер пока **экспериментальный**: текстовые диалоги и сетевой streaming успешно проверены с установленным SDK на Windows, но поведение сайта может измениться.
+**Для шагов Windows ниже:** Windows, Python **3.10–3.14**, Git, Chrome и собственный аккаунт Qwen. Отдельная инструкция для Linux / EndeavourOS приведена ниже. Провайдер **экспериментальный**: реальные диалоги через браузер подтверждены на Windows, но пока не на Linux.
 
 ## Первоначальная настройка (один раз)
 
@@ -55,6 +55,37 @@ python -m chatgpt_web_adapter.qwen_native --extension-id YOUR_QWEN_EXTENSION_ID
 Так вы зарегистрируете отдельный Native Messaging Host `com.kymuco.qwen_web_adapter`. Рабочий хост ChatGPT/CWA `com.kymuco.chatgpt_web_adapter` не заменяется.
 
 Откройте [chat.qwen.ai](https://chat.qwen.ai/) в Chrome и войдите в свой аккаунт Qwen. **Для работы браузерного SDK Chrome должен оставаться запущенным.**
+
+## Linux / EndeavourOS (Chrome или Chromium)
+
+На EndeavourOS используйте отдельное виртуальное окружение Python, не
+устанавливайте пакет непосредственно в системный Python. После установки Git,
+Python и Chrome либо Chromium:
+
+```bash
+git clone https://github.com/kymuco/chatgpt-web-adapter.git
+cd chatgpt-web-adapter
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python -m chatgpt_web_adapter.qwen_native
+```
+
+Откройте `chrome://extensions`, включите режим разработчика и загрузите
+распакованное расширение из пути, напечатанного последней командой. Скопируйте
+**ID именно расширения Qwen**, затем выполните:
+
+```bash
+python -m chatgpt_web_adapter.qwen_native --extension-id YOUR_QWEN_EXTENSION_ID
+python ./qwen_sdk.py --stream network
+```
+
+После регистрации перезагрузите расширение Qwen и авторизуйтесь на сайте в
+том же браузере. Установщик регистрирует отдельный Qwen Native Host как для
+Google Chrome, так и для Chromium. Каталог расширения сохраняется между
+перезагрузками. **Реальный E2E-запуск на EndeavourOS ещё не подтверждён.**
+Остальные команды ниже написаны в синтаксисе Windows: в Linux используйте
+`python ./qwen_sdk.py` вместо `python .\\qwen_sdk.py`.
 
 ## Запустите чат в терминале одной командой
 
