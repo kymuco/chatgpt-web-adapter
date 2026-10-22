@@ -301,8 +301,9 @@ The production ChatGPT browser-owned runtime stays the default.
 
 The next step is **shipping quality**, not breadth of providers:
 
-1. Verify `[browser]` installation from the **built wheel**, not just
-   editable-source imports (issue #171 / separate PR #218).
+1. **Completed by #218:** exact built-wheel `[browser]` installation
+   and scoped `zendriver` import on Linux/Windows Python 3.10 and 3.14;
+   the same gate runs before PyPI publication.
 2. Complete real EndeavourOS Chrome/Chromium Native Messaging validation
    before promoting Linux support (Draft #217).
 3. Reconcile rich-input guarded Send (#211) without reusing the historical
