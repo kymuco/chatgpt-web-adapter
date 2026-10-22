@@ -1,6 +1,7 @@
 const CWA_CANONICAL_CHUNK_BASE64_CHARS = 600_000;
 // Product-observed server query hint. It is not a message-count guarantee.
 const CWA_CANONICAL_CURRENT_NUM_TURNS = 20;
+const CWA_CANONICAL_LOAD_SHED_TURNS = [20, 10, 5];
 const CWA_CANONICAL_MAX_PAGES = 100;
 const CWA_CANONICAL_SESSION_MAX_CHARS = 262_144;
 const CWA_CANONICAL_ACCESS_TOKEN_MAX_CHARS = 100_000;
@@ -66,6 +67,7 @@ async function _cwaCanonicalFetch(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ${JSON.stringify(timeoutMs)});
     const currentNumTurns = ${JSON.stringify(CWA_CANONICAL_CURRENT_NUM_TURNS)};
+    const loadShedTurns = ${JSON.stringify(CWA_CANONICAL_LOAD_SHED_TURNS)};
     const maxPages = ${JSON.stringify(CWA_CANONICAL_MAX_PAGES)};
     const includeAllPages = ${JSON.stringify(includeAllPages === true)};
     const currentEndpoint = ${JSON.stringify(currentEndpoint)};
@@ -207,8 +209,10 @@ async function _cwaCanonicalFetch(
         headers.set("authorization", "Bearer " + currentAccessToken);
       }
 
-      for (let attempt = 0; ; attempt += 1) {
-        const response = await fetch(url, {
+      let requestUrl = url;
+      let throttleRetries = 0;
+      for (;;) {
+        const response = await fetch(requestUrl, {
           method: "GET",
           credentials: "include",
           cache: "no-store",
@@ -219,7 +223,7 @@ async function _cwaCanonicalFetch(
 
         if (response.status === 429 && retryThrottle) {
           const bytes = new Uint8Array(await response.arrayBuffer());
-          if (attempt >= throttleMaxRetries) {
+          if (throttleRetries >= throttleMaxRetries) {
             return {
               ok: false,
               status: response.status,
@@ -232,13 +236,37 @@ async function _cwaCanonicalFetch(
           const hintedDelay = retryAfterMs(response);
           const fallbackDelay = Math.min(
             throttleBackoffMaxMs,
-            throttleBackoffBaseMs * (2 ** attempt)
+            throttleBackoffBaseMs * (2 ** throttleRetries)
           );
           await sleep(hintedDelay === null ? fallbackDelay : hintedDelay);
+          throttleRetries += 1;
           continue;
         }
 
         const bytes = new Uint8Array(await response.arrayBuffer());
+        // Long histories can overload the canonical backend even when the browser
+        // session is valid. Retry only the same read-only GET with a smaller
+        // server-side num_turns hint; preserve the exact pagination cursor.
+        if (
+          authorizeCurrent && retryThrottle &&
+          (response.status === 408 || response.status === 500 || response.status === 504)
+        ) {
+          const candidateUrl = new URL(requestUrl);
+          const endpointUrl = new URL(currentEndpoint);
+          if (
+            candidateUrl.origin === endpointUrl.origin &&
+            candidateUrl.pathname === endpointUrl.pathname
+          ) {
+            const currentHint = Number(candidateUrl.searchParams.get("num_turns"));
+            const candidateIndex = loadShedTurns.indexOf(currentHint);
+            if (candidateIndex >= 0 && candidateIndex + 1 < loadShedTurns.length) {
+              candidateUrl.searchParams.set("num_turns", String(loadShedTurns[candidateIndex + 1]));
+              requestUrl = candidateUrl.toString();
+              throttleRetries = 0;
+              continue;
+            }
+          }
+        }
         if (!response.ok) {
           return { ...failureForResponse(response, contentType), bytes };
         }
