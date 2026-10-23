@@ -72,7 +72,6 @@ def test_interactive_http_stream_does_not_pass_browser_conversation(
     assert "conversation" not in client.send_text.call_args.kwargs
 
 
-
 def test_auth_import_without_transport_never_sends(runner):
     module, factory, client = runner
     assert module.main(["--import-auth"]) == 0
