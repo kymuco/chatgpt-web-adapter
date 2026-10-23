@@ -65,9 +65,9 @@ def test_readme_architecture_map_distinguishes_product_lanes() -> None:
     section = readme.split("## What CWA is\n", 1)[1].split(
         "## Capability matrix (current `main`)\n", 1
     )[0]
-    capability_section = readme.split("## Capability matrix (current `main`)\n", 1)[1].split(
-        "## Release vs current `main`\n", 1
-    )[0]
+    capability_section = readme.split(
+        "## Capability matrix (current `main`)\n", 1
+    )[1].split("## Release vs current `main`\n", 1)[0]
     diagram = capability_section.split("```mermaid\n", 1)[1].split("\n```", 1)[0]
 
     for expected in (
