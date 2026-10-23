@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import subprocess
 from pathlib import Path
@@ -94,13 +95,38 @@ globalThis.fetch = async (url, options = {{}}) => {{
   }}
 
   if (parsed.pathname === "/backend-api/conversations/conversation-1") {{
-    events.push(["CURRENT", authorization]);
+    const hint = Number(parsed.searchParams.get("num_turns"));
+    const cursor = parsed.searchParams.get("before");
+    events.push(["CURRENT", authorization, hint, cursor]);
     if (authorization !== "Bearer page-token-1") {{
       return jsonResponse(401, {{ error: "bearer required" }});
     }}
     if (mode === "legacy") {{
       return jsonResponse(404, {{ error: "current unavailable" }});
     }}
+    if (mode === "load500" && hint > 5) {{
+      return jsonResponse(500, {{ error: "server overloaded" }});
+    }}
+    if (mode === "load500_exhausted") {{
+      return jsonResponse(500, {{ error: "server overloaded" }});
+    }}
+    if (mode === "load500_pagination") {{
+      if (cursor === null) {{
+        return jsonResponse(200, {{
+          conversation_id: "conversation-1",
+          messages: [{{ id: "a2", author: {{ role: "assistant" }} }}],
+          page_info: {{ has_previous_page: true, start_cursor: "older" }}
+        }});
+      }}
+      if (cursor !== "older") throw new Error("cursor changed");
+      if (hint > 10) return jsonResponse(500, {{ error: "server overloaded" }});
+      return jsonResponse(200, {{
+        conversation_id: "conversation-1",
+        messages: [{{ id: "a1", author: {{ role: "assistant" }} }}],
+        page_info: {{ has_previous_page: false }}
+      }});
+    }}
+    if (mode === "access403") return jsonResponse(403, {{ error: "challenge" }});
     return jsonResponse(200, {{
       conversation_id: "conversation-1",
       messages: [],
@@ -149,7 +175,7 @@ globalThis.chrome = {{
     77,
     "conversation-1",
     30000,
-    false
+    mode === "load500_pagination"
   );
   process.stdout.write(JSON.stringify({{ result, events }}));
 }})().catch((error) => {{
@@ -239,3 +265,57 @@ def test_canonical_session_auth_is_one_evaluation_and_never_exports_token() -> N
     assert "accessToken:" not in source
     assert "chrome.storage" not in source
     assert "console." not in source
+
+
+def test_generic_canonical_500_steps_down_bounded_load_hints() -> None:
+    outcome = _run_harness("load500")
+
+    assert outcome["result"]["ok"] is True
+    assert outcome["result"]["status"] == 200
+    assert [event[2] for event in outcome["events"] if event[0] == "CURRENT"] == [
+        20,
+        10,
+        5,
+    ]
+    assert sum(event[0] == "SESSION" for event in outcome["events"]) == 1
+    assert outcome["events"][-1][0] == "DETACH"
+
+
+def test_load_hint_fallback_preserves_paginated_cursor_and_prefix() -> None:
+    outcome = _run_harness("load500_pagination")
+
+    assert outcome["result"]["ok"] is True
+    assert outcome["result"]["status"] == 200
+    currents = [event for event in outcome["events"] if event[0] == "CURRENT"]
+    assert [(event[2], event[3]) for event in currents] == [
+        (20, None),
+        (20, "older"),
+        (10, "older"),
+    ]
+    body = base64.b64decode(outcome["result"]["bodyBase64"])
+    payload = json.loads(body)
+    assert [message["id"] for message in payload["messages"]] == ["a1", "a2"]
+
+
+def test_load_hint_exhaustion_returns_the_original_failure_without_partial_history() -> (
+    None
+):
+    outcome = _run_harness("load500_exhausted")
+
+    assert outcome["result"]["ok"] is False
+    assert outcome["result"]["status"] == 500
+    assert outcome["result"]["reasonCode"] == "CANONICAL_READ_HTTP_ERROR"
+    assert [event[2] for event in outcome["events"] if event[0] == "CURRENT"] == [
+        20,
+        10,
+        5,
+    ]
+
+
+def test_canonical_challenge_never_load_sheds_or_retries() -> None:
+    outcome = _run_harness("access403")
+
+    assert outcome["result"]["ok"] is False
+    assert outcome["result"]["status"] == 403
+    assert outcome["result"]["reasonCode"] == "CANONICAL_READ_ACCESS_CHALLENGED"
+    assert [event[2] for event in outcome["events"] if event[0] == "CURRENT"] == [20]
