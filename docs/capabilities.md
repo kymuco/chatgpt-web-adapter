@@ -13,9 +13,12 @@ particular runtime instance.
 | ChatGPT | text new chat + continuation | Production/default | `ChatGPTProductRuntime` | Canonical readback where required |
 | ChatGPT | image/file input + multimodal continuation | Production on proven browser-owned paths | `ChatGPTProductRuntime` | Canonical readback where required |
 | ChatGPT | structured search/tool/source/citation observations | Production on proven paths | runtime observations | Observation is not downstream authority |
+| ChatGPT (direct HTTP) | Text, streaming, Temporary Chat send, Markdown and PNG, continuation | Experimental / Windows live 2026-10-23 | `BrowserlessHTTPClient` opt-in | Stream and model request are not canonical finality/model attestation |
+| ChatGPT (shared canonical client) | Conversation export and governed generated-file handoff | Shared client operation, bounded live evidence | `cwa export` / `handoff_generated_artifact(...)` | Requires exact product identity and destination integrity checks |
 | DeepSeek Web | text new chat + continuation | Experimental | `DeepSeekWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
 | Gemini Web | text new chat + continuation | Experimental | `GeminiWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
 | Qwen Web | text new chat, continuation, network SSE and `--chat` reattachment (Windows live-verified) | Experimental / **isolated Qwen extension** | `QwenClient(transport="browser")` | Network stream verified on observed turns; canonical finality unproven |
+| Qwen Web (direct HTTP) | One authenticated generation; renewal/repeatability unverified | Experimental / limited proof | `QwenClient(transport="http")` | Canonical finality unproven |
 | Google Translate Web | text translation | Experimental | `GoogleTranslateWebCapability` module-only | `PAGE_DOM_STABLE_TRANSLATION`, noncanonical |
 | Gemini Notebook Web | add web URL source | Experimental | `GeminiNotebookWebCapability` module-only | `PAGE_DOM_DURABLE_SOURCE_ADMISSION`, noncanonical |
 | Gemini Notebook Web | generate + observe Audio Overview | Experimental | `GeminiNotebookWebCapability` module-only | background acceptance, then `PAGE_DOM_DURABLE_BACKGROUND_ARTIFACT_COMPLETION` after reload verification; noncanonical |
