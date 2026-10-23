@@ -48,6 +48,31 @@ def test_explicit_http_is_labelled_experimental(runner, capsys):
     client.send_text.assert_called_once()
 
 
+def test_live_network_prints_fragments_once(runner, capsys):
+    module, _, client = runner
+
+    def reply(message, **kwargs):
+        kwargs["on_token"]("O")
+        kwargs["on_token"]("K")
+        return SimpleNamespace(text="OK", conversation="chat")
+
+    client.send_text.side_effect = reply
+    assert module.main(["hello"]) == 0
+    assert capsys.readouterr().out == "OK\n"
+
+
+def test_interactive_http_stream_does_not_pass_browser_conversation(
+    runner, monkeypatch
+):
+    module, _, client = runner
+    messages = iter(["hello", "/exit"])
+    monkeypatch.setattr("builtins.input", lambda _: next(messages))
+    assert module.main(["--transport", "http"]) == 0
+    assert "on_token" in client.send_text.call_args.kwargs
+    assert "conversation" not in client.send_text.call_args.kwargs
+
+
+
 def test_auth_import_without_transport_never_sends(runner):
     module, factory, client = runner
     assert module.main(["--import-auth"]) == 0
