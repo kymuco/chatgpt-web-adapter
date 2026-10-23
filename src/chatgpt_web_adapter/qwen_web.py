@@ -54,14 +54,14 @@ QWEN_WEB_TRANSPORT = "qwen-web"
 ORDINARY_QWEN_PRODUCT_SEMANTICS = "ordinary-qwen"
 
 _QWEN_CAPABILITY_STATES: dict[str, CapabilityState] = {
-    TEXT_TURNS: CapabilityState.UNKNOWN,
-    NEW_CHAT: CapabilityState.UNKNOWN,
-    CONTINUATION: CapabilityState.UNKNOWN,
+    TEXT_TURNS: CapabilityState.AVAILABLE,
+    NEW_CHAT: CapabilityState.AVAILABLE,
+    CONTINUATION: CapabilityState.AVAILABLE,
     CANONICAL_READBACK: CapabilityState.UNIMPLEMENTED,
     CONVERSATION_ATTACH: CapabilityState.UNIMPLEMENTED,
     CONVERSATION_READ: CapabilityState.UNIMPLEMENTED,
     CONVERSATION_STATUS: CapabilityState.UNIMPLEMENTED,
-    STREAMING: CapabilityState.UNIMPLEMENTED,
+    STREAMING: CapabilityState.AVAILABLE,
     IMAGES: CapabilityState.UNIMPLEMENTED,
     FILES: CapabilityState.UNIMPLEMENTED,
     WEB_SEARCH: CapabilityState.UNKNOWN,
@@ -320,9 +320,11 @@ def _qwen_capabilities() -> ProductCapabilities:
                 state=_QWEN_CAPABILITY_STATES[name],
                 owner=CapabilityOwner.TRANSPORT,
                 evidence=(
-                    "QWEN-PRELIVE minimal Qwen Web text new-chat/continuation proof"
+                    "Installed Windows SDK: text new-chat and continuation (2026-10-15)"
                     if name in {TEXT_TURNS, NEW_CHAT, CONTINUATION}
-                    else "outside QWEN-PRELIVE minimal Qwen Web proof"
+                    else "Installed Windows SDK: answer-phase network SSE (2026-10-15)"
+                    if name == STREAMING
+                    else None
                 ),
             )
             for name in PRODUCT_CAPABILITY_NAMES
@@ -427,7 +429,7 @@ class QwenWebTransport:
             raise ValueError("poll_interval must be positive")
         if on_event is not None:
             raise ValueError(
-                "Qwen Web streaming callbacks are outside QWEN-PRELIVE scope"
+                "Qwen Web raw on_event callbacks are not implemented"
             )
 
         continuation = conversation is not None
