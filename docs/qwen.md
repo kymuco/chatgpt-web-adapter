@@ -68,7 +68,7 @@ This source installer registers the Qwen Native Host on **Windows**. Unit/packag
 
 ## 2. CLI cookbook (browser transport)
 
-Run from the repository root (where `qwen_sdk.py` is located). The CLI defaults to `browser`, and to `dom` streaming. **Specify `--stream network` when completeness matters.**
+Run from the repository root (where `qwen_sdk.py` is located). The CLI defaults to `browser` transport and `network` streaming. `--stream network` is optional; use `--stream dom` only when explicitly choosing heuristic DOM snapshots.
 
 ### New interactive conversation — verified
 
@@ -276,7 +276,7 @@ HTTP and browser conversation objects are **not interchangeable**. No silent fal
 | `QWEN_NETWORK_STREAM_NOT_VERIFIED` | Ensure the *isolated Qwen extension* has been reloaded after updating source |
 | Bridge/Native Host unavailable | Recheck Qwen extension ID, its registered host name and the `qwen-native` descriptor |
 | HTTP returns HTML / verification error | Do not loop through blind retries or assume valid cookies prove API access |
-| Default `dom` response truncates | Use `--stream network`, then inspect server/DOM evidence if needed |
+| Explicit `--stream dom` response truncates | Use `--stream network`, then inspect server/DOM evidence if needed |
 | Response 1 / Response 2 feedback | Do not assume the first or last visible candidate is canonical; resolve selection explicitly on the site |
 
 A failed UI readback **may occur after** Qwen stored the user's prompt. The installed SDK run already showed a Formula 1 message recoverable from a fresh `--chat` session despite an earlier readback error. The user and Codex attributed their historical failed turns to Qwen busy/high-demand. That is a diagnosis of those incidents, **not** a guarantee that every future error with a similar string is caused by overload.
