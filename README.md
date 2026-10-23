@@ -30,15 +30,16 @@ partial output into implicit authority.
 | --- | --- |
 | Trying CWA for the first time | [Quickstart](docs/quickstart.md) |
 | Building a Python application | [Production Python example](#production-python-example) |
+| Using ChatGPT without a browser tab | [Direct HTTP SDK guide](docs/browserless_http_sdk.md) |
 | Connecting a local assistant or coding agent | [Agent integration](docs/agent_integration.md) |
-| Checking what is actually supported | [Capability map](docs/capabilities.md) |
+| Checking what is actually supported | [Live capability matrix](#capability-matrix-current-main) · [Full map](docs/capabilities.md) |
 | **Only want Qwen in the terminal?** | **[Qwen quickstart (English)](QWEN.md) · [Русская инструкция](QWEN.ru.md)** |
 | Using experimental Qwen Web in Python | [Complete Qwen SDK guide](docs/qwen.md) |
 | Adding a new hosted product capability | [Capability contribution guide](docs/adding_capability.md) |
 
 Current proven product surfaces include:
 
-- **ChatGPT** — production/default conversational runtime;
+- **ChatGPT** — production/default browser-owned runtime plus an opt-in experimental direct HTTP SDK;
 - **DeepSeek Web** — experimental text new-chat + continuation;
 - **Gemini Web** — experimental text new-chat + continuation;
 - **Qwen Web** — isolated experimental text, network streaming and conversation reattachment (user-verified on Windows);
@@ -91,49 +92,85 @@ The shared architecture preserves explicit:
 Provider differences remain visible instead of being forced into a fake universal chat
 API.
 
-## Provider status on current `main`
+## Capability matrix (current `main`)
 
-The table below compares the shared conversational runtime track. The isolated
-Qwen SDK and non-chat capability contracts are deliberately described separately;
-see [the capability map](docs/capabilities.md) for all six product surfaces.
+**Legend:** ✅ proven production/shared ChatGPT path · 🧪 live-observed, experimental · ◐ limited evidence · — no supported claim.
+These statuses are scoped to observed operations, not guarantees against product changes.
 
-| Capability / property | ChatGPT | DeepSeek Web | Gemini Web |
-| --- | --- | --- | --- |
-| Support tier | **Production/default** | Experimental | Experimental |
-| Text new chat | Production | Live-proven | Live-proven |
-| Text continuation | Production | Live-proven | Live-proven |
-| Canonical conversation readback | Yes | No claim | No claim |
-| Completion model | Canonical readback where required | Page-DOM stable completion, noncanonical | Page-DOM stable completion, noncanonical |
-| Images / files | Production on proven browser-owned paths | Unimplemented | Unimplemented |
-| Streaming | Production on proven paths | Unimplemented | Unimplemented |
-| Model / reasoning profiles | Evidence-backed | Unknown | Unknown |
-| Temporary Chat | Production text path | Unimplemented | Unimplemented |
-| Web-search observation | Production on proven path | Unknown | Unknown |
-| Public root runtime API | `ChatGPTProductRuntime` | Module-only | Module-only |
+### ChatGPT: browser-owned vs direct HTTP
 
-DeepSeek and Gemini are deliberately not presented as equally mature alternatives to
-ChatGPT. Their current purpose is a real, live-proven provider implementation plus
-evidence that the shared provider architecture is not ChatGPT-specific.
+| Capability | Browser-owned (default) | Direct HTTP (opt-in) |
+| :--- | :---: | :---: |
+| New chat + continuation | ✅ | 🧪 |
+| Streaming responses | ✅ | 🧪 |
+| Model / reasoning selection | ✅ | 🧪 |
+| Markdown and image attachments | ✅ | 🧪 |
+| Temporary Chat send | ✅ | 🧪 |
+| Read history / export | ✅¹ | ✅¹ |
+| Download generated file + verify bytes | ✅¹ | 🧪¹ |
+| Browser tab needed for sending | Yes | **No** |
+| Support tier | **Production/default** | **Experimental** |
 
-**Qwen Web** is an additional *isolated experimental* provider rather than a new
-production path. A user-run installed Windows SDK confirmed text turns, network
-streaming, continuation and cross-process chat reattachment. It requires a
-**separate Qwen extension and Native Messaging host**; the production CWA/HDE
-extension is not modified. See the [Qwen SDK guide](docs/qwen.md) for setup,
-reference code, explicit overload `/retry`, safety boundaries and unsupported
-features. Direct Qwen HTTP remains unproven.
+¹ These are capabilities of the shared ChatGPT canonical HTTP client, not evidence that
+the browser composer performs downloads. `handoff_generated_artifact(...)` requires
+a unique conversation-owned `file_id`, an explicit local destination, bounded
+retrieval, integrity checks and no implicit overwrite. It does not download arbitrary
+sandbox links, previously uploaded attachments or files from unrelated chats.
 
-See [docs/providers.md](docs/providers.md) for the detailed matrix and finality model.
+**Direct HTTP live evidence — Windows, 2026-10-23.** User-run tests confirmed a
+GPT-6 request with `reasoning_effort="high"`, a successful `temporary=True` send,
+streaming callbacks (two chunks), two Markdown files and a PNG in one turn,
+continuation from a fresh process without re-uploading media, a 13-message
+canonical Markdown export and a 25-byte generated TXT download with exact byte
+match, SHA-256 verification and no overwrite. Temporary Chat retention was
+not separately audited; requested model and effort do not attest the server's
+actual model selection. **The direct HTTP SDK remains experimental.**
+
+**Auth boundary:** existing-browser auth sync and automatic canonical-GET `401`
+recovery have separate live evidence for `ChatGPTWebClient`, but do **not**
+automatically apply to `BrowserlessHTTPClient.send()`. Neither direct HTTP
+nor browser-owned paths automatically replay an ambiguous write.
+
+### Other supported product surfaces
+
+| Product / integration | Scope | Maturity |
+| :--- | :--- | :--- |
+| Qwen Web — isolated browser SDK | Text, network SSE, conversation reattachment | 🧪 Experimental |
+| Qwen Web — direct HTTP | One authenticated generation; repeatability/renewal unverified | ◐ Experimental / limited |
+| DeepSeek Web | New + continued text; page-DOM completion | 🧪 Experimental |
+| Gemini Web | New + continued text; page-DOM completion | 🧪 Experimental |
+| Google Translate Web | `translate_text` | 🧪 Experimental non-chat |
+| Gemini Notebook Web | URL source admission; Audio Overview generation/observation | 🧪 Experimental non-chat |
+
+### Runtime map
+
+~~~mermaid
+flowchart LR
+    APP["Local app / agent / CLI"] --> CWA["CWA: provider-specific integrations"]
+    CWA --> CB["ChatGPT browser-owned<br/>production/default"]
+    CWA --> CH["ChatGPT direct HTTP<br/>experimental"]
+    CWA --> Q["Qwen isolated SDK<br/>browser / HTTP"]
+    CWA --> DG["DeepSeek / Gemini Web<br/>experimental"]
+    CWA --> NC["Translate / Notebook<br/>experimental non-chat"]
+~~~
+
+This is a map of **separate integration contracts**, not a universal provider router.
+The [production quickstart](docs/quickstart.md), [direct HTTP SDK guide](docs/browserless_http_sdk.md),
+[Qwen guide](docs/qwen.md), [full capability map](docs/capabilities.md) and
+[provider finality model](docs/providers.md) describe their boundaries.
+
+All statuses describe **current source `main`**, not necessarily the latest published `v0.3.0` wheel.
 
 ## Release vs current `main`
 
 - **Latest public release:** `v0.3.0` — 2026-09-01.
 - **Published package version:** `0.3.0`.
-- **Current `main`:** includes post-0.3 PR15 architecture, PR16 non-chat
-  capabilities and private artifact research, PR17.1/17.2 background ChatGPT
-  selection/submit repair and conversation-local reasoning scope proof, plus the
-  isolated **experimental Qwen Web** source and SDK examples.
-  The exact PR17.2 checkpoint is [documented here](docs/engineering/pr17_2_canonical_product_checkpoint.md).
+- **Current `main`:** includes the post-0.3 provider architecture, non-chat
+  capabilities, Qwen browser/HTTP SDK, opt-in ChatGPT `BrowserlessHTTPClient`
+  (#212), governed generated-artifact handoff and scoped existing-browser
+  auth sync / canonical-GET recovery (#222). Browser rich-input hardening
+  [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) remains Draft.
+  The historical PR17.2 checkpoint is [documented here](docs/engineering/pr17_2_canonical_product_checkpoint.md).
 
 Do not assume every behavior described for current `main` exists in the published
 0.3.0 wheel. [STATUS.md](STATUS.md) is the compact source of truth for release/main
@@ -165,10 +202,10 @@ resolve product surface
 A reusable background runtime tab is an implementation resource, not public
 conversation authority.
 
-CWA still contains an experimental ChatGPT `browserless-request` transport, but it is
-not the architectural target merely because it avoids Chrome. It remains fail-closed
-around product protections and is not allowed to silently fall back or synthesize
-challenge credentials.
+CWA contains **two different** direct-request experiments: the historical
+`browserless-request` runtime transport and the separate opt-in
+`BrowserlessHTTPClient` SDK. Neither is a production/default replacement merely
+because it avoids Chrome, and neither silently falls back after an ambiguous write.
 
 See [docs/browser_owned.md](docs/browser_owned.md).
 
@@ -431,17 +468,13 @@ tools_connectors = UNKNOWN
 CWA can observe bounded product-tool / required-action evidence on proven ChatGPT
 paths, but current evidence does not justify a general connector execution contract.
 
-Generated-artifact observation also remains separate from download authority:
-
-```text
-ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
-```
-
-A future download handoff still requires stable product-owned artifact identity and a
-safe resolution path; CWA does not infer identity from filename, prose, DOM position or
-URL similarity.
-
-These decisions originated in post-0.3 product work and remain current boundaries.
+Generated-artifact observation still does not grant download authority. A narrower
+`handoff_generated_artifact(...)` client operation now supports one exactly selected,
+conversation-owned generated artifact with product `file_id`, identity-bound
+resolution, explicit destination and verified bytes. A Windows user-run HTTP test
+on 2026-10-23 materialized a 25-byte TXT with exact SHA-256 verification and no
+overwrite. Arbitrary sandbox links and uploaded attachments are not covered.
+See [governed handoff](docs/engineering/pr14_0_governed_generated_artifact_handoff.md).
 
 ## Safety and failure model
 
@@ -487,8 +520,8 @@ callers.
 
 ### Experimental
 
-Backend/raw helpers, `browserless-request`, and provider-specific DeepSeek/Gemini
-modules whose product mechanics may evolve faster.
+Backend/raw helpers, `browserless-request`, opt-in `BrowserlessHTTPClient`,
+Qwen SDK, and DeepSeek/Gemini modules whose product mechanics may evolve faster.
 
 Lower-level compatibility/research helpers such as `PayloadBuilder`,
 `validate_payload`, and `send_payload` remain discoverable for existing callers and
