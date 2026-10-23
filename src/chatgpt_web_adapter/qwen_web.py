@@ -428,9 +428,7 @@ class QwenWebTransport:
         if poll_interval <= 0:
             raise ValueError("poll_interval must be positive")
         if on_event is not None:
-            raise ValueError(
-                "Qwen Web raw on_event callbacks are not implemented"
-            )
+            raise ValueError("Qwen Web raw on_event callbacks are not implemented")
 
         continuation = conversation is not None
         turn = self.provider.send_text(
