@@ -132,7 +132,11 @@ class QwenClient:
         """Read the site's raw chat-detail payload via an already open Qwen tab."""
         if self.transport != "browser":
             raise ValueError("Qwen history read requires browser transport")
-        provider = self._browser.provider if self._browser is not None else QwenBrowserTurnProvider()
+        provider = (
+            self._browser.provider
+            if self._browser is not None
+            else QwenBrowserTurnProvider()
+        )
         return provider.read_history(conversation)
 
     def retry(self, *, conversation=None, on_token=None, on_text=None):
