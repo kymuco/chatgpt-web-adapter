@@ -766,7 +766,7 @@ async function _cwaQwenReadHistory(message) {
     throw new Error("QWEN_HISTORY_CONVERSATION_REQUIRED");
   const route = await _cwaQwenRouteForConversation(conversationId.trim());
   if (!route) throw new Error("QWEN_HISTORY_ROUTE_UNKNOWN");
-  const chatId = new URL(route).pathname.replace(/\\/$/, "").split("/").at(-1);
+  const chatId = new URL(route).pathname.split("/").filter(Boolean).at(-1);
   if (!/^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(chatId))
     throw new Error("QWEN_HISTORY_CHAT_ID_INVALID");
   const tabs = await chrome.tabs.query({url: CWA_QWEN_ORIGIN + "/*"});
