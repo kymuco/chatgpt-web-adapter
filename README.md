@@ -51,32 +51,18 @@ conversation-shaped provider contract. See [docs/capabilities.md](docs/capabilit
 
 ## What CWA is
 
-CWA sits between a local application and an authenticated consumer AI
-product. The integration surfaces are **not** one interchangeable chat backend:
-
-```text
-local application / assistant / agent / terminal
-  |
-  +-- Conversational runtimes (provider-specific)
-  |   +-- ChatGPT .............. PRODUCTION / default
-  |   +-- DeepSeek Web ......... EXPERIMENTAL / module-only
-  |   `-- Gemini Web ........... EXPERIMENTAL / module-only
-  |
-  +-- Isolated Qwen SDK (own Chrome extension + Native Messaging host)
-  |   `-- Qwen Web ............. EXPERIMENTAL / browser-backed
-  |
-  `-- Non-chat capabilities (lower CWA browser / authority lane)
-      +-- Google Translate Web  EXPERIMENTAL: translate_text
-      `-- Gemini Notebook Web   EXPERIMENTAL: add_url_source
-                                              + generate_audio_overview
-```
+CWA connects local software to authenticated consumer AI products through
+provider-specific runtime contracts. Browser-owned ChatGPT is the default,
+while direct HTTP, Qwen and other product integrations have different
+support and finality boundaries; see the [runtime map](#runtime-map).
 
 `ProductProviderBoundary` (schema 2) is **not** an execution router. It is a
 provider-neutral metadata/invariant view over an already-created conversational
-runtime, not a universal provider selector. The Qwen SDK uses a **separate**
-extension and Native Messaging host; it does not replace the production ChatGPT/HDE
-bridge. Google Translate and Gemini Notebook retain their own module-only,
-non-chat capability contracts, rather than pretending to be conversations.
+runtime, not a universal provider selector. The Qwen **browser** SDK uses a separate extension and Native Messaging
+host; its direct HTTP mode remains experimental. The ChatGPT
+`BrowserlessHTTPClient` is a separate opt-in SDK, not the historical
+`browserless-request` runtime transport. Google Translate and Gemini Notebook
+retain module-only non-chat contracts rather than pretending to be conversations.
 
 The shared architecture preserves explicit:
 
@@ -144,7 +130,7 @@ nor browser-owned paths automatically replay an ambiguous write.
 
 ### Runtime map
 
-~~~mermaid
+```mermaid
 flowchart LR
     APP["Local app / agent / CLI"] --> CWA["CWA: provider-specific integrations"]
     CWA --> CB["ChatGPT browser-owned<br/>production/default"]
@@ -152,7 +138,7 @@ flowchart LR
     CWA --> Q["Qwen isolated SDK<br/>browser / HTTP"]
     CWA --> DG["DeepSeek / Gemini Web<br/>experimental"]
     CWA --> NC["Translate / Notebook<br/>experimental non-chat"]
-~~~
+```
 
 This is a map of **separate integration contracts**, not a universal provider router.
 The [production quickstart](docs/quickstart.md), [direct HTTP SDK guide](docs/browserless_http_sdk.md),
