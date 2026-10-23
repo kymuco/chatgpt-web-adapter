@@ -29,6 +29,15 @@ def test_default_browser_and_interactive_continuation(runner, monkeypatch):
     assert client.send_text.call_args_list[0].kwargs["conversation"] is None
     assert client.send_text.call_args_list[1].kwargs["conversation"] == "chat"
     client.import_browser_auth.assert_not_called()
+    assert "on_token" in client.send_text.call_args_list[0].kwargs
+    assert "on_text" not in client.send_text.call_args_list[0].kwargs
+
+
+def test_explicit_dom_stream_remains_available(runner):
+    module, _, client = runner
+    assert module.main(["--stream", "dom", "hello"]) == 0
+    assert "on_text" in client.send_text.call_args.kwargs
+    assert "on_token" not in client.send_text.call_args.kwargs
 
 
 def test_explicit_http_is_labelled_experimental(runner, capsys):
