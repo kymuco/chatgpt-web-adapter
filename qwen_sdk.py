@@ -109,8 +109,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--stream",
         choices=("dom", "network"),
-        default="dom",
-        help="browser streaming source",
+        default="network",
+        help="browser streaming source (default: network; dom is heuristic)",
     )
     parser.add_argument(
         "--chat", help="existing Qwen chat URL or ID; omit for a new chat"
