@@ -759,8 +759,68 @@ async function _cwaQwenExportAuth(message) {
   }
 }
 
+// Read the site's own persisted chat payload; never create/activate a tab or send a turn.
+async function _cwaQwenReadHistory(message) {
+  const conversationId = message?.conversationId;
+  if (message?.type !== "turn" || typeof conversationId !== "string" || !conversationId.trim())
+    throw new Error("QWEN_HISTORY_CONVERSATION_REQUIRED");
+  const route = await _cwaQwenRouteForConversation(conversationId.trim());
+  if (!route) throw new Error("QWEN_HISTORY_ROUTE_UNKNOWN");
+  const chatId = new URL(route).pathname.replace(/\\/$/, "").split("/").at(-1);
+  if (!/^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(chatId))
+    throw new Error("QWEN_HISTORY_CHAT_ID_INVALID");
+  const tabs = await chrome.tabs.query({url: CWA_QWEN_ORIGIN + "/*"});
+  const tab = tabs.find(candidate => candidate.url === route);
+  if (!tab || !Number.isInteger(tab.id)) throw new Error("QWEN_HISTORY_TAB_NOT_OPEN");
+  if (tab.status !== "complete") throw new Error("QWEN_HISTORY_TAB_NOT_READY");
+
+  const debuggee = {tabId: tab.id};
+  let attached = false;
+  try {
+    await chrome.debugger.attach(debuggee, CDP_PROTOCOL_VERSION);
+    attached = true;
+    await _cwaBaseSendCommand(debuggee, "Runtime.enable");
+    // Authenticated same-origin GET, inside the already open Qwen page.
+    // Strict envelope validation; never guess completeness from a DOM snapshot.
+    const expression = `(() => fetch(${JSON.stringify(CWA_QWEN_ORIGIN + "/api/v2/chats/" + chatId + "/")}, {
+      method: "GET", credentials: "include", cache: "no-store", redirect: "error"
+    }).then(async response => {
+      if (!response.ok) return {ok: false, reason: "HTTP_" + response.status};
+      const body = await response.json().catch(() => null);
+      const messages = body?.data?.chat?.history?.messages;
+      if (!messages || typeof messages !== "object" || Array.isArray(messages))
+        return {ok: false, reason: "SHAPE_UNRECOGNIZED"};
+      if (new TextEncoder().encode(JSON.stringify(body)).length > 700000)
+        return {ok: false, reason: "PAYLOAD_TOO_LARGE"};
+      return {ok: true, payload: body};
+    }).catch(() => ({ok: false, reason: "REQUEST_FAILED"})))()`;
+    const result = await _cwaQwenEvaluate(debuggee, expression);
+    if (!result || result.ok !== true || typeof result.payload !== "object" || !result.payload)
+      throw new Error("QWEN_HISTORY_READ_FAILED: " + (
+        ["SHAPE_UNRECOGNIZED", "PAYLOAD_TOO_LARGE", "REQUEST_FAILED"].includes(result?.reason)
+          ? result.reason : /^HTTP_[0-9]{3}$/.test(result?.reason || "")
+          ? result.reason : "INVALID_RESULT"
+      ));
+    const after = await chrome.tabs.get(tab.id);
+    if (after?.url !== route) throw new Error("QWEN_HISTORY_ROUTE_CHANGED");
+    return {
+      providerId: CWA_QWEN_PROVIDER_ID,
+      operation: "history_snapshot",
+      conversationId: conversationId.trim(),
+      finalUrl: route,
+      payload: result.payload,
+      canonicalCompletionProven: false
+    };
+  } finally {
+    if (attached) {
+      try { await chrome.debugger.detach(debuggee); } catch {}
+    }
+  }
+}
+
 async function _cwaQwenHandleTurn(message) {
   if (message?.operation === "export_auth") return _cwaQwenExportAuth(message);
+  if (message?.operation === "read_history") return _cwaQwenReadHistory(message);
   if (message?.type !== "turn") throw new Error("QWEN_TURN_TYPE_REQUIRED");
   if (typeof message?.text !== "string" || !message.text.trim()) throw new Error("QWEN_TEXT_REQUIRED");
   if ((Array.isArray(message?.attachmentPaths) && message.attachmentPaths.length > 0) ||
