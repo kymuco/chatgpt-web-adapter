@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-10-22_
+_Last updated: 2026-10-23_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -72,8 +72,11 @@ it does not start a tab or silently fall back to the browser-owned runtime. One
 user-run Codexia bootstrap proved three Markdown attachments, GPT-6 High
 requested/extended observed, streaming and exact assistant-message readback.
 The resulting `CAPTURED_UNADMITTED` is transport evidence, **not** Codexia Work
-completion or a general stability claim. See
-[`docs/browserless_http_sdk.md`](docs/browserless_http_sdk.md).
+completion. A separate user-run Windows check on 2026-10-23 confirmed one GPT-6
+High-requested send, Temporary Chat send, streaming (two chunks), two Markdown
+and one PNG input, cross-process continuation, a 13-message canonical export
+and SHA-256-verified 25-byte generated-artifact handoff. This does not prove
+general reliability. See [direct HTTP SDK](docs/browserless_http_sdk.md).
 
 Evidence-backed ChatGPT production capabilities include:
 
@@ -158,21 +161,27 @@ paths, but current evidence does not justify a general connector execution contr
 
 ### Generated artifacts
 
-The general ChatGPT artifact-download handoff remains frozen:
+The old PR10.1 unsupported status was superseded by the **narrow PR14.0
+governed handoff**: `ChatGPTWebClient.handoff_generated_artifact(...)`, also
+inherited by `BrowserlessHTTPClient`, can materialize exactly one caller-named,
+conversation-owned generated artifact using the product `file_id`, resolver,
+integrity verification and explicit no-overwrite local destination policy.
 
-```text
-ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
-```
+On 2026-10-23 a user-run Windows HTTP conversation generated a 25-byte TXT;
+its inherited handoff downloaded the exact expected bytes and verified
+SHA-256 with `overwritten=False`. This is bounded live evidence, not a
+general claim about uploaded attachments, arbitrary links, provider lifecycle
+or indefinite availability. Observing an artifact never grants permission
+to download or write without an explicit caller destination.
 
-The later **Gemini Notebook-specific** private retrieval proofs do not change
-that ChatGPT boundary or create caller-facing download/publication authority.
-CWA does not synthesize artifact identity from filename, DOM order, assistant prose,
-URL similarity or minified frontend internals.
+See [PR14.0](docs/engineering/pr14_0_governed_generated_artifact_handoff.md).
 
 ### Browserless writes
 
-`browserless-request` remains experimental and fail-closed around unsupported product
-protection/challenge boundaries.
+`browserless-request` and the separate opt-in `BrowserlessHTTPClient` remain
+experimental. Direct HTTP live evidence covers selected operations, not a full
+reliability or automatic auth-recovery guarantee. Scoped browser-session sync and
+canonical-GET `401` recovery do not automatically apply to `BrowserlessHTTPClient.send()`.
 
 CWA does not add challenge-bypass machinery merely to promote browserless writes.
 
