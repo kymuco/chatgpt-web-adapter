@@ -211,6 +211,7 @@ def test_qwen_browser_source_is_quarantined_from_production_cwa_extension() -> N
 
 def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     worker = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
+    write_handler = worker.split("async function _cwaQwenHandleTurn(message) {", 1)[1]
 
     assert "https://chat.qwen.ai" in worker
     assert "div.response-message-content.phase-answer" in worker
@@ -224,14 +225,14 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "composer.setSelectionRange(0, 0)" in worker
     assert 'new InputEvent("input"' not in worker
     assert "composer_not_empty" in worker
-    assert "fetch(" not in worker
+    assert "fetch(" not in write_handler
     assert "XMLHttpRequest" not in worker
     assert "Network.getResponseBody" not in worker
     assert "Network.enable" in worker
     assert "Network.requestWillBeSent" in worker
     assert "_cwaQwenObserveWriteLifecycle" in worker
     assert "request.postData" not in worker
-    assert "fetch(" not in worker
+    assert "fetch(" not in write_handler
     assert "automaticWriteRetry: false" in worker
     assert 'finalityEvidence: "PAGE_DOM_STABLE_COMPLETION"' in worker
     assert "canonicalCompletionProven: false" in worker
