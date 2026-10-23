@@ -76,6 +76,24 @@ transport evidence, **not** Gen2 cognition admission or Work completion. It
 does not prove general reliability across models, attachment formats, session
 renewal or changing web-protocol revisions.
 
+### Additional user-run Windows evidence — 2026-10-23
+
+One request with `model="gpt-6"` and `reasoning_effort="high"` returned expected
+text; the model and effort requests were not independently attested by the
+server. `temporary=True` returned expected text, without a separate retention
+audit. An ordinary HTTP chat accepted two Markdown documents and one PNG,
+produced two observed streaming callback chunks, and retained context on a
+separate-process continuation. `cwa export` returned 13 normalized messages.
+A separate HTTP conversation generated a 25-byte TXT, which
+`BrowserlessHTTPClient.handoff_generated_artifact(...)` materialized locally with
+exact bytes, SHA-256 verification and `overwritten=False`. This is an inherited
+governed ChatGPT artifact operation, not general sandbox/attachment download.
+
+Existing-browser auth sync and canonical-GET `401` recovery are independently
+proven on `ChatGPTWebClient`, but are not automatically enabled for
+`BrowserlessHTTPClient.send()`. These are scoped caller-run observations,
+not product-protocol or long-term stability guarantees.
+
 This module remains **experimental and explicitly opt-in**, even when included
 in `main`. Existing browser-owned ChatGPT and isolated Qwen SDK behavior remain
 the default; the HTTP client has no automatic browser fallback.

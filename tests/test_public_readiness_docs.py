@@ -51,42 +51,51 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
     assert "DeepSeek Web" in text
     assert "Gemini Web" in text
     assert "tools_connectors = UNKNOWN" in text
-    assert (
-        "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY" in text
-    )
+
+    # PR14.0's governed generated-file handoff superseded the historical
+    # PR10.1 blanket unsupported status; observation alone is not authority.
+    assert "handoff_generated_artifact(...)" in text
+    assert "file_id" in text
+    assert "no implicit overwrite" in text
+    assert "does not download arbitrary" in text
 
 
 def test_readme_architecture_map_distinguishes_product_lanes() -> None:
     readme = _read("README.md")
     section = readme.split("## What CWA is\n", 1)[1].split(
-        "## Provider status on current `main`\n", 1
+        "## Capability matrix (current `main`)\n", 1
     )[0]
-    diagram = section.split("```text\n", 1)[1].split("\n```", 1)[0]
+    capability_section = readme.split("## Capability matrix (current `main`)\n", 1)[
+        1
+    ].split("## Release vs current `main`\n", 1)[0]
+    diagram = capability_section.split("```mermaid\n", 1)[1].split("\n```", 1)[0]
 
     for expected in (
-        "Conversational runtimes",
-        "ChatGPT",
-        "PRODUCTION / default",
-        "DeepSeek Web",
-        "Gemini Web",
-        "EXPERIMENTAL / module-only",
-        "Isolated Qwen SDK",
-        "own Chrome extension + Native Messaging host",
-        "Qwen Web",
-        "Non-chat capabilities",
-        "lower CWA browser / authority lane",
-        "Google Translate Web",
-        "translate_text",
-        "Gemini Notebook Web",
-        "add_url_source",
-        "generate_audio_overview",
+        "Local app / agent / CLI",
+        "CWA: provider-specific integrations",
+        "ChatGPT browser-owned",
+        "production/default",
+        "ChatGPT direct HTTP",
+        "experimental",
+        "Qwen isolated SDK",
+        "browser / HTTP",
+        "DeepSeek / Gemini Web",
+        "Translate / Notebook",
+        "experimental non-chat",
     ):
         assert expected in diagram, expected
 
-    assert "ProductProviderBoundary" in section
-    assert "is **not** an execution router" in section
-    assert "not a universal provider selector" in section
-    assert "[the capability map](docs/capabilities.md)" in readme
+    for expected in (
+        "ProductProviderBoundary",
+        "is **not** an execution router",
+        "not a universal provider selector",
+        "a separate extension and Native Messaging",
+    ):
+        assert expected in section, expected
+
+    assert "[full capability map](docs/capabilities.md)" in readme
+    assert "Temporary Chat send" in capability_section
+    assert "Download generated file + verify bytes" in capability_section
 
 
 def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
