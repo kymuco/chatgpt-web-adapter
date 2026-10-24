@@ -111,7 +111,6 @@ def test_new_chat_prepare_omits_partial_query_and_initial_conduit() -> None:
     assert "partial_query" not in payload
 
 
-
 def test_deep_research_prepare_hint_is_explicit_and_search_unchanged() -> None:
     hint = ["plugin:connector_openai_deep_research"]
     payload = build_text_prepare_payload(
@@ -120,6 +119,18 @@ def test_deep_research_prepare_hint_is_explicit_and_search_unchanged() -> None:
     assert payload["system_hints"] == hint
     assert payload["conversation_mode"] == {"kind": "primary_assistant"}
     assert build_text_prepare_payload("Hello", model="gpt-6")["system_hints"] == []
-    assert build_text_prepare_payload(
-        "Search", model="gpt-6", web_search=True
-    )["system_hints"] == ["search"]
+    assert build_text_prepare_payload("Search", model="gpt-6", web_search=True)[
+        "system_hints"
+    ] == ["search"]
+
+
+def test_deep_research_message_hint_is_not_plain_search() -> None:
+    from chatgpt_web_adapter.client import ChatGPTWebClient
+
+    hint = ["plugin:connector_openai_deep_research"]
+    user = ChatGPTWebClient._create_messages(
+        "Research", None, system_hints=hint
+    )[-1]
+    assert user["metadata"]["system_hints"] == hint
+    ordinary = ChatGPTWebClient._create_messages("Hello", None)[-1]
+    assert "system_hints" not in ordinary["metadata"]

@@ -2644,11 +2644,7 @@ class ChatGPTWebClient:
                 reasoning_effort=normalized_effort,
                 web_search=web_search,
                 temporary=temporary,
-                **(
-                    {"system_hints": system_hints}
-                    if _system_hints is not None
-                    else {}
-                ),
+                **({"system_hints": system_hints} if _system_hints is not None else {}),
                 partial_query_message_id=user_message_id,
                 include_partial_query=bool(conversation_id and not normalized_media),
                 client_prepare_state="none",
