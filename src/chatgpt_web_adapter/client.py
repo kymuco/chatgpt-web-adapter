@@ -27,6 +27,7 @@ from .conversation_send import send_to_conversation as _send_to_conversation
 from .diagnostic_metrics import (
     send_with_expanded_metrics as _send_with_expanded_metrics,
 )
+from .deep_research import get_deep_research as _get_deep_research
 from .export import export_conversation as _export_conversation
 from .generated_artifact_handoff import (
     handoff_generated_artifact as _handoff_generated_artifact,
@@ -304,6 +305,7 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
     attach_conversation = _attach_conversation
     export_conversation = _export_conversation
     get_conversation_snapshot = _get_conversation_snapshot
+    get_deep_research = _get_deep_research
     get_messages = _get_messages_v2
     get_pending_approval = _get_pending_approval
     get_required_action = _get_required_action
