@@ -143,3 +143,28 @@ def test_invalid_request_fails_before_network(harness):
     with pytest.raises(ValueError, match="conversation_origin"):
         client.send("Valid prompt", conversation_origin="unknown")
     assert calls == []
+
+
+def test_deep_research_opt_in_forwards_exact_product_hint(harness):
+    client, calls, _ = harness
+    client.send("Research a topic", deep_research=True)
+    assert len(calls) == 1
+    assert calls[0][1]["_system_hints"] == ["plugin:connector_openai_deep_research"]
+    client.send("Ordinary text")
+    assert "_system_hints" not in calls[1][1]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"temporary": True},
+        {"conversation": "existing"},
+        {"media": ["notes.md"]},
+        {"conversation_origin": "flora"},
+    ],
+)
+def test_deep_research_unsupported_combinations_fail_before_network(harness, kwargs):
+    client, calls, _ = harness
+    with pytest.raises(ValueError, match="deep_research"):
+        client.send("Research a topic", deep_research=True, **kwargs)
+    assert calls == []
