@@ -82,7 +82,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 @'
 text = "Проверка"
-print("CYRILLIC_PIPE_PASS =", text == "\\u041f\\u0440\\u043e\\u0432\\u0435\\u0440\\u043a\\u0430")
+print("CYRILLIC_PIPE_PASS =", text == "\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430")
 '@ | python -X utf8 -
 ```
 
