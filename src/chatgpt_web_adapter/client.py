@@ -24,10 +24,10 @@ from .conversation_read_v2 import (
     read_conversation_payload_v2 as _read_conversation_payload_v2,
 )
 from .conversation_send import send_to_conversation as _send_to_conversation
+from .deep_research import get_deep_research as _get_deep_research
 from .diagnostic_metrics import (
     send_with_expanded_metrics as _send_with_expanded_metrics,
 )
-from .deep_research import get_deep_research as _get_deep_research
 from .export import export_conversation as _export_conversation
 from .generated_artifact_handoff import (
     handoff_generated_artifact as _handoff_generated_artifact,

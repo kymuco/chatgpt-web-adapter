@@ -10,13 +10,22 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from .status import _current_branch_nodes, _message_from_node, _message_metadata, _message_role
+from .status import (
+    _current_branch_nodes,
+    _message_from_node,
+    _message_metadata,
+    _message_role,
+)
 from .types import ChatConversation, ConversationRef
 
 DeepResearchState = Literal["unknown", "running", "needs_input", "completed"]
 
 _RUNNING = {"running", "in_progress", "pending", "started", "researching", "searching"}
-_NEEDS_INPUT = {"waiting_for_user_response_on_plan", "waiting_for_user_input", "awaiting_user_input"}
+_NEEDS_INPUT = {
+    "waiting_for_user_response_on_plan",
+    "waiting_for_user_input",
+    "awaiting_user_input",
+}
 
 
 @dataclass(frozen=True)
@@ -39,7 +48,10 @@ def _json_object(value: Any) -> dict[str, Any] | None:
 def _is_deep_research_call(message: dict[str, Any] | None) -> bool:
     if not isinstance(message, dict):
         return False
-    if _message_role(message) != "assistant" or message.get("recipient") != "api_tool.call_tool":
+    if (
+        _message_role(message) != "assistant"
+        or message.get("recipient") != "api_tool.call_tool"
+    ):
         return False
     content = message.get("content")
     if not isinstance(content, dict):
@@ -121,7 +133,9 @@ def get_deep_research(
         ):
             return result
         # Preserve report bytes/text as supplied, including product citation markers.
-        return DeepResearchObservation(ref.conversation_id, "completed", report_id, parts[0])
+        return DeepResearchObservation(
+            ref.conversation_id, "completed", report_id, parts[0]
+        )
 
     if state in _RUNNING:
         return DeepResearchObservation(ref.conversation_id, "running")

@@ -26,7 +26,9 @@ def _conversation(widget, *, marker="connector_openai_deep_research"):
         "metadata": {
             "chatgpt_sdk": {
                 "tool_response_metadata": {
-                    "venus_widget_state": {"status": "waiting_for_user_response_on_plan"}
+                    "venus_widget_state": {
+                        "status": "waiting_for_user_response_on_plan"
+                    }
                 },
                 "widget_state": json.dumps(widget),
             }
@@ -50,7 +52,11 @@ def _conversation(widget, *, marker="connector_openai_deep_research"):
             "children": [nodes[index + 1]["id"]] if index < len(nodes) - 1 else [],
             "message": message,
         }
-    return {"conversation_id": "conversation-1", "mapping": mapping, "current_node": "assistant-1"}
+    return {
+        "conversation_id": "conversation-1",
+        "mapping": mapping,
+        "current_node": "assistant-1",
+    }
 
 
 def _client(cls, payload):
@@ -74,7 +80,9 @@ def test_completed_report_is_read_once_with_exact_content(cls):
         "status": "finished_successfully",
         "content": {"content_type": "text", "parts": [text]},
     }
-    client, reads = _client(cls, _conversation({"status": "completed", "report_message": report}))
+    client, reads = _client(
+        cls, _conversation({"status": "completed", "report_message": report})
+    )
 
     result = client.get_deep_research("conversation-1")
 
@@ -123,14 +131,18 @@ def test_research_result_requires_identified_deep_research_call():
     }
     client, _ = _client(
         ChatGPTWebClient,
-        _conversation({"status": "completed", "report_message": report}, marker="connector_other"),
+        _conversation(
+            {"status": "completed", "report_message": report}, marker="connector_other"
+        ),
     )
     assert client.get_deep_research("conversation-1").status == "unknown"
 
 
 def test_bad_widget_json_and_unrelated_conversation_fail_closed():
     payload = _conversation({"status": "completed"})
-    payload["mapping"]["tool-1"]["message"]["metadata"]["chatgpt_sdk"]["widget_state"] = "{"
+    payload["mapping"]["tool-1"]["message"]["metadata"]["chatgpt_sdk"][
+        "widget_state"
+    ] = "{"
     client, _ = _client(ChatGPTWebClient, payload)
     assert client.get_deep_research("conversation-1").status == "unknown"
 
