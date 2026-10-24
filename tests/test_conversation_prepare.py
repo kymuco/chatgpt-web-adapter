@@ -109,3 +109,17 @@ def test_new_chat_prepare_omits_partial_query_and_initial_conduit() -> None:
 
     assert result.status_ok is True
     assert "partial_query" not in payload
+
+
+
+def test_deep_research_prepare_hint_is_explicit_and_search_unchanged() -> None:
+    hint = ["plugin:connector_openai_deep_research"]
+    payload = build_text_prepare_payload(
+        "Investigate", model="gpt-6", system_hints=hint
+    )
+    assert payload["system_hints"] == hint
+    assert payload["conversation_mode"] == {"kind": "primary_assistant"}
+    assert build_text_prepare_payload("Hello", model="gpt-6")["system_hints"] == []
+    assert build_text_prepare_payload(
+        "Search", model="gpt-6", web_search=True
+    )["system_hints"] == ["search"]

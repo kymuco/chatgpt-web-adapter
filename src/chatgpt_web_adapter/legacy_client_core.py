@@ -2574,7 +2574,10 @@ class ChatGPTWebClient:
         on_token: Callable[[str], None] | None = None,
         on_event: Callable[[dict[str, Any]], None] | None = None,
         conversation_origin: str | None = None,
+        _system_hints: list[str] | None = None,
     ) -> ChatResponse:
+        if _system_hints is not None and web_search:
+            raise ValueError("custom system hints cannot be combined with web_search")
         if conversation_origin is not None and conversation_origin not in {
             "flora",
             "tpp",
@@ -2606,11 +2609,16 @@ class ChatGPTWebClient:
             )
             user_id = conversation_dict.get("user_id")
 
+        system_hints = (
+            _system_hints
+            if _system_hints is not None
+            else (["search"] if web_search else [])
+        )
         messages = self._create_messages(
             prompt,
             None if conversation_id else system,
             image_requests=image_requests,
-            system_hints=["search"] if web_search else None,
+            system_hints=system_hints or None,
         )
         user_message = messages[-1] if messages else None
         user_message_id = (
@@ -2636,6 +2644,11 @@ class ChatGPTWebClient:
                 reasoning_effort=normalized_effort,
                 web_search=web_search,
                 temporary=temporary,
+                **(
+                    {"system_hints": system_hints}
+                    if _system_hints is not None
+                    else {}
+                ),
                 partial_query_message_id=user_message_id,
                 include_partial_query=bool(conversation_id and not normalized_media),
                 client_prepare_state="none",
@@ -2692,9 +2705,9 @@ class ChatGPTWebClient:
         if use_prepared_sentinel:
             payload["client_prepare_state"] = "success"
             payload["client_contextual_info"] = {"app_name": "chatgpt.com"}
-            payload["system_hints"] = ["search"] if web_search else []
-        elif web_search:
-            payload["system_hints"] = ["search"]
+            payload["system_hints"] = system_hints
+        elif system_hints:
+            payload["system_hints"] = system_hints
         if temporary:
             payload["history_and_training_disabled"] = True
         if conversation_origin is not None:

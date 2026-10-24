@@ -54,6 +54,7 @@ def build_text_prepare_payload(
     conversation: ChatConversation | dict[str, Any] | None = None,
     reasoning_effort: str | None = None,
     web_search: bool = False,
+    system_hints: list[str] | None = None,
     temporary: bool = False,
     timezone: str | None = None,
     timezone_offset_min: int | None = None,
@@ -79,7 +80,11 @@ def build_text_prepare_payload(
         "model": str(model),
         "client_prepare_state": client_prepare_state,
         "conversation_mode": {"kind": "primary_assistant"},
-        "system_hints": ["search"] if web_search else [],
+        "system_hints": (
+            system_hints
+            if system_hints is not None
+            else (["search"] if web_search else [])
+        ),
         "supports_buffering": True,
         "supported_encodings": ["v1"],
         "client_contextual_info": {"app_name": "chatgpt.com"},
@@ -185,6 +190,7 @@ def prepare_text_turn(
     conversation: ChatConversation | dict[str, Any] | None = None,
     reasoning_effort: str | None = None,
     web_search: bool = False,
+    system_hints: list[str] | None = None,
     temporary: bool = False,
     timezone: str | None = None,
     timezone_offset_min: int | None = None,
@@ -208,6 +214,7 @@ def prepare_text_turn(
         conversation=conversation,
         reasoning_effort=reasoning_effort,
         web_search=web_search,
+        system_hints=system_hints,
         temporary=temporary,
         timezone=timezone,
         timezone_offset_min=timezone_offset_min,

@@ -28,6 +28,7 @@ from .web_session import bootstrap_web_session, suppress_web_session_debug_trace
 ASSET_URL = "https://chatgpt.com/cdn/assets/200429.3d54d9c431.js"
 MODULE_HASH = "21a5313fc55570e213891f3f6daef5a596130a8a5cd12b8d90a94e37944321ed"
 RUNTIME = Path(__file__).with_name("browserless_js") / "runtime.cjs"
+_DEEP_RESEARCH_HINT = "plugin:connector_openai_deep_research"
 
 
 def fetch_protocol_module(curl: str, destination: Path) -> None:
@@ -335,6 +336,7 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
         reasoning_effort: str | None = None,
         conversation_origin: str | None = None,
         media: Any = None,
+        deep_research: bool = False,
     ):
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("prompt must be nonempty")
@@ -345,6 +347,13 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
             "tpp",
         }:
             raise ValueError("conversation_origin must be flora or tpp")
+        if deep_research:
+            if temporary or conversation is not None or media is not None:
+                raise ValueError(
+                    "deep_research currently requires a new, non-temporary text chat"
+                )
+            if conversation_origin is not None:
+                raise ValueError("deep_research cannot set conversation_origin")
         with self._browserless_lock:
             if getattr(self, "_browserless_sending", False):
                 raise RuntimeError(
@@ -389,6 +398,11 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                         on_token=token_callback,
                         on_event=event_callback,
                         media=media,
+                        **(
+                            {"_system_hints": [_DEEP_RESEARCH_HINT]}
+                            if deep_research
+                            else {}
+                        ),
                         **(
                             {"conversation_origin": conversation_origin}
                             if conversation_origin
