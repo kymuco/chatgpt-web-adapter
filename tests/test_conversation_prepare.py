@@ -128,9 +128,7 @@ def test_deep_research_message_hint_is_not_plain_search() -> None:
     from chatgpt_web_adapter.client import ChatGPTWebClient
 
     hint = ["plugin:connector_openai_deep_research"]
-    user = ChatGPTWebClient._create_messages(
-        "Research", None, system_hints=hint
-    )[-1]
+    user = ChatGPTWebClient._create_messages("Research", None, system_hints=hint)[-1]
     assert user["metadata"]["system_hints"] == hint
     ordinary = ChatGPTWebClient._create_messages("Hello", None)[-1]
     assert "system_hints" not in ordinary["metadata"]
