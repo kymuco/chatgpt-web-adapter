@@ -63,11 +63,35 @@ research = client.get_deep_research(response.conversation.conversation_id)
 print(research.status, research.report_id)
 ```
 
-This is **not yet live-proven to launch** a genuine research job. The
-saved hint alone does not establish whether the web UI submits other required
-signals. `send()` completion does not prove research completion. No automatic
-retry, report polling or browser fallback is added; an `unknown` readback
-must not trigger a duplicate send. Initial support is restricted to new,
+A user-run Windows live test on 2026-10-24 **confirmed** that one Direct
+HTTP send with the explicit hint created a genuine Deep Research tool call.
+Canonical readback observed the product widget in `researching` state
+(`get_deep_research().status == "running"`), followed by `completed` with a
+finished 53,965-character report and report ID. The report was fetched in a
+separate process using canonical GET, with **no second Send**.
+
+**Prompt integrity is a separate concern:** the test's Cyrillic source was
+piped from Windows PowerShell to Python while PowerShell's pipeline output
+encoding replaced Cyrillic characters with literal `?`. The persisted user
+message and the tool's `user_query` both matched the *corrupted* input; they
+do **not** validate intended prompt-to-report relevance. For Windows PowerShell
+5.1 scripts piped into `python -`, explicitly set UTF-8 **before** piping:
+
+```powershell
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+@'
+text = "Проверка"
+print("CYRILLIC_PIPE_PASS =", text == "\\u041f\\u0440\\u043e\\u0432\\u0435\\u0440\\u043a\\u0430")
+'@ | python -X utf8 -
+```
+
+This should print `CYRILLIC_PIPE_PASS = True` **without sending a request**.
+An already corrupted prompt cannot be repaired by `python -X utf8` alone.
+
+`send()` completion does not prove research completion. No automatic retry,
+report polling or browser fallback is added; an `unknown` readback must not
+trigger a duplicate send. Initial support is restricted to new,
 non-temporary text chats without `conversation_origin`; unsupported
 combinations fail before network operations.
 
