@@ -65,11 +65,13 @@ async function _pr92Schema13AttachWithinDeadline(debuggee, context) {
   }
 }
 
-async function _pr92Schema13FindFileInputWithinDeadline(debuggee, context, stage) {
+async function _pr92Schema13FindFileInputWithinDeadline(
+  debuggee, context, stage, preferMultiple = false
+) {
   return _pr92Schema7RunUntil(
     context.deadlineAt,
     stage,
-    () => _pr92FindFileInputObjectId(debuggee)
+    () => _pr92FindFileInputObjectId(debuggee, preferMultiple)
   );
 }
 
@@ -169,17 +171,39 @@ async function _pr92Schema13StageFileSelection(tabId, attachmentPaths, context) 
     objectId = await _pr92Schema13FindFileInputWithinDeadline(
       debuggee,
       context,
-      "SCHEMA13_STAGE_FILE_INPUT_LOOKUP"
+      "SCHEMA13_STAGE_FILE_INPUT_LOOKUP",
+      attachmentPaths.length > 1
     );
     if (!objectId) {
       await _pr92Schema13RevealFileInputWithinDeadline(debuggee, context);
       objectId = await _pr92Schema13FindFileInputWithinDeadline(
         debuggee,
         context,
-        "SCHEMA13_STAGE_FILE_INPUT_LOOKUP_AFTER_REVEAL"
+        "SCHEMA13_STAGE_FILE_INPUT_LOOKUP_AFTER_REVEAL",
+        attachmentPaths.length > 1
       );
     }
     if (!objectId) throw new Error("PR9_2_FILE_INPUT_NOT_FOUND");
+
+    // A single-file input cannot accept the requested set in one chooser event.
+    // Prefer a multiple-enabled input; otherwise stage one at a time, requiring
+    // page-owned proof before moving to the next file.
+    let supportsMultiple = false;
+    if (attachmentPaths.length > 1) {
+      const capability = await _pr92Schema7RunUntil(
+        context.deadlineAt,
+        "SCHEMA13_STAGE_INPUT_MULTIPLE_READ",
+        () => chrome.debugger.sendCommand(debuggee, "Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function() { return this.type === 'file' && this.multiple === true; }",
+          returnByValue: true
+        })
+      );
+      supportsMultiple = capability?.result?.value === true;
+    }
+    const batches = supportsMultiple || attachmentPaths.length === 1
+      ? [attachmentPaths]
+      : attachmentPaths.map((path) => [path]);
 
     // The fence is the authority that makes a late/non-cancellable file selection
     // fail closed. Do not dispatch DOM.setFileInputFiles until persistence itself
@@ -193,20 +217,38 @@ async function _pr92Schema13StageFileSelection(tabId, attachmentPaths, context) 
       throw new Error("PR9_2_STALE_ATTACHMENT_FENCE_PERSIST_FAILED");
     }
 
-    await _pr92Schema7RunUntil(
-      context.deadlineAt,
-      "SCHEMA13_STAGE_FILE_SELECTION",
-      () => chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles", {
-        files: attachmentPaths,
-        objectId
-      })
-    );
+    for (let index = 0; index < batches.length; index += 1) {
+      if (index > 0) {
+        // ChatGPT can remount the input after each onChange; never reuse an
+        // objectId from the preceding selection.
+        await _pr92Schema7RunUntil(
+          context.deadlineAt,
+          "SCHEMA13_STAGE_INTERMEDIATE_OBJECT_RELEASE",
+          () => chrome.debugger.sendCommand(debuggee, "Runtime.releaseObject", { objectId })
+        );
+        objectId = null;
+        objectId = await _pr92Schema13FindFileInputWithinDeadline(
+          debuggee, context, "SCHEMA13_STAGE_FILE_INPUT_LOOKUP", false
+        );
+        if (!objectId) throw new Error("PR9_2_FILE_INPUT_NOT_FOUND");
+      }
+      const fileBatch = batches[index];
+      await _pr92Schema7RunUntil(
+        context.deadlineAt,
+        "SCHEMA13_STAGE_FILE_SELECTION",
+        () => chrome.debugger.sendCommand(debuggee, "DOM.setFileInputFiles", {
+          files: fileBatch,
+          objectId
+        })
+      );
 
-    await _pr92BoundedSleep(
-      context,
-      100,
-      "SCHEMA13_STAGE_SELECTION_SETTLE"
-    );
+      await _pr92BoundedSleep(context, 100, "SCHEMA13_STAGE_SELECTION_SETTLE");
+      if (batches.length > 1) {
+        await _pr92ClosureWaitForPageOwnedAttachmentEvidence(
+          debuggee, attachmentPaths.slice(0, index + 1), context, 1
+        );
+      }
+    }
 
     // A successful staging result must hand the post-stage observer a fully
     // detached debugger. Bound cleanup rather than fire-and-forget it, so normal

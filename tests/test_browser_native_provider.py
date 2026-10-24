@@ -170,3 +170,36 @@ def test_provider_preserves_bounded_post_delegation_identity_evidence(
     assert error.post_delegation_runtime_tab_id == 42
     assert error.post_delegation_recovery_continuation_observed is True
     assert error.post_delegation_observer_failure_probe_triggered is True
+
+
+def test_provider_marks_new_chat_route_as_lookup_candidate_only(monkeypatch) -> None:
+    provider = BrowserNativeTurnProvider()
+
+    def fake_rpc(payload, *, timeout, on_event=None):
+        return {
+            "protocol": 1,
+            "type": "turn_result",
+            "request_id": payload["request_id"],
+            "ok": False,
+            "error": (
+                "PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:"
+                "CHATGPT_CONVERSATION_REQUEST_FAILED:net::ERR_ABORTED"
+            ),
+            "postDelegationRequestCorrelationProven": True,
+            "postDelegationUserMessageId": "rich-user-1",
+            "postDelegationConversationId": "candidate-1",
+            "postDelegationRuntimeTabId": 73,
+            "postDelegationNewChatRouteCandidateOnly": True,
+        }
+
+    monkeypatch.setattr(provider, "_rpc", fake_rpc)
+
+    with pytest.raises(RequestError) as caught:
+        provider.send_text("prompt", timeout=2)
+
+    error = caught.value
+    assert error.post_delegation_request_correlation_proven is True
+    assert error.post_delegation_user_message_id == "rich-user-1"
+    assert error.post_delegation_conversation_id == "candidate-1"
+    assert error.post_delegation_runtime_tab_id == 73
+    assert error.post_delegation_new_chat_route_candidate_only is True

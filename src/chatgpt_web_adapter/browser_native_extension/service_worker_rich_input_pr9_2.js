@@ -210,32 +210,30 @@ async function _pr92BaseTryClearDirtyAttachmentFence() {
   }
 }
 
-function _pr92FindFileInputExpression() {
+function _pr92FindFileInputExpression(preferMultiple = false) {
   return `(() => {
     const seen = new Set();
+    const inputs = [];
     const visit = (root) => {
-      if (!root || seen.has(root)) return null;
+      if (!root || seen.has(root)) return;
       seen.add(root);
       try {
-        const direct = root.querySelector && root.querySelector('input[type="file"]');
-        if (direct) return direct;
-        const elements = root.querySelectorAll ? Array.from(root.querySelectorAll('*')) : [];
-        for (const element of elements) {
-          if (element && element.shadowRoot) {
-            const nested = visit(element.shadowRoot);
-            if (nested) return nested;
+        if (root.querySelectorAll) {
+          inputs.push(...root.querySelectorAll('input[type="file"]'));
+          for (const element of root.querySelectorAll('*')) {
+            if (element && element.shadowRoot) visit(element.shadowRoot);
           }
         }
       } catch {}
-      return null;
     };
-    return visit(document);
+    visit(document);
+    return ${preferMultiple ? "inputs.find((input) => input.multiple) || inputs[0]" : "inputs[0]"} || null;
   })()`;
 }
 
-async function _pr92FindFileInputObjectId(debuggee) {
+async function _pr92FindFileInputObjectId(debuggee, preferMultiple = false) {
   const result = await chrome.debugger.sendCommand(debuggee, "Runtime.evaluate", {
-    expression: _pr92FindFileInputExpression(),
+    expression: _pr92FindFileInputExpression(preferMultiple),
     returnByValue: false,
     awaitPromise: true
   });
@@ -414,6 +412,76 @@ async function _pr92RequireCleanAttachmentState(context) {
 // the core page turn. Hook immediately after it rather than staging in the outer
 // executeNativeTurn wrapper. This preserves PR8.11 recovery semantics while the
 // active PR9.2 context makes recovery + staging + dispatch share one deadline.
+// Recover page hydration once, only on an untouched dedicated new-chat tab.
+// This retries navigation/DOM mount, never file selection or a conversation
+// write. It must not run on a continuation, active UI, dirty fence or foreign
+// runtime tab. Failure to prove any condition retains the original failure.
+const PR92_PRESTAGE_MOUNT_RECOVERY_RESERVE_MS = 35_000;
+
+async function _pr92RecoverBlankNewChatPageOnce(tab, context, cause, createdForTurn) {
+  const detail = typeof cause?.message === "string" ? cause.message : String(cause);
+  if (!detail.startsWith("PR9_2_OFFICIAL_COMPOSER_MOUNT_NOT_OBSERVED:")) throw cause;
+  // A retained root tab might hold a draft the structural resolver cannot see.
+  // Only a tab created by this turn may be safely reloaded.
+  if (createdForTurn !== true) throw cause;
+  if (
+    context.staged === true ||
+    Number.isInteger(_pr92DirtyAttachmentTabId) ||
+    _pr92RemainingTurnMsOrZero(context) < PR92_PRESTAGE_MOUNT_RECOVERY_RESERVE_MS
+  ) throw cause;
+
+  const currentRuntimeId = await _pr92Schema7RunUntil(
+    context.deadlineAt,
+    "PRESTAGE_RECOVERY_RUNTIME_TAB_OWNER",
+    () => storedRuntimeTabId()
+  );
+  if (currentRuntimeId !== tab.id) throw cause;
+  const current = await _pr92Schema7RunUntil(
+    context.deadlineAt,
+    "PRESTAGE_RECOVERY_RUNTIME_TAB_RECHECK",
+    () => chrome.tabs.get(tab.id)
+  );
+  if (
+    !Number.isInteger(current?.id) ||
+    current.id !== tab.id ||
+    current.active === true ||
+    current.discarded === true ||
+    current.frozen === true ||
+    !isChatGPTUrl(current.url || "") ||
+    new URL(current.url).pathname !== "/" ||
+    new URL(current.url).search !== ""
+  ) throw cause;
+
+  // The first pre-stage observer has already awaited a real debugger detach.
+  // No durable attachment fence was persisted and no file-selection command ran.
+  // Use the existing turn-deadline-owned reload, with route proof after load.
+  await _pr92ReloadRuntimeTabWithinTurn(tab.id, null);
+  const reloaded = await _pr92Schema7RunUntil(
+    context.deadlineAt,
+    "PRESTAGE_RECOVERY_RELOADED_TAB",
+    () => chrome.tabs.get(tab.id)
+  );
+  const ownerAfter = await _pr92Schema7RunUntil(
+    context.deadlineAt,
+    "PRESTAGE_RECOVERY_RELOADED_OWNER",
+    () => storedRuntimeTabId()
+  );
+  if (
+    ownerAfter !== tab.id ||
+    reloaded?.id !== tab.id ||
+    reloaded.status !== "complete" ||
+    reloaded.active === true ||
+    reloaded.discarded === true ||
+    reloaded.frozen === true ||
+    !isChatGPTUrl(reloaded.url || "") ||
+    new URL(reloaded.url).pathname !== "/" ||
+    new URL(reloaded.url).search !== ""
+  ) {
+    throw new Error("PR9_2_PRESTAGE_RELOADED_RUNTIME_TAB_CHANGED");
+  }
+  _pr92RemainingTurnMs(context, "PRESTAGE_RECOVERY_RELOADED");
+}
+
 async function _pr92RecoverThenStage(message) {
   const recovery = await _pr811BaseMaybeRecoverStaleRuntimeUi(message);
   const context = _pr92ActiveRichInputContext;
@@ -426,15 +494,39 @@ async function _pr92RecoverThenStage(message) {
   const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
     ? message.conversationId.trim()
     : null;
+  // Record whether a runtime tab already existed before acquisition.
+  // A retained tab may contain a user draft even when Composer is not recognized.
+  const runtimeIdBefore = conversationId === null
+    ? await _pr92Schema7RunUntil(
+        context.deadlineAt,
+        "PRESTAGE_RUNTIME_TAB_PREEXISTENCE",
+        () => storedRuntimeTabId()
+      )
+    : null;
   const tab = await ensureRuntimeTab(conversationId);
+  const createdForTurn = conversationId === null && !Number.isInteger(runtimeIdBefore);
   _pr92RemainingTurnMs(context, "POST_RECOVERY_TAB");
   if (!Number.isInteger(tab?.id)) throw new Error("CHATGPT_RUNTIME_TAB_MISSING_ID");
 
-  const count = await _pr92StageOfficialPageAttachments(
-    tab.id,
-    context.attachmentPaths,
-    context
-  );
+  let count;
+  try {
+    count = await _pr92StageOfficialPageAttachments(
+      tab.id,
+      context.attachmentPaths,
+      context
+    );
+  } catch (error) {
+    // Only exact pre-staging composer-mount absence can use the one navigation
+    // recovery. The first staging call reached no file chooser or submit.
+    // Never retry after an ambiguous staging failure or a durable fence.
+    if (conversationId !== null) throw error;
+    await _pr92RecoverBlankNewChatPageOnce(tab, context, error, createdForTurn);
+    count = await _pr92StageOfficialPageAttachments(
+      tab.id,
+      context.attachmentPaths,
+      context
+    );
+  }
   context.staged = true;
   context.stagedTabId = tab.id;
   context.attachmentCount = count;
@@ -532,19 +624,55 @@ async function _executeNativeTurnWithPr92RichInput(message, next) {
       // cleanup. If the durable fence remains, surface cleanup-unproven and keep
       // the fence authoritative for the next turn/worker generation.
       const dirtyTabId = _pr92DirtyAttachmentTabId;
-      const cleanupBudget = _pr92RemainingTurnMsOrZero(context);
-      if (
-        Number.isInteger(dirtyTabId) &&
-        cleanupBudget > 0 &&
-        await _pr92ClearOfficialPageAttachments(dirtyTabId, cleanupBudget)
-      ) {
-        if (_pr92RemainingTurnMsOrZero(context) > 0) {
-          await _pr92TryClearDirtyAttachmentFence();
+      const detail = error instanceof Error ? error.message : String(error);
+      // Only this exact rejection is proven pre-submit: schema17 invokes the
+      // insertion proof before submitOfficialPageTurn. Once the turn fails,
+      // no further staging can race while the outer turn context remains held.
+      // Temporarily drop the active staged guard so the existing schema8
+      // ownership-checked stale-tab closer can run. It still requires current
+      // tab identity, matching session/local fence, and proven tab absence.
+      // All other/ambiguous errors keep the guard and their durable fence.
+      const provenPreSubmitRejection =
+        detail === "CWA_RICH_COMPOSER_TEXT_NOT_INSERTED" &&
+        context.staged === true &&
+        Number.isInteger(context.stagedTabId) &&
+        context.stagedTabId === dirtyTabId;
+      if (provenPreSubmitRejection) _pr92ActiveRichInputContext = null;
+      try {
+        const cleanupBudget = _pr92RemainingTurnMsOrZero(context);
+        if (
+          Number.isInteger(dirtyTabId) &&
+          cleanupBudget > 0 &&
+          await _pr92ClearOfficialPageAttachments(dirtyTabId, cleanupBudget)
+        ) {
+          if (_pr92RemainingTurnMsOrZero(context) > 0) {
+            await _pr92TryClearDirtyAttachmentFence();
+          }
         }
+      } finally {
+        if (provenPreSubmitRejection) _pr92ActiveRichInputContext = context;
       }
       if (Number.isInteger(_pr92DirtyAttachmentTabId)) {
         const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:${detail}`);
+        const wrapped = new Error(
+          `PR9_2_DOWNSTREAM_FAILED_AND_ATTACHMENT_CLEANUP_UNPROVEN:${detail}`
+        );
+        // Preserve only the bounded, internally proven recovery metadata.
+        // The durable attachment fence remains untouched.
+        if (error?.cwaPostDelegationRequestCorrelationProven === true) {
+          for (const name of [
+            "cwaPostDelegationRequestCorrelationProven",
+            "cwaPostDelegationUserMessageId",
+            "cwaPostDelegationConversationId",
+            "cwaPostDelegationRuntimeTabId",
+            "cwaPostDelegationNewChatRouteCandidateOnly"
+          ]) {
+            if (Object.prototype.hasOwnProperty.call(error, name)) {
+              wrapped[name] = error[name];
+            }
+          }
+        }
+        throw wrapped;
       }
       throw error;
     } finally {

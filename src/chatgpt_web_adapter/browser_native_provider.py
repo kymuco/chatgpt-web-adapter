@@ -371,6 +371,9 @@ class BrowserNativeTurnProvider:
                         response.get("postDelegationObserverFailureProbeTriggered")
                         is True
                     )
+                    request_error.post_delegation_new_chat_route_candidate_only = (
+                        response.get("postDelegationNewChatRouteCandidateOnly") is True
+                    )
                     raise request_error
             raise RequestError(error, request_stage="browser_native_turn")
         result_conversation_id = response.get("conversationId")

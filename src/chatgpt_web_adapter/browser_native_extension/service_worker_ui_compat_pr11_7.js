@@ -180,16 +180,178 @@ async function _pr117LocateAndFocusComposer(debuggee) {
   return 'pr11_7_structural_dom_fallback';
 }
 
-function _pr117StructuralSubmitPointExpression() {
+function _pr117RichComposerFocusExpression() {
   const resolver = _pr117ComposerResolverSource();
   return `(() => {
+    const resolveComposer = ${resolver};
+    const composer = resolveComposer();
+    if (!composer) return false;
+    composer.focus();
+    return document.activeElement === composer;
+  })()`;
+}
+
+async function _pr117FocusRichComposerWithProof(debuggee) {
+  const result = await sendCommand(debuggee, 'Runtime.evaluate', {
+    expression: _pr117RichComposerFocusExpression(),
+    returnByValue: true,
+    awaitPromise: true
+  });
+  if (result?.result?.value !== true) {
+    throw new Error('CWA_RICH_COMPOSER_FOCUS_NOT_PROVEN');
+  }
+  return 'pr11_7_structural_composer_focus_proven';
+}
+
+// Read-only observation: a rich editor may encode line breaks as distinct
+// Lexical paragraphs. textContent concatenates paragraphs; innerText may add
+// extra breaks. Prove exact logical text using a restricted DOM grammar.
+function _pr117RichComposerTextObservationExpression(text) {
+  const resolver = _pr117ComposerResolverSource();
+  const expected = JSON.stringify(text);
+  return `(() => {
+    const resolveComposer = ${resolver};
+    const composer = resolveComposer();
+    const expected = ${expected};
+    const comparable = (value) =>
+      typeof value === 'string' ? value.replace(/\\r\\n/g, '\\n') : null;
+    const exact = (value) =>
+      comparable(value) !== null && comparable(value) === comparable(expected);
+    if (!composer) {
+      return { passed: false, composerFound: false, focusMatches: false,
+        directExact: false, renderedExact: false, structuredExact: false,
+        structureSupported: false, paragraphCount: 0 };
+    }
+    const raw = typeof composer.textContent === 'string'
+      ? composer.textContent : null;
+    const rendered = typeof composer.innerText === 'string'
+      ? composer.innerText : null;
+    let structureSupported = true;
+    const blocks = new Set(['P', 'DIV']);
+    const inline = new Set(['SPAN', 'STRONG', 'EM', 'B', 'I', 'U', 'A']);
+    const visit = (node) => {
+      if (node?.nodeType === 3) return node.nodeValue ?? '';
+      if (node?.nodeType !== 1) {
+        structureSupported = false;
+        return '';
+      }
+      const tag = String(node.tagName || '').toUpperCase();
+      if (tag === 'BR') return '\\n';
+      if (!blocks.has(tag) && !inline.has(tag)) {
+        structureSupported = false;
+        return '';
+      }
+      const nodes = Array.from(node.childNodes || []);
+      // Lexical empty paragraphs use a placeholder <br>, not a newline.
+      if (blocks.has(tag) && nodes.length === 1 &&
+          nodes[0]?.nodeType === 1 &&
+          String(nodes[0].tagName || '').toUpperCase() === 'BR') {
+        return '';
+      }
+      return childrenText(nodes);
+    };
+    const childrenText = (children) => {
+      const nodes = Array.from(children || []);
+      const count = nodes.filter((node) =>
+        node?.nodeType === 1 &&
+        blocks.has(String(node.tagName || '').toUpperCase())
+      ).length;
+      // Mixed block/inline siblings are ambiguous: never invent breaks.
+      if (count && count !== nodes.length) {
+        structureSupported = false;
+        return '';
+      }
+      return nodes.map((node) => visit(node)).join(count ? '\\n' : '');
+    };
+    const topLevelNodes = Array.from(composer.childNodes || []);
+    if (!topLevelNodes.length) structureSupported = false;
+    const structural = structureSupported ? childrenText(topLevelNodes) : '';
+    const directExact = exact(raw);
+    const renderedExact = exact(rendered);
+    const structuredExact = structureSupported && exact(structural);
+    return {
+      passed: directExact || renderedExact || structuredExact,
+      composerFound: true,
+      focusMatches: document.activeElement === composer,
+      directExact,
+      renderedExact,
+      structuredExact,
+      structureSupported,
+      paragraphCount: topLevelNodes.filter((node) =>
+        node?.nodeType === 1 &&
+        blocks.has(String(node.tagName || '').toUpperCase())
+      ).length
+    };
+  })()`;
+}
+
+function _pr117RichComposerTextProofExpression(text) {
+  // Focus was proven immediately before typing. Losing focus after
+  // insertion must not invalidate exact content proof or permit modified text.
+  return `(${_pr117RichComposerTextObservationExpression(text)}).passed`;
+}
+
+// The page can remount its Lexical editor while attachments are processed.
+// A browser debugger insertion acknowledgement is not synchronous DOM render proof.
+// Observe only; do not type again or send until two stable, exact reads agree.
+const PR117_RICH_TEXT_PROOF_SETTLE_CAP_MS = 15_000;
+const PR117_RICH_TEXT_PROOF_POLL_MS = 200;
+
+async function _pr117RequireRichInsertedTextProof(debuggee, text) {
+  const startedAt = performance.now();
+  let consecutiveExact = 0;
+  let lastEvidence = null;
+  const expression = _pr117RichComposerTextObservationExpression(text);
+  while (performance.now() - startedAt < PR117_RICH_TEXT_PROOF_SETTLE_CAP_MS) {
+    const result = await sendCommand(debuggee, 'Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true
+    });
+    const evidence = result?.result?.value;
+    lastEvidence = evidence && typeof evidence === 'object'
+      ? evidence : null;
+    if (lastEvidence?.passed === true) {
+      consecutiveExact += 1;
+      if (consecutiveExact >= 2) return true;
+    } else {
+      consecutiveExact = 0;
+    }
+    const remaining = PR117_RICH_TEXT_PROOF_SETTLE_CAP_MS -
+      (performance.now() - startedAt);
+    if (remaining <= 0) break;
+    await sleep(Math.min(PR117_RICH_TEXT_PROOF_POLL_MS, remaining));
+  }
+
+  // Safe bounded diagnostics: no composer text, file names, or prompt content.
+  // Keep the error code stable for the existing pre-submit guarded cleanup.
+  const diagnostic = {
+    composerFound: lastEvidence?.composerFound === true,
+    focusMatches: lastEvidence?.focusMatches === true,
+    directExact: lastEvidence?.directExact === true,
+    renderedExact: lastEvidence?.renderedExact === true,
+    structuredExact: lastEvidence?.structuredExact === true,
+    structureSupported: lastEvidence?.structureSupported === true,
+    paragraphCount: Number.isInteger(lastEvidence?.paragraphCount)
+      ? lastEvidence.paragraphCount : null,
+    attemptedStableReads: consecutiveExact
+  };
+  console.warn('CWA_RICH_COMPOSER_PROOF_READ_ONLY', diagnostic);
+  // Fail before delegated protected submit; no retry, no text rewrite.
+  throw new Error('CWA_RICH_COMPOSER_TEXT_NOT_INSERTED');
+}
+
+function _pr117StructuralSubmitButtonResolverSource() {
+  // Shared DOM authority for the ordinary-text discovery point and rich-input's
+  // atomic page-owned click. The discovery selector is NOT a CSS selector.
+  const resolver = _pr117ComposerResolverSource();
+  return `() => {
     const resolveComposer = ${resolver};
     const composer = resolveComposer();
     if (!composer) return null;
     const scope = composer.closest('form') ||
       composer.closest('[data-testid*="composer"]');
     if (!scope) return null;
-
     const usable = (button) => {
       if (!(button instanceof Element)) return false;
       const rect = button.getBoundingClientRect();
@@ -215,7 +377,16 @@ function _pr117StructuralSubmitPointExpression() {
       ? semantic
       : all.filter((button) => button.getAttribute('type') === 'submit');
     if (candidates.length !== 1) return null;
-    const button = candidates[0];
+    return candidates[0];
+  }`;
+}
+
+function _pr117StructuralSubmitPointExpression() {
+  const buttonResolver = _pr117StructuralSubmitButtonResolverSource();
+  return `(() => {
+    const resolveButton = ${buttonResolver};
+    const button = resolveButton();
+    if (!button) return null;
     const rect = button.getBoundingClientRect();
     return {
       selector: 'pr11_7_structural_submit_control',

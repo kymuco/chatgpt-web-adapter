@@ -184,7 +184,17 @@ class ChatGPTProductRuntime(_core.ChatGPTProductRuntime):
     def get_conversation_snapshot(
         self, conversation: Any
     ) -> CanonicalConversationSnapshot:
-        reader = getattr(self.canonical, "get_conversation_snapshot", None)
+        # The browser-owned writer uses Chrome's authenticated canonical read
+        # plane. Public read-only snapshots must use that same plane rather than
+        # silently falling back to the browserless source client.
+        read_client = self.canonical
+        if getattr(self, "transport", None) == "browser-owned":
+            read_client = getattr(
+                getattr(self, "write_transport", None),
+                "canonical_client",
+                read_client,
+            )
+        reader = getattr(read_client, "get_conversation_snapshot", None)
         if not callable(reader):
             raise TypeError(
                 "canonical client does not expose get_conversation_snapshot()"
