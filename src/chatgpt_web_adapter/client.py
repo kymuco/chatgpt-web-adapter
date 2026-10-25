@@ -32,6 +32,7 @@ from .export import export_conversation as _export_conversation
 from .generated_artifact_handoff import (
     handoff_generated_artifact as _handoff_generated_artifact,
 )
+from .generated_images import get_generated_images as _get_generated_images
 from .model_registry import (
     DEFAULT_MODEL as DEFAULT_MODEL,
 )
@@ -306,6 +307,7 @@ class ChatGPTWebClient(_core.ChatGPTWebClient):
     export_conversation = _export_conversation
     get_conversation_snapshot = _get_conversation_snapshot
     get_deep_research = _get_deep_research
+    get_generated_images = _get_generated_images
     get_messages = _get_messages_v2
     get_pending_approval = _get_pending_approval
     get_required_action = _get_required_action
