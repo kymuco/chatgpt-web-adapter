@@ -157,9 +157,7 @@ def test_exact_pre_submit_abort_can_clear_only_after_proven_tab_absence() -> Non
     assert result["ambiguousFailure"]["calls"] == [["close", 73, False, False]]
     assert result["retainedTab"]["calls"] == [["close", 73, False, False]]
     assert result["armed"]["calls"] == [["close", 73, False, False]]
-    assert result["previouslyActivated"]["calls"] == [
-        ["close", 73, False, False]
-    ]
+    assert result["previouslyActivated"]["calls"] == [["close", 73, False, False]]
     for value in result.values():
         assert value["active"] is False
         assert value["turnActive"] is False
