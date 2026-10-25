@@ -24,7 +24,7 @@ python                  3.10-3.14
 Audited `main` at `1b47d258f34047465c3fa148bf29711744f82ce8`
 (2026-10-25) passed 16/16 CI checks, including exact-wheel smoke. It includes
 Deep Research #227/#228 and generated-image readback #229 in addition to the
-post-0.3 provider/Qwen and HTTP additions. Published PyPI remains `v0.3.0`
+post-0.3 provider/Qwen and HTTP additions. The newest published package remains `v0.3.0`
 (2026-09-01); its wheel does **not** include these newly merged features.
 
 ## Proposed v0.4.0 scope and readiness (audit: 2026-10-25)
