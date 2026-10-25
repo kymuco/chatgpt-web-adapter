@@ -167,6 +167,64 @@ def test_installed_smoke_source_version_parser_is_project_scoped(
     assert installed_wheel_smoke.source_project_version(pyproject) == VERSION
 
 
+def test_post_0_3_modules_required_in_wheel_and_sdist() -> None:
+    for name in (
+        "client.py",
+        "browserless_http.py",
+        "deep_research.py",
+        "generated_images.py",
+        "generated_artifact_handoff.py",
+    ):
+        assert f"chatgpt_web_adapter/{name}" in release_gate.REQUIRED_WHEEL_FILES
+        assert (
+            f"/src/chatgpt_web_adapter/{name}" in release_gate.REQUIRED_SDIST_SUFFIXES
+        )
+
+
+def test_installed_smoke_checks_all_four_console_scripts() -> None:
+    assert len(installed_wheel_smoke.EXPECTED_ENTRY_POINTS) == 4
+    assert (
+        installed_wheel_smoke.EXPECTED_ENTRY_POINTS["qwen-web-adapter-native-host"]
+        == release_gate.EXPECTED_ENTRY_POINTS["qwen-web-adapter-native-host"]
+    )
+
+
+def test_candidate_installed_sdk_contract_matches_source() -> None:
+    import chatgpt_web_adapter as package
+
+    report = installed_wheel_smoke._validate_post_0_3_candidate_surface(
+        Path(package.__file__).resolve().parent
+    )
+    assert report == {
+        "modules": 5,
+        "methods": [
+            "get_deep_research",
+            "get_generated_images",
+            "handoff_generated_artifact",
+        ],
+    }
+
+
+def test_candidate_installed_sdk_fails_closed_on_method_drift(monkeypatch) -> None:
+    import chatgpt_web_adapter as package
+    from chatgpt_web_adapter.client import ChatGPTWebClient
+
+    monkeypatch.delattr(ChatGPTWebClient, "get_generated_images")
+    with pytest.raises(RuntimeError, match="ChatGPT client method mismatch"):
+        installed_wheel_smoke._validate_post_0_3_candidate_surface(
+            Path(package.__file__).resolve().parent
+        )
+
+
+def test_candidate_installed_sdk_rejects_unexpected_module_origin() -> None:
+    import chatgpt_web_adapter as package
+
+    with pytest.raises(RuntimeError, match="not from installed package"):
+        installed_wheel_smoke._validate_post_0_3_candidate_surface(
+            Path(package.__file__).resolve().parent / "another-root"
+        )
+
+
 def test_release_gate_accepts_complete_wheel_and_sdist(tmp_path: Path) -> None:
     root = _root(tmp_path)
     dist = _write_dist(root)

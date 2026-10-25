@@ -427,7 +427,7 @@ modules **without promoting any experimental support tier**.
 
 Before a `0.4.0` version bump or tag: reconcile rich-input #211; fix or
 explicitly disposition read-deadline #168; confirm whether the canonical-500
-read fallback #221 is necessary; extend installed-wheel gates for new entrypoints;
+read fallback #221 is necessary; reconfirm the expanded installed-wheel gate for new entrypoints;
 and finalize version/changelog/release notes from one exact validated commit.
 Linux Qwen draft #217 awaits its own E2E and is not silently included. #114,
 #172, and pending Qwen draft branches are independent follow-ups.

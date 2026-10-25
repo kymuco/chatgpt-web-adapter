@@ -87,10 +87,13 @@ The smoke installs the **exact wheel with `[browser]` enabled** in a fresh isola
 
 CI runs this installed-wheel smoke on Linux and Windows with Python 3.10 and 3.14 after the full Python 3.10-3.14 source-test matrix on both operating systems.
 
-For a prospective `0.4.0` candidate, add **exact installed-wheel** checks for
-newly shipped public entrypoints (opt-in Direct HTTP, Deep Research, generated
-images and governed handoff). This is **not yet covered** by the 0.3-frozen
-smoke; green CI alone is not proof of the additional planned gate.
+The prospective `0.4.0` source candidate now checks **four installed console
+scripts**, including Qwen Native Host, plus the selected experimental HTTP,
+Deep Research, generated-image readback, and governed handoff modules. Each
+must import from the installed distribution and expose the exact expected
+client methods; the release artifact gate requires those modules in both wheel
+and sdist. This is import/contract verification only: **no client construction,
+browser launch, login, or product request**. The 0.3 stable checks remain intact.
 
 ## 5. Live product verification
 

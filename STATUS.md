@@ -53,9 +53,10 @@ artifact handoff downloaded a PNG with exact byte/SHA-256 verification.
    429 backoff deadline escape in [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168).
 3. Assess the observed canonical HTTP 500 from [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221)
    using current product evidence; the draft's fallback is not a proven cure.
-4. Extend the exact installed-wheel release gate to **import and exercise the
-   new selected public entrypoints** (experimental HTTP client, research/image
-   readback, and governed handoff); the current smoke targets the 0.3 freeze.
+4. Reconfirm the expanded exact-wheel release gate (all four console scripts,
+   new Direct HTTP, research/image readback, and governed handoff modules) on the
+   exact versioned candidate. The import-only check verifies packaging, not
+   product protocol compatibility.
 5. Finalize scope/tiers, dated release notes, version and matching tag on an
    exact clean candidate SHA, then repeat the full build/publish gates and
    any specifically necessary live checks before a separate release decision.

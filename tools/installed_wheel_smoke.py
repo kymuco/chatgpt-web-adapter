@@ -17,6 +17,7 @@ EXPECTED_ENTRY_POINTS = {
     "cwa": "chatgpt_web_adapter.cli_v02:main",
     "chatgpt-web-adapter": "chatgpt_web_adapter.cli_v02:main",
     "chatgpt-web-adapter-native-host": "chatgpt_web_adapter.browser_native_host:main",
+    "qwen-web-adapter-native-host": "chatgpt_web_adapter.qwen_native:host_main",
 }
 HELP_COMMANDS = (
     ("cwa", "--help"),
@@ -181,6 +182,60 @@ def _validate_installed_0_3_surface(package: object) -> dict[str, object]:
     }
 
 
+def _validate_post_0_3_candidate_surface(package_dir: Path) -> dict[str, object]:
+    """Validate selected HTTP/readback entrypoints from the installed package.
+
+    Import and inspect only: no client construction, credentials, or network.
+    """
+
+    module_names = (
+        "chatgpt_web_adapter.client",
+        "chatgpt_web_adapter.browserless_http",
+        "chatgpt_web_adapter.deep_research",
+        "chatgpt_web_adapter.generated_images",
+        "chatgpt_web_adapter.generated_artifact_handoff",
+    )
+    modules = {}
+    for name in module_names:
+        module = importlib.import_module(name)
+        origin = getattr(module, "__file__", None)
+        if origin is None or Path(origin).resolve().parent != package_dir.resolve():
+            raise RuntimeError(f"candidate SDK module not from installed package: {name}")
+        modules[name.rsplit(".", 1)[-1]] = module
+
+    client = modules["client"].ChatGPTWebClient
+    http = modules["browserless_http"].BrowserlessHTTPClient
+    if not isinstance(http, type) or not issubclass(http, client):
+        raise RuntimeError("installed Direct HTTP client inheritance mismatch")
+    if not callable(getattr(http, "send", None)):
+        raise RuntimeError("installed Direct HTTP send is missing")
+
+    methods = {
+        "get_deep_research": modules["deep_research"].get_deep_research,
+        "get_generated_images": modules["generated_images"].get_generated_images,
+        "handoff_generated_artifact": modules[
+            "generated_artifact_handoff"
+        ].handoff_generated_artifact,
+    }
+    for name, implementation in methods.items():
+        if not callable(implementation):
+            raise RuntimeError(f"candidate SDK implementation missing: {name}")
+        if getattr(client, name, None) is not implementation:
+            raise RuntimeError(f"installed ChatGPT client method mismatch: {name}")
+        if getattr(http, name, None) is not implementation:
+            raise RuntimeError(f"installed HTTP client method mismatch: {name}")
+
+    for name, module_name in (
+        ("DeepResearchObservation", "deep_research"),
+        ("GeneratedImageObservation", "generated_images"),
+        ("GeneratedArtifactHandoffResult", "generated_artifact_handoff"),
+    ):
+        if not isinstance(getattr(modules[module_name], name, None), type):
+            raise RuntimeError(f"candidate SDK observation type missing: {name}")
+
+    return {"modules": len(module_names), "methods": sorted(methods)}
+
+
 def _has_browser_extra_requirement(requirements: list[str]) -> bool:
     """Check the installed wheel advertises the browser extra in metadata."""
 
@@ -239,6 +294,7 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         raise RuntimeError("installed artifact manifest contract is missing")
 
     product_surface = _validate_installed_0_3_surface(package)
+    candidate_surface = _validate_post_0_3_candidate_surface(package_path.parent)
 
     from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
 
@@ -313,6 +369,7 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         "help_commands": len(HELP_COMMANDS),
         "pre_setup_doctor_exit": 1,
         "product_surface": product_surface,
+        "candidate_surface": candidate_surface,
         "browser_extra": _validate_browser_extra(),
     }
 
