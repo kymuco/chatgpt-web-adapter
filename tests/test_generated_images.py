@@ -46,6 +46,7 @@ def _payload(*, parts=None, marker=True, alternate=False):
             "message": {
                 **tool,
                 "id": "other-tool",
+                "metadata": {"image_gen_title": "Off-branch generated image"},
             },
         }
     return {"mapping": mapping, "current_node": "final"}
