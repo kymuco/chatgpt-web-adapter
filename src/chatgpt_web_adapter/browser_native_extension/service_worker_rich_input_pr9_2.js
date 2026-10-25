@@ -496,6 +496,22 @@ async function _pr92RecoverThenStage(message) {
   const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
     ? message.conversationId.trim()
     : null;
+  // Record activation of a fresh runtime tab from BEFORE acquisition until
+  // this entire turn ends. Current inactive state alone cannot rule out a
+  // user who opened the tab earlier and started drafting.
+  if (
+    conversationId === null &&
+    typeof chrome.tabs?.onActivated?.addListener === "function" &&
+    typeof chrome.tabs.onActivated.removeListener === "function"
+  ) {
+    context.prewriteActivatedTabIds = new Set();
+    context.prewriteActivationListener = (activeInfo) => {
+      if (Number.isInteger(activeInfo?.tabId)) {
+        context.prewriteActivatedTabIds.add(activeInfo.tabId);
+      }
+    };
+    chrome.tabs.onActivated.addListener(context.prewriteActivationListener);
+  }
   // Record whether a runtime tab already existed before acquisition.
   // A retained tab may contain a user draft even when Composer is not recognized.
   const runtimeIdBefore = conversationId === null
@@ -635,6 +651,9 @@ async function _executeNativeTurnWithPr92RichInput(message, next) {
         Number.isInteger(dirtyTabId) &&
         context.stagedTabId === dirtyTabId &&
         context.prewriteCleanupOwnedTabId === dirtyTabId &&
+        typeof context.prewriteActivationListener === "function" &&
+        typeof context.prewriteActivatedTabIds?.has === "function" &&
+        context.prewriteActivatedTabIds.has(dirtyTabId) !== true &&
         context.schema20ProtectedSubmitArmed === false &&
         context.schema20ProtectedSubmitMarkerObserved === false &&
         Array.isArray(context.schema20PostArmConversationRequests) &&
@@ -672,6 +691,11 @@ async function _executeNativeTurnWithPr92RichInput(message, next) {
       _pr92ActiveRichInputContext = null;
     }
   } finally {
+    if (typeof context.prewriteActivationListener === "function") {
+      try {
+        chrome.tabs.onActivated.removeListener(context.prewriteActivationListener);
+      } catch {}
+    }
     _pr92ActiveTurnContext = null;
   }
 };

@@ -27,7 +27,8 @@ if (end < 0) throw new Error("owner end missing");
 const functionSource = owner.slice(start, end + 3);
 
 async function runCase(
-  error, stagedTabId, closerProvesAbsent, fresh = true, armed = false
+  error, stagedTabId, closerProvesAbsent,
+  fresh = true, armed = false, activated = false
 ) {
   const calls = [];
   const context = {
@@ -35,6 +36,8 @@ async function runCase(
     schema20ProtectedSubmitArmed: armed,
     schema20ProtectedSubmitMarkerObserved: false,
     schema20PostArmConversationRequests: [],
+    prewriteActivationListener: () => {},
+    prewriteActivatedTabIds: new Set(),
     staged: false,
     stagedTabId: null,
     attachmentCount: 0
@@ -80,6 +83,7 @@ async function runCase(
         context.staged = true;
         context.stagedTabId = stagedTabId;
         context.prewriteCleanupOwnedTabId = fresh ? stagedTabId : null;
+        if (activated) context.prewriteActivatedTabIds.add(stagedTabId);
         context.attachmentCount = 3;
         throw new Error(error);
       }
@@ -105,7 +109,8 @@ async function runCase(
     mismatchedTab: await runCase(proofError, 74, true),
     ambiguousFailure: await runCase("NETWORK_FAILURE_UNKNOWN", 73, true),
     retainedTab: await runCase(proofError, 73, true, false),
-    armed: await runCase(proofError, 73, true, true, true)
+    armed: await runCase(proofError, 73, true, true, true),
+    previouslyActivated: await runCase(proofError, 73, true, true, false, true)
   }));
 })().catch((err) => {
   console.error(err);
@@ -138,6 +143,7 @@ def test_exact_pre_submit_abort_can_clear_only_after_proven_tab_absence() -> Non
         "ambiguousFailure",
         "retainedTab",
         "armed",
+        "previouslyActivated",
     ):
         outcome = result[case]
         assert outcome["fenceTabId"] == 73, (case, outcome)
@@ -151,6 +157,9 @@ def test_exact_pre_submit_abort_can_clear_only_after_proven_tab_absence() -> Non
     assert result["ambiguousFailure"]["calls"] == [["close", 73, False, False]]
     assert result["retainedTab"]["calls"] == [["close", 73, False, False]]
     assert result["armed"]["calls"] == [["close", 73, False, False]]
+    assert result["previouslyActivated"]["calls"] == [
+        ["close", 73, False, False]
+    ]
     for value in result.values():
         assert value["active"] is False
         assert value["turnActive"] is False
