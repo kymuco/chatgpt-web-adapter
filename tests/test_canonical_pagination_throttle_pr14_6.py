@@ -70,7 +70,6 @@ def _node_throttle_harness(mode: str) -> dict:
     script = r"""
 const fs = require("node:fs");
 const vm = require("node:vm");
-const crypto = require("node:crypto");
 const source = fs.readFileSync(process.argv[1], "utf8");
 const mode = process.argv[2];
 let now = 0;
@@ -115,7 +114,7 @@ const page = {
   clearTimeout: clearFakeTimeout,
   performance: { now: () => now },
   URL, Headers, TextEncoder, TextDecoder, Uint8Array,
-  crypto: crypto.webcrypto,
+  crypto: { subtle: { digest: async () => new Uint8Array(32).buffer } },
   btoa: (text) => Buffer.from(text, "binary").toString("base64"),
   fetch: async (url, options) => {
     const parsed = new URL(String(url));
@@ -238,9 +237,10 @@ vm.runInContext(source, extension);
         ["node", "-e", script, str(CANONICAL), mode],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
         timeout=10,
     )
+    assert completed.returncode == 0, completed.stderr
     return json.loads(completed.stdout)
 
 
