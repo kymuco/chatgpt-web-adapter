@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -15,7 +14,9 @@ def test_schema_24_overlay_is_loaded_after_schema_23_and_before_diagnostic():
     text = LOADER.read_text(encoding="utf-8")
     schema23 = 'importScripts("service_worker_rich_input_schema23_repair_pr9_2.js");'
     schema24 = 'importScripts("service_worker_rich_input_schema24_repair_pr9_2.js");'
-    diagnostic = 'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
+    diagnostic = (
+        'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
+    )
     assert schema23 in text
     assert schema24 in text
     assert diagnostic in text
@@ -25,9 +26,13 @@ def test_schema_24_overlay_is_loaded_after_schema_23_and_before_diagnostic():
 def test_schema_24_waits_for_official_composer_mount_via_production_evidence_reader():
     text = SCHEMA24.read_text(encoding="utf-8")
     runtime_enable = text.index("SCHEMA24_PRESTAGE_CLEAN_RUNTIME_ENABLE")
-    mount_wait = text.index("_pr92Schema24WaitForOfficialComposerMounted", runtime_enable)
+    mount_wait = text.index(
+        "_pr92Schema24WaitForOfficialComposerMounted", runtime_enable
+    )
     assert runtime_enable < mount_wait
-    helper_start = text.index("async function _pr92Schema24WaitForOfficialComposerMounted")
+    helper_start = text.index(
+        "async function _pr92Schema24WaitForOfficialComposerMounted"
+    )
     helper_end = text.index("function _pr92Schema24EvidenceIsClean", helper_start)
     helper = text[helper_start:helper_end]
     assert "_pr92ClosureReadPageOwnedAttachmentEvidence" in helper
@@ -50,7 +55,7 @@ def test_schema_24_preserves_exact_fail_closed_clean_evidence_after_mount():
 
 def test_schema_24_first_mount_evidence_is_first_authoritative_clean_poll():
     text = SCHEMA24.read_text(encoding="utf-8")
-    assert "let evidence = await _pr92Schema24WaitForOfficialComposerMounted" in text
+    assert "evidence = await _pr92Schema24WaitForOfficialComposerMounted" in text
     assert "if (!_pr92Schema24EvidenceIsClean(evidence))" in text
     assert "stable += 1" in text
     assert "evidence = await _pr92ClosureReadPageOwnedAttachmentEvidence" in text
@@ -84,7 +89,9 @@ def test_schema_24_gate_preserves_schema_23_and_requires_new_fields():
 
 def test_schema_24_support_probe_is_eighteenth_no_write_characterization_rpc():
     text = GATE24.read_text(encoding="utf-8")
-    assert "Eighteenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Eighteenth characterization-only RPC: no text and no attachment paths." in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]
