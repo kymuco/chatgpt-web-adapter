@@ -496,6 +496,22 @@ async function _pr92RecoverThenStage(message) {
   const conversationId = typeof message?.conversationId === "string" && message.conversationId.trim()
     ? message.conversationId.trim()
     : null;
+  // Record activation of a fresh runtime tab from BEFORE acquisition until
+  // this entire turn ends. Current inactive state alone cannot rule out a
+  // user who opened the tab earlier and started drafting.
+  if (
+    conversationId === null &&
+    typeof chrome.tabs?.onActivated?.addListener === "function" &&
+    typeof chrome.tabs.onActivated.removeListener === "function"
+  ) {
+    context.prewriteActivatedTabIds = new Set();
+    context.prewriteActivationListener = (activeInfo) => {
+      if (Number.isInteger(activeInfo?.tabId)) {
+        context.prewriteActivatedTabIds.add(activeInfo.tabId);
+      }
+    };
+    chrome.tabs.onActivated.addListener(context.prewriteActivationListener);
+  }
   // Record whether a runtime tab already existed before acquisition.
   // A retained tab may contain a user draft even when Composer is not recognized.
   const runtimeIdBefore = conversationId === null
@@ -532,6 +548,8 @@ async function _pr92RecoverThenStage(message) {
   context.staged = true;
   context.stagedTabId = tab.id;
   context.attachmentCount = count;
+  // Never grant proof-failure cleanup for a retained or user-owned draft tab.
+  context.prewriteCleanupOwnedTabId = createdForTurn ? tab.id : null;
 
   // The prior core worker snapshots message.timeoutMs only after this recovery
   // hook returns. Hand it the remaining outer budget, not a fresh full turn.
@@ -622,19 +640,47 @@ async function _executeNativeTurnWithPr92RichInput(message, next) {
         attachmentCount: context.attachmentCount
       };
     } catch (error) {
-      // No retry after delegation. Spend only remaining budget on best-effort
-      // cleanup. If the durable fence remains, surface cleanup-unproven and keep
-      // the fence authoritative for the next turn/worker generation.
+      // No replay after delegation. Exact text-proof failure happens before the
+      // protected submit; the schema20 marker and POST evidence must still be
+      // explicitly absent before temporary cleanup authority can be granted.
       const dirtyTabId = _pr92DirtyAttachmentTabId;
-      const cleanupBudget = _pr92RemainingTurnMsOrZero(context);
-      if (
+      const detail = error instanceof Error ? error.message : String(error);
+      const provenPreSubmitRejection =
+        detail === "CWA_RICH_COMPOSER_TEXT_NOT_INSERTED" &&
+        context.staged === true &&
         Number.isInteger(dirtyTabId) &&
-        cleanupBudget > 0 &&
-        await _pr92ClearOfficialPageAttachments(dirtyTabId, cleanupBudget)
-      ) {
-        if (_pr92RemainingTurnMsOrZero(context) > 0) {
-          await _pr92TryClearDirtyAttachmentFence();
+        context.stagedTabId === dirtyTabId &&
+        context.prewriteCleanupOwnedTabId === dirtyTabId &&
+        typeof context.prewriteActivationListener === "function" &&
+        typeof context.prewriteActivatedTabIds?.has === "function" &&
+        context.prewriteActivatedTabIds.has(dirtyTabId) !== true &&
+        context.schema20ProtectedSubmitArmed === false &&
+        context.schema20ProtectedSubmitMarkerObserved === false &&
+        Array.isArray(context.schema20PostArmConversationRequests) &&
+        context.schema20PostArmConversationRequests.length === 0;
+
+      // Schema8 normally refuses cleanup of a staged rich-input tab. Relax only
+      // that guard for this independently proven pre-submit rejection. The
+      // outer turn remains busy and cleanup must prove an untouched inactive
+      // root tab, then revalidate runtime/fence authority before removal.
+      if (provenPreSubmitRejection) _pr92ActiveRichInputContext = null;
+      try {
+        const cleanupBudget = _pr92RemainingTurnMsOrZero(context);
+        if (
+          Number.isInteger(dirtyTabId) &&
+          cleanupBudget > 0 &&
+          await _pr92ClearOfficialPageAttachments(
+            dirtyTabId,
+            cleanupBudget,
+            { requireUntouchedRootInactive: provenPreSubmitRejection }
+          )
+        ) {
+          if (_pr92RemainingTurnMsOrZero(context) > 0) {
+            await _pr92TryClearDirtyAttachmentFence();
+          }
         }
+      } finally {
+        if (provenPreSubmitRejection) _pr92ActiveRichInputContext = context;
       }
       if (Number.isInteger(_pr92DirtyAttachmentTabId)) {
         const detail = error instanceof Error ? error.message : String(error);
@@ -645,6 +691,11 @@ async function _executeNativeTurnWithPr92RichInput(message, next) {
       _pr92ActiveRichInputContext = null;
     }
   } finally {
+    if (typeof context.prewriteActivationListener === "function") {
+      try {
+        chrome.tabs.onActivated.removeListener(context.prewriteActivationListener);
+      } catch {}
+    }
     _pr92ActiveTurnContext = null;
   }
 };

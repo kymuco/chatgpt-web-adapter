@@ -103,7 +103,7 @@ def test_public_cleanup_owner_graduates_final_effective_generations() -> None:
 
     assert "_pr92Schema7PersistDirtyAttachmentFence(tabId)" in owner
     assert "_pr92Schema7TryClearDirtyAttachmentFence()" in owner
-    assert "_pr92Schema8ClearFencedRuntimeTab(tabId, timeoutMs)" in owner
+    assert "_pr92Schema8ClearFencedRuntimeTab(tabId, timeoutMs, options)" in owner
 
 
 def test_explicit_cleanup_owner_delegates_once_without_argument_drift() -> None:

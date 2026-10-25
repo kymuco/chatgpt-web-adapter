@@ -13,6 +13,6 @@ async function _pr92TryClearDirtyAttachmentFence() {
   return _pr92Schema7TryClearDirtyAttachmentFence();
 }
 
-async function _pr92ClearOfficialPageAttachments(tabId, timeoutMs) {
-  return _pr92Schema8ClearFencedRuntimeTab(tabId, timeoutMs);
+async function _pr92ClearOfficialPageAttachments(tabId, timeoutMs, options = null) {
+  return _pr92Schema8ClearFencedRuntimeTab(tabId, timeoutMs, options);
 }

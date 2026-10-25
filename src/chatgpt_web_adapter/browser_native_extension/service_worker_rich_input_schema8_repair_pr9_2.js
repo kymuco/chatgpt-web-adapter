@@ -175,7 +175,8 @@ function _pr92Schema8FenceIdentityMatches(records, tabId) {
 
 async function _pr92Schema8ClearFencedRuntimeTab(
   tabId,
-  timeoutMs
+  timeoutMs,
+  options = null
 ) {
   if (!Number.isInteger(tabId) || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return false;
@@ -183,6 +184,14 @@ async function _pr92Schema8ClearFencedRuntimeTab(
 
   const richContext = _pr92ActiveRichInputContext;
   if (richContext !== null && richContext.staged === true) return false;
+  const requireUntouchedRootInactive =
+    options?.requireUntouchedRootInactive === true;
+  const safeFreshRoot = (tab) =>
+    tab?.url === CHATGPT_ORIGIN + "/" &&
+    tab.status === "complete" &&
+    tab.active === false &&
+    tab.discarded !== true &&
+    tab.frozen !== true;
 
   const deadlineAt = _pr92DeadlineRepairDeadlineFromBudget(timeoutMs);
   let candidate;
@@ -200,6 +209,7 @@ async function _pr92Schema8ClearFencedRuntimeTab(
   // A non-ChatGPT reused numeric id cannot contain the old ChatGPT composer and
   // is never destructively closed.
   if (!isChatGPTUrl(candidate?.url || "")) return true;
+  if (requireUntouchedRootInactive && !safeFreshRoot(candidate)) return false;
 
   let ownershipInvalidated = false;
   let closeDispatched = false;
@@ -214,6 +224,15 @@ async function _pr92Schema8ClearFencedRuntimeTab(
   };
   const onRemoved = (removedTabId) => {
     if (!closeDispatched && removedTabId === tabId) ownershipInvalidated = true;
+  };
+  const onActivated = (activeInfo) => {
+    if (
+      requireUntouchedRootInactive &&
+      !closeDispatched &&
+      activeInfo?.tabId === tabId
+    ) {
+      ownershipInvalidated = true;
+    }
   };
   const onStorageChanged = (changes, areaName) => {
     if (closeDispatched) return;
@@ -234,6 +253,7 @@ async function _pr92Schema8ClearFencedRuntimeTab(
 
   chrome.tabs.onUpdated.addListener(onUpdated);
   chrome.tabs.onRemoved.addListener(onRemoved);
+  if (requireUntouchedRootInactive) chrome.tabs.onActivated.addListener(onActivated);
   if (chrome.storage?.onChanged) chrome.storage.onChanged.addListener(onStorageChanged);
 
   try {
@@ -284,7 +304,8 @@ async function _pr92Schema8ClearFencedRuntimeTab(
       finalRuntimeTabId !== tabId ||
       !_pr92Schema8FenceIdentityMatches(finalRecords, tabId) ||
       !isChatGPTUrl(finalCandidate?.url || "") ||
-      finalCandidate.url !== candidate.url
+      finalCandidate.url !== candidate.url ||
+      (requireUntouchedRootInactive && !safeFreshRoot(finalCandidate))
     ) {
       return false;
     }
@@ -311,6 +332,7 @@ async function _pr92Schema8ClearFencedRuntimeTab(
   } finally {
     chrome.tabs.onUpdated.removeListener(onUpdated);
     chrome.tabs.onRemoved.removeListener(onRemoved);
+    if (requireUntouchedRootInactive) chrome.tabs.onActivated.removeListener(onActivated);
     if (chrome.storage?.onChanged) chrome.storage.onChanged.removeListener(onStorageChanged);
   }
 };
