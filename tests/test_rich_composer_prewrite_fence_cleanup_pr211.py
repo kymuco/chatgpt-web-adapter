@@ -155,6 +155,8 @@ def test_exact_pre_submit_abort_can_clear_only_after_proven_tab_absence() -> Non
         assert value["active"] is False
         assert value["turnActive"] is False
         assert value["dispatched"] == 1
+
+
 CLOSER = EXT / "service_worker_rich_input_schema8_repair_pr9_2.js"
 
 _CLOSER_JS = r"""
