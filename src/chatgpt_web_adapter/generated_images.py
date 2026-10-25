@@ -52,7 +52,8 @@ def _image_parts(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
             continue
         if "image_gen_title" not in _message_metadata(message):
             continue
-        assert message is not None
+        if not isinstance(message, dict):
+            continue
         message_id = message.get("id")
         content = message.get("content")
         if (
@@ -78,7 +79,8 @@ def _image_parts(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
             size = part.get("size_bytes")
             width, height = part.get("width"), part.get("height")
             if (
-                mime not in {"image/png", "image/jpeg", "image/webp"}
+                not isinstance(mime, str)
+                or mime not in {"image/png", "image/jpeg", "image/webp"}
                 or any(
                     isinstance(value, bool) or not isinstance(value, int) or value <= 0
                     for value in (size, width, height)
@@ -130,7 +132,7 @@ def get_generated_images(
         for item in records
         if (file_id := _safe_file_id(item.get("file_id"))) is not None
     )
-    matches: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    matches: list[tuple[str, dict[str, Any], dict[str, Any], str]] = []
     for message_id, part in parts:
         eligible = [
             item
@@ -154,24 +156,22 @@ def get_generated_images(
             or ids[_safe_file_id(record.get("file_id"))] != 1
         ):
             continue
-        matches.append((message_id, part, record))
+        matches.append((message_id, part, record, filename))
 
     # Do not publish the same file record as separate results when equal-sized
     # image parts collide on one origin, even if the listing is otherwise unique.
-    used = Counter(item["file_id"] for _, _, item in matches)
+    used = Counter(item["file_id"] for _, _, item, _ in matches)
     return [
         GeneratedImageObservation(
             conversation_id=ref.conversation_id,
             message_id=message_id,
-            filename=record["file_name"]
-            if "file_name" in record
-            else _record_filename(record),
+            filename=filename,
             mime_type=part["mime_type"],
             width=part["width"],
             height=part["height"],
             size_bytes=part["size_bytes"],
         )
-        for message_id, part, record in matches
+        for message_id, part, record, filename in matches
         if used[record["file_id"]] == 1
     ]
 

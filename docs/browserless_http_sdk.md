@@ -123,13 +123,13 @@ promoting assistant-message finality. Transport/read errors still raise.
 ## Generated images: canonical readback (experimental, read-only)
 
 An ordinary Direct HTTP text send may cause ChatGPT to choose image generation,
-with no image-specific flag or \`system_hints\` needed. One user-run Windows
+with no image-specific flag or `system_hints` needed. One user-run Windows
 experiment on 2026-10-25 observed one generated PNG through the normal
-\`BrowserlessHTTPClient.send(..., model="gpt-6", reasoning_effort="high")\`
+`BrowserlessHTTPClient.send(..., model="gpt-6", reasoning_effort="high")`
 path. The send's text response was empty; **empty text is not evidence of no
 result**. A separate readback observed the generated image in canonical history.
 
-\`\`\`python
+```python
 images = client.get_generated_images(conversation_id)
 for image in images:
     print(image.message_id, image.filename, image.width, image.height)
@@ -141,18 +141,18 @@ for image in images:
         destination,
         overwrite=False,
     )
-\`\`\`
+```
 
-\`get_generated_images()\` uses only two read paths: the *full current branch*
-canonical conversation history and its conversation-scoped \`/files\` listing.
+`get_generated_images()` uses only two read paths: the *full current branch*
+canonical conversation history and its conversation-scoped `/files` listing.
 It returns only ready files with unique filename and file identity, matching
 generation tool message ID, MIME type, byte count, and generation attribution.
-No private \`asset_pointer\`, \`file_id\`, signed URL, or full prompt is published.
+No private `asset_pointer`, `file_id`, signed URL, or full prompt is published.
 Empty results mean **no ready image could be proven yet**, not proof that no
 tool ran, no generation is pending, or a previous write failed.
 
 No new downloader or image mode is introduced: the existing governed
-\`handoff_generated_artifact()\` provides the verified byte retrieval under
+`handoff_generated_artifact()` provides the verified byte retrieval under
 explicit destination and overwrite authority. The two operations are separate,
 so the handoff performs its own fresh file-discovery and safety checks; a
 changed listing between calls may cause a safe failure. This experimental
