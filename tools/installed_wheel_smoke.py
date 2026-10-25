@@ -200,7 +200,9 @@ def _validate_post_0_3_candidate_surface(package_dir: Path) -> dict[str, object]
         module = importlib.import_module(name)
         origin = getattr(module, "__file__", None)
         if origin is None or Path(origin).resolve().parent != package_dir.resolve():
-            raise RuntimeError(f"candidate SDK module not from installed package: {name}")
+            raise RuntimeError(
+                f"candidate SDK module not from installed package: {name}"
+            )
         modules[name.rsplit(".", 1)[-1]] = module
 
     client = modules["client"].ChatGPTWebClient
