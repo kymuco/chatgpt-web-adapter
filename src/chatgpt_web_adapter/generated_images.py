@@ -71,9 +71,10 @@ def _image_parts(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
                 continue
             if part.get("content_type") != "image_asset_pointer":
                 continue
-            if not isinstance(part.get("asset_pointer"), str) or not part[
-                "asset_pointer"
-            ]:
+            if (
+                not isinstance(part.get("asset_pointer"), str)
+                or not part["asset_pointer"]
+            ):
                 continue
             mime = part.get("mime_type")
             size = part.get("size_bytes")
@@ -174,4 +175,3 @@ def get_generated_images(
         for message_id, part, record, filename in matches
         if used[record["file_id"]] == 1
     ]
-

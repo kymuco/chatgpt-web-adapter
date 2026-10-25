@@ -169,9 +169,7 @@ def test_nonready_image_is_not_inferred_from_assistant_completion(monkeypatch):
 
 
 def test_unavailable_file_listing_raises_without_send(monkeypatch):
-    client, calls = _client(
-        monkeypatch, ChatGPTWebClient, _payload(), status=503
-    )
+    client, calls = _client(monkeypatch, ChatGPTWebClient, _payload(), status=503)
     with pytest.raises(RequestError, match="discovery failed"):
         client.get_generated_images("conversation-1")
     assert [kind for kind, _ in calls] == ["history", "files"]
@@ -190,4 +188,3 @@ def test_equal_image_parts_cannot_claim_same_artifact_twice(monkeypatch):
         monkeypatch, ChatGPTWebClient, _payload(parts=[image, dict(image)])
     )
     assert client.get_generated_images("conversation-1") == []
-
