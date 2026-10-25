@@ -6,6 +6,10 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+- ChatGPT image generation: a normal Direct HTTP text request generated a PNG without an image-specific hint in a user-run test; add experimental `get_generated_images()` for read-only, strict origin/MIME/size/attribution/unique-file correlation (#229); no guaranteed model tool choice or new downloader
+- Deep Research: add experimental canonical report/status readback (#227) and explicit Direct HTTP opt-in launch (#228); live researched `researching` → `completed` and a 53,965-character report with no duplicate Send; Windows PowerShell prompt encoding prevented validating intended Cyrillic task fidelity in that run
+- Generated-artifact handoff: the historical UNSUPPORTED boundary described below was superseded by a narrow conversation-owned `file_id` resolver, explicit destination/no-overwrite, and byte-integrity verification; user-run 25-byte TXT and 3,150,084-byte PNG handoffs passed
+
 - ChatGPT direct HTTP (experimental, opt-in): add a standalone authenticated Python HTTP/Node SDK with streaming, ordinary/Temporary Chat, continuation, attachments, explicit model/reasoning routing, no browser fallback and no automatic retry on uncertain writes (#212); one user-run Codexia GPT-6 High three-Markdown E2E achieved exact readback and transport-only `CAPTURED_UNADMITTED`, not application admission or general protocol-stability proof
 - Packaging/transport isolation: include the pinned HTTP Node runtime in built wheel/sdist while preserving production browser-owned ChatGPT and the separate Qwen SDK/native host; the released `v0.3.0` package does **not** contain these post-release additions
 - Release hardening (#218): installed-wheel smoke now resolves the exact built wheel's `[browser]` extra and verifies the `zendriver` metadata/import in a clean Python environment before release, with no real browser launch or authenticated product write
