@@ -227,6 +227,11 @@ function _pr92Schema7BaseAtomicAttachmentSubmitExpression(
   const encodedDeadline = JSON.stringify(deadlineEpochMs);
   const encodedExpected = JSON.stringify(expectedNames);
   const evidenceExpression = _pr92ClosureAttachmentEvidenceExpression(expectedNames);
+  // PR11.7's structural sentinel is NOT CSS. Resolve the same uniquely
+  // authorized scoped control inside the atomic page-side click task.
+  const buttonExpression = selector === "pr11_7_structural_submit_control"
+    ? `(${_pr117StructuralSubmitButtonResolverSource()})()`
+    : `document.querySelector(${encodedSelector})`;
   return `(() => {
     const deadlineEpochMs = ${encodedDeadline};
     const expected = ${encodedExpected};
@@ -242,7 +247,7 @@ function _pr92Schema7BaseAtomicAttachmentSubmitExpression(
       return { clicked: false, reason: 'attachment-evidence-missing' };
     }
 
-    const button = document.querySelector(${encodedSelector});
+    const button = ${buttonExpression};
     if (!(button instanceof HTMLElement)) {
       return { clicked: false, reason: 'send-button-missing' };
     }

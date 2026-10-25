@@ -180,16 +180,17 @@ async function _pr117LocateAndFocusComposer(debuggee) {
   return 'pr11_7_structural_dom_fallback';
 }
 
-function _pr117StructuralSubmitPointExpression() {
+function _pr117StructuralSubmitButtonResolverSource() {
+  // Shared DOM authority for the ordinary-text discovery point and rich-input's
+  // atomic page-owned click. The discovery selector is NOT a CSS selector.
   const resolver = _pr117ComposerResolverSource();
-  return `(() => {
+  return `() => {
     const resolveComposer = ${resolver};
     const composer = resolveComposer();
     if (!composer) return null;
     const scope = composer.closest('form') ||
       composer.closest('[data-testid*="composer"]');
     if (!scope) return null;
-
     const usable = (button) => {
       if (!(button instanceof Element)) return false;
       const rect = button.getBoundingClientRect();
@@ -215,7 +216,16 @@ function _pr117StructuralSubmitPointExpression() {
       ? semantic
       : all.filter((button) => button.getAttribute('type') === 'submit');
     if (candidates.length !== 1) return null;
-    const button = candidates[0];
+    return candidates[0];
+  }`;
+}
+
+function _pr117StructuralSubmitPointExpression() {
+  const buttonResolver = _pr117StructuralSubmitButtonResolverSource();
+  return `(() => {
+    const resolveButton = ${buttonResolver};
+    const button = resolveButton();
+    if (!button) return null;
     const rect = button.getBoundingClientRect();
     return {
       selector: 'pr11_7_structural_submit_control',
