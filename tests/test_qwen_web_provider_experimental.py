@@ -91,6 +91,53 @@ def test_qwen_capability_surface_is_minimal_and_experimental() -> None:
     assert capabilities.state(CONTINUATION) is CapabilityState.UNKNOWN
 
 
+def test_qwen_read_history_preserves_site_payload_without_sending() -> None:
+    from chatgpt_web_adapter.qwen_client import QwenClient
+
+    provider = _FakeQwenProvider()
+    chat = QwenClient.chat("00000000-0000-4000-8000-000000000001")
+    payload = {"data": {"chat": {"history": {"messages": {"msg-1": {"role": "user"}}}}}}
+
+    def read_rpc(request, *, timeout, on_event=None):
+        provider.requests.append(dict(request))
+        return {
+            "ok": True,
+            "request_id": request["request_id"],
+            "providerId": QWEN_PROVIDER_ID,
+            "operation": "history_snapshot",
+            "conversationId": request["conversationId"],
+            "canonicalCompletionProven": False,
+            "payload": payload,
+        }
+
+    provider._rpc = read_rpc
+    client = QwenClient(transport="browser")
+    client._browser = QwenWebTransport(provider)
+    assert client.read_history(chat) is payload
+    assert len(provider.requests) == 1
+    assert provider.requests[0]["operation"] == "read_history"
+    assert "text" not in provider.requests[0]
+
+
+def test_qwen_read_history_rejects_wrong_conversation_identity() -> None:
+    provider = _FakeQwenProvider()
+
+    def wrong_rpc(request, *, timeout, on_event=None):
+        return {
+            "ok": True,
+            "request_id": request["request_id"],
+            "providerId": QWEN_PROVIDER_ID,
+            "operation": "history_snapshot",
+            "conversationId": "wrong-chat",
+            "canonicalCompletionProven": False,
+            "payload": {"data": {}},
+        }
+
+    provider._rpc = wrong_rpc
+    with pytest.raises(RequestError, match="IDENTITY_OR_SHAPE_INVALID"):
+        provider.read_history("expected-chat")
+
+
 def test_qwen_foreground_tab_is_explicit_opt_in_not_default() -> None:
     provider = _FakeQwenProvider()
     transport = QwenWebTransport(provider)
@@ -164,6 +211,7 @@ def test_qwen_browser_source_is_quarantined_from_production_cwa_extension() -> N
 
 def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     worker = (EXT / "service_worker_qwen_provider.js").read_text(encoding="utf-8")
+    write_handler = worker.split("async function _cwaQwenHandleTurn(message) {", 1)[1]
 
     assert "https://chat.qwen.ai" in worker
     assert "div.response-message-content.phase-answer" in worker
@@ -177,14 +225,14 @@ def test_qwen_worker_uses_page_dom_not_private_http_payloads() -> None:
     assert "composer.setSelectionRange(0, 0)" in worker
     assert 'new InputEvent("input"' not in worker
     assert "composer_not_empty" in worker
-    assert "fetch(" not in worker
+    assert "fetch(" not in write_handler
     assert "XMLHttpRequest" not in worker
     assert "Network.getResponseBody" not in worker
     assert "Network.enable" in worker
     assert "Network.requestWillBeSent" in worker
     assert "_cwaQwenObserveWriteLifecycle" in worker
     assert "request.postData" not in worker
-    assert "fetch(" not in worker
+    assert "fetch(" not in write_handler
     assert "automaticWriteRetry: false" in worker
     assert 'finalityEvidence: "PAGE_DOM_STABLE_COMPLETION"' in worker
     assert "canonicalCompletionProven: false" in worker
