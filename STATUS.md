@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-10-23_
+_Last updated: 2026-10-25_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -16,15 +16,56 @@ release date            2026-09-01
 package version         0.3.0
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           Qwen Web SDK + opt-in ChatGPT HTTP integrated on main
+current phase           prospective v0.4.0 source/release audit
 license                 MIT
 python                  3.10-3.14
 ```
 
-Current `main` includes #213-#216 (Qwen/docs) and #212 (direct ChatGPT HTTP),
-merged on 2026-10-16 as `2c4a0215c5d3`. CI passed 16/16 jobs on that exact
-commit. The newest published package remains `v0.3.0` from 2026-09-01; **do not**
-assume these source capabilities ship in that published wheel.
+Audited `main` at `1b47d258f34047465c3fa148bf29711744f82ce8`
+(2026-10-25) passed 16/16 CI checks, including exact-wheel smoke. It includes
+direct ChatGPT HTTP, Deep Research #227/#228, generated-image readback #229,
+and post-0.3 provider/Qwen additions. The newest published package remains `v0.3.0`
+(2026-09-01); its wheel does **not** include these newly merged features.
+
+## Proposed v0.4.0 scope and readiness (audit: 2026-10-25)
+
+This is a **candidate plan, not a staged version, release tag or authorization
+to publish**. Preserve the browser-owned ChatGPT production/default runtime,
+existing CLI and compatibility interfaces. Ship the already-merged post-0.3
+capabilities with **their existing support tiers**: opt-in experimental ChatGPT
+Direct HTTP; Deep Research launch and canonical report readback (#227/#228);
+ordinary-request image generation observation and generated-image readback
+(#229); narrow governed file handoff; isolated experimental Qwen Web;
+experimental DeepSeek/Gemini and module-only Google Translate/Gemini Notebook.
+Neither one live success nor a release number promotes private web protocols
+to production or guarantees automatic image tool selection.
+
+**Confirmed:** main commit `1b47d258` CI 16/16 (Ubuntu/Windows Python 3.10–3.14,
+release build and exact installed-wheel smoke); image readback was live-proven
+in 2/2 independent UI and HTTP conversations, and previously the existing
+artifact handoff downloaded a PNG with exact byte/SHA-256 verification.
+
+**Release work not yet closed:**
+
+1. Reconcile the ambiguous guarded rich-input submit in [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211);
+   do not repeat an uncertain write or blindly merge the draft.
+2. Repair or explicitly disposition the production browser-native canonical
+   429 backoff deadline escape in [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168).
+3. Assess the observed canonical HTTP 500 from [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221)
+   using current product evidence; the draft's fallback is not a proven cure.
+4. Extend the exact installed-wheel release gate to **import and exercise the
+   new selected public entrypoints** (experimental HTTP client, research/image
+   readback, and governed handoff); the current smoke targets the 0.3 freeze.
+5. Finalize scope/tiers, dated release notes, version and matching tag on an
+   exact clean candidate SHA, then repeat the full build/publish gates and
+   any specifically necessary live checks before a separate release decision.
+
+**Deferred unless independently justified:** experimental Linux Qwen draft
+[#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217) requires actual
+EndeavourOS Native Messaging E2E; Qwen drafts #223/#225/#226 are not implied.
+PEP 561 typed-package marker #172 and durable long-history checkpointing #114
+remain independent issues. No Codexia/HDE change, MCP layer, universal provider
+router, new browser-bypass code, or implicit retries belong in this release.
 
 ## Product role
 

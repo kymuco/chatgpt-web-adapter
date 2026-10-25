@@ -79,13 +79,18 @@ The smoke installs the **exact wheel with `[browser]` enabled** in a fresh isola
 - root `PRIMARY_PRODUCTION` observation value types are present;
 - `MediaItem` / `MediaSource` retain `SHARED_SUPPORT` classification;
 - the internal `ProductObservationCollector` does not leak into the root public API;
-- all three console scripts are installed with the frozen targets;
+- all four console scripts are installed with the frozen targets;
 - `cwa --help` and the stable command help surfaces execute successfully;
 - the installed browser-extension directory contains the required package data;
 - `cwa doctor` can diagnose a deliberately unconfigured/missing-auth environment as structured unavailable (`exit 1`) rather than crashing;
 - static installed-package doctor checks remain `PASS`.
 
 CI runs this installed-wheel smoke on Linux and Windows with Python 3.10 and 3.14 after the full Python 3.10-3.14 source-test matrix on both operating systems.
+
+For a prospective `0.4.0` candidate, add **exact installed-wheel** checks for
+newly shipped public entrypoints (opt-in Direct HTTP, Deep Research, generated
+images and governed handoff). This is **not yet covered** by the 0.3-frozen
+smoke; green CI alone is not proof of the additional planned gate.
 
 ## 5. Live product verification
 

@@ -416,6 +416,25 @@ Reconsider only when external adoption justifies the privacy/update/support cont
 
 Do not publish merely to remove the unpacked/developer label.
 
+## v0.4.0 candidate scope (2026-10-25)
+
+The audited `main` commit `1b47d258` supports a coherent **capability expansion**
+rather than another documentation-only `0.3.x` update. Preserve ChatGPT
+browser-owned as production/default. Release merged opt-in ChatGPT HTTP, Deep
+Research, generated-image readback and governed artifact handoff alongside
+already-shipped experimental Qwen, DeepSeek/Gemini, Translate and Notebook
+modules **without promoting any experimental support tier**.
+
+Before a `0.4.0` version bump or tag: reconcile rich-input #211; fix or
+explicitly disposition read-deadline #168; confirm whether the canonical-500
+read fallback #221 is necessary; extend installed-wheel gates for new entrypoints;
+and finalize version/changelog/release notes from one exact validated commit.
+Linux Qwen draft #217 awaits its own E2E and is not silently included. #114,
+#172, and pending Qwen draft branches are independent follow-ups.
+
+See the dated [release candidate audit](STATUS.md). No version bump or release
+is authorized by this planning entry.
+
 ## Release direction
 
 Do not cut a new minor release for documentation polish alone.
