@@ -64,6 +64,7 @@ async function _cwaCanonicalFetch(
   const sessionEndpoint = `${CHATGPT_ORIGIN}/api/auth/session`;
   const expression = `(async () => {
     const controller = new AbortController();
+    const deadlineAt = performance.now() + ${JSON.stringify(timeoutMs)};
     const timer = setTimeout(() => controller.abort(), ${JSON.stringify(timeoutMs)});
     const currentNumTurns = ${JSON.stringify(CWA_CANONICAL_CURRENT_NUM_TURNS)};
     const maxPages = ${JSON.stringify(CWA_CANONICAL_MAX_PAGES)};
@@ -80,7 +81,36 @@ async function _cwaCanonicalFetch(
     const pagePaceMs = ${JSON.stringify(CWA_CANONICAL_PAGE_PACE_MS)};
     let currentAccessToken = null;
 
-    const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+    const timeoutError = () => {
+      const error = new Error("CANONICAL_READ_TIMEOUT");
+      error.name = "AbortError";
+      return error;
+    };
+    const sleep = (delayMs) => new Promise((resolve, reject) => {
+      const signal = controller.signal;
+      const remainingMs = deadlineAt - performance.now();
+      if (signal.aborted || remainingMs <= 0) {
+        reject(timeoutError());
+        return;
+      }
+      const waitMs = Math.min(Math.max(0, delayMs), remainingMs);
+      let waitTimer;
+      const onAbort = () => {
+        clearTimeout(waitTimer);
+        signal.removeEventListener("abort", onAbort);
+        reject(timeoutError());
+      };
+      waitTimer = setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        if (signal.aborted || performance.now() >= deadlineAt) {
+          reject(timeoutError());
+        } else {
+          resolve();
+        }
+      }, waitMs);
+      signal.addEventListener("abort", onAbort, { once: true });
+      if (signal.aborted) onAbort();
+    });
 
     const retryAfterMs = (response) => {
       const raw = (response.headers.get("retry-after") || "").trim();
@@ -208,6 +238,9 @@ async function _cwaCanonicalFetch(
       }
 
       for (let attempt = 0; ; attempt += 1) {
+        if (controller.signal.aborted || performance.now() >= deadlineAt) {
+          throw timeoutError();
+        }
         const response = await fetch(url, {
           method: "GET",
           credentials: "include",
