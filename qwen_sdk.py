@@ -109,8 +109,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--stream",
         choices=("dom", "network"),
-        default="dom",
-        help="browser streaming source",
+        default="network",
+        help="browser streaming source (default: network; dom is heuristic)",
     )
     parser.add_argument(
         "--chat", help="existing Qwen chat URL or ID; omit for a new chat"
@@ -148,45 +148,38 @@ def main(argv: list[str] | None = None) -> int:
 
     def send(message: str, *, interactive: bool) -> None:
         nonlocal browser_conversation
-        if args.transport == "http" and interactive:
-            print("Qwen: ", end="", flush=True)
+        if args.transport == "browser" and args.stream == "dom":
+            live = _QwenLiveAnswer()
             result = client.send_text(
-                message, on_token=lambda fragment: print(fragment, end="", flush=True)
+                message, conversation=browser_conversation, on_text=live.update
             )
-            print()
-        elif args.transport == "browser" and args.stream == "network":
-            network_chunks = []
+            live.finish(result.text)
+        elif args.transport == "http" and not interactive:
+            result = client.send_text(message)
+            print(result.text)
+        else:
+            received = False
 
-            def show_network(fragment):
-                network_chunks.append(fragment)
+            def show_token(fragment: str) -> None:
+                nonlocal received
+                received = True
                 print(fragment, end="", flush=True)
 
-            result = client.send_text(
-                message,
-                conversation=browser_conversation,
-                on_token=show_network,
+            if args.transport == "http":
+                print("Qwen: ", end="", flush=True)
+            send_kwargs = (
+                {"conversation": browser_conversation}
+                if args.transport == "browser"
+                else {}
             )
-            if not network_chunks:
+            result = client.send_text(message, on_token=show_token, **send_kwargs)
+            if args.transport == "browser" and not received:
                 print(
                     "[No live fragments received; displaying final answer]",
                     file=sys.stderr,
                 )
                 print(result.text, end="", flush=True)
             print()
-        elif args.transport == "browser":
-            live = _QwenLiveAnswer()
-            result = client.send_text(
-                message, conversation=browser_conversation, on_text=live.update
-            )
-            live.finish(result.text)
-        else:
-            result = client.send_text(
-                message,
-                conversation=browser_conversation
-                if args.transport == "browser"
-                else None,
-            )
-            print(result.text)
         if args.transport == "browser":
             browser_conversation = result.conversation
 
