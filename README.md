@@ -272,7 +272,7 @@ and other evidence-backed product capabilities.
 It is not intended to replace official APIs where API semantics are what the caller
 actually wants.
 
-## ChatGPT: production/default provider
+## ChatGPT: primary HTTP and secondary UI runtime
 
 ChatGPT remains the primary supported product. Direct HTTP is the primary
 public SDK for validated ChatGPT operations; browser-owned is a secondary
