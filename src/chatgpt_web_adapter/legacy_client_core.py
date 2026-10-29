@@ -669,12 +669,22 @@ class ChatGPTWebClient:
             header_text = Path(header_path).read_text(
                 encoding="utf-8", errors="replace"
             )
+            status = self._extract_status_code(header_text)
+            # An HTTP 200 header does not prove the response body arrived.
+            # curl can return 18 (partial transfer), 28 (timeout), or another
+            # nonzero code after receiving HTTP headers. Never parse, accept
+            # cookies from, or treat that partial response as successful.
+            if return_code != 0:
+                error_text = (
+                    f"curl failed: exit_code={return_code}; http_status={status}"
+                )
+                raise RequestError(
+                    error_text,
+                    status_code=status or None,
+                    request_stage="transport",
+                )
             if persist_cookies:
                 self._update_cookies_from_text(header_text)
-            status = self._extract_status_code(header_text)
-            if return_code != 0 and not status:
-                error_text = f"curl failed: {stderr_text.strip() or return_code}"
-                raise RequestError(error_text)
             return status, raw_body, header_text
         finally:
             self._write_debug_trace(
