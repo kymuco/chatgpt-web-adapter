@@ -201,6 +201,8 @@ All statuses describe **current source `main`**, not necessarily the latest publ
 
 - **Latest public release:** `v0.3.0` — 2026-09-01.
 - **Published package version:** `0.3.0`.
+- **Current source candidate version:** `0.4.0` (not published; no release tag).
+- **Candidate release notes:** [CWA 0.4.0](docs/release_notes_0_4_0.md).
 - **Current `main`:** includes the post-0.3 provider architecture, non-chat
   capabilities, Qwen browser/HTTP SDK, opt-in ChatGPT `BrowserlessHTTPClient`
   (#212), governed generated-artifact handoff and scoped existing-browser
