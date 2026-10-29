@@ -70,4 +70,3 @@ def test_staging_diagnostic_requires_proven_cleanup_before_success():
     assert "cleanupProven: true" in text[result:]
     assert "durableFenceCleared: true" in text[result:]
     assert "if (staged)" in text
-
