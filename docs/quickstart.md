@@ -14,9 +14,17 @@ The browser-owned UI path remains secondary/experimental and the historical
 ## Path A - ChatGPT Direct HTTP (recommended)
 
 Install from the **0.4.0 source candidate** or from PyPI once 0.4.0 has been
-published. Obtain a signed-in `auth_data.json` via the existing `auth login`
-workflow or a separately authorized browser auth sync. Sending via Direct HTTP
-does not open a Chrome tab; it requires Node.js 24+ and curl.
+published. Obtain a signed-in `auth_data.json` via existing browser authentication.
+If you need initial `auth login`, install the optional `[browser]` extra and
+sign in once:
+
+```bash
+python -m pip install "chatgpt-web-adapter[browser]"
+chatgpt-web-adapter auth login --auth-file auth_data.json
+```
+
+This browser step obtains credentials; subsequent Direct HTTP **sending** does
+not open a Chrome tab. Sending requires Node.js 24+ and curl.
 
 ```python
 from chatgpt_web_adapter import BrowserlessHTTPClient
