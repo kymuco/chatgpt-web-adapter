@@ -6,6 +6,13 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+## 0.4.0 - 2026-10-29
+
+- ChatGPT transport guidance (#237): prefer the opt-in Direct HTTP SDK for newly built ChatGPT integrations on live-validated operations; preserve the browser-owned default for compatibility and separate support tiers. No silent fallback or automatic replay of ambiguous writes.
+- Direct HTTP live verification (2026-10-29): exactly one GPT-6 High-requested send with three Markdown files and multiline text, two streaming chunks, exact file-only answer values, and matching canonical conversation/message readback. Model request is not server attestation or a protocol stability guarantee.
+- Browser-owned rich-input hardening (#233-#236): structural Send discovery, asynchronous multiline text confirmation, bounded fresh background Composer hydration, and strictly guarded pre-submit attachment-fence cleanup. A fresh 2026-10-29 three-file live attempt remained incomplete after one attachment; production multi-file acceptance is not claimed. Historical draft #211 remains open, with no ambiguous-write retry.
+- Canonical browser-native read deadline (#232, closes #168): bound HTTP 429 waits and pagination pacing to the outer read deadline. Draft #221 HTTP 500 step-down fallback is not included without live root-cause evidence.
+
 - ChatGPT image generation: a normal Direct HTTP text request generated a PNG without an image-specific hint in a user-run test; add experimental `get_generated_images()` for read-only, strict origin/MIME/size/attribution/unique-file correlation (#229); no guaranteed model tool choice or new downloader
 - Deep Research: add experimental canonical report/status readback (#227) and explicit Direct HTTP opt-in launch (#228); live researched `researching` → `completed` and a 53,965-character report with no duplicate Send; Windows PowerShell prompt encoding prevented validating intended Cyrillic task fidelity in that run
 - Generated-artifact handoff: the historical UNSUPPORTED boundary described below was superseded by a narrow conversation-owned `file_id` resolver, explicit destination/no-overwrite, and byte-integrity verification; user-run 25-byte TXT and 3,150,084-byte PNG handoffs passed
