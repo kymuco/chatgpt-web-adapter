@@ -1,6 +1,8 @@
-# Browserless ChatGPT HTTP SDK — experimental boundary
+# ChatGPT Direct HTTP SDK — primary live-verified path
 
-This is the **opt-in direct HTTP** client introduced in PR #212.
+This is the **primary public ChatGPT SDK** for live-verified HTTP operations
+(`BrowserlessHTTPClient`, originally introduced in PR #212). Direct client
+construction remains explicit; the old product-runtime default has not changed.
 It is **not** the older `assemble_product_runtime(transport="browserless-request")`,
 and it does not start Chrome, a browser tab or the Native Messaging host.
 The implementation uses the existing CWA authenticated session, curl and
@@ -13,7 +15,7 @@ an editable install from another CWA branch with selected files copied here.
 
 ```python
 from pathlib import Path
-from chatgpt_web_adapter.browserless_http import BrowserlessHTTPClient
+from chatgpt_web_adapter import BrowserlessHTTPClient
 
 client = BrowserlessHTTPClient(auth_file=Path("auth_data.json"))
 
@@ -50,7 +52,7 @@ Direct HTTP can now **request** that product hint via the existing
 two-phase conversation prepare/write flow:
 
 ```python
-from chatgpt_web_adapter.browserless_http import BrowserlessHTTPClient
+from chatgpt_web_adapter import BrowserlessHTTPClient
 
 client = BrowserlessHTTPClient(auth_file="auth_data.json")
 response = client.send(
@@ -210,9 +212,12 @@ proven on `ChatGPTWebClient`, but are not automatically enabled for
 `BrowserlessHTTPClient.send()`. These are scoped caller-run observations,
 not product-protocol or long-term stability guarantees.
 
-This module remains **experimental and explicitly opt-in**, even when included
-in `main`. Existing browser-owned ChatGPT and isolated Qwen SDK behavior remain
-the default; the HTTP client has no automatic browser fallback.
+The direct HTTP class is part of the **PRIMARY_PRODUCTION** public API for
+operations with bounded live evidence, despite the risk that ChatGPT's private
+consumer protocol changes. Browser-owned is a secondary **EXPERIMENTAL** UI
+runtime; `assemble_product_runtime()` still chooses it by legacy default for
+compatibility. No automatic browser fallback, uncertain-write replay or
+Headless Chromium backend is introduced.
 
 No live requests are made by the `test_browserless_http_client_contract.py`
 regressions; they exercise the client boundary with a mocked underlying send.
