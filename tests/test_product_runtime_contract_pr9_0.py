@@ -12,7 +12,10 @@ from chatgpt_web_adapter.product_capabilities import (
     ProductCapability,
 )
 from chatgpt_web_adapter.product_contract import build_product_runtime_contract
-from chatgpt_web_adapter.product_transport import ProductRuntimeExecution, ProductRuntimeHealth
+from chatgpt_web_adapter.product_transport import (
+    ProductRuntimeExecution,
+    ProductRuntimeHealth,
+)
 
 
 class _Canonical:
