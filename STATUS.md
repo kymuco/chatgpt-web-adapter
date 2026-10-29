@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-10-25_
+_Last updated: 2026-10-29_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -13,10 +13,10 @@ Use [`ROADMAP.md`](ROADMAP.md) for direction,
 ```text
 latest public release   v0.3.0
 release date            2026-09-01
-package version         0.3.0
+package version         0.4.0 (staged source candidate; not published)
 current main            post-0.3 development
 architecture            PR15 provider architecture frozen
-current phase           prospective v0.4.0 source/release audit
+current phase           v0.4.0 release candidate verification
 license                 MIT
 python                  3.10-3.14
 ```
@@ -29,8 +29,8 @@ and post-0.3 provider/Qwen additions. The newest published package remains `v0.3
 
 ## Proposed v0.4.0 scope and readiness (audit: 2026-10-25)
 
-This is a **candidate plan, not a staged version, release tag or authorization
-to publish**. Preserve the browser-owned ChatGPT production/default runtime,
+The source candidate stages package version `0.4.0`, but this is **not** a Git
+tag, published GitHub Release, or authorization to upload to PyPI. Preserve the browser-owned ChatGPT production/default runtime,
 existing CLI and compatibility interfaces. Ship the already-merged post-0.3
 capabilities with **their existing support tiers**: opt-in experimental ChatGPT
 Direct HTTP; Deep Research launch and canonical report readback (#227/#228);
@@ -45,21 +45,23 @@ release build and exact installed-wheel smoke); image readback was live-proven
 in 2/2 independent UI and HTTP conversations, and previously the existing
 artifact handoff downloaded a PNG with exact byte/SHA-256 verification.
 
+**2026-10-29 evidence and disposition:** PR #237 changes the recommended
+ChatGPT integration path to opt-in Direct HTTP without changing the SDK default.
+The exact `main` at `0e330c5e` passed 16/16 CI. A user-run Direct HTTP E2E
+completed one send with three Markdown files, two streaming callbacks,
+file-only expected values and canonical ID/text/status match. GPT-6 High
+was requested, not independently server-attested. A fresh browser-owned
+three-file attempt stalled after one visible attachment; no confirmed
+multi-file browser acceptance exists for this source revision. Do not
+resend that attempt or silently promote its capability reliability.
+
 **Release work not yet closed:**
 
-1. Reconcile the ambiguous guarded rich-input submit in [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211);
-   do not repeat an uncertain write or blindly merge the draft.
-2. Repair or explicitly disposition the production browser-native canonical
-   429 backoff deadline escape in [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168).
-3. Assess the observed canonical HTTP 500 from [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221)
-   using current product evidence; the draft's fallback is not a proven cure.
-4. Reconfirm the expanded exact-wheel release gate (all four console scripts,
-   new Direct HTTP, research/image readback, and governed handoff modules) on the
-   exact versioned candidate. The import-only check verifies packaging, not
-   product protocol compatibility.
-5. Finalize scope/tiers, dated release notes, version and matching tag on an
-   exact clean candidate SHA, then repeat the full build/publish gates and
-   any specifically necessary live checks before a separate release decision.
+1. Release-gate the known browser-owned multi-file failure: [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) remains open historical evidence. The scoped fixes #233-#236 are merged, but the 2026-10-29 live E2E failed to complete; explicitly decide the acceptable known limitation **before publishing**. Do not merge #211 wholesale or retry ambiguous writes.
+2. **Closed:** the browser-native canonical 429 read-deadline escape [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168) was fixed by #232. No more implementation is required for that issue.
+3. **Deferred pending actual failing-page evidence:** draft [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221) proposes an unproven HTTP 500 fallback; do not merge on speculation.
+4. Reconfirm the already-expanded exact-wheel gate (#231) on the **versioned** candidate, including all four scripts, Direct HTTP, Deep Research, images and governed handoff. Import checks do not prove future product-protocol stability.
+5. Review the dated release notes, exact candidate SHA, full CI/build/wheel checks and strict tag/version/changelog parity. Tagging and PyPI publication require separate explicit authorization.
 
 **Deferred unless independently justified:** experimental Linux Qwen draft
 [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217) requires actual
@@ -106,7 +108,7 @@ Alternative direct-request transports (two distinct implementations):
 
 ```text
 browserless-request = EXPERIMENTAL (historical runtime transport)
-BrowserlessHTTPClient = EXPERIMENTAL / explicit opt-in direct HTTP SDK (#212)
+BrowserlessHTTPClient = EXPERIMENTAL / recommended opt-in ChatGPT SDK (#212, #237)
 ```
 
 The direct HTTP client uses a saved authenticated session, Node.js 24+ and curl;
