@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import chatgpt_web_adapter as adapter
 
-
 PRODUCT_RUNTIME_EXPORTS = [
     "BROWSER_OWNED_PRODUCT_TRANSPORT",
     "DEFAULT_PRODUCT_TRANSPORT",
