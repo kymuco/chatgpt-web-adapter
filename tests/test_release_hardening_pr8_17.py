@@ -208,7 +208,8 @@ def test_release_gate_rejects_sdist_missing_pep561_marker(tmp_path: Path) -> Non
         retained = [
             (member.name, archive.extractfile(member).read())
             for member in archive.getmembers()
-            if member.isfile() and not member.name.endswith("/src/chatgpt_web_adapter/py.typed")
+            if member.isfile()
+            and not member.name.endswith("/src/chatgpt_web_adapter/py.typed")
         ]
     with tarfile.open(sdist, "w:gz") as archive:
         for name, contents in retained:
