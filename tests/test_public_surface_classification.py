@@ -24,6 +24,7 @@ def test_primary_product_runtime_is_forward_looking_surface() -> None:
     primary = adapter.PublicSurfaceTier.PRIMARY_PRODUCTION
 
     for symbol in (
+        "BrowserlessHTTPClient",
         "ChatGPTProductRuntime",
         "assemble_product_runtime",
         "ProductWriteTransport",
