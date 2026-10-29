@@ -28,8 +28,8 @@ partial output into implicit authority.
 
 | You are... | Best first step |
 | --- | --- |
-| Trying ChatGPT from Python | [Direct HTTP (recommended)](#chatgpt-recommended-direct-http) |
-| Using the existing browser-owned runtime | [Browser-owned Python example](#production-python-example) |
+| Trying ChatGPT from Python | [Direct HTTP (primary SDK)](#chatgpt-recommended-direct-http) |
+| Using the secondary browser-owned UI path | [Browser-owned Python example](#production-python-example) |
 | Using ChatGPT without a browser tab | [Direct HTTP SDK guide](docs/browserless_http_sdk.md) |
 | Connecting a local assistant or coding agent | [Agent integration](docs/agent_integration.md) |
 | Checking what is actually supported | [Live capability matrix](#capability-matrix-current-main) · [Full map](docs/capabilities.md) |
@@ -39,7 +39,7 @@ partial output into implicit authority.
 
 Current proven product surfaces include:
 
-- **ChatGPT** — Direct HTTP recommended for validated operations; browser-owned retained as the existing production-classified SDK default and an explicit UI alternative;
+- **ChatGPT** — Direct HTTP as the primary live-verified ChatGPT SDK; browser-owned retained as a secondary experimental UI option and the legacy runtime default;
 - **DeepSeek Web** — experimental text new-chat + continuation;
 - **Gemini Web** — experimental text new-chat + continuation;
 - **Qwen Web** — isolated experimental text, network streaming and conversation reattachment (user-verified on Windows);
@@ -81,7 +81,7 @@ API.
 
 ## ChatGPT recommended: Direct HTTP
 
-For **new ChatGPT integrations**, start with the opt-in
+For **new ChatGPT integrations**, start with the explicit
 `BrowserlessHTTPClient` when it supports the operation you need. It uses the
 authenticated ChatGPT web session over HTTP and does **not** create or control
 a Chrome tab. Requires an existing `auth_data.json`, Node.js 24+ and curl.
@@ -103,18 +103,20 @@ print(client.get_status(response.conversation.conversation_id).status)
 ```
 
 **Choice is explicit, not automatic.** The existing `browser-owned`
-`ChatGPTProductRuntime` remains available for page-owned interaction and is
-still the SDK default for compatibility. Callers may select it deliberately,
+`ChatGPTProductRuntime` remains available for page-owned interaction as a
+secondary, experimental option. It is still the SDK default only for backward
+compatibility. Callers may select it deliberately,
 but CWA never switches transports or resends after an ambiguous write; first
 reconcile the prior conversation outcome. No Headless Chromium backend is
 planned for v0.4.0.
 
-**Support tier is separate from preference.** Direct HTTP is recommended
-based on successful live tests, but remains **EXPERIMENTAL** because ChatGPT's
-private web protocol may change. Browser-owned retains its existing
-**PRODUCTION/default** classification while its guarded multi-file rich-input
-path has an unresolved live failure. A preference change does not silently
-change the SDK's default transport or guarantees.
+**Support tier and operation evidence are separate.** Direct HTTP is the
+**PRIMARY_PRODUCTION** public client for live-verified ChatGPT operations; its
+private consumer-web protocol can still change without warning. Browser-owned
+is **EXPERIMENTAL**, including its unresolved multi-file rich-input failure.
+The historical `assemble_product_runtime()` default remains `browser-owned`
+for compatibility, not as a reliability recommendation. Direct HTTP is a
+standalone SDK, not the older `browserless-request` transport.
 
 **2026-10-29 acceptance:** current `main` Direct HTTP completed one GPT-6
 High-*requested* send with three Markdown attachments and a seven-line prompt,
@@ -126,26 +128,27 @@ one attachment and did not complete; its exact failure stage is unknown.
 
 ## Capability matrix (current `main`)
 
-**Legend:** ✅ proven production/shared ChatGPT path · 🧪 live-observed, experimental · ◐ limited evidence · — no supported claim.
-These statuses are scoped to observed operations, not guarantees against product changes.
+**Legend:** ✅ live-verified operation · ◐ limited, historical or incomplete live evidence · — not established. Model/effort requests are not server attestation.
 
-### ChatGPT: browser-owned vs direct HTTP
+### ChatGPT: Direct HTTP vs browser-owned
 
-| Capability | Browser-owned (SDK default) | Direct HTTP (recommended, opt-in) |
+| Capability | Direct HTTP (primary SDK) | Browser-owned (secondary UI) |
 | :--- | :---: | :---: |
-| New chat + continuation | ✅ | 🧪 |
-| Streaming responses | ✅ | 🧪 |
-| Model / reasoning selection | ✅ | 🧪 |
-| Markdown and image attachments | ◐² | 🧪 |
-| Temporary Chat send | ✅ | 🧪 |
+| New chat + continuation | ✅ | ◐ |
+| Streaming responses | ✅ | ◐ |
+| Model / reasoning selection | ◐ (requested) | ◐ |
+| Markdown and image attachments | ✅ | ◐² |
+| Temporary Chat send | ✅ | ◐ |
 | Read history / export | ✅¹ | ✅¹ |
-| Download generated file + verify bytes | ✅¹ | 🧪¹ |
-| Browser tab needed for sending | Yes | **No** |
-| Support tier | **Production/default** | **Experimental** |
+| Download generated file + verify bytes | ✅¹ | ✅¹ |
+| Browser tab needed for sending | **No** | Yes |
+| Public support | **PRIMARY_PRODUCTION** | **EXPERIMENTAL** |
+| SDK default | Explicit client | Legacy default |
 
-² Browser-owned attachment support exists, but the 2026-10-29 guarded three-file
-live test did not complete; do not infer current multi-file reliability from
-static tests or previous single-file observations.
+² Browser-owned attachment support has historical positive evidence, but its
+2026-10-29 guarded three-file live test did not complete. Current multi-file
+reliability is not established.
+
 
 ¹ These are capabilities of the shared ChatGPT canonical HTTP client, not evidence that
 the browser composer performs downloads. `handoff_generated_artifact(...)` requires
@@ -160,7 +163,7 @@ continuation from a fresh process without re-uploading media, a 13-message
 canonical Markdown export and a 25-byte generated TXT download with exact byte
 match, SHA-256 verification and no overwrite. Temporary Chat retention was
 not separately audited; requested model and effort do not attest the server's
-actual model selection. **The direct HTTP SDK remains experimental.**
+actual model selection. **The direct HTTP SDK is primary for these validated operations.**
 
 **Auth boundary:** existing-browser auth sync and automatic canonical-GET `401`
 recovery have separate live evidence for `ChatGPTWebClient`, but do **not**
@@ -183,8 +186,8 @@ nor browser-owned paths automatically replay an ambiguous write.
 ```mermaid
 flowchart LR
     APP["Local app / agent / CLI"] --> CWA["CWA: provider-specific integrations"]
-    CWA --> CB["ChatGPT browser-owned<br/>production/default"]
-    CWA --> CH["ChatGPT direct HTTP<br/>preferred; experimental"]
+    CWA --> CB["ChatGPT browser-owned<br/>secondary; experimental"]
+    CWA --> CH["ChatGPT direct HTTP<br/>primary SDK; live-verified"]
     CWA --> Q["Qwen isolated SDK<br/>browser / HTTP"]
     CWA --> DG["DeepSeek / Gemini Web<br/>experimental"]
     CWA --> NC["Translate / Notebook<br/>experimental non-chat"]
@@ -216,8 +219,8 @@ differences.
 
 ## Why browser-owned remains the SDK default
 
-The browser-owned runtime remains the API default to preserve existing callers
-and its separately defined support tier. That is **not** a recommendation to
+The browser-owned runtime remains the historical API default to preserve existing
+callers, but its current transport support tier is EXPERIMENTAL. That is **not** a recommendation to
 prefer background tabs for new ChatGPT integrations. Direct HTTP is the
 preferred explicit choice for operations with current live evidence; neither
 path is immune to product changes.
@@ -269,11 +272,11 @@ and other evidence-backed product capabilities.
 It is not intended to replace official APIs where API semantics are what the caller
 actually wants.
 
-## ChatGPT: production/default provider
+## ChatGPT: primary HTTP and secondary UI runtime
 
-ChatGPT remains the primary supported product. Browser-owned is still the
-existing production-classified application runtime; Direct HTTP is the
-recommended opt-in choice for new integrations on validated operations.
+ChatGPT remains the primary supported product. Direct HTTP is the primary
+public SDK for validated ChatGPT operations; browser-owned is a secondary
+experimental UI runtime, retained as the legacy assembly default.
 This distinction does not change the `assemble_product_runtime()` default.
 
 ```text
@@ -283,7 +286,7 @@ application
 ChatGPTProductRuntime
     |\
     | +---- ProductWriteTransport
-    |        browser-owned = PRODUCTION
+    |        browser-owned = EXPERIMENTAL
     |        browserless-request = EXPERIMENTAL
     |
     +------ CanonicalConversationClient
@@ -295,7 +298,7 @@ its experimental scope is suitable. Use `ChatGPTProductRuntime` when you
 explicitly need browser-owned page interaction. The historical
 `ChatGPTWebClient` remains a compatibility surface.
 
-## Browser-owned setup — existing production runtime
+## Browser-owned setup — secondary UI runtime
 
 ### Install
 
@@ -303,7 +306,7 @@ explicitly need browser-owned page interaction. The historical
 python -m pip install "chatgpt-web-adapter[browser]"
 ```
 
-Requirements for the current ChatGPT production path:
+Requirements for the optional browser-owned UI path:
 
 - Python 3.10-3.14;
 - Chrome/Chromium;
@@ -364,7 +367,7 @@ cwa send "Answer briefly." --temporary --profile INSTANT
 
 ## Production Python example
 
-This demonstrates the existing browser-owned production runtime. For new
+This demonstrates the secondary browser-owned runtime retained for compatibility. For new
 ChatGPT integrations, use the recommended Direct HTTP example above.
 
 ```python
@@ -550,8 +553,9 @@ CWA keeps support level explicit and machine-readable.
 
 ### Primary production
 
-These are the existing machine-readable SDK tiers, not a rule for selecting
-which ChatGPT transport is preferred:
+The preferred ChatGPT entry point for validated HTTP operations is
+`BrowserlessHTTPClient`. The root API also retains the frozen product-runtime
+contracts (which are not a default-transport recommendation):
 
 - `ChatGPTProductRuntime`;
 - `assemble_product_runtime()`;
@@ -571,8 +575,8 @@ callers.
 
 ### Experimental
 
-Backend/raw helpers, `browserless-request`, opt-in `BrowserlessHTTPClient`,
-Qwen SDK, and DeepSeek/Gemini modules whose product mechanics may evolve faster.
+Backend/raw helpers, historical `browserless-request`, the browser-owned write
+transport, Qwen SDK, and DeepSeek/Gemini modules with changing product mechanics.
 
 Lower-level compatibility/research helpers such as `PayloadBuilder`,
 `validate_payload`, and `send_payload` remain discoverable for existing callers and

@@ -31,17 +31,20 @@ A dedicated MCP adapter is **not shipped yet**.
 ## Python tool wrapper - ChatGPT
 
 ```python
-from chatgpt_web_adapter import assemble_product_runtime
+from chatgpt_web_adapter import BrowserlessHTTPClient
 
-runtime = assemble_product_runtime(
-    transport="browser-owned",
-    auth_file="auth_data.json",
-)
+client = BrowserlessHTTPClient(auth_file="auth_data.json")
 
 def ask_chatgpt(prompt: str) -> str:
-    execution = runtime.send_text_observed(prompt)
-    return execution.response.text
+    response = client.send(prompt)
+    return response.text
 ```
+
+This is the primary live-verified ChatGPT SDK for new agents, including the
+Codexia/Kaguya HTTP integration direction. It does not invoke Chrome tabs;
+the older browser-owned runtime is an explicitly selected secondary UI option.
+The SDK still does not authorize the agent to call the tool, and ambiguous sends
+must never be replayed automatically.
 
 Your agent should still decide whether this tool may be called. CWA does not treat tool
 availability as user approval.

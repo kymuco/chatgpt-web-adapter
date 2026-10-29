@@ -3,14 +3,27 @@
 `chatgpt-web-adapter` uses an existing ChatGPT web account session. It does not
 use an OpenAI API key and does not implement an alternative login protocol.
 
-## Install the Browser Extra
+## Install
+
+For the primary Direct HTTP SDK (when the 0.4.0 package is published):
 
 ```bash
-python -m pip install "chatgpt-web-adapter[browser]==0.1.7"
+python -m pip install chatgpt-web-adapter
 ```
 
-The core HTTP transport has no Python runtime dependencies, but current
-protected ChatGPT writes require the optional Chromium integration.
+The Direct HTTP SDK requires Node.js 24+, curl and a valid saved ChatGPT web
+auth file, but no Chrome tab for sending. To obtain initial authorization, `auth login` requires the optional `[browser]`
+extra and uses an interactive browser; an existing signed-in Chrome session
+can also be synced by the separately authorized browser sync flow.
+
+For secondary browser-owned UI interaction and legacy login support:
+
+```bash
+python -m pip install "chatgpt-web-adapter[browser]"
+```
+
+Use the source checkout until v0.4.0 is published; PyPI v0.3.0 lacks the new
+primary HTTP SDK.
 
 ## First Login
 
@@ -52,12 +65,25 @@ or attach them to bug reports.
 
 ## Normal Startup
 
-Recommended client for an application that sends messages:
+Recommended ChatGPT client for operations with Direct HTTP live evidence:
+
+```python
+from chatgpt_web_adapter import BrowserlessHTTPClient
+
+client = BrowserlessHTTPClient(auth_file="auth_data.json")
+```
+
+This client intentionally does not launch a browser or enable automatic
+`auto_login`/`auto_sentinel` on send. It also does not inherit the legacy
+client's automatic session-refresh behavior. Obtain valid authorization
+separately and reconcile uncertain sends before any new write.
+
+Historical compatibility-only `ChatGPTWebClient` settings:
 
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
 
-client = ChatGPTWebClient(
+legacy = ChatGPTWebClient(
     auth_file="auth_data.json",
     auto_login=True,
     auto_sentinel=True,
@@ -76,7 +102,8 @@ Headless is not browserless: Chromium is still running as the browser engine.
 
 ## Refresh Behavior
 
-On client construction, a missing or near-expiry access token is refreshed
+For the historical `ChatGPTWebClient` auth lifecycle, a missing or near-expiry
+access token on construction is refreshed
 through `GET https://chatgpt.com/api/auth/session`. The refresh uses the saved
 session cookies, updates access/session metadata, preserves the structured
 browser cookie jar, and atomically rewrites `auth_data.json`. It does not launch

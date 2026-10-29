@@ -21,6 +21,7 @@ from .browser_native_provider import (
     BrowserNativeTurnResult,
 )
 from .browser_sentinel import ZendriverSentinelBundleProvider
+from .browserless_http import BrowserlessHTTPClient
 from .canonical_conversation_snapshot import (
     CANONICAL_CONVERSATION_SNAPSHOT_SCHEMA,
     CanonicalConversationSnapshot,
@@ -275,6 +276,7 @@ __all__ = [
     "AuthData",
     "errors",
     # Primary production surface is intentionally promoted before legacy extras.
+    "BrowserlessHTTPClient",
     "BROWSER_OWNED_PRODUCT_TRANSPORT",
     "DEFAULT_PRODUCT_TRANSPORT",
     "SUPPORTED_PRODUCT_TRANSPORTS",

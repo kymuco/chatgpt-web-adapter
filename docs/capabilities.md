@@ -10,10 +10,9 @@ particular runtime instance.
 
 | Product | Capability | Support | Public surface | Finality |
 | --- | --- | --- | --- | --- |
-| ChatGPT | text new chat + continuation | Production/default | `ChatGPTProductRuntime` | Canonical readback where required |
-| ChatGPT | image/file input + multimodal continuation | Production on proven browser-owned paths | `ChatGPTProductRuntime` | Canonical readback where required |
-| ChatGPT | structured search/tool/source/citation observations | Production on proven paths | runtime observations | Observation is not downstream authority |
-| ChatGPT (direct HTTP) | Text, streaming, Temporary Chat send, Markdown and PNG, continuation | Experimental / Windows live 2026-10-23 | `BrowserlessHTTPClient` opt-in | Stream and model request are not canonical finality/model attestation |
+| ChatGPT (Direct HTTP) | Text new chat/continuation, streaming, Temporary Chat, Markdown/PNG attachments | **Primary / live-verified** (2026-10-29) | `BrowserlessHTTPClient` | Canonical readback; requested model/effort not server-attested |
+| ChatGPT (browser-owned UI) | Text, files and page-owned interaction | **Experimental / secondary** (multi-file live E2E incomplete) | `ChatGPTProductRuntime` (legacy default) | Canonical readback if completed; DOM/attachment state not finality |
+| ChatGPT | structured search/tool/source/citation observations | Evidence-backed on respective paths | runtime observations | Observation is not downstream authority |
 | ChatGPT (shared canonical client) | Conversation export and governed generated-file handoff | Shared client operation, bounded live evidence | `cwa export` / `handoff_generated_artifact(...)` | Requires exact product identity and destination integrity checks |
 | DeepSeek Web | text new chat + continuation | Experimental | `DeepSeekWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
 | Gemini Web | text new chat + continuation | Experimental | `GeminiWebRuntime` module-only | `PAGE_DOM_STABLE_COMPLETION`, noncanonical |
@@ -106,8 +105,9 @@ production-ready.
 
 ## How callers should discover support
 
-For a concrete production ChatGPT runtime, prefer runtime-owned capability and health
-inspection:
+For the secondary browser-owned `ChatGPTProductRuntime`, inspect its
+runtime-owned capabilities and health. These methods are **not** methods of
+the standalone primary `BrowserlessHTTPClient`:
 
 ```python
 capabilities = runtime.capabilities()

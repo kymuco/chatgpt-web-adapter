@@ -30,10 +30,11 @@ and post-0.3 provider/Qwen additions. The newest published package remains `v0.3
 ## Proposed v0.4.0 scope and readiness (audit: 2026-10-25)
 
 The source candidate stages package version `0.4.0`, but this is **not** a Git
-tag, published GitHub Release, or authorization to upload to PyPI. Preserve the browser-owned ChatGPT production/default runtime,
-existing CLI and compatibility interfaces. Ship the already-merged post-0.3
-capabilities with **their existing support tiers**: opt-in experimental ChatGPT
-Direct HTTP; Deep Research launch and canonical report readback (#227/#228);
+tag, published GitHub Release, or authorization to upload to PyPI. Preserve
+the legacy browser-owned SDK default for compatibility while promoting
+`BrowserlessHTTPClient` to the primary ChatGPT public surface for live-verified
+operations. Browser-owned is secondary/experimental, not an automatic fallback.
+Ship the already-merged post-0.3 capabilities: ChatGPT Direct HTTP; Deep Research launch and canonical report readback (#227/#228);
 ordinary-request image generation observation and generated-image readback
 (#229); narrow governed file handoff; isolated experimental Qwen Web;
 experimental DeepSeek/Gemini and module-only Google Translate/Gemini Notebook.
@@ -46,7 +47,9 @@ in 2/2 independent UI and HTTP conversations, and previously the existing
 artifact handoff downloaded a PNG with exact byte/SHA-256 verification.
 
 **2026-10-29 evidence and disposition:** PR #237 changes the recommended
-ChatGPT integration path to opt-in Direct HTTP without changing the SDK default.
+ChatGPT integration path to primary Direct HTTP without changing the legacy
+SDK default. The current public API classification is PRIMARY_PRODUCTION for
+`BrowserlessHTTPClient` and EXPERIMENTAL for browser-owned.
 The exact `main` at `0e330c5e` passed 16/16 CI. A user-run Direct HTTP E2E
 completed one send with three Markdown files, two streaming callbacks,
 file-only expected values and canonical ID/text/status match. GPT-6 High
@@ -78,7 +81,8 @@ products.
 Current provider/capability status:
 
 ```text
-ChatGPT               PRODUCTION / default conversational runtime
+ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK
+ChatGPT browser UI    EXPERIMENTAL / secondary (legacy default)
 DeepSeek Web          EXPERIMENTAL conversational runtime
 Gemini Web            EXPERIMENTAL conversational runtime
 Qwen Web              EXPERIMENTAL isolated Chrome/Native Host SDK
@@ -90,7 +94,7 @@ The shared provider-neutral architecture is represented by
 `ProductProviderBoundary schema 2`, but that boundary is metadata/invariant validation
 over a runtime, not an execution router.
 
-## ChatGPT production/default surface
+## ChatGPT primary HTTP SDK and secondary UI runtime
 
 Primary application boundary:
 
@@ -98,17 +102,17 @@ Primary application boundary:
 ChatGPTProductRuntime
 ```
 
-Production mutation transport:
+Secondary UI mutation transport (legacy default):
 
 ```text
-browser-owned = PRODUCTION
+browser-owned = EXPERIMENTAL
 ```
 
 Alternative direct-request transports (two distinct implementations):
 
 ```text
 browserless-request = EXPERIMENTAL (historical runtime transport)
-BrowserlessHTTPClient = EXPERIMENTAL / recommended opt-in ChatGPT SDK (#212, #237)
+BrowserlessHTTPClient = PRIMARY_PRODUCTION / primary ChatGPT SDK (#212, #237)
 ```
 
 The direct HTTP client uses a saved authenticated session, Node.js 24+ and curl;
@@ -182,7 +186,8 @@ See [`docs/providers.md`](docs/providers.md).
 
 ## Browser-owned strategy
 
-Browser-owned execution is the reference/default web-product mutation strategy.
+Browser-owned remains a secondary experimental UI mutation strategy. Its
+legacy runtime default is retained for compatibility, not as a recommendation.
 
 The browser owns the authenticated product environment, frontend execution, normal
 navigation and page-owned submit behavior. CWA owns the bounded runtime operation and
@@ -222,9 +227,10 @@ See [PR14.0](docs/engineering/pr14_0_governed_generated_artifact_handoff.md).
 
 ### Browserless writes
 
-`browserless-request` and the separate opt-in `BrowserlessHTTPClient` remain
-experimental. Direct HTTP live evidence covers selected operations, not a full
-reliability or automatic auth-recovery guarantee. Scoped browser-session sync and
+`browserless-request` remains experimental. The separate
+`BrowserlessHTTPClient` is now the PRIMARY_PRODUCTION public SDK for selected
+live-verified operations; it is still vulnerable to private protocol changes
+and does not guarantee automatic auth recovery or transport fallback. Scoped browser-session sync and
 canonical-GET `401` recovery do not automatically apply to `BrowserlessHTTPClient.send()`.
 
 CWA does not add challenge-bypass machinery merely to promote browserless writes.

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import chatgpt_web_adapter as adapter
 
-
 PRODUCT_RUNTIME_EXPORTS = [
     "BROWSER_OWNED_PRODUCT_TRANSPORT",
     "DEFAULT_PRODUCT_TRANSPORT",
@@ -32,6 +31,10 @@ PRODUCT_RUNTIME_EXPORTS = [
 
 
 def test_product_runtime_is_public_production_surface() -> None:
+    assert adapter.BrowserlessHTTPClient.__name__ == "BrowserlessHTTPClient"
+    assert adapter.public_surface_tier("BrowserlessHTTPClient") is (
+        adapter.PublicSurfaceTier.PRIMARY_PRODUCTION
+    )
     for name in PRODUCT_RUNTIME_EXPORTS:
         assert name in adapter.__all__
         assert hasattr(adapter, name)
@@ -45,7 +48,7 @@ def test_product_runtime_transport_default_is_browser_owned() -> None:
     )
     assert adapter.PRODUCT_RUNTIME_CONTRACT_SCHEMA == 1
     assert adapter.product_transport_support_tier("browser-owned") is (
-        adapter.ProductTransportSupportTier.PRODUCTION
+        adapter.ProductTransportSupportTier.EXPERIMENTAL
     )
     assert adapter.product_transport_support_tier("browserless-request") is (
         adapter.ProductTransportSupportTier.EXPERIMENTAL
