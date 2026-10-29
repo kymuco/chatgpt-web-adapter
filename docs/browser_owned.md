@@ -1,11 +1,17 @@
 # Browser-owned execution
 
-_Last updated: 2026-09-26_
+_Last updated: 2026-10-29_
 
-Browser-owned execution is the reference/default mutation strategy for ordinary
-consumer AI web products in CWA.
+Browser-owned execution remains a supported **secondary, experimental** way to
+operate real consumer AI web pages in CWA. It is the legacy default of
+`assemble_product_runtime()` for compatibility, not the primary recommendation
+for ChatGPT. For live-verified ChatGPT operations, prefer the standalone
+`BrowserlessHTTPClient` (no tab for sending).
 
-It is not considered an architectural failure merely because it requires a browser.
+Its current multi-file rich-input behavior is **not** live-accepted: a
+2026-10-29 three-file attempt showed one attachment and did not complete.
+The exact failure stage is unproven; preserve the attachment fence and never
+retry an ambiguous write automatically.
 
 ## Why a real browser is useful
 
@@ -23,7 +29,9 @@ product challenge/protection state
 Reproducing those semantics outside the browser often means taking ownership of
 private web protocols that change more frequently than the product surface itself.
 
-CWA therefore prefers to keep the browser responsible for browser/product concerns.
+When callers deliberately use the browser-owned path, CWA keeps the browser
+responsible for browser/product concerns. This is a page-specific design
+choice, not a universal transport recommendation.
 
 ## CWA's bounded responsibility
 
@@ -85,11 +93,15 @@ The architecture keeps those claims distinct.
 
 Browserless web-product access is technically possible and may be useful.
 
-CWA already contains the experimental ChatGPT transport:
+CWA provides the primary, live-verified ChatGPT `BrowserlessHTTPClient` SDK
+and a **separate historical** experimental product-runtime transport:
 
 ```text
 browserless-request
 ```
+
+These are different implementations; the HTTP client is not installed as an
+additional `ChatGPTProductRuntime` transport.
 
 But avoiding Chrome is not sufficient evidence for promotion.
 
