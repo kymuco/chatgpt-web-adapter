@@ -243,7 +243,10 @@ def test_docs_map_distinguishes_current_docs_from_historical_evidence() -> None:
 
 def test_0_4_changelog_records_post_0_3_milestones() -> None:
     text = _read("CHANGELOG.md")
-    released_candidate = text.split("## 0.4.0 - 2026-10-29", 1)[1].split("## 0.3.0", 1)[0]
+    released_candidate = (
+        text.split("## 0.4.0 - 2026-10-29", 1)[1]
+        .split("## 0.3.0", 1)[0]
+    )
 
     assert "connectors / required actions" in released_candidate
     assert "generated artifacts" in released_candidate
