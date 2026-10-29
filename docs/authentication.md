@@ -12,9 +12,9 @@ python -m pip install chatgpt-web-adapter
 ```
 
 The Direct HTTP SDK requires Node.js 24+, curl and a valid saved ChatGPT web
-auth file, but no Chrome tab for sending. To obtain initial authorization,
-`auth login` uses a browser; an existing signed-in Chrome session can also be
-synced by the separately authorized browser sync flow.
+auth file, but no Chrome tab for sending. To obtain initial authorization, `auth login` requires the optional `[browser]`
+extra and uses an interactive browser; an existing signed-in Chrome session
+can also be synced by the separately authorized browser sync flow.
 
 For secondary browser-owned UI interaction and legacy login support:
 
@@ -102,7 +102,8 @@ Headless is not browserless: Chromium is still running as the browser engine.
 
 ## Refresh Behavior
 
-On client construction, a missing or near-expiry access token is refreshed
+For the historical `ChatGPTWebClient` auth lifecycle, a missing or near-expiry
+access token on construction is refreshed
 through `GET https://chatgpt.com/api/auth/session`. The refresh uses the saved
 session cookies, updates access/session metadata, preserves the structured
 browser cookie jar, and atomically rewrites `auth_data.json`. It does not launch
