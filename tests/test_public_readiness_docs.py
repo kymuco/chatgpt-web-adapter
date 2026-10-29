@@ -74,7 +74,7 @@ def test_readme_architecture_map_distinguishes_product_lanes() -> None:
         "Local app / agent / CLI",
         "CWA: provider-specific integrations",
         "ChatGPT browser-owned",
-        "production/default",
+        "secondary; experimental",
         "ChatGPT direct HTTP",
         "experimental",
         "Qwen isolated SDK",
@@ -169,7 +169,8 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
     assert "latest public release   v0.3.0" in text
     assert "current main            post-0.3 development" in text
     assert "PR15 provider architecture frozen" in text
-    assert "ChatGPT               PRODUCTION / default conversational runtime" in text
+    assert "ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK" in text
+    assert "ChatGPT browser UI    EXPERIMENTAL / secondary" in text
     assert "DeepSeek Web          EXPERIMENTAL conversational runtime" in text
     assert "Gemini Web            EXPERIMENTAL conversational runtime" in text
     assert (
