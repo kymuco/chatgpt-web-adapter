@@ -2,15 +2,21 @@
 
 Candidate date: 2026-10-29. **Not yet tagged, published on GitHub Releases, or uploaded to PyPI.** The release date in `CHANGELOG.md` must match the actual publication decision.
 
-CWA 0.4.0 packages the already-merged post-0.3 runtime capabilities. It does not replace official APIs or promote experimental consumer-web protocols to production guarantees.
+CWA 0.4.0 packages the post-0.3 runtime capabilities and promotes the
+live-verified Direct HTTP SDK to the primary public ChatGPT API. This does not
+make it an official API or guarantee that a private consumer-web protocol
+will remain unchanged.
 
 ## Highlights
 
-### ChatGPT Direct HTTP — recommended for validated new integrations
+### ChatGPT Direct HTTP — primary SDK for live-verified operations
 
-The existing opt-in `BrowserlessHTTPClient` provides ChatGPT ordinary new-chat and continuation, streaming, attachment upload, Temporary Chat, explicit requested model and reasoning effort, and canonical conversation readback without controlling a Chrome tab. It is the **recommended choice for new ChatGPT integrations when the required operation has supporting live evidence**, but its support tier remains **EXPERIMENTAL** because the consumer web protocol may change.
+The existing opt-in `BrowserlessHTTPClient` provides ChatGPT ordinary new-chat and continuation, streaming, attachment upload, Temporary Chat, explicit requested model and reasoning effort, and canonical conversation readback without controlling a Chrome tab. It is the **PRIMARY_PRODUCTION** public ChatGPT SDK for operations backed by
+live evidence, but the consumer web protocol can still change.
 
-`assemble_product_runtime()` continues to select browser-owned by default for backwards compatibility, with the browser-owned runtime retaining its pre-existing production classification. It is now positioned as an **explicitly selected UI alternative**, not an automatic fallback. No Headless Chromium backend, transport router, or automatic replay of an ambiguous write is introduced.
+`assemble_product_runtime()` continues to select browser-owned by default
+for backwards compatibility, while that UI transport is reclassified
+**EXPERIMENTAL** after an incomplete multi-file E2E. It is now positioned as an **explicitly selected UI alternative**, not an automatic fallback. No Headless Chromium backend, transport router, or automatic replay of an ambiguous write is introduced.
 
 A Windows user-run E2E on 2026-10-29 against source `main` `0e330c5e` exercised exactly one Direct HTTP send, three distinct Markdown attachments, seven prompt lines and two streaming chunks; the response reproduced markers found only inside each attachment. A separate canonical GET reported `completed` and matched the user text, assistant text and assistant message ID. GPT-6 with High effort was **requested**, not independently attested by the server. This specific successful test is not a reliability or protocol-stability guarantee.
 
@@ -24,7 +30,7 @@ A Windows user-run E2E on 2026-10-29 against source `main` `0e330c5e` exercised 
 
 - Isolated experimental Qwen Web Python/CLI/Native Host and Windows-verified text/continuation/network streaming.
 - Experimental DeepSeek/Gemini conversational providers and separate module-only Google Translate / Gemini Notebook consumer capabilities.
-- Stronger provider semantics, provenance, required-action observations, auth sync and release/installed-wheel packaging gates; experimental surfaces remain explicit rather than forced into the stable ChatGPT API.
+- Stronger provider semantics, provenance, required-action observations, auth sync and release/installed-wheel packaging gates; other experimental provider surfaces remain explicit rather than forced into the ChatGPT API.
 
 ### Browser-owned and canonical-read hardening
 
