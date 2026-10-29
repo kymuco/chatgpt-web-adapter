@@ -6,18 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA23 = EXT / "service_worker_rich_input_schema23_repair_pr9_2.js"
 GATE23 = PKG / "product_rich_input_live_gate_schema23_pr9_2.py"
-
-
-def test_schema_23_overlay_is_loaded_after_schema_22():
-    text = LOADER.read_text(encoding="utf-8")
-    schema22 = 'importScripts("service_worker_rich_input_schema22_repair_pr9_2.js");'
-    schema23 = 'importScripts("service_worker_rich_input_schema23_repair_pr9_2.js");'
-    assert schema22 in text
-    assert schema23 in text
-    assert text.index(schema22) < text.index(schema23)
 
 
 def test_schema_23_filename_role_group_channel_no_longer_depends_on_remove_control():

@@ -7,7 +7,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA28 = EXT / "service_worker_rich_input_schema28_repair_pr9_2.js"
 DIAGNOSTIC_REPAIR28 = (
     EXT / "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js"
@@ -94,17 +93,6 @@ console.log(JSON.stringify({{
         encoding="utf-8",
     )
     return json.loads(completed.stdout)
-
-
-def test_schema_28_overlay_is_loaded_after_schema_27_diagnostic():
-    text = LOADER.read_text(encoding="utf-8")
-    schema27 = 'importScripts("service_worker_rich_input_schema27_staging_diagnostic_pr9_2.js");'
-    schema28 = 'importScripts("service_worker_rich_input_schema28_repair_pr9_2.js");'
-    diagnostic_repair28 = 'importScripts("service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js");'
-    assert schema27 in text
-    assert schema28 in text
-    assert diagnostic_repair28 in text
-    assert text.index(schema27) < text.index(schema28) < text.index(diagnostic_repair28)
 
 
 def test_schema_28_parser_is_json_first_and_not_serialization_specific():

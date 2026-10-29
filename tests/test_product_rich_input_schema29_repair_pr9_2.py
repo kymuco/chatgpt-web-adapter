@@ -4,12 +4,13 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from chatgpt_web_adapter import product_rich_input_live_gate_schema29_pr9_2 as gate29
 
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA28 = EXT / "service_worker_rich_input_schema28_repair_pr9_2.js"
 SCHEMA29 = EXT / "service_worker_rich_input_schema29_repair_pr9_2.js"
 GATE29 = PKG / "product_rich_input_live_gate_schema29_pr9_2.py"
@@ -386,12 +387,52 @@ run();
     )
 
 
-def test_schema_29_is_loaded_after_schema_28_diagnostic_overlay():
-    text = LOADER.read_text(encoding="utf-8")
-    schema28 = 'importScripts("service_worker_rich_input_schema28_repair_pr9_2.js");'
-    diagnostic28 = 'importScripts("service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js");'
-    schema29 = 'importScripts("service_worker_rich_input_schema29_repair_pr9_2.js");'
-    assert text.index(schema28) < text.index(diagnostic28) < text.index(schema29)
+@pytest.mark.parametrize("schema", range(12, 30))
+def test_rich_input_schema_overlays_load_in_required_order(schema: int) -> None:
+    """All 18 historic loader-order checks, including diagnostic boundaries."""
+    text = (
+        EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
+    ).read_text(encoding="utf-8")
+
+    def repair(number: int) -> str:
+        return f"service_worker_rich_input_schema{number}_repair_pr9_2.js"
+
+    if schema == 24:
+        scripts = (
+            repair(23),
+            repair(24),
+            "service_worker_rich_input_schema23_diagnostic_pr9_2.js",
+        )
+    elif schema == 25:
+        scripts = (
+            repair(24),
+            "service_worker_rich_input_schema23_diagnostic_pr9_2.js",
+            repair(25),
+        )
+    elif schema == 27:
+        scripts = (
+            repair(26),
+            "service_worker_rich_input_schema26_staging_diagnostic_pr9_2.js",
+            repair(27),
+        )
+    elif schema == 28:
+        scripts = (
+            "service_worker_rich_input_schema27_staging_diagnostic_pr9_2.js",
+            repair(28),
+            "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js",
+        )
+    elif schema == 29:
+        scripts = (
+            repair(28),
+            "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js",
+            repair(29),
+        )
+    else:
+        scripts = (repair(schema - 1), repair(schema))
+
+    markers = tuple(f'importScripts("{script}");' for script in scripts)
+    positions = tuple(text.index(marker) for marker in markers)
+    assert all(a < b for a, b in zip(positions, positions[1:]))
 
 
 def test_schema_29_response_identity_accepts_current_protocol_without_stream_handoff():
