@@ -1,4 +1,4 @@
-"""Experimental browserless HTTP + pinned JavaScript integrity implementation.
+"""Direct HTTP ChatGPT SDK with pinned JavaScript integrity implementation.
 
 No browser fallback. The historical strict browserless-request transport is a
 separate implementation and remains unchanged.
