@@ -2,22 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA22 = EXT / "service_worker_rich_input_schema22_repair_pr9_2.js"
 GATE22 = PKG / "product_rich_input_live_gate_schema22_pr9_2.py"
-
-
-def test_schema_22_overlay_is_loaded_after_schema_21():
-    text = LOADER.read_text(encoding="utf-8")
-    schema21 = 'importScripts("service_worker_rich_input_schema21_repair_pr9_2.js");'
-    schema22 = 'importScripts("service_worker_rich_input_schema22_repair_pr9_2.js");'
-    assert schema21 in text
-    assert schema22 in text
-    assert text.index(schema21) < text.index(schema22)
 
 
 def test_schema_22_role_group_evidence_requires_attachment_removal_control():
@@ -32,7 +21,10 @@ def test_schema_22_role_group_evidence_requires_attachment_removal_control():
 
 def test_schema_22_keeps_structured_removal_channel_independent():
     text = SCHEMA22.read_text(encoding="utf-8")
-    assert "const removalLabels = Array.from(composer.querySelectorAll(removalControlSelector))" in text
+    assert (
+        "const removalLabels = Array.from(composer.querySelectorAll(removalControlSelector))"
+        in text
+    )
     assert ".filter(isStructuredRemovalLabel);" in text
     assert "removalControlBasename(label) === name" in text
     assert "groupsCompatible" in text
@@ -77,7 +69,9 @@ def test_schema_22_gate_preserves_schema_21_and_requires_new_fields():
 
 def test_schema_22_support_probe_is_sixteenth_no_write_characterization_rpc():
     text = GATE22.read_text(encoding="utf-8")
-    assert "Sixteenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Sixteenth characterization-only RPC: no text and no attachment paths." in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]

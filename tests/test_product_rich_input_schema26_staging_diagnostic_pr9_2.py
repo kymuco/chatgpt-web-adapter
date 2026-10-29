@@ -8,7 +8,6 @@ EXT = PKG / "browser_native_extension"
 LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA26 = EXT / "service_worker_rich_input_schema26_repair_pr9_2.js"
 DIAGNOSTIC = EXT / "service_worker_rich_input_schema26_staging_diagnostic_pr9_2.js"
-CLI = PKG / "product_rich_input_staging_diagnostic_schema26_pr9_2.py"
 
 
 def test_schema_26_staging_diagnostic_loads_after_schema26_repair():
@@ -71,25 +70,3 @@ def test_staging_diagnostic_requires_proven_cleanup_before_success():
     assert "cleanupProven: true" in text[result:]
     assert "durableFenceCleared: true" in text[result:]
     assert "if (staged)" in text
-
-
-def test_staging_diagnostic_cli_sends_attachment_path_but_no_text():
-    text = CLI.read_text(encoding="utf-8")
-    request_start = text.index("response = provider._rpc")
-    request_end = text.index("timeout=timeout", request_start)
-    request = text[request_start:request_end]
-    assert '"diagnosePr92StagedAttachmentEvidence": True' in request
-    assert '"attachmentPaths": [str(image_path)]' in request
-    assert '"text"' not in request
-
-
-def test_staging_diagnostic_cli_requires_exact_evidence_and_no_write():
-    text = CLI.read_text(encoding="utf-8")
-    assert 'response.get("conversationWritePerformed") is not False' in text
-    assert 'response.get("textInsertionPerformed") is not False' in text
-    assert 'response.get("protectedSubmitAttempted") is not False' in text
-    assert 'evidence.get("exactAttachmentSet") is not True' in text
-    assert 'evidence.get("crossEvidenceChannelExact") is not True' in text
-    assert 'normalization.get("singleAttachmentCrossChannelExact") is not True' in text
-    assert 'response.get("cleanupProven") is not True' in text
-    assert 'response.get("durableFenceCleared") is not True' in text

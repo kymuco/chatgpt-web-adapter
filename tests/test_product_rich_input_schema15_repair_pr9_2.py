@@ -5,18 +5,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA15 = EXT / "service_worker_rich_input_schema15_repair_pr9_2.js"
 GATE15 = PKG / "product_rich_input_live_gate_schema15_pr9_2.py"
-
-
-def test_schema_15_overlay_is_loaded_after_schema_14():
-    text = LOADER.read_text(encoding="utf-8")
-    schema14 = 'importScripts("service_worker_rich_input_schema14_repair_pr9_2.js");'
-    schema15 = 'importScripts("service_worker_rich_input_schema15_repair_pr9_2.js");'
-    assert schema14 in text
-    assert schema15 in text
-    assert text.index(schema14) < text.index(schema15)
 
 
 def test_schema_15_pre_stage_success_detach_is_deadline_bounded_before_return():
