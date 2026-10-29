@@ -53,7 +53,7 @@ conversation-shaped provider contract. See [docs/capabilities.md](docs/capabilit
 
 CWA connects local software to authenticated consumer AI products through
 provider-specific runtime contracts. For new ChatGPT integrations, Direct HTTP
-is the recommended opt-in path for validated operations. Browser-owned remains
+is the recommended primary SDK for validated operations. Browser-owned remains
 the existing SDK default for compatibility, not an automatic fallback. Support
 and finality boundaries differ; see the [runtime map](#runtime-map).
 
@@ -198,13 +198,16 @@ The [production quickstart](docs/quickstart.md), [direct HTTP SDK guide](docs/br
 [Qwen guide](docs/qwen.md), [full capability map](docs/capabilities.md) and
 [provider finality model](docs/providers.md) describe their boundaries.
 
-All statuses describe **current source `main`**, not necessarily the latest published `v0.3.0` wheel.
+Capability statuses below describe the **v0.4.0 source candidate** and its
+prior live evidence, not the latest published `v0.3.0` wheel.
 
 ## Release vs current `main`
 
 - **Latest public release:** `v0.3.0` — 2026-09-01.
 - **Published package version:** `0.3.0`.
 - **Current source candidate version:** `0.4.0` (not published; no release tag).
+- **Typing:** PEP 561 `py.typed` is staged for installed wheel/sdist consumers;
+  this does not mean every historical module passes strict type checking.
 - **Candidate release notes:** [CWA 0.4.0](docs/release_notes_0_4_0.md).
 - **Current `main`:** includes the post-0.3 provider architecture, non-chat
   capabilities, Qwen browser/HTTP SDK, opt-in ChatGPT `BrowserlessHTTPClient`
@@ -247,10 +250,11 @@ resolve product surface
 A reusable background runtime tab is an implementation resource, not public
 conversation authority.
 
-CWA contains **two different** direct-request experiments: the historical
-`browserless-request` runtime transport and the separate opt-in
-`BrowserlessHTTPClient` SDK. Neither is a production/default replacement merely
-because it avoids Chrome, and neither silently falls back after an ambiguous write.
+CWA has **two distinct** direct-request implementations: the historical
+experimental `browserless-request` product-runtime transport and the primary
+`BrowserlessHTTPClient` SDK. Their contracts and evidence are different.
+Direct HTTP is recommended because specific operations passed live E2E, not
+merely because it avoids Chrome. Neither automatically replays ambiguous writes.
 
 See [docs/browser_owned.md](docs/browser_owned.md).
 
