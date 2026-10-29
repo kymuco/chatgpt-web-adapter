@@ -295,7 +295,9 @@ The current `main` (`2c4a0215c5d3`, 2026-10-16) includes:
   bounded transport proof, not generalized model attestation or action authority.
 
 No new public release is implied. The published package is still `v0.3.0`.
-The production ChatGPT browser-owned runtime stays the default.
+The ChatGPT product-runtime default remains browser-owned only for backward
+compatibility. New ChatGPT integrations should use the primary Direct HTTP
+SDK on live-verified operations.
 
 ## Release readiness work
 
@@ -379,9 +381,10 @@ Reopen the frozen provider architecture only if:
    support contract;
 5. a concrete safety failure disproves current write/reconciliation invariants.
 
-## Browser-owned vs browserless
+## Browser-owned vs Direct HTTP for ChatGPT
 
-Browser-owned remains the reference/default web-product mutation strategy.
+Browser-owned remains a secondary experimental page-owned strategy; for
+ChatGPT, Direct HTTP is the primary recommended SDK on live-verified operations.
 
 `browserless-request` remains `EXPERIMENTAL` until long-term evidence supports a
 stronger claim.
@@ -420,10 +423,11 @@ Do not publish merely to remove the unpacked/developer label.
 
 The audited `main` commit `1b47d258` supports a coherent **capability expansion**
 rather than another documentation-only `0.3.x` update. Preserve ChatGPT
-browser-owned as production/default. Release merged opt-in ChatGPT HTTP, Deep
+browser-owned as a secondary experimental UI path. Promote the live-verified
+Direct HTTP SDK into the primary public API, while releasing merged Deep
 Research, generated-image readback and governed artifact handoff alongside
 already-shipped experimental Qwen, DeepSeek/Gemini, Translate and Notebook
-modules **without promoting any experimental support tier**.
+modules with their own existing experimental support tiers.
 
 The staged `0.4.0` source candidate is not tagged or published. The 429 read
 deadline #168 is closed by #232. Focused rich-input fixes #233-#236 are merged,
@@ -431,8 +435,8 @@ but 2026-10-29 browser-owned multi-file Live E2E remained incomplete; #211
 therefore remains open for explicit release-limitation disposition, not bulk
 merge. Canonical 500 draft #221 remains unproven/deferred. The exact versioned
 wheel, dated release notes, and tag parity must pass before a separate release
-decision. Direct HTTP is preferred for validated ChatGPT operations (#237),
-while remaining explicitly experimental and opt-in; browser-owned still ships
+decision. Direct HTTP is the PRIMARY_PRODUCTION public ChatGPT SDK for
+validated operations; browser-owned is EXPERIMENTAL and still ships
 as the compatibility default and is never an automatic retry fallback.
 Linux Qwen draft #217 awaits its own E2E and is not silently included. #114,
 #172, and pending Qwen draft branches are independent follow-ups.
