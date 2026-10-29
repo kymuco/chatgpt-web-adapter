@@ -75,7 +75,9 @@ def _write_dist(
 
 def test_repository_package_version_is_staged_for_0_4() -> None:
     repo = Path(__file__).resolve().parents[1]
-    assert release_gate.project_version(repo / "pyproject.toml") == STAGED_PROJECT_VERSION
+    assert (
+        release_gate.project_version(repo / "pyproject.toml") == STAGED_PROJECT_VERSION
+    )
 
 
 def test_candidate_gate_allows_changelog_finalization_to_remain_separate(
