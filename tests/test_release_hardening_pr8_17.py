@@ -9,7 +9,8 @@ import pytest
 
 from tools import installed_wheel_smoke, release_gate
 
-VERSION = "0.3.0"
+VERSION = "0.3.0"  # historical synthetic release-gate fixture
+STAGED_PROJECT_VERSION = "0.4.0"
 
 
 def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") -> Path:
@@ -72,9 +73,9 @@ def _write_dist(
     return dist
 
 
-def test_repository_package_version_is_staged_for_0_3() -> None:
+def test_repository_package_version_is_staged_for_0_4() -> None:
     repo = Path(__file__).resolve().parents[1]
-    assert release_gate.project_version(repo / "pyproject.toml") == VERSION
+    assert release_gate.project_version(repo / "pyproject.toml") == STAGED_PROJECT_VERSION
 
 
 def test_candidate_gate_allows_changelog_finalization_to_remain_separate(
@@ -264,7 +265,7 @@ def test_pyproject_freezes_console_scripts_and_extension_package_data() -> None:
     text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    assert 'version = "0.3.0"' in text
+    assert 'version = "0.4.0"' in text
     assert 'cwa = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'chatgpt-web-adapter = "chatgpt_web_adapter.cli_v02:main"' in text
     assert (
@@ -327,4 +328,4 @@ def test_readme_and_release_checklist_present_0_3_user_and_release_contracts() -
     )
     assert "installed-wheel smoke" in checklist
     assert "Post-publish verification" in checklist
-    assert "v0.3.0" in checklist
+    assert "v0.4.0" in checklist
