@@ -49,7 +49,7 @@ def _fake_curl(monkeypatch, *, status, exit_code, body):
         (200, 18),  # partial transfer after valid response headers
         (200, 28),  # timeout after headers
         (200, 56),  # recv failure after headers
-        (0, 6),     # no HTTP response headers
+        (0, 6),  # no HTTP response headers
     ],
 )
 def test_nonzero_curl_exit_rejected_before_json_and_cookie_update(
