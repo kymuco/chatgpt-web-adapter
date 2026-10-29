@@ -4,7 +4,6 @@ import importlib
 
 import pytest
 
-
 # Schema 8–11 support checks share a cumulative wire response, not four copies
 # of the same historical fixture. None of these tests performs a product write.
 SCHEMAS = (8, 9, 10, 11)
@@ -118,7 +117,6 @@ def _raw_response(request_id: str, schema: int) -> dict:
         "fallbackTransport": None,
         "writePerformed": False,
     }
-
 
 
 def _module(schema: int):
