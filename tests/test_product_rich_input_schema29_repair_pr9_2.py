@@ -390,9 +390,9 @@ run();
 @pytest.mark.parametrize("schema", range(12, 30))
 def test_rich_input_schema_overlays_load_in_required_order(schema: int) -> None:
     """All 18 historic loader-order checks, including diagnostic boundaries."""
-    text = (
-        EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
-    ).read_text(encoding="utf-8")
+    text = (EXT / "service_worker_rich_input_schema7_repair_pr9_2.js").read_text(
+        encoding="utf-8"
+    )
 
     def repair(number: int) -> str:
         return f"service_worker_rich_input_schema{number}_repair_pr9_2.js"
