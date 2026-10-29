@@ -45,6 +45,7 @@ REQUIRED_PRODUCT_MODULES = (
     "chatgpt_web_adapter.product_web_search_capability_gate_pr9_3",
 )
 REQUIRED_PRIMARY_ROOT_EXPORTS = (
+    "BrowserlessHTTPClient",
     "ChatGPTProductRuntime",
     "ProductRuntimeExecution",
     "ProductCapabilities",
@@ -284,6 +285,10 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
         raise RuntimeError(
             f"smoke did not import installed wheel from site-packages: {package_path}"
         )
+
+    # Check the installed wheel, not the editable checkout, for PEP 561 support.
+    if not (package_path.parent / "py.typed").is_file():
+        raise RuntimeError("installed CWA wheel is missing PEP 561 py.typed")
 
     cli_v02 = importlib.import_module("chatgpt_web_adapter.cli_v02")
     doctor = importlib.import_module("chatgpt_web_adapter.doctor")
