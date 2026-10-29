@@ -11,23 +11,56 @@ SCHEMAS = (8, 9, 10, 11)
 
 NEW_CLAIMS = {
     8: (
-        ("pre_stage_composer_attachment_clean", "PRE_STAGE_COMPOSER_ATTACHMENT_CLEAN_NOT_PROVEN"),
-        ("exact_composer_attachment_set_required", "EXACT_COMPOSER_ATTACHMENT_SET_NOT_PROVEN"),
-        ("destructive_cleanup_authority_revalidated_at_close", "DESTRUCTIVE_CLEANUP_REVALIDATION_NOT_PROVEN"),
-        ("destructive_cleanup_ownership_change_fails_closed", "DESTRUCTIVE_CLEANUP_OWNERSHIP_CHANGE_FAIL_CLOSED_NOT_PROVEN"),
+        (
+            "pre_stage_composer_attachment_clean",
+            "PRE_STAGE_COMPOSER_ATTACHMENT_CLEAN_NOT_PROVEN",
+        ),
+        (
+            "exact_composer_attachment_set_required",
+            "EXACT_COMPOSER_ATTACHMENT_SET_NOT_PROVEN",
+        ),
+        (
+            "destructive_cleanup_authority_revalidated_at_close",
+            "DESTRUCTIVE_CLEANUP_REVALIDATION_NOT_PROVEN",
+        ),
+        (
+            "destructive_cleanup_ownership_change_fails_closed",
+            "DESTRUCTIVE_CLEANUP_OWNERSHIP_CHANGE_FAIL_CLOSED_NOT_PROVEN",
+        ),
     ),
     9: (
-        ("cross_evidence_channel_exactness", "CROSS_EVIDENCE_CHANNEL_EXACTNESS_NOT_PROVEN"),
+        (
+            "cross_evidence_channel_exactness",
+            "CROSS_EVIDENCE_CHANNEL_EXACTNESS_NOT_PROVEN",
+        ),
     ),
     10: (
-        ("official_composer_required_for_attachment_evidence", "OFFICIAL_COMPOSER_ATTACHMENT_EVIDENCE_NOT_PROVEN"),
-        ("exact_basename_association_required", "EXACT_BASENAME_ASSOCIATION_NOT_PROVEN"),
-        ("prestage_debugger_setup_deadline_bounded", "PRESTAGE_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN"),
-        ("late_prestage_debugger_attach_auto_detached", "LATE_PRESTAGE_DEBUGGER_ATTACH_DETACH_NOT_PROVEN"),
+        (
+            "official_composer_required_for_attachment_evidence",
+            "OFFICIAL_COMPOSER_ATTACHMENT_EVIDENCE_NOT_PROVEN",
+        ),
+        (
+            "exact_basename_association_required",
+            "EXACT_BASENAME_ASSOCIATION_NOT_PROVEN",
+        ),
+        (
+            "prestage_debugger_setup_deadline_bounded",
+            "PRESTAGE_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN",
+        ),
+        (
+            "late_prestage_debugger_attach_auto_detached",
+            "LATE_PRESTAGE_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
+        ),
     ),
     11: (
-        ("structured_removal_control_basename_parsing", "STRUCTURED_REMOVAL_BASENAME_NOT_PROVEN"),
-        ("attachment_evidence_reads_deadline_bounded", "ATTACHMENT_EVIDENCE_READ_DEADLINE_NOT_PROVEN"),
+        (
+            "structured_removal_control_basename_parsing",
+            "STRUCTURED_REMOVAL_BASENAME_NOT_PROVEN",
+        ),
+        (
+            "attachment_evidence_reads_deadline_bounded",
+            "ATTACHMENT_EVIDENCE_READ_DEADLINE_NOT_PROVEN",
+        ),
     ),
 }
 
@@ -155,9 +188,21 @@ def test_legacy_support_rejects_previous_schema(monkeypatch, schema):
 @pytest.mark.parametrize(
     ("schema", "field", "error"),
     [
-        (9, "exact_composer_attachment_set_required", "EXACT_COMPOSER_ATTACHMENT_SET_NOT_PROVEN"),
-        (10, "cross_evidence_channel_exactness", "CROSS_EVIDENCE_CHANNEL_EXACTNESS_NOT_PROVEN"),
-        (11, "official_composer_required_for_attachment_evidence", "OFFICIAL_COMPOSER_ATTACHMENT_EVIDENCE_NOT_PROVEN"),
+        (
+            9,
+            "exact_composer_attachment_set_required",
+            "EXACT_COMPOSER_ATTACHMENT_SET_NOT_PROVEN",
+        ),
+        (
+            10,
+            "cross_evidence_channel_exactness",
+            "CROSS_EVIDENCE_CHANNEL_EXACTNESS_NOT_PROVEN",
+        ),
+        (
+            11,
+            "official_composer_required_for_attachment_evidence",
+            "OFFICIAL_COMPOSER_ATTACHMENT_EVIDENCE_NOT_PROVEN",
+        ),
     ],
 )
 def test_legacy_support_preserves_prior_schema_fail_closed_claims(
