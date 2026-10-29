@@ -1,6 +1,6 @@
 # chatgpt-web-adapter Roadmap
 
-_Last updated: 2026-10-22_
+_Last updated: 2026-10-29_
 
 This roadmap describes the current direction after CWA 0.3, the PR15 provider
 architecture reset, the isolated Qwen Web SDK, and opt-in ChatGPT direct HTTP.
@@ -425,10 +425,15 @@ Research, generated-image readback and governed artifact handoff alongside
 already-shipped experimental Qwen, DeepSeek/Gemini, Translate and Notebook
 modules **without promoting any experimental support tier**.
 
-Before a `0.4.0` version bump or tag: reconcile rich-input #211; fix or
-explicitly disposition read-deadline #168; confirm whether the canonical-500
-read fallback #221 is necessary; reconfirm the expanded installed-wheel gate for new entrypoints;
-and finalize version/changelog/release notes from one exact validated commit.
+The staged `0.4.0` source candidate is not tagged or published. The 429 read
+deadline #168 is closed by #232. Focused rich-input fixes #233-#236 are merged,
+but 2026-10-29 browser-owned multi-file Live E2E remained incomplete; #211
+therefore remains open for explicit release-limitation disposition, not bulk
+merge. Canonical 500 draft #221 remains unproven/deferred. The exact versioned
+wheel, dated release notes, and tag parity must pass before a separate release
+decision. Direct HTTP is preferred for validated ChatGPT operations (#237),
+while remaining explicitly experimental and opt-in; browser-owned still ships
+as the compatibility default and is never an automatic retry fallback.
 Linux Qwen draft #217 awaits its own E2E and is not silently included. #114,
 #172, and pending Qwen draft branches are independent follow-ups.
 
