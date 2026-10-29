@@ -21,7 +21,8 @@ client = BrowserlessHTTPClient(auth_file=Path("auth_data.json"))
 
 first = client.send(
     "Explain the design briefly.",
-    model="gpt-6-instant",
+    model="gpt-6",
+    reasoning_effort="high",
     on_token=lambda token: print(token, end="", flush=True),
 )
 print()
