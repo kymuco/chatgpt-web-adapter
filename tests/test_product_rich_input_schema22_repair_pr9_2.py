@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -22,7 +21,10 @@ def test_schema_22_role_group_evidence_requires_attachment_removal_control():
 
 def test_schema_22_keeps_structured_removal_channel_independent():
     text = SCHEMA22.read_text(encoding="utf-8")
-    assert "const removalLabels = Array.from(composer.querySelectorAll(removalControlSelector))" in text
+    assert (
+        "const removalLabels = Array.from(composer.querySelectorAll(removalControlSelector))"
+        in text
+    )
     assert ".filter(isStructuredRemovalLabel);" in text
     assert "removalControlBasename(label) === name" in text
     assert "groupsCompatible" in text
@@ -67,7 +69,9 @@ def test_schema_22_gate_preserves_schema_21_and_requires_new_fields():
 
 def test_schema_22_support_probe_is_sixteenth_no_write_characterization_rpc():
     text = GATE22.read_text(encoding="utf-8")
-    assert "Sixteenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Sixteenth characterization-only RPC: no text and no attachment paths." in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]
