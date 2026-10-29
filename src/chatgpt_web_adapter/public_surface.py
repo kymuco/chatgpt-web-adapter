@@ -14,6 +14,7 @@ class PublicSurfaceTier(str, Enum):
 
 
 PRIMARY_PRODUCT_RUNTIME_EXPORTS: tuple[str, ...] = (
+    "BrowserlessHTTPClient",
     "BROWSER_OWNED_PRODUCT_TRANSPORT",
     "DEFAULT_PRODUCT_TRANSPORT",
     "SUPPORTED_PRODUCT_TRANSPORTS",
