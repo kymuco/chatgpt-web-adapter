@@ -75,8 +75,9 @@ Qwen high-demand response; it is not automatic message replay. Browser model
 selection, rich input and canonical/durable readback are not claimed.
 
 For copyable, implementation-aligned setup and code examples, use
-[**Qwen SDK — setup and reference examples**](qwen.md). Direct HTTP support
-remains experimental and not live-proven.
+[**Qwen SDK — setup and reference examples**](qwen.md). Qwen Direct HTTP
+remains experimental; one real generation was observed, but reliable repeated
+generation, canonical finality and renewal are not independently proven.
 
 
 ## ChatGPT
