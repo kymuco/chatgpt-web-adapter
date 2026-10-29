@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatgpt-web-adapter"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local Python SDK and CLI bridge for authenticated consumer AI web products and hosted capabilities."
 readme = "README.md"
 requires-python = ">=3.10"
