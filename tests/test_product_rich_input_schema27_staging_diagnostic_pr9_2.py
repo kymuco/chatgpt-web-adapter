@@ -105,4 +105,3 @@ def test_schema_27_staging_diagnostic_retains_fence_when_cleanup_budget_is_exhau
     assert block.index("_pr92RemainingTurnMsOrZero(context) > 0") < block.index(
         "_pr92ReadDirtyAttachmentFence()"
     )
-
