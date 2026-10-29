@@ -172,11 +172,10 @@ def test_installed_smoke_source_version_parser_is_project_scoped(
 
 def test_pep561_and_primary_http_are_release_gate_requirements() -> None:
     assert "chatgpt_web_adapter/py.typed" in release_gate.REQUIRED_WHEEL_FILES
+    assert "/src/chatgpt_web_adapter/py.typed" in release_gate.REQUIRED_SDIST_SUFFIXES
     assert (
-        "/src/chatgpt_web_adapter/py.typed"
-        in release_gate.REQUIRED_SDIST_SUFFIXES
+        "BrowserlessHTTPClient" in installed_wheel_smoke.REQUIRED_PRIMARY_ROOT_EXPORTS
     )
-    assert "BrowserlessHTTPClient" in installed_wheel_smoke.REQUIRED_PRIMARY_ROOT_EXPORTS
 
     root = Path(__file__).resolve().parents[1]
     assert (root / "src" / "chatgpt_web_adapter" / "py.typed").is_file()
