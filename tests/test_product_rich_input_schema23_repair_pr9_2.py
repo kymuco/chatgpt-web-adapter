@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
@@ -16,7 +15,9 @@ def test_schema_23_filename_role_group_channel_no_longer_depends_on_remove_contr
     group_end = text.index("const removalLabels", group_start)
     group_block = text[group_start:group_end]
     assert "attachmentGroupElements" in group_block
-    assert ".filter((element) => !isOfficialComposerControlGroup(element))" in group_block
+    assert (
+        ".filter((element) => !isOfficialComposerControlGroup(element))" in group_block
+    )
     assert "hasVisibleStructuredRemovalControl" not in group_block
     assert ".filter(hasVisibleStructuredRemovalControl)" not in text
     assert "filenameGroupIndependentOfRemovalControl: true" in text
@@ -82,7 +83,10 @@ def test_schema_23_gate_validates_schema_21_chain_then_new_contract():
 
 def test_schema_23_support_probe_is_seventeenth_no_write_characterization_rpc():
     text = GATE23.read_text(encoding="utf-8")
-    assert "Seventeenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Seventeenth characterization-only RPC: no text and no attachment paths."
+        in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]
