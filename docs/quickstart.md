@@ -6,9 +6,32 @@ already use in the browser.
 It is not an official API client and it does not turn visible product state into
 implicit write, retry, or finality authority.
 
-Choose the shortest path that matches what you are building.
+Choose the shortest path that matches what you are building. For ChatGPT,
+Direct HTTP is the primary supported Python SDK for live-verified operations.
+The browser-owned UI path remains secondary/experimental and the historical
+`assemble_product_runtime()` default for compatibility only.
 
-## Path A - first result from the CLI
+## Path A - ChatGPT Direct HTTP (recommended)
+
+Install from the **0.4.0 source candidate** or from PyPI once 0.4.0 has been
+published. Obtain a signed-in `auth_data.json` via the existing `auth login`
+workflow or a separately authorized browser auth sync. Sending via Direct HTTP
+does not open a Chrome tab; it requires Node.js 24+ and curl.
+
+```python
+from chatgpt_web_adapter import BrowserlessHTTPClient
+
+client = BrowserlessHTTPClient(auth_file="auth_data.json")
+response = client.send("Give me a two-sentence project summary.")
+print(response.text)
+print(client.get_status(response.conversation.conversation_id).status)
+```
+
+Never resend automatically if the first send has an uncertain outcome. See
+[Direct HTTP SDK](browserless_http_sdk.md) for model, files, continuation and
+setup limitations.
+
+## Path B - browser-owned CLI (secondary)
 
 Install CWA with the browser bridge:
 
@@ -55,9 +78,11 @@ If the command reports a reconciliation-required outcome, do not blindly replay 
 write. CWA intentionally distinguishes an unknown product outcome from retry
 permission.
 
-## Path B - Python application
+## Path C - browser-owned Python runtime (secondary)
 
-The current production/default application boundary is `ChatGPTProductRuntime`:
+The historical browser-owned application runtime is `ChatGPTProductRuntime`.
+It is **EXPERIMENTAL** for the current UI and retains the SDK default only
+for backward compatibility:
 
 ```python
 from chatgpt_web_adapter import assemble_product_runtime
@@ -82,7 +107,7 @@ print(execution.provenance.to_dict())
 Read/status/finality remain explicit runtime operations rather than being inferred
 from the visible page.
 
-## Path C - experimental non-chat capability
+## Path D - experimental non-chat capability
 
 Current `main` also contains a module-only Google Translate Web capability:
 
@@ -111,7 +136,7 @@ text + source language + target language
 This surface is experimental, non-conversational, and deliberately not forced into
 `ProductProviderBoundary schema 2`.
 
-## Path D - local assistant or agent
+## Path E - local assistant or agent
 
 If you already have a local assistant, coding agent, or multi-agent system, start with
 [agent integration](agent_integration.md).
