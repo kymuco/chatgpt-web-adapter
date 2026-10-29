@@ -241,17 +241,17 @@ def test_docs_map_distinguishes_current_docs_from_historical_evidence() -> None:
     assert "generated_artifact_handoff_pr10_1.md" in text
 
 
-def test_unreleased_changelog_records_post_0_3_milestones() -> None:
+def test_0_4_changelog_records_post_0_3_milestones() -> None:
     text = _read("CHANGELOG.md")
-    unreleased = text.split("## Unreleased", 1)[1].split("## 0.3.0", 1)[0]
+    released_candidate = text.split("## 0.4.0 - 2026-10-29", 1)[1].split("## 0.3.0", 1)[0]
 
-    assert "connectors / required actions" in unreleased
-    assert "generated artifacts" in unreleased
+    assert "connectors / required actions" in released_candidate
+    assert "generated artifacts" in released_candidate
     assert (
         "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY"
-        in unreleased
+        in released_candidate
     )
-    assert "docs/public readiness" in unreleased
+    assert "docs/public readiness" in released_candidate
 
 
 def test_project_metadata_points_to_current_repository_docs() -> None:
@@ -259,7 +259,7 @@ def test_project_metadata_points_to_current_repository_docs() -> None:
     project = data["project"]
     urls = project["urls"]
 
-    assert project["version"] == "0.3.0"
+    assert project["version"] == "0.4.0"
     assert project["description"] == (
         "Local Python SDK and CLI bridge for authenticated consumer AI web products "
         "and hosted capabilities."
