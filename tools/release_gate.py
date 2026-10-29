@@ -20,6 +20,8 @@ EXPECTED_ENTRY_POINTS = {
 EXTENSION_PACKAGE_PATTERNS = ("*.json", "*.js", "*.html", "*.css", "*.png")
 EXTENSION_PACKAGE_SUFFIXES = (".json", ".js", ".html", ".css", ".png")
 REQUIRED_WHEEL_FILES = {
+    # PEP 561: packaged inline annotations must be visible to installed consumers.
+    "chatgpt_web_adapter/py.typed",
     # Stable CLI / diagnostics baseline retained from CWA 0.2.
     "chatgpt_web_adapter/cli_v02.py",
     "chatgpt_web_adapter/doctor.py",
@@ -63,6 +65,7 @@ REQUIRED_WHEEL_FILES = {
     "chatgpt_web_adapter/browser_native_extension/icon128.png",
 }
 REQUIRED_SDIST_SUFFIXES = {
+    "/src/chatgpt_web_adapter/py.typed",
     "/pyproject.toml",
     "/README.md",
     "/CHANGELOG.md",

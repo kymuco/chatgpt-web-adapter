@@ -27,7 +27,7 @@ direct ChatGPT HTTP, Deep Research #227/#228, generated-image readback #229,
 and post-0.3 provider/Qwen additions. The newest published package remains `v0.3.0`
 (2026-09-01); its wheel does **not** include these newly merged features.
 
-## Proposed v0.4.0 scope and readiness (audit: 2026-10-25)
+## Proposed v0.4.0 scope and readiness (audit: 2026-10-29)
 
 The source candidate stages package version `0.4.0`, but this is **not** a Git
 tag, published GitHub Release, or authorization to upload to PyPI. Preserve
@@ -68,9 +68,10 @@ resend that attempt or silently promote its capability reliability.
 
 **Deferred unless independently justified:** experimental Linux Qwen draft
 [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217) requires actual
-EndeavourOS Native Messaging E2E; Qwen drafts #223/#225/#226 are not implied.
-PEP 561 typed-package marker #172 and durable long-history checkpointing #114
-remain independent issues. No Codexia/HDE change, MCP layer, universal provider
+EndeavourOS Native Messaging E2E; Qwen #223/#226 are deferred. The narrow
+verified capability metadata correction from #225 and PEP 561 packaging
+marker from #172 are staged in the candidate; full strict type checking and
+resumable history (#114) remain out of scope. No Codexia/HDE change, MCP layer, universal provider
 router, new browser-bypass code, or implicit retries belong in this release.
 
 ## Product role
@@ -96,11 +97,14 @@ over a runtime, not an execution router.
 
 ## ChatGPT primary HTTP SDK and secondary UI runtime
 
-Primary application boundary:
+Primary ChatGPT application client (live-verified operations):
 
 ```text
-ChatGPTProductRuntime
+BrowserlessHTTPClient
 ```
+
+The historical `ChatGPTProductRuntime` and its browser-owned default remain
+available as a secondary UI compatibility surface.
 
 Secondary UI mutation transport (legacy default):
 

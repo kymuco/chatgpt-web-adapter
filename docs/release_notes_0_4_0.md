@@ -28,7 +28,7 @@ A Windows user-run E2E on 2026-10-29 against source `main` `0e330c5e` exercised 
 
 ### Provider and runtime expansion since v0.3.0
 
-- Isolated experimental Qwen Web Python/CLI/Native Host and Windows-verified text/continuation/network streaming.
+- Isolated experimental Qwen Web Python/CLI/Native Host and Windows-verified text/continuation/network streaming. Capability metadata now reports those four verified operations as AVAILABLE (#225); canonical readback, files, and other unproven features remain unpromoted.
 - Experimental DeepSeek/Gemini conversational providers and separate module-only Google Translate / Gemini Notebook consumer capabilities.
 - Stronger provider semantics, provenance, required-action observations, auth sync and release/installed-wheel packaging gates; other experimental provider surfaces remain explicit rather than forced into the ChatGPT API.
 
@@ -47,13 +47,13 @@ These are code-level repairs with deterministic CI coverage; they do **not** cer
 1. **Browser-owned rich-input live acceptance remains incomplete.** On 2026-10-29 the fresh multi-file UI test visibly attached only one file and remained pending. The exact failure stage was not established. The historical [draft #211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) must not be merged wholesale; the operator must explicitly accept a scoped known limitation or require an independent repair before final publication. Never retry the ambiguous previous turn automatically.
 2. **Browser-native canonical HTTP 500:** [draft #221](https://github.com/kymuco/chatgpt-web-adapter/pull/221) proposes a size step-down fallback but lacks proof that it fixes the original 500. Not included in this candidate.
 3. **Auth, prompts and private protocols:** `BrowserlessHTTPClient.send()` does not inherit automatic browser auth sync from the legacy canonical reader. No automatic browser, provider or transport fallback; no automatic replay after an ambiguous send.
-4. **Provider tiers:** Qwen, DeepSeek/Gemini, Translate and Notebook stay experimental and scoped. Linux Qwen [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217), Qwen [#223/#225/#226](https://github.com/kymuco/chatgpt-web-adapter/pulls), and typing/history [#172](https://github.com/kymuco/chatgpt-web-adapter/issues/172)/[#114](https://github.com/kymuco/chatgpt-web-adapter/issues/114) are outside v0.4.0.
+4. **Provider tiers:** Qwen, DeepSeek/Gemini, Translate and Notebook stay experimental and scoped. Qwen capability evidence from #225 is included; Linux Qwen [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217), Qwen CLI refactor [#223](https://github.com/kymuco/chatgpt-web-adapter/pull/223), unverified Qwen history [#226](https://github.com/kymuco/chatgpt-web-adapter/pull/226), and resumable history [#114](https://github.com/kymuco/chatgpt-web-adapter/issues/114) are deferred.
 
 ## Compatibility and package integrity
 
 - Python 3.10–3.14; existing package/import names, stable CLI and public contracts retained.
 - Four console scripts: `cwa`, `chatgpt-web-adapter`, `chatgpt-web-adapter-native-host`, `qwen-web-adapter-native-host`.
-- Exact-wheel release smoke validates the installed `[browser]` extra and the post-0.3 Direct HTTP / Deep Research / generated-image / governed-handoff imports. These are package-level checks, not a live-product compatibility guarantee.
+- Exact-wheel release smoke validates the installed `[browser]` extra, the primary root import `BrowserlessHTTPClient`, and the post-0.3 Direct HTTP / Deep Research / generated-image / governed-handoff imports. PEP 561 `py.typed` must exist in wheel, sdist and installed site-packages (#172); the marker does not imply all historical modules are strict-type-check clean. These are package-level checks, not a live-product compatibility guarantee.
 - No automatic browser fallback, speculative challenge bypass, Headless Chromium transport, general provider router or new Work/agent authorization.
 
 ## Release verification still required

@@ -6,8 +6,11 @@ import pytest
 
 from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.product_capabilities import (
+    CANONICAL_READBACK,
     CONTINUATION,
+    FILES,
     NEW_CHAT,
+    STREAMING,
     TEXT_TURNS,
     CapabilityState,
 )
@@ -86,9 +89,11 @@ def test_qwen_capability_surface_is_minimal_and_experimental() -> None:
     assert (
         capabilities.transport_support_tier is ProductTransportSupportTier.EXPERIMENTAL
     )
-    assert capabilities.state(TEXT_TURNS) is CapabilityState.UNKNOWN
-    assert capabilities.state(NEW_CHAT) is CapabilityState.UNKNOWN
-    assert capabilities.state(CONTINUATION) is CapabilityState.UNKNOWN
+    for name in (TEXT_TURNS, NEW_CHAT, CONTINUATION, STREAMING):
+        assert capabilities.state(name) is CapabilityState.AVAILABLE
+        assert "Installed Windows SDK" in capabilities.get(name).evidence
+    assert capabilities.state(CANONICAL_READBACK) is CapabilityState.UNIMPLEMENTED
+    assert capabilities.state(FILES) is CapabilityState.UNIMPLEMENTED
 
 
 def test_qwen_foreground_tab_is_explicit_opt_in_not_default() -> None:
@@ -138,7 +143,7 @@ def test_qwen_streaming_callbacks_fail_before_write() -> None:
     provider = _FakeQwenProvider()
     transport = QwenWebTransport(provider)
 
-    with pytest.raises(ValueError, match="streaming callbacks"):
+    with pytest.raises(ValueError, match="raw on_event callbacks"):
         transport.send_text("hello", on_event=lambda event: None)
 
     assert provider.requests == []
