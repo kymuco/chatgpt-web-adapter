@@ -53,7 +53,7 @@ def test_real_browser_owned_runtime_satisfies_frozen_schema1_contract_without_wr
 
     assert payload["schema"] == adapter.PRODUCT_RUNTIME_CONTRACT_SCHEMA == 1
     assert payload["transport"] == "browser-owned"
-    assert payload["transport_support_tier"] == "PRODUCTION"
+    assert payload["transport_support_tier"] == "EXPERIMENTAL"
     assert payload["product_semantics"] == "ordinary-chatgpt"
     assert payload["interfaces"] == {
         "canonical": "CanonicalConversationClient",
