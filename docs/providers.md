@@ -1,6 +1,6 @@
 # Providers
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-29_
 
 This document describes the provider-specific support surface on current `main`.
 
@@ -46,15 +46,15 @@ incremental_observation_is_canonical_finality = false
 | --- | --- | --- | --- |
 | Provider id | `chatgpt` | `deepseek` | `gemini` |
 | Product semantics | `ordinary-chatgpt` | `ordinary-deepseek` | `ordinary-gemini` |
-| Transport | `browser-owned` (default) | `deepseek-web` | `gemini-web` |
-| Support tier | **PRODUCTION** | **EXPERIMENTAL** | **EXPERIMENTAL** |
+| Transport | `browser-owned` (legacy SDK default) | `deepseek-web` | `gemini-web` |
+| Support tier | **EXPERIMENTAL / secondary UI** | **EXPERIMENTAL** | **EXPERIMENTAL** |
 | Text turns | AVAILABLE | AVAILABLE | AVAILABLE |
 | New chat | AVAILABLE | AVAILABLE | AVAILABLE |
 | Continuation | AVAILABLE | AVAILABLE | AVAILABLE |
 | Canonical readback | AVAILABLE / required | UNIMPLEMENTED | UNIMPLEMENTED |
 | Conversation attach/read/status | AVAILABLE | UNIMPLEMENTED | UNIMPLEMENTED |
 | Streaming | AVAILABLE on proven paths | UNIMPLEMENTED | UNIMPLEMENTED |
-| Images/files | AVAILABLE on proven paths | UNIMPLEMENTED | UNIMPLEMENTED |
+| Images/files | Limited historic E2E; 2026-10-29 multi-file UI incomplete | UNIMPLEMENTED | UNIMPLEMENTED |
 | Web search | AVAILABLE observation on proven path | UNKNOWN | UNKNOWN |
 | Temporary chat | AVAILABLE text path | UNIMPLEMENTED | UNIMPLEMENTED |
 | Model selection | Evidence-backed | UNKNOWN | UNKNOWN |
@@ -81,7 +81,18 @@ remains experimental and not live-proven.
 
 ## ChatGPT
 
-ChatGPT is the mature/default provider.
+For ChatGPT, the standalone `BrowserlessHTTPClient` is the **primary
+public SDK** for operations with live HTTP proof (new chat, continuation,
+streaming, attachments, Temporary Chat, canonical readback). It is root-exported
+and has `PRIMARY_PRODUCTION` public surface classification. Its private web
+protocol and auth requirements can still change. It is **not** one of the
+`ChatGPTProductRuntime` transport choices and must not be conflated with
+the historical `browserless-request` transport.
+
+`ChatGPTProductRuntime` remains the secondary browser-owned UI runtime. The
+older default remains for compatibility; its current transport support tier
+is **EXPERIMENTAL** after a failed-to-complete 2026-10-29 multi-file test.
+Do not retry any uncertain prior Send or silently switch transports.
 
 Application boundary:
 
@@ -92,7 +103,7 @@ ChatGPTProductRuntime
 The default mutation transport is:
 
 ```text
-browser-owned = PRODUCTION
+browser-owned = EXPERIMENTAL (secondary UI; compatibility default)
 ```
 
 The alternative direct-request transport is:
@@ -104,8 +115,11 @@ browserless-request = EXPERIMENTAL
 ChatGPT also has a canonical conversation/session plane. Successful turns can therefore
 use canonical readback as completion authority where the runtime contract requires it.
 
-The mature ChatGPT surface includes evidence-backed rich input, model profiles,
-Temporary Chat, streaming/finality handling and structured product observations.
+HTTP and browser-owned capabilities are separately evidenced. On 2026-10-29,
+Direct HTTP returned exact markers from three Markdown attachments, streamed
+and passed independent canonical status/ID/text readback. The corresponding
+browser-owned three-file submission remained incomplete. Requested model or
+reasoning settings are not proof of actual server model selection.
 
 ## DeepSeek Web
 
