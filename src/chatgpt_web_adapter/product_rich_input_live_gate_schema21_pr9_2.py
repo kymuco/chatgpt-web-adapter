@@ -5,7 +5,6 @@ from typing import Any
 
 from . import product_rich_input_live_gate_schema20_pr9_2 as _v20
 
-
 SCHEMA = 21
 PRODUCT_WRITE_BUDGET = _v20.PRODUCT_WRITE_BUDGET
 _EXPECTED_ARM_BOUNDARY = "AFTER_ALL_VALIDATION_IMMEDIATELY_BEFORE_BUTTON_CLICK"

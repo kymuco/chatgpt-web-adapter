@@ -5,7 +5,6 @@ from typing import Any
 
 from . import product_rich_input_live_gate_schema19_pr9_2 as _v19
 
-
 SCHEMA = 20
 PRODUCT_WRITE_BUDGET = _v19.PRODUCT_WRITE_BUDGET
 _EXPECTED_IDENTITY_AUTHORITY = "PROTECTED_SUBMIT_BOUND_REQUEST_STREAM_HANDOFF"

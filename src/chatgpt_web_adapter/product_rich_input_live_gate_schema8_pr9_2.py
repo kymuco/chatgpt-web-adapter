@@ -5,7 +5,6 @@ from typing import Any
 
 from . import product_rich_input_live_gate_pr9_2 as _v7
 
-
 SCHEMA = 8
 PRODUCT_WRITE_BUDGET = _v7.PRODUCT_WRITE_BUDGET
 

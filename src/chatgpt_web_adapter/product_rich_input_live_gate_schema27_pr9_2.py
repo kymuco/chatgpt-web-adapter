@@ -7,7 +7,6 @@ from . import product_rich_input_live_gate_schema21_pr9_2 as _v21
 from . import product_rich_input_live_gate_schema24_pr9_2 as _v24
 from . import product_rich_input_live_gate_schema26_pr9_2 as _v26
 
-
 SCHEMA = 27
 PRODUCT_WRITE_BUDGET = _v21.PRODUCT_WRITE_BUDGET
 
