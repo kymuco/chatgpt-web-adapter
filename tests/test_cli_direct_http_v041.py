@@ -9,6 +9,7 @@ import pytest
 
 from chatgpt_web_adapter import cli_direct_http
 from chatgpt_web_adapter import cli_v02 as cli
+from chatgpt_web_adapter.exceptions import RequestError
 
 
 def _response(text="hello world"):
@@ -172,3 +173,57 @@ def test_legacy_mode_cannot_silently_ignore_direct_only_files(fake_http):
         != 0
     )
     assert not fake_http
+
+
+def test_direct_http_timeout_marks_outcome_unknown_and_does_not_retry(
+    monkeypatch, capsys
+):
+    calls = []
+
+    class TimedOut:
+        def __init__(self, **kwargs):
+            pass
+
+        def send(self, *args, **kwargs):
+            calls.append(1)
+            raise RequestError(
+                "curl failed: exit_code=28; http_status=200",
+                status_code=200,
+                request_stage="transport_timeout",
+            )
+
+    monkeypatch.setattr(cli_direct_http, "BrowserlessHTTPClient", TimedOut)
+    result = cli.main(["send", "hello", "--json"])
+    payload = json.loads(capsys.readouterr().err)
+    assert result == cli.EXIT_RECONCILIATION_REQUIRED
+    assert payload["error"]["reconciliation_required"] is True
+    assert payload["error"]["write_may_have_been_submitted"] is True
+    assert payload["error"]["request_stage"] == "transport_timeout"
+    assert payload["error"]["status_code"] == 200
+    assert calls == [1]
+
+
+def test_direct_http_non_timeout_does_not_fabricate_write_admission(
+    monkeypatch, capsys
+):
+    calls = []
+
+    class Rejected:
+        def __init__(self, **kwargs):
+            pass
+
+        def send(self, *args, **kwargs):
+            calls.append(1)
+            raise RequestError(
+                "request rejected",
+                status_code=401,
+                request_stage="transport",
+            )
+
+    monkeypatch.setattr(cli_direct_http, "BrowserlessHTTPClient", Rejected)
+    result = cli.main(["send", "hello", "--json"])
+    payload = json.loads(capsys.readouterr().err)
+    assert result == cli.EXIT_OPERATION_FAILED
+    assert payload["error"]["request_stage"] == "transport"
+    assert "reconciliation_required" not in payload["error"]
+    assert calls == [1]

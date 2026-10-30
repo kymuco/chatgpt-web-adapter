@@ -13,8 +13,22 @@ from pathlib import Path
 from typing import Any
 
 from .browserless_http import BrowserlessHTTPClient
+from .exceptions import RequestError
 
 DIRECT_HTTP_TRANSPORT = "direct-http"
+
+
+class DirectHTTPReconciliationRequired(RequestError):
+    """A Direct HTTP send attempt ended without known product finality.
+
+    This is deliberately conservative: a timeout may happen before or after
+    conversation admission, and the CLI cannot prove which without readback.
+    """
+
+    reconciliation_required = True
+    write_may_have_been_submitted = True
+
+
 
 _PROFILE_REQUESTS: dict[str, tuple[str, str | None]] = {
     "FAST": ("gpt-6-instant", None),
@@ -82,15 +96,26 @@ def send_direct_http(args: Any) -> int:
         sys.stdout.write(token)
         sys.stdout.flush()
 
-    response = client.send(
-        args.text,
-        model=model,
-        reasoning_effort=reasoning_effort,
-        conversation=args.conversation,
-        temporary=args.temporary,
-        media=media or None,
-        on_token=on_token if args.stream and not args.final_only else None,
-    )
+    try:
+        response = client.send(
+            args.text,
+            model=model,
+            reasoning_effort=reasoning_effort,
+            conversation=args.conversation,
+            temporary=args.temporary,
+            media=media or None,
+            on_token=on_token if args.stream and not args.final_only else None,
+        )
+    except RequestError as error:
+        if error.request_stage != "transport_timeout":
+            raise
+        raise DirectHTTPReconciliationRequired(
+            "Direct HTTP send outcome unknown after transport timeout; "
+            "inspect canonical conversation history before any new send",
+            status_code=error.status_code,
+            request_stage=error.request_stage,
+            endpoint=error.endpoint,
+        ) from error
 
     if args.json:
         print(json.dumps(_direct_http_payload(response), indent=2, ensure_ascii=False))
