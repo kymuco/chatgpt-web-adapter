@@ -70,7 +70,9 @@ def test_nonzero_curl_exit_rejected_before_json_and_cookie_update(
     assert f"exit_code={exit_code}" in str(error)
     assert f"http_status={status}" in str(error)
     assert error.status_code == (status or None)
-    assert error.request_stage == "transport"
+    assert error.request_stage == (
+        "transport_timeout" if exit_code == 28 else "transport"
+    )
     assert error.body_preview is None
     assert "partial-secret" not in str(error)
     assert "secret-not-for-user" not in str(error)
