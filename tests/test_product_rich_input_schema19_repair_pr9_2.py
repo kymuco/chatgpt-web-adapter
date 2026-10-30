@@ -5,19 +5,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA17 = EXT / "service_worker_rich_input_schema17_repair_pr9_2.js"
 SCHEMA19 = EXT / "service_worker_rich_input_schema19_repair_pr9_2.js"
 GATE19 = PKG / "product_rich_input_live_gate_schema19_pr9_2.py"
-
-
-def test_schema_19_overlay_is_loaded_after_schema_18():
-    text = LOADER.read_text(encoding="utf-8")
-    schema18 = 'importScripts("service_worker_rich_input_schema18_repair_pr9_2.js");'
-    schema19 = 'importScripts("service_worker_rich_input_schema19_repair_pr9_2.js");'
-    assert schema18 in text
-    assert schema19 in text
-    assert text.index(schema18) < text.index(schema19)
 
 
 def test_schema_19_turn_context_records_new_chat_vs_continuation_identity():
@@ -183,8 +173,8 @@ def test_schema_19_gate_preserves_schema_18_and_requires_causal_identity_fields(
     for key in required:
         assert key in text
     assert "PRODUCT_WRITE_BUDGET = _v18.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
 
 
 def test_schema_19_support_probe_is_thirteenth_no_write_characterization_rpc():

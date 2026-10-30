@@ -1,5 +1,7 @@
 # PR14.9 — Post-Delegation Ordinary-Turn Reconciliation
 
+**Archive note (2026-10-30):** The dedicated `post_delegation_reconciliation_live_gate` acceptance CLI and its runner-only tests were retired from the distributed SDK during pre-v0.4.0 cleanup. The live acceptance procedure recorded below is **historical, not a command supported by current installations**. The production reconciliation path and its regression coverage in `tests/test_post_delegation_reconciliation.py`, `tests/test_post_delegation_observer_probe_plumbing.py` and `tests/test_browser_owned_write_runtime.py` are retained.
+
 ## Problem
 
 An ordinary continuation can cross the ChatGPT product-write boundary, persist the

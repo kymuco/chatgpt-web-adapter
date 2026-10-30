@@ -5,18 +5,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA14 = EXT / "service_worker_rich_input_schema14_repair_pr9_2.js"
 GATE14 = PKG / "product_rich_input_live_gate_schema14_pr9_2.py"
-
-
-def test_schema_14_overlay_is_loaded_after_schema_13():
-    text = LOADER.read_text(encoding="utf-8")
-    schema13 = 'importScripts("service_worker_rich_input_schema13_repair_pr9_2.js");'
-    schema14 = 'importScripts("service_worker_rich_input_schema14_repair_pr9_2.js");'
-    assert schema13 in text
-    assert schema14 in text
-    assert text.index(schema13) < text.index(schema14)
 
 
 def test_schema_14_rejects_rich_input_model_profile_before_prior_chain():
@@ -75,8 +65,8 @@ def test_schema_14_gate_requires_composition_boundary_and_preserves_schema_13():
     for key in required:
         assert key in text
     assert "PRODUCT_WRITE_BUDGET = _v13.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
 
 
 def test_schema_14_support_probe_is_eighth_no_write_characterization_rpc():

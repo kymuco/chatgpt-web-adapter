@@ -142,10 +142,26 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
             {"p": prepare_input},
             build_sentinel_prepare_headers(self),
         )
-        if status != 200 or not isinstance(data, dict) or not data.get("prepare_token"):
+        # A successful HTTP status alone does not establish a usable Sentinel
+        # prepare response. Record only bounded structural details, never tokens,
+        # challenge descriptors, cookies or raw response contents.
+        if status != 200:
+            failure = "http_status"
+        elif not isinstance(data, dict):
+            failure = "non_object_response"
+        else:
+            token = data.get("prepare_token")
+            failure = (
+                "missing_prepare_token"
+                if not isinstance(token, str) or not token.strip()
+                else None
+            )
+        if failure is not None:
             raise RequestError(
-                "browserless Sentinel prepare rejected",
+                f"browserless Sentinel prepare rejected: {failure}; "
+                f"http_status={status}; response_type={type(data).__name__}",
                 status_code=status,
+                endpoint="/backend-api/sentinel/chat-requirements/prepare",
                 request_stage="sentinel_prepare",
             )
         prepared = time.perf_counter()

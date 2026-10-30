@@ -1,5 +1,7 @@
 # PR14.8 — Retained Conversation Tabs
 
+**Archive note (2026-10-30):** The dedicated `retained_conversation_tabs_live_gate` acceptance CLI and its runner-only tests were retired from the distributed SDK during pre-v0.4.0 cleanup. The live acceptance procedure recorded below is **historical, not a command supported by current installations**. Retained-tab routing and its regression coverage in `tests/test_retained_conversation_tabs_pr14_8.py` are retained.
+
 ## Purpose
 
 Ordinary saved conversations previously shared one browser-owned runtime tab.

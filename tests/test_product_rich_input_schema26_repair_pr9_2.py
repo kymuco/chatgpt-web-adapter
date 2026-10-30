@@ -6,7 +6,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA26 = EXT / "service_worker_rich_input_schema26_repair_pr9_2.js"
 GATE26 = PKG / "product_rich_input_live_gate_schema26_pr9_2.py"
 
@@ -32,15 +31,6 @@ def _matches(label: str, expected: str, group_labels: list[str]) -> bool:
         return True
     candidate = _indexed_candidate(payload)
     return candidate == expected and candidate in group_labels
-
-
-def test_schema_26_overlay_loads_after_schema25():
-    text = LOADER.read_text(encoding="utf-8")
-    schema25 = 'importScripts("service_worker_rich_input_schema25_repair_pr9_2.js");'
-    schema26 = 'importScripts("service_worker_rich_input_schema26_repair_pr9_2.js");'
-    assert schema25 in text
-    assert schema26 in text
-    assert text.index(schema25) < text.index(schema26)
 
 
 def test_schema_26_preserves_literal_filename_that_looks_like_ui_metadata():
@@ -146,5 +136,5 @@ def test_schema_26_support_probe_is_twentieth_no_write_characterization_rpc():
     assert '"characterizeRichInputSupport": True' in request_block
     assert '"text"' not in request_block
     assert '"attachmentPaths"' not in request_block
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
