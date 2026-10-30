@@ -25,6 +25,8 @@ Current `main` is `9519d390d48945fd098f2a92421f133821662407`
 (2026-10-30): pre-v0.4.0 cleanup #250 was merged, reducing the source
 diff by 5,985 net lines (66 changed paths; 21 removed files). No extension
 JavaScript or active Direct HTTP send behavior was changed in that cleanup.
+The source still includes direct ChatGPT HTTP, Deep Research and generated-image
+readback, plus the experimental provider integrations introduced after v0.3.0.
 The branch also includes fail-closed curl transfer integrity and bounded
 read-only canonical-GET curl-28 timeout handling.
 
