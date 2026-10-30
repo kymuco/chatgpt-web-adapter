@@ -132,9 +132,7 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
             # not treat the ordinary JSON-request timeout as the SSE deadline.
             # A stalled transfer still fails closed; never retry a write.
             maximum = command.index("--max-time")
-            command[maximum + 1] = str(
-                max(self.timeout, STREAM_POST_MAX_TIME_SECONDS)
-            )
+            command[maximum + 1] = str(max(self.timeout, STREAM_POST_MAX_TIME_SECONDS))
             command.extend(
                 [
                     "--speed-limit",
