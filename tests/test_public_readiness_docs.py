@@ -246,9 +246,7 @@ def test_docs_map_distinguishes_current_docs_from_historical_evidence() -> None:
 
 def test_0_4_changelog_records_post_0_3_milestones() -> None:
     text = _read("CHANGELOG.md")
-    heading = next(
-        line for line in text.splitlines() if line.startswith("## 0.4.0 - ")
-    )
+    heading = next(line for line in text.splitlines() if line.startswith("## 0.4.0 - "))
     assert re.fullmatch(r"## 0\.4\.0 - \d{4}-\d{2}-\d{2}", heading)
     release_section = text.split(heading, 1)[1]
     released_candidate = release_section.split("## 0.3.0", 1)[0]
