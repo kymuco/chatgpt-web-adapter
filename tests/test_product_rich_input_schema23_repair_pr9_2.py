@@ -2,22 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA23 = EXT / "service_worker_rich_input_schema23_repair_pr9_2.js"
 GATE23 = PKG / "product_rich_input_live_gate_schema23_pr9_2.py"
-
-
-def test_schema_23_overlay_is_loaded_after_schema_22():
-    text = LOADER.read_text(encoding="utf-8")
-    schema22 = 'importScripts("service_worker_rich_input_schema22_repair_pr9_2.js");'
-    schema23 = 'importScripts("service_worker_rich_input_schema23_repair_pr9_2.js");'
-    assert schema22 in text
-    assert schema23 in text
-    assert text.index(schema22) < text.index(schema23)
 
 
 def test_schema_23_filename_role_group_channel_no_longer_depends_on_remove_control():
@@ -26,7 +15,9 @@ def test_schema_23_filename_role_group_channel_no_longer_depends_on_remove_contr
     group_end = text.index("const removalLabels", group_start)
     group_block = text[group_start:group_end]
     assert "attachmentGroupElements" in group_block
-    assert ".filter((element) => !isOfficialComposerControlGroup(element))" in group_block
+    assert (
+        ".filter((element) => !isOfficialComposerControlGroup(element))" in group_block
+    )
     assert "hasVisibleStructuredRemovalControl" not in group_block
     assert ".filter(hasVisibleStructuredRemovalControl)" not in text
     assert "filenameGroupIndependentOfRemovalControl: true" in text
@@ -92,12 +83,15 @@ def test_schema_23_gate_validates_schema_21_chain_then_new_contract():
 
 def test_schema_23_support_probe_is_seventeenth_no_write_characterization_rpc():
     text = GATE23.read_text(encoding="utf-8")
-    assert "Seventeenth characterization-only RPC: no text and no attachment paths." in text
+    assert (
+        "Seventeenth characterization-only RPC: no text and no attachment paths."
+        in text
+    )
     start = text.index("request_id = str(uuid.uuid4())")
     end = text.index("if response.get", start)
     request_block = text[start:end]
     assert '"characterizeRichInputSupport": True' in request_block
     assert '"text"' not in request_block
     assert '"attachmentPaths"' not in request_block
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text

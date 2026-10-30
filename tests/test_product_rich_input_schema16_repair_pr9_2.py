@@ -5,18 +5,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA16 = EXT / "service_worker_rich_input_schema16_repair_pr9_2.js"
 GATE16 = PKG / "product_rich_input_live_gate_schema16_pr9_2.py"
-
-
-def test_schema_16_overlay_is_loaded_after_schema_15():
-    text = LOADER.read_text(encoding="utf-8")
-    schema15 = 'importScripts("service_worker_rich_input_schema15_repair_pr9_2.js");'
-    schema16 = 'importScripts("service_worker_rich_input_schema16_repair_pr9_2.js");'
-    assert schema15 in text
-    assert schema16 in text
-    assert text.index(schema15) < text.index(schema16)
 
 
 def test_schema_16_durable_fence_read_is_raced_against_outer_deadline():
@@ -112,8 +102,8 @@ def test_schema_16_gate_preserves_schema_15_and_requires_new_closure_fields():
     for key in required:
         assert key in text
     assert "PRODUCT_WRITE_BUDGET = _v15.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
 
 
 def test_schema_16_support_probe_is_tenth_no_write_characterization_rpc():

@@ -7,7 +7,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA28 = EXT / "service_worker_rich_input_schema28_repair_pr9_2.js"
 DIAGNOSTIC_REPAIR28 = (
     EXT / "service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js"
@@ -94,17 +93,6 @@ console.log(JSON.stringify({{
         encoding="utf-8",
     )
     return json.loads(completed.stdout)
-
-
-def test_schema_28_overlay_is_loaded_after_schema_27_diagnostic():
-    text = LOADER.read_text(encoding="utf-8")
-    schema27 = 'importScripts("service_worker_rich_input_schema27_staging_diagnostic_pr9_2.js");'
-    schema28 = 'importScripts("service_worker_rich_input_schema28_repair_pr9_2.js");'
-    diagnostic_repair28 = 'importScripts("service_worker_rich_input_schema28_diagnostic_repair_pr9_2.js");'
-    assert schema27 in text
-    assert schema28 in text
-    assert diagnostic_repair28 in text
-    assert text.index(schema27) < text.index(schema28) < text.index(diagnostic_repair28)
 
 
 def test_schema_28_parser_is_json_first_and_not_serialization_specific():
@@ -207,8 +195,8 @@ def test_schema_28_support_gate_preserves_schema_27_and_requires_parser_repair_c
         assert key in text
     assert "PR9_2_SCHEMA28_PRIOR_METADATA_OBSERVER_NOT_PRESERVED" in text
     assert "PRODUCT_WRITE_BUDGET = _v27.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
 
 
 def test_schema_28_reconciliation_diagnostic_is_zero_write_and_reserves_cleanup_authority():

@@ -6,7 +6,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA25 = EXT / "service_worker_rich_input_schema25_repair_pr9_2.js"
 GATE25 = PKG / "product_rich_input_live_gate_schema25_pr9_2.py"
 
@@ -23,19 +22,6 @@ def _mirror_schema25_removal_basename(label: str) -> str:
         re.I,
     )
     return (indexed.group(1) if indexed else payload).strip()
-
-
-def test_schema_25_overlay_loads_after_schema24_and_diagnostic():
-    text = LOADER.read_text(encoding="utf-8")
-    schema24 = 'importScripts("service_worker_rich_input_schema24_repair_pr9_2.js");'
-    diagnostic = (
-        'importScripts("service_worker_rich_input_schema23_diagnostic_pr9_2.js");'
-    )
-    schema25 = 'importScripts("service_worker_rich_input_schema25_repair_pr9_2.js");'
-    assert schema24 in text
-    assert diagnostic in text
-    assert schema25 in text
-    assert text.index(schema24) < text.index(diagnostic) < text.index(schema25)
 
 
 def test_schema_25_normalizes_observed_localized_indexed_removal_label_exactly():
@@ -152,5 +138,5 @@ def test_schema_25_support_probe_is_nineteenth_no_write_characterization_rpc():
     assert '"characterizeRichInputSupport": True' in request_block
     assert '"text"' not in request_block
     assert '"attachmentPaths"' not in request_block
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text

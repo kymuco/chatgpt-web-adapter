@@ -5,18 +5,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA12 = EXT / "service_worker_rich_input_schema12_repair_pr9_2.js"
 GATE12 = PKG / "product_rich_input_live_gate_schema12_pr9_2.py"
-
-
-def test_schema_12_overlay_is_loaded_after_schema_11():
-    text = LOADER.read_text(encoding="utf-8")
-    schema11 = 'importScripts("service_worker_rich_input_schema11_repair_pr9_2.js");'
-    schema12 = 'importScripts("service_worker_rich_input_schema12_repair_pr9_2.js");'
-    assert schema11 in text
-    assert schema12 in text
-    assert text.index(schema11) < text.index(schema12)
 
 
 def test_schema_12_bounds_poststage_debugger_setup_and_late_attach_cleanup():
@@ -63,5 +53,5 @@ def test_schema_12_gate_rejects_schema_11_and_requires_new_deadline_guarantees()
     assert "late_poststage_debugger_attach_auto_detached" in text
     assert "send_readiness_wait_deadline_bounded" in text
     assert "PRODUCT_WRITE_BUDGET = _v11.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text

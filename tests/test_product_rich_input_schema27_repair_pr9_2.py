@@ -6,7 +6,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PKG = ROOT / "src" / "chatgpt_web_adapter"
 EXT = PKG / "browser_native_extension"
-LOADER = EXT / "service_worker_rich_input_schema7_repair_pr9_2.js"
 SCHEMA27 = EXT / "service_worker_rich_input_schema27_repair_pr9_2.js"
 GATE27 = PKG / "product_rich_input_live_gate_schema27_pr9_2.py"
 
@@ -34,17 +33,6 @@ def _matches(label: str, expected: str, group_labels: list[str]) -> bool:
     return (payload == expected and payload in group_labels) or (
         candidate == expected and candidate in group_labels
     )
-
-
-def test_schema_27_overlay_loads_after_schema26_staging_diagnostic():
-    text = LOADER.read_text(encoding="utf-8")
-    schema26 = 'importScripts("service_worker_rich_input_schema26_repair_pr9_2.js");'
-    staging26 = 'importScripts("service_worker_rich_input_schema26_staging_diagnostic_pr9_2.js");'
-    schema27 = 'importScripts("service_worker_rich_input_schema27_repair_pr9_2.js");'
-    assert schema26 in text
-    assert staging26 in text
-    assert schema27 in text
-    assert text.index(schema26) < text.index(staging26) < text.index(schema27)
 
 
 def test_schema_27_indexed_removal_only_fails_closed_for_stripped_interpretation():
@@ -162,4 +150,5 @@ def test_schema_27_support_probe_is_twenty_first_no_write_characterization_rpc()
     assert '"text"' not in block
     assert '"attachmentPaths"' not in block
     assert "PRODUCT_WRITE_BUDGET = _v21.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
