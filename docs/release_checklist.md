@@ -88,11 +88,12 @@ The smoke installs the **exact wheel with `[browser]` enabled** in a fresh isola
 CI runs this installed-wheel smoke on Linux and Windows with Python 3.10 and 3.14 after the full Python 3.10-3.14 source-test matrix on both operating systems.
 
 The prospective `0.4.0` source candidate now checks **four installed console
-scripts**, including Qwen Native Host, plus the selected experimental HTTP,
-Deep Research, generated-image readback, and governed handoff modules. Each
+scripts**, including Qwen Native Host, plus the primary ChatGPT Direct HTTP SDK,
+experimental Deep Research, generated-image readback, and governed handoff modules. Each
 must import from the installed distribution and expose the exact expected
-client methods; the release artifact gate requires those modules in both wheel
-and sdist. This is import/contract verification only: **no client construction,
+client methods; the primary root `BrowserlessHTTPClient` import is verified.
+The release artifact gate requires those modules and PEP 561 `py.typed` in
+both wheel and sdist, with the marker also checked in installed site-packages. This is import/contract verification only: **no client construction,
 browser launch, login, or product request**. The 0.3 stable checks remain intact.
 
 ## 5. Live product verification
@@ -118,7 +119,10 @@ no automatic ambiguous-write retry            PASS
 fallback transport                            NONE
 ```
 
-Capability declarations must remain narrower than the evidence. In particular, `tools_connectors` remains `UNKNOWN`, and `browserless-request` remains `EXPERIMENTAL`.
+Capability declarations must remain narrower than the evidence. In particular,
+`tools_connectors` remains `UNKNOWN`, `browserless-request` remains `EXPERIMENTAL`,
+and browser-owned's current multi-file ChatGPT UI acceptance is incomplete;
+Qwen text/new-chat/continuation/streaming are verified without canonical finality.
 
 ## 6. Version and changelog finalization
 
@@ -133,12 +137,12 @@ Before creating `vX.Y.Z`:
 
 3. The GitHub release tag must be exactly `vX.Y.Z` (the checker also accepts a raw `X.Y.Z` input for local verification).
 
-Validate the strict tagged contract locally before publishing. For CWA 0.3.0:
+Validate the strict tagged contract locally before publishing. For the staged CWA 0.4.0 candidate:
 
 ```powershell
 python tools/release_gate.py `
   --dist-dir dist `
-  --tag v0.3.0 `
+  --tag v0.4.0 `
   --json
 ```
 

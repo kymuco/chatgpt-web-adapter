@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 try:
@@ -74,7 +75,7 @@ def test_readme_architecture_map_distinguishes_product_lanes() -> None:
         "Local app / agent / CLI",
         "CWA: provider-specific integrations",
         "ChatGPT browser-owned",
-        "production/default",
+        "secondary; experimental",
         "ChatGPT direct HTTP",
         "experimental",
         "Qwen isolated SDK",
@@ -167,9 +168,11 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
     text = _read("STATUS.md")
 
     assert "latest public release   v0.3.0" in text
-    assert "current main            post-0.3 development" in text
+    assert "current main            " in text
+    assert "post-0.3" in text
     assert "PR15 provider architecture frozen" in text
-    assert "ChatGPT               PRODUCTION / default conversational runtime" in text
+    assert "ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK" in text
+    assert "ChatGPT browser UI    EXPERIMENTAL / secondary" in text
     assert "DeepSeek Web          EXPERIMENTAL conversational runtime" in text
     assert "Gemini Web            EXPERIMENTAL conversational runtime" in text
     assert (
@@ -241,17 +244,20 @@ def test_docs_map_distinguishes_current_docs_from_historical_evidence() -> None:
     assert "generated_artifact_handoff_pr10_1.md" in text
 
 
-def test_unreleased_changelog_records_post_0_3_milestones() -> None:
+def test_0_4_changelog_records_post_0_3_milestones() -> None:
     text = _read("CHANGELOG.md")
-    unreleased = text.split("## Unreleased", 1)[1].split("## 0.3.0", 1)[0]
+    heading = next(line for line in text.splitlines() if line.startswith("## 0.4.0 - "))
+    assert re.fullmatch(r"## 0\.4\.0 - \d{4}-\d{2}-\d{2}", heading)
+    release_section = text.split(heading, 1)[1]
+    released_candidate = release_section.split("## 0.3.0", 1)[0]
 
-    assert "connectors / required actions" in unreleased
-    assert "generated artifacts" in unreleased
+    assert "connectors / required actions" in released_candidate
+    assert "generated artifacts" in released_candidate
     assert (
         "ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY"
-        in unreleased
+        in released_candidate
     )
-    assert "docs/public readiness" in unreleased
+    assert "docs/public readiness" in released_candidate
 
 
 def test_project_metadata_points_to_current_repository_docs() -> None:
@@ -259,7 +265,7 @@ def test_project_metadata_points_to_current_repository_docs() -> None:
     project = data["project"]
     urls = project["urls"]
 
-    assert project["version"] == "0.3.0"
+    assert project["version"] == "0.4.0"
     assert project["description"] == (
         "Local Python SDK and CLI bridge for authenticated consumer AI web products "
         "and hosted capabilities."

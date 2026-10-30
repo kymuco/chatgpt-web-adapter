@@ -14,9 +14,33 @@ For project positioning and provider capability status, start with
 > CWA is not an official provider API client. It works with ordinary consumer web
 > products and depends on product behavior that may change.
 
+## Primary ChatGPT Python SDK (Direct HTTP)
+
+For new ChatGPT integrations, use the root-exported `BrowserlessHTTPClient`.
+It is the **PRIMARY_PRODUCTION** public client for live-verified operations,
+with explicit construction and no Chrome tab needed for sending. Install from
+the 0.4.0 source candidate or the published wheel once 0.4.0 is released;
+Node.js 24+, curl and a valid signed-in `auth_data.json` are required.
+
+```python
+from chatgpt_web_adapter import BrowserlessHTTPClient
+
+client = BrowserlessHTTPClient(auth_file="auth_data.json")
+response = client.send("Summarize this topic.")
+print(response.text)
+print(client.get_status(response.conversation.conversation_id).status)
+```
+
+The older `ChatGPTProductRuntime` with `browser-owned` is a secondary
+**EXPERIMENTAL** UI method and remains the `assemble_product_runtime()`
+default only for compatibility. The historical `browserless-request` is
+another, unrelated experimental transport. No automatic transport fallback,
+product-write retry after uncertain outcome or Headless Chromium migration.
+See [Direct HTTP SDK](docs/browserless_http_sdk.md).
+
 ## 1. Install
 
-Production browser-owned runtime:
+Secondary browser-owned UI runtime (legacy default):
 
 ```bash
 python -m pip install "chatgpt-web-adapter[browser]"
@@ -132,9 +156,12 @@ messages
 != ChatGPT-generated artifact download
 ```
 
-CWA-generated snapshot/export bundles have deterministic manifest metadata including exact byte size and SHA-256. ChatGPT-generated artifact download remains unsupported on current `main` without a proven stable product-owned artifact identity and safe resolution path.
+CWA-generated snapshot/export bundles have deterministic manifest metadata including exact byte size and SHA-256. An explicitly selected, conversation-owned generated artifact may be
+handed off through `handoff_generated_artifact(...)` with stable `file_id`,
+caller destination, byte verification and no implicit overwrite. Arbitrary
+sandbox links or uploaded attachments are not covered.
 
-## 5. Production Python Runtime
+## 5. Secondary browser-owned Python Runtime
 
 ```python
 from chatgpt_web_adapter import assemble_product_runtime
@@ -375,7 +402,7 @@ For example:
 
 ```text
 browser-owned
-    support = PRODUCTION
+    support = EXPERIMENTAL
 
 browserless-request
     support = EXPERIMENTAL
@@ -421,7 +448,9 @@ Direct `BrowserNativeTurnProvider`, Sentinel internals, low-level Native Messagi
 
 Their existence in the package does not make them production application APIs.
 
-Start with [`examples/product_runtime.py`](examples/product_runtime.py) for ordinary integrations. [`examples/diagnose_latency.py`](examples/diagnose_latency.py) is a diagnostic example, not a quick start.
+For new ChatGPT integrations, start with `BrowserlessHTTPClient` above.
+Use [`examples/product_runtime.py`](examples/product_runtime.py) only when
+browser-owned UI interaction is explicitly required. [`examples/diagnose_latency.py`](examples/diagnose_latency.py) is a diagnostic example, not a quick start.
 
 ## 17. Failure model
 

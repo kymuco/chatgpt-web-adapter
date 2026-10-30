@@ -9,7 +9,8 @@ import pytest
 
 from tools import installed_wheel_smoke, release_gate
 
-VERSION = "0.3.0"
+VERSION = "0.3.0"  # historical synthetic release-gate fixture
+STAGED_PROJECT_VERSION = "0.4.0"
 
 
 def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") -> Path:
@@ -72,9 +73,11 @@ def _write_dist(
     return dist
 
 
-def test_repository_package_version_is_staged_for_0_3() -> None:
+def test_repository_package_version_is_staged_for_0_4() -> None:
     repo = Path(__file__).resolve().parents[1]
-    assert release_gate.project_version(repo / "pyproject.toml") == VERSION
+    assert (
+        release_gate.project_version(repo / "pyproject.toml") == STAGED_PROJECT_VERSION
+    )
 
 
 def test_candidate_gate_allows_changelog_finalization_to_remain_separate(
@@ -165,6 +168,55 @@ def test_installed_smoke_source_version_parser_is_project_scoped(
         encoding="utf-8",
     )
     assert installed_wheel_smoke.source_project_version(pyproject) == VERSION
+
+
+def test_pep561_and_primary_http_are_release_gate_requirements() -> None:
+    assert "chatgpt_web_adapter/py.typed" in release_gate.REQUIRED_WHEEL_FILES
+    assert "/src/chatgpt_web_adapter/py.typed" in release_gate.REQUIRED_SDIST_SUFFIXES
+    assert (
+        "BrowserlessHTTPClient" in installed_wheel_smoke.REQUIRED_PRIMARY_ROOT_EXPORTS
+    )
+
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "src" / "chatgpt_web_adapter" / "py.typed").is_file()
+    assert '"py.typed"' in (root / "pyproject.toml").read_text(encoding="utf-8")
+
+
+def test_release_gate_rejects_wheel_missing_pep561_marker(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    dist = _write_dist(root)
+    wheel = next(dist.glob("*.whl"))
+    with zipfile.ZipFile(wheel) as archive:
+        retained = {
+            name: archive.read(name)
+            for name in archive.namelist()
+            if name != "chatgpt_web_adapter/py.typed"
+        }
+    with zipfile.ZipFile(wheel, "w") as archive:
+        for name, contents in retained.items():
+            archive.writestr(name, contents)
+    with pytest.raises(release_gate.ReleaseGateError, match="py.typed"):
+        release_gate.verify_wheel(wheel, root=root, version=VERSION)
+
+
+def test_release_gate_rejects_sdist_missing_pep561_marker(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    dist = _write_dist(root)
+    sdist = next(dist.glob("*.tar.gz"))
+    with tarfile.open(sdist, "r:gz") as archive:
+        retained = [
+            (member.name, archive.extractfile(member).read())
+            for member in archive.getmembers()
+            if member.isfile()
+            and not member.name.endswith("/src/chatgpt_web_adapter/py.typed")
+        ]
+    with tarfile.open(sdist, "w:gz") as archive:
+        for name, contents in retained:
+            member = tarfile.TarInfo(name)
+            member.size = len(contents)
+            archive.addfile(member, io.BytesIO(contents))
+    with pytest.raises(release_gate.ReleaseGateError, match="py.typed"):
+        release_gate.verify_sdist(sdist, version=VERSION)
 
 
 def test_post_0_3_modules_required_in_wheel_and_sdist() -> None:
@@ -264,7 +316,7 @@ def test_pyproject_freezes_console_scripts_and_extension_package_data() -> None:
     text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    assert 'version = "0.3.0"' in text
+    assert 'version = "0.4.0"' in text
     assert 'cwa = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'chatgpt-web-adapter = "chatgpt_web_adapter.cli_v02:main"' in text
     assert (
@@ -327,4 +379,4 @@ def test_readme_and_release_checklist_present_0_3_user_and_release_contracts() -
     )
     assert "installed-wheel smoke" in checklist
     assert "Post-publish verification" in checklist
-    assert "v0.3.0" in checklist
+    assert "v0.4.0" in checklist

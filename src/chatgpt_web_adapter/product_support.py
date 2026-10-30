@@ -18,7 +18,7 @@ class ProductTransportSupportTier(str, Enum):
 
 
 _BUILTIN_PRODUCT_TRANSPORT_SUPPORT_TIERS: dict[str, ProductTransportSupportTier] = {
-    "browser-owned": ProductTransportSupportTier.PRODUCTION,
+    "browser-owned": ProductTransportSupportTier.EXPERIMENTAL,
     "browserless-request": ProductTransportSupportTier.EXPERIMENTAL,
 }
 

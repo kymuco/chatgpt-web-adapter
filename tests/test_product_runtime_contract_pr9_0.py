@@ -12,7 +12,10 @@ from chatgpt_web_adapter.product_capabilities import (
     ProductCapability,
 )
 from chatgpt_web_adapter.product_contract import build_product_runtime_contract
-from chatgpt_web_adapter.product_transport import ProductRuntimeExecution, ProductRuntimeHealth
+from chatgpt_web_adapter.product_transport import (
+    ProductRuntimeExecution,
+    ProductRuntimeHealth,
+)
 
 
 class _Canonical:
@@ -103,10 +106,10 @@ def _conforming_governance(
     }
 
 
-def test_browser_owned_is_frozen_production_transport() -> None:
+def test_browser_owned_is_explicit_secondary_experimental_transport() -> None:
     assert adapter.PRODUCT_RUNTIME_CONTRACT_SCHEMA == 1
     assert adapter.product_transport_support_tier("browser-owned") is (
-        adapter.ProductTransportSupportTier.PRODUCTION
+        adapter.ProductTransportSupportTier.EXPERIMENTAL
     )
 
 
@@ -117,7 +120,7 @@ def test_unknown_future_transport_defaults_to_experimental() -> None:
 
 
 def test_capability_state_and_transport_support_tier_are_orthogonal() -> None:
-    production = ProductCapabilities.from_entries(
+    browser = ProductCapabilities.from_entries(
         transport="browser-owned",
         entries=(
             ProductCapability(
@@ -138,8 +141,8 @@ def test_capability_state_and_transport_support_tier_are_orthogonal() -> None:
         ),
     ).to_dict()
 
-    assert production["transport_support_tier"] == "PRODUCTION"
-    assert production["capabilities"]["text_turns"]["state"] == "AVAILABLE"
+    assert browser["transport_support_tier"] == "EXPERIMENTAL"
+    assert browser["capabilities"]["text_turns"]["state"] == "AVAILABLE"
     assert experimental["transport_support_tier"] == "EXPERIMENTAL"
     assert experimental["capabilities"]["text_turns"]["state"] == "AVAILABLE"
 
@@ -192,7 +195,7 @@ def test_runtime_contract_freezes_standalone_sdk_invariants() -> None:
     assert payload["runtime"] == "ChatGPTProductRuntime"
     assert payload["product_semantics"] == "ordinary-chatgpt"
     assert payload["transport"] == "browser-owned"
-    assert payload["transport_support_tier"] == "PRODUCTION"
+    assert payload["transport_support_tier"] == "EXPERIMENTAL"
     assert payload["interfaces"] == {
         "canonical": "CanonicalConversationClient",
         "write_transport": "ProductWriteTransport",

@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-10-25_
+_Last updated: 2026-10-30 (v0.4.0 release candidate audit; not published)_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -13,59 +13,76 @@ Use [`ROADMAP.md`](ROADMAP.md) for direction,
 ```text
 latest public release   v0.3.0
 release date            2026-09-01
-package version         0.3.0
-current main            post-0.3 development
+package version         0.4.0 (staged source candidate; not published)
+current main            9519d390 (post-0.3 with cleanup #250 merged)
 architecture            PR15 provider architecture frozen
-current phase           prospective v0.4.0 source/release audit
+current phase           v0.4.0 release candidate verification
 license                 MIT
 python                  3.10-3.14
 ```
 
-Audited `main` at `1b47d258f34047465c3fa148bf29711744f82ce8`
-(2026-10-25) passed 16/16 CI checks, including exact-wheel smoke. It includes
-direct ChatGPT HTTP, Deep Research #227/#228, generated-image readback #229,
-and post-0.3 provider/Qwen additions. The newest published package remains `v0.3.0`
-(2026-09-01); its wheel does **not** include these newly merged features.
+Current `main` is `9519d390d48945fd098f2a92421f133821662407`
+(2026-10-30): pre-v0.4.0 cleanup #250 was merged, reducing the source
+diff by 5,985 net lines (66 changed paths; 21 removed files). No extension
+JavaScript or active Direct HTTP send behavior was changed in that cleanup.
+The source still includes direct ChatGPT HTTP, Deep Research and generated-image
+readback, plus the experimental provider integrations introduced after v0.3.0.
+The branch also includes fail-closed curl transfer integrity and bounded
+read-only canonical-GET curl-28 timeout handling.
 
-## Proposed v0.4.0 scope and readiness (audit: 2026-10-25)
+The synchronized versioned release candidate [#238](https://github.com/kymuco/chatgpt-web-adapter/pull/238)
+at `a84bba9e84e8e6702053b74422700745c5c15b29` passed 16/16 GitHub
+CI checks (Windows/Linux Python 3.10–3.14, wheel/sdist, candidate release
+gate and installed-wheel smoke). This is the **pre-documentation** checked
+head; the final documentation-updated head needs its own green CI.
+The newest published package remains `v0.3.0` (2026-09-01); its wheel
+does **not** include post-0.3 features.
 
-This is a **candidate plan, not a staged version, release tag or authorization
-to publish**. Preserve the browser-owned ChatGPT production/default runtime,
-existing CLI and compatibility interfaces. Ship the already-merged post-0.3
-capabilities with **their existing support tiers**: opt-in experimental ChatGPT
-Direct HTTP; Deep Research launch and canonical report readback (#227/#228);
+## Proposed v0.4.0 scope and readiness (audit: 2026-10-30)
+
+The source candidate stages package version `0.4.0`, but this is **not** a Git
+tag, published GitHub Release, or authorization to upload to PyPI. Preserve
+the legacy browser-owned SDK default for compatibility while promoting
+`BrowserlessHTTPClient` to the primary ChatGPT public surface for live-verified
+operations. Browser-owned is secondary/experimental, not an automatic fallback.
+Ship the already-merged post-0.3 capabilities: ChatGPT Direct HTTP; Deep Research launch and canonical report readback (#227/#228);
 ordinary-request image generation observation and generated-image readback
 (#229); narrow governed file handoff; isolated experimental Qwen Web;
 experimental DeepSeek/Gemini and module-only Google Translate/Gemini Notebook.
 Neither one live success nor a release number promotes private web protocols
 to production or guarantees automatic image tool selection.
 
-**Confirmed:** main commit `1b47d258` CI 16/16 (Ubuntu/Windows Python 3.10–3.14,
-release build and exact installed-wheel smoke); image readback was live-proven
-in 2/2 independent UI and HTTP conversations, and previously the existing
-artifact handoff downloaded a PNG with exact byte/SHA-256 verification.
+**Confirmed:** versioned candidate `a84bba9e` passed 16/16 CI, including
+four clean installed-wheel smokes on Ubuntu/Windows with Python 3.10 and
+3.14. These packaging and deterministic checks are not fresh live-product
+evidence. Earlier image readback was independently proven on UI/HTTP,
+and governed generated-file handoff verified exact bytes and SHA-256.
 
-**Release work not yet closed:**
+**2026-10-29 evidence and disposition:** PR #237 changes the recommended
+ChatGPT integration path to primary Direct HTTP without changing the legacy
+SDK default. The current public API classification is PRIMARY_PRODUCTION for
+`BrowserlessHTTPClient` and EXPERIMENTAL for browser-owned.
+The exact `main` at `0e330c5e` passed 16/16 CI. A user-run Direct HTTP E2E
+completed one send with three Markdown files, two streaming callbacks,
+file-only expected values and canonical ID/text/status match. GPT-6 High
+was requested, not independently server-attested. A fresh browser-owned
+three-file attempt stalled after one visible attachment; no confirmed
+multi-file browser acceptance exists for this source revision. Do not
+resend that attempt or silently promote its capability reliability.
 
-1. Reconcile the ambiguous guarded rich-input submit in [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211);
-   do not repeat an uncertain write or blindly merge the draft.
-2. Repair or explicitly disposition the production browser-native canonical
-   429 backoff deadline escape in [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168).
-3. Assess the observed canonical HTTP 500 from [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221)
-   using current product evidence; the draft's fallback is not a proven cure.
-4. Reconfirm the expanded exact-wheel release gate (all four console scripts,
-   new Direct HTTP, research/image readback, and governed handoff modules) on the
-   exact versioned candidate. The import-only check verifies packaging, not
-   product protocol compatibility.
-5. Finalize scope/tiers, dated release notes, version and matching tag on an
-   exact clean candidate SHA, then repeat the full build/publish gates and
-   any specifically necessary live checks before a separate release decision.
+**Release disposition and remaining steps:**
+
+1. **Known limitation for v0.4.0:** browser-owned three-file UI acceptance did not complete on 2026-10-29. Browser-owned stays `EXPERIMENTAL`, not a production multi-file reliability claim. Historical draft [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) is not to be merged wholesale; publishing requires the maintainer to accept the scoped limitation explicitly. No automatic replay after ambiguous writes.
+2. **Closed / retained:** browser-native canonical 429 read-deadline issue [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168) was fixed by #232. Subsequent curl-transfer-integrity and bounded canonical-read curl-28 fallback changes preserve fail-closed semantics. The HTTP 500 step-down proposal in draft [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221) remains unproven and excluded.
+3. **Closed:** cleanup PR #250 merged; versioned candidate `a84bba9e` passed 16/16 release CI. Installed-wheel and static import verification do not attest private-web-protocol stability.
+4. **Pending:** green CI on the final documentation-updated candidate, an exact release SHA, dated changelog and tag/version parity, and separate maintainer authorization before merging/tagging or publishing to PyPI.
 
 **Deferred unless independently justified:** experimental Linux Qwen draft
 [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217) requires actual
-EndeavourOS Native Messaging E2E; Qwen drafts #223/#225/#226 are not implied.
-PEP 561 typed-package marker #172 and durable long-history checkpointing #114
-remain independent issues. No Codexia/HDE change, MCP layer, universal provider
+EndeavourOS Native Messaging E2E; Qwen #223/#226 are deferred. The narrow
+verified capability metadata correction from #225 and PEP 561 packaging
+marker from #172 are staged in the candidate; full strict type checking and
+resumable history (#114) remain out of scope. No Codexia/HDE change, MCP layer, universal provider
 router, new browser-bypass code, or implicit retries belong in this release.
 
 ## Product role
@@ -76,7 +93,8 @@ products.
 Current provider/capability status:
 
 ```text
-ChatGPT               PRODUCTION / default conversational runtime
+ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK
+ChatGPT browser UI    EXPERIMENTAL / secondary (legacy default)
 DeepSeek Web          EXPERIMENTAL conversational runtime
 Gemini Web            EXPERIMENTAL conversational runtime
 Qwen Web              EXPERIMENTAL isolated Chrome/Native Host SDK
@@ -88,25 +106,28 @@ The shared provider-neutral architecture is represented by
 `ProductProviderBoundary schema 2`, but that boundary is metadata/invariant validation
 over a runtime, not an execution router.
 
-## ChatGPT production/default surface
+## ChatGPT primary HTTP SDK and secondary UI runtime
 
-Primary application boundary:
+Primary ChatGPT application client (live-verified operations):
 
 ```text
-ChatGPTProductRuntime
+BrowserlessHTTPClient
 ```
 
-Production mutation transport:
+The historical `ChatGPTProductRuntime` and its browser-owned default remain
+available as a secondary UI compatibility surface.
+
+Secondary UI mutation transport (legacy default):
 
 ```text
-browser-owned = PRODUCTION
+browser-owned = EXPERIMENTAL
 ```
 
 Alternative direct-request transports (two distinct implementations):
 
 ```text
 browserless-request = EXPERIMENTAL (historical runtime transport)
-BrowserlessHTTPClient = EXPERIMENTAL / explicit opt-in direct HTTP SDK (#212)
+BrowserlessHTTPClient = PRIMARY_PRODUCTION / primary ChatGPT SDK (#212, #237)
 ```
 
 The direct HTTP client uses a saved authenticated session, Node.js 24+ and curl;
@@ -180,7 +201,8 @@ See [`docs/providers.md`](docs/providers.md).
 
 ## Browser-owned strategy
 
-Browser-owned execution is the reference/default web-product mutation strategy.
+Browser-owned remains a secondary experimental UI mutation strategy. Its
+legacy runtime default is retained for compatibility, not as a recommendation.
 
 The browser owns the authenticated product environment, frontend execution, normal
 navigation and page-owned submit behavior. CWA owns the bounded runtime operation and
@@ -220,9 +242,10 @@ See [PR14.0](docs/engineering/pr14_0_governed_generated_artifact_handoff.md).
 
 ### Browserless writes
 
-`browserless-request` and the separate opt-in `BrowserlessHTTPClient` remain
-experimental. Direct HTTP live evidence covers selected operations, not a full
-reliability or automatic auth-recovery guarantee. Scoped browser-session sync and
+`browserless-request` remains experimental. The separate
+`BrowserlessHTTPClient` is now the PRIMARY_PRODUCTION public SDK for selected
+live-verified operations; it is still vulnerable to private protocol changes
+and does not guarantee automatic auth recovery or transport fallback. Scoped browser-session sync and
 canonical-GET `401` recovery do not automatically apply to `BrowserlessHTTPClient.send()`.
 
 CWA does not add challenge-bypass machinery merely to promote browserless writes.

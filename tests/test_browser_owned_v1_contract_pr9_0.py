@@ -3,7 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import chatgpt_web_adapter as adapter
-from chatgpt_web_adapter.browser_owned_product_transport import BrowserOwnedProductTransport
+from chatgpt_web_adapter.browser_owned_product_transport import (
+    BrowserOwnedProductTransport,
+)
 
 
 class _Canonical:
@@ -21,7 +23,9 @@ class _NoWriteProvider:
     """Construction-only provider; contract inspection must never perform a write."""
 
     def send_text(self, *args, **kwargs):
-        raise AssertionError("PR9.0 contract inspection must not perform a product write")
+        raise AssertionError(
+            "PR9.0 contract inspection must not perform a product write"
+        )
 
 
 def test_real_browser_owned_transport_declares_schema1_finality_governance() -> None:
@@ -38,7 +42,9 @@ def test_real_browser_owned_transport_declares_schema1_finality_governance() -> 
     assert governance["ambiguous_write_requires_reconciliation"] is True
 
 
-def test_real_browser_owned_runtime_satisfies_frozen_schema1_contract_without_write() -> None:
+def test_real_browser_owned_runtime_satisfies_frozen_schema1_contract_without_write() -> (
+    None
+):
     transport = BrowserOwnedProductTransport(
         _Canonical(),
         provider=_NoWriteProvider(),
@@ -53,7 +59,7 @@ def test_real_browser_owned_runtime_satisfies_frozen_schema1_contract_without_wr
 
     assert payload["schema"] == adapter.PRODUCT_RUNTIME_CONTRACT_SCHEMA == 1
     assert payload["transport"] == "browser-owned"
-    assert payload["transport_support_tier"] == "PRODUCTION"
+    assert payload["transport_support_tier"] == "EXPERIMENTAL"
     assert payload["product_semantics"] == "ordinary-chatgpt"
     assert payload["interfaces"] == {
         "canonical": "CanonicalConversationClient",
@@ -62,5 +68,7 @@ def test_real_browser_owned_runtime_satisfies_frozen_schema1_contract_without_wr
     assert payload["invariants"]["automatic_write_retry"] is False
     assert payload["invariants"]["fallback_transport"] is None
     assert payload["invariants"]["ambiguous_write_requires_reconciliation"] is True
-    assert payload["invariants"]["incremental_observation_is_canonical_finality"] is False
+    assert (
+        payload["invariants"]["incremental_observation_is_canonical_finality"] is False
+    )
     assert payload["invariants"]["browser_implementation_required_by_caller"] is False

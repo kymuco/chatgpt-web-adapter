@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-09-26_
+_Last updated: 2026-10-29_
 
 CWA is a local product-runtime bridge for authenticated consumer AI web products.
 
@@ -78,14 +78,15 @@ canonical_readback_required = true
 canonical_interface = CanonicalConversationClient
 ```
 
-The mature application runtime is:
+For new ChatGPT integrations on live-verified operations, the primary client is
+`BrowserlessHTTPClient`: a separate HTTP SDK with canonical readback and no
+Chrome tab for sending. It is available from the package root and is not the
+historical `browserless-request` runtime transport.
 
-```text
-ChatGPTProductRuntime
-```
-
-ChatGPT has a separate canonical read/session plane and production browser-owned write
-transport.
+The older `ChatGPTProductRuntime` stays available as a secondary experimental
+browser-owned UI path; its default transport choice is preserved only for
+compatibility. Neither path silently falls back or automatically retries
+uncertain writes. This is not a universal provider router.
 
 ### DeepSeek Web
 
@@ -113,9 +114,10 @@ Current scope is text new chat and continuation.
 
 See [providers.md](providers.md).
 
-## 4. ChatGPT production runtime
+## 4. ChatGPT product-runtime compatibility contract
 
-The mature/default path remains:
+The existing assembled runtime remains available for callers that explicitly
+need page-owned UI behavior, but is not the recommended primary ChatGPT SDK:
 
 ```text
 application
@@ -127,7 +129,7 @@ ChatGPTProductRuntime
 canonical        mutation
 read/session     ProductWriteTransport
   |                 |
-  |          browser-owned PRODUCTION
+  |          browser-owned EXPERIMENTAL
   |          browserless-request EXPERIMENTAL
   |
   +------ completion / identity reconciliation
@@ -143,6 +145,9 @@ Primary modules include:
 - `product_provider.py`;
 - `product_contract.py`;
 - `public_surface.py`.
+
+The product-runtime contract stays narrow; newer ChatGPT HTTP integrations
+use the standalone `BrowserlessHTTPClient` described above.
 
 The intended application contract remains narrow:
 

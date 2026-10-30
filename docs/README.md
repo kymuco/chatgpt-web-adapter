@@ -11,7 +11,8 @@ Do not treat every PR-numbered document as current getting-started guidance.
 
 ## Start here
 
-- [`quickstart.md`](quickstart.md) — shortest path for first-time users;
+- [`quickstart.md`](quickstart.md) — primary ChatGPT Direct HTTP plus secondary UI setup;
+- [`browserless_http_sdk.md`](browserless_http_sdk.md) — primary, live-verified ChatGPT SDK with private-protocol limits;
 - [`capabilities.md`](capabilities.md) — current proven chat and non-chat capability map;
 - [`agent_integration.md`](agent_integration.md) — local assistants, coding agents and tool wrappers;
 - [`../README.md`](../README.md) — project overview, provider status and production
@@ -25,8 +26,8 @@ Do not treat every PR-numbered document as current getting-started guidance.
 - [`../ROADMAP.md`](../ROADMAP.md) — current development direction;
 - [`architecture.md`](architecture.md) — current provider-aware architecture;
 - [`providers.md`](providers.md) — provider capability/support matrix;
-- [`browser_owned.md`](browser_owned.md) — why browser-owned execution is the
-  reference/default web-product strategy;
+- [`browser_owned.md`](browser_owned.md) — secondary experimental UI execution
+  and its legacy default compatibility boundary;
 - [`../SECURITY.md`](../SECURITY.md) — security and sensitive-data boundary;
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) — contribution/evidence expectations;
 - [`adding_capability.md`](adding_capability.md) — evidence-driven hosted capability contribution workflow;
@@ -36,11 +37,11 @@ Do not treat every PR-numbered document as current getting-started guidance.
 
 - [`architecture.md`](architecture.md) — provider-specific runtimes, schema-2
   provider boundary, canonical/finality differences and authority separation;
-- [`providers.md`](providers.md) — ChatGPT production/default vs experimental
-  DeepSeek, Gemini and isolated Qwen support;
+- [`providers.md`](providers.md) — ChatGPT primary Direct HTTP and secondary
+  browser-owned UI, plus experimental other providers;
 - [`browser_owned.md`](browser_owned.md) — browser-owned vs browserless execution;
-- [`browser_owned_v1_contract.md`](browser_owned_v1_contract.md) — ChatGPT
-  production browser-owned contract;
+- [`browser_owned_v1_contract.md`](browser_owned_v1_contract.md) — historical
+  ChatGPT browser-owned contract, not current multi-file E2E evidence;
 - [`product_capabilities_provenance_pr8_5.md`](product_capabilities_provenance_pr8_5.md)
   — capability/provenance foundations;
 - [`public_surface_pr8_6.md`](public_surface_pr8_6.md) — support-tier lineage;
@@ -75,12 +76,13 @@ page/runtime semantics. See `providers.md`.
 - [`product_runtime_observation_integration_pr9_3.md`](product_runtime_observation_integration_pr9_3.md)
   — observation integration;
 - [`generated_artifact_handoff_pr10_1.md`](generated_artifact_handoff_pr10_1.md)
-  — generated-artifact boundary and current unsupported handoff decision.
+  — historical unsupported decision, superseded by the current governed
+  `handoff_generated_artifact(...)` on the canonical ChatGPT client.
 
-### Browserless / backend research
+### Historical browserless / backend research
 
-- [`browserless_http_sdk.md`](browserless_http_sdk.md) — opt-in direct ChatGPT HTTP
-  Python SDK (experimental; separate from browser-owned and browserless-request);
+The primary ChatGPT Direct HTTP SDK is documented above; it is a separate
+client, not the historical `browserless-request` product runtime.
 - [`browserless_request_transport_pr9_1.md`](browserless_request_transport_pr9_1.md)
   — experimental ChatGPT browserless transport;
 - [`raw_payload.md`](raw_payload.md) — lower-level experimental payload surface.

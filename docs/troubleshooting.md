@@ -6,10 +6,30 @@ Start with:
 chatgpt-web-adapter auth status --auth-file auth_data.json
 ```
 
+## Primary ChatGPT Direct HTTP troubleshooting
+
+Start with `BrowserlessHTTPClient` on the same installed package/source
+revision; confirm Node.js 24+, curl and a valid `auth_data.json` without
+printing its contents. A rejected auth/session request must be reconciled
+before any new send. Direct HTTP has **no automatic browser fallback**.
+
+If a response is lost after a potentially committed Send, do not send the
+same prompt again automatically: attempt canonical readback using the known
+conversation identity, or report the outcome as uncertain.
+
+Browser-owned rich-input is a secondary experimental UI path. On 2026-10-29,
+its three-file live attempt stalled after one visible attachment; do not
+clear the attachment fence or repeat that turn without confirmed state.
+
 ## Missing or Expired Access Token
 
 Try `chatgpt-web-adapter auth refresh --auth-file auth_data.json`. If refresh is
 rejected, run `chatgpt-web-adapter auth login --force --auth-file auth_data.json`.
+
+## Secondary browser-owned / legacy diagnostics
+
+The following browser and Sentinel steps apply to explicit browser-owned
+or historical compatibility workflows, **not** the primary Direct HTTP Send.
 
 ## Browser Profile Is Busy
 
@@ -72,7 +92,10 @@ client = ChatGPTWebClient(
 Auth, cookies, conduit credentials, and Sentinel headers are redacted. Raw HAR
 files can still contain secrets and must be sanitized before sharing.
 
-## Minimal Live Smoke
+## Legacy browser-only live smoke (not required for HTTP)
+
+The following example is retained for compatibility diagnostics; a successful
+single-turn browser smoke does not establish guarded multi-file reliability.
 
 ```python
 from chatgpt_web_adapter import ChatGPTWebClient
