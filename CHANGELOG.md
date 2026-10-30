@@ -6,7 +6,12 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
-## 0.4.0 - 2026-10-29
+## 0.4.0 - 2026-10-30
+
+- Release-candidate date only: 2026-10-30 is staged for v0.4.0; update the heading before tagging if the actual publication date differs. This section does not mean that a tag or release was published.
+- Pre-release cleanup (#250): removed 21 historical files and retired duplicated diagnostics and live-acceptance runners while preserving active schema8–29 contract validation, production Direct HTTP and the Chrome extension. Net −5,985 lines over 66 paths in the integrated cleanup; versioned candidate CI passed 16/16 before documentation polish.
+- HTTP transport integrity (#246): every nonzero curl process exit fails closed, even if headers report HTTP 200. No partially transferred body is promoted to successful readback, and no automatic retry or secret-bearing error details were added.
+- Canonical GET curl-28 timeout recovery (2026-10-30): only the read path steps down existing `num_turns` hints (20 → 10 → 5) after a structured timeout; no same-size retry, write-path modification, or guarantee of recovery. Covered by deterministic regressions, not a newly verified live E2E.
 
 - Public SDK/support-tier reconciliation (#239): promote root-exported `BrowserlessHTTPClient` to `PRIMARY_PRODUCTION` for live-verified ChatGPT operations; reclassify browser-owned as `EXPERIMENTAL` for its unresolved multi-file UI path while preserving the legacy `assemble_product_runtime()` default. No implicit fallback or runtime behavior changes.
 - Qwen capability metadata (#225): report browser text/new-chat/continuation/network streaming as AVAILABLE based on previously verified Windows use; keep Qwen transport EXPERIMENTAL, and leave canonical readback, files and unverified features unpromoted.
