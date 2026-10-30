@@ -30,6 +30,13 @@ MODULE_HASH = "21a5313fc55570e213891f3f6daef5a596130a8a5cd12b8d90a94e37944321ed"
 RUNTIME = Path(__file__).with_name("browserless_js") / "runtime.cjs"
 _DEEP_RESEARCH_HINT = "plugin:connector_openai_deep_research"
 
+# The Direct HTTP streaming POST has a different lifetime from short JSON
+# requests. A 60-second absolute curl maximum can interrupt a healthy GPT-6
+# reasoning stream after the server has accepted the conversation write.
+STREAM_POST_MAX_TIME_SECONDS = 1800
+STREAM_POST_LOW_SPEED_TIME_SECONDS = 180
+STREAM_POST_LOW_SPEED_LIMIT_BYTES_PER_SECOND = 1
+
 
 def fetch_protocol_module(curl: str, destination: Path) -> None:
     """Download public code without sending credentials; require reviewed hash."""
@@ -98,6 +105,43 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
         )
         self._browserless_lock = threading.RLock()
         self.last_timing: dict[str, float | None] = {}
+
+    def _build_curl_command(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        header_path: str,
+        body_path: str | None = None,
+        *,
+        no_buffer: bool = False,
+        follow_redirects: bool = False,
+    ) -> list[str]:
+        command = super()._build_curl_command(
+            method,
+            url,
+            headers,
+            header_path,
+            body_path,
+            no_buffer=no_buffer,
+            follow_redirects=follow_redirects,
+        )
+        if method.upper() == "POST" and no_buffer:
+            # This opt-in path is used for streaming conversation writes.
+            # Keep the connect-timeout and bounded overall lifetime, but do
+            # not treat the ordinary JSON-request timeout as the SSE deadline.
+            # A stalled transfer still fails closed; never retry a write.
+            maximum = command.index("--max-time")
+            command[maximum + 1] = str(max(self.timeout, STREAM_POST_MAX_TIME_SECONDS))
+            command.extend(
+                [
+                    "--speed-limit",
+                    str(STREAM_POST_LOW_SPEED_LIMIT_BYTES_PER_SECOND),
+                    "--speed-time",
+                    str(max(self.timeout, STREAM_POST_LOW_SPEED_TIME_SECONDS)),
+                ]
+            )
+        return command
 
     def _js(self, data: dict[str, Any]) -> dict[str, Any]:
         if not self.protocol_module.is_file():
