@@ -358,7 +358,16 @@ The secondary browser-owned CLI remains explicitly available:
 cwa send "Browser-owned request" --transport browser-owned --profile HIGH
 ```
 
-Useful stable commands:
+The `cwa send` default is **Direct HTTP** only in the unreleased v0.4.1
+candidate. The `cwa doctor`, `cwa status`, `cwa capabilities` and `cwa messages`
+inspection commands still target the historical product runtime, whose default
+transport is `browser-owned`; their browser-bridge readiness does **not** assess
+Direct HTTP send readiness. Do not confuse a disconnected extension with a
+Direct HTTP failure. For new CLI sends, `--json` provides structured outcomes
+and safe HTTP operation labels after a transport failure. Plain text errors also
+show a bounded `phase` where it is known; no ambiguous send is retried.
+
+Useful historical runtime inspection commands:
 
 ```powershell
 cwa doctor --json

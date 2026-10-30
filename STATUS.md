@@ -41,6 +41,11 @@ defaults for backward compatibility. Browser-owned and the historical
 The candidate must pass deterministic CI and an independent CLI live E2E
 before merging or publishing. Do not retag or rewrite v0.4.0 artifacts.
 
+Historical CLI inspection commands (`status`, `doctor`, `capabilities`,
+`messages`) keep the browser-owned product-runtime defaults. They do not
+represent a Direct HTTP write-health check; v0.4.1 changes the `send` default
+only, with no implicit browser integration or automatic fallback.
+
 Current source work is tracked in [PR #253](https://github.com/kymuco/chatgpt-web-adapter/pull/253).
 The v0.4.0 [release notes](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.0)
 remain a historical, immutable publication record.

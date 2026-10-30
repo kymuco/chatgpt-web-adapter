@@ -8,6 +8,7 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## 0.4.1 - 2026-10-30
 
+- CLI error observability: label ordinary text-mode Direct HTTP transport failures with a bounded, non-secret phase; JSON and console statuses preserve fail-closed, no-retry semantics. Document that `doctor`, `status`, `capabilities`, and `messages` remain legacy product-runtime inspections, not Direct HTTP write-health checks.
 - Unreleased patch candidate: make installed `cwa send` default to the primary Direct HTTP `BrowserlessHTTPClient`, while preserving explicit `browser-owned` / `browserless-request` CLI options and the historical Python product-runtime default.
 - CLI Direct HTTP now supports High/Medium/Instant requested profiles, one-send streaming, temporary and continued conversations, JSON output and explicit repeatable `--file` attachments; no automatic retry, browser fallback, or invented browser-runtime provenance.
 - Refresh README, STATUS and quickstart to recognize the already-published `v0.4.0` (GitHub and PyPI) rather than advertising it as an unreleased source candidate. Update this candidate date before tagging if publication happens on a different date.

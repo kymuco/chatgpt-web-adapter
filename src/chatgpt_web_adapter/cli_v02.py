@@ -527,7 +527,32 @@ def _emit_error(args: argparse.Namespace, error: BaseException, exit_code: int) 
     if getattr(args, "json", False):
         _json_print(_error_payload(args, error, exit_code), stream=sys.stderr)
     else:
-        print(f"error: {error}", file=sys.stderr)
+        # Direct HTTP curl failures have fixed, non-secret phase labels.
+        # Do not print arbitrary endpoint values or signed upload URLs.
+        phase = getattr(error, "endpoint", None)
+        safe_phases = {
+            "file_registration",
+            "file_upload",
+            "file_finalize",
+            "sentinel_prepare",
+            "sentinel_finalize",
+            "chat_requirements",
+            "canonical_get",
+            "conversation_list",
+            "conversation_request",
+            "conversation_write",
+            "session_bootstrap",
+            "other_http",
+        }
+        if (
+            getattr(args, "command", None) == "send"
+            and getattr(args, "transport", None) == DIRECT_HTTP_TRANSPORT
+            and isinstance(phase, str)
+            and phase in safe_phases
+        ):
+            print(f"error: {error} (phase: {phase})", file=sys.stderr)
+        else:
+            print(f"error: {error}", file=sys.stderr)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

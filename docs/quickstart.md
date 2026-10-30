@@ -39,6 +39,11 @@ print(client.get_status(response.conversation.conversation_id).status)
 On the unreleased v0.4.1 source candidate, the same Direct HTTP SDK is also
 selected by default in `cwa send "Hello" --profile HIGH`; the released v0.4.0
 CLI still defaults to browser-owned, so use the Python example above on v0.4.0.
+The `cwa status`, `cwa doctor`, `cwa capabilities`, and `cwa messages` commands
+still inspect the legacy product-runtime transport (`browser-owned` by default),
+not Direct HTTP send health. The browser extension is not required for sending
+with the new CLI default. For CLI errors, `--json` reports a safe operation
+phase such as `file_upload`; a timeout can still have an unknown outcome.
 Never resend automatically if the first send has an uncertain outcome. See
 [Direct HTTP SDK](browserless_http_sdk.md) for model, files, continuation and
 setup limitations.

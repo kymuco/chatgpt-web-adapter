@@ -227,3 +227,55 @@ def test_direct_http_non_timeout_does_not_fabricate_write_admission(
     assert payload["error"]["request_stage"] == "transport"
     assert "reconciliation_required" not in payload["error"]
     assert calls == [1]
+
+
+def test_text_mode_reports_safe_direct_http_phase_without_signed_url(
+    monkeypatch, capsys
+):
+    calls = []
+
+    class FailedUpload:
+        def __init__(self, **kwargs):
+            pass
+
+        def send(self, *args, **kwargs):
+            calls.append(1)
+            raise RequestError(
+                "curl failed: exit_code=28; http_status=200",
+                status_code=200,
+                request_stage="transport_timeout",
+                endpoint="file_upload",
+            )
+
+    monkeypatch.setattr(cli_direct_http, "BrowserlessHTTPClient", FailedUpload)
+    result = cli.main(["send", "hello"])
+    output = capsys.readouterr()
+    assert result == cli.EXIT_RECONCILIATION_REQUIRED
+    assert output.out == ""
+    assert "phase: file_upload" in output.err
+    assert "inspect canonical conversation history" in output.err
+    assert calls == [1]
+
+
+def test_text_mode_never_echoes_untrusted_phase(monkeypatch, capsys):
+    calls = []
+
+    class UnsafePhase:
+        def __init__(self, **kwargs):
+            pass
+
+        def send(self, *args, **kwargs):
+            calls.append(1)
+            raise RequestError(
+                "request failed",
+                request_stage="transport",
+                endpoint="https://upload.invalid/private?sig=SECRET",
+            )
+
+    monkeypatch.setattr(cli_direct_http, "BrowserlessHTTPClient", UnsafePhase)
+    result = cli.main(["send", "hello"])
+    output = capsys.readouterr()
+    assert result == cli.EXIT_OPERATION_FAILED
+    assert "SECRET" not in output.err
+    assert "phase:" not in output.err
+    assert calls == [1]
