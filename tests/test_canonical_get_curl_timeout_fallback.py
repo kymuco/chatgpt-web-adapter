@@ -44,10 +44,7 @@ def _read(client):
 
 
 def _hints(client):
-    return [
-        int(parse_qs(urlparse(url).query)["num_turns"][0])
-        for url in client.calls
-    ]
+    return [int(parse_qs(urlparse(url).query)["num_turns"][0]) for url in client.calls]
 
 
 def test_curl_timeout_downshifts_and_accepts_complete_get():
