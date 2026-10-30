@@ -681,7 +681,11 @@ class ChatGPTWebClient:
                 raise RequestError(
                     error_text,
                     status_code=status or None,
-                    request_stage="transport",
+                    # Only curl's exact timeout exit (28) may trigger the
+                    # bounded canonical GET load-shedding path.
+                    request_stage=(
+                        "transport_timeout" if return_code == 28 else "transport"
+                    ),
                 )
             if persist_cookies:
                 self._update_cookies_from_text(header_text)
