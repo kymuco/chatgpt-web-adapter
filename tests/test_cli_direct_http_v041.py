@@ -1,0 +1,174 @@
+"""Installed cwa send must use primary Direct HTTP without breaking legacy runtime."""
+
+from __future__ import annotations
+
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from chatgpt_web_adapter import cli_direct_http
+from chatgpt_web_adapter import cli_v02 as cli
+
+
+def _response(text="hello world"):
+    return SimpleNamespace(
+        text=text,
+        title="Test conversation",
+        conversation=SimpleNamespace(
+            conversation_id="conversation-1",
+            message_id="message-1",
+            finish_reason="stop",
+        ),
+        request=SimpleNamespace(observed_model=None, temporary=False),
+        metrics=SimpleNamespace(backend_status=200),
+    )
+
+
+class FakeHTTP:
+    def __init__(self, *, auth_file, timeout):
+        self.auth_file = auth_file
+        self.timeout = timeout
+        self.calls = []
+
+    def send(self, prompt, **kwargs):
+        self.calls.append((prompt, kwargs))
+        callback = kwargs.get("on_token")
+        if callback:
+            callback("hello")
+            callback(" world")
+        return _response()
+
+
+@pytest.fixture
+def fake_http(monkeypatch):
+    created = []
+
+    def factory(**kwargs):
+        client = FakeHTTP(**kwargs)
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(cli_direct_http, "BrowserlessHTTPClient", factory)
+    return created
+
+
+def test_default_send_uses_direct_http_and_requests_gpt6_high(fake_http, capsys):
+    assert cli.main(["send", "hello"]) == 0
+    assert capsys.readouterr().out == "hello world\n"
+    assert len(fake_http) == 1
+    assert fake_http[0].calls == [
+        (
+            "hello",
+            {
+                "model": "gpt-6",
+                "reasoning_effort": "high",
+                "conversation": None,
+                "temporary": False,
+                "media": None,
+                "on_token": None,
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("profile", "model", "effort"),
+    [
+        ("INSTANT", "gpt-6-instant", None),
+        ("medium", "gpt-6", "medium"),
+        ("DEEP", "gpt-6", "high"),
+    ],
+)
+def test_profile_mapping_is_explicit(fake_http, capsys, profile, model, effort):
+    assert cli.main(["send", "hello", "--profile", profile]) == 0
+    assert fake_http[0].calls[0][1]["model"] == model
+    assert fake_http[0].calls[0][1]["reasoning_effort"] == effort
+
+
+def test_streaming_prints_tokens_and_retains_final_text(fake_http, capsys):
+    assert cli.main(["send", "hello", "--stream"]) == 0
+    assert capsys.readouterr().out == "hello world\n"
+    assert len(fake_http[0].calls) == 1
+
+
+def test_final_only_has_no_intermediate_token_output(fake_http, capsys):
+    assert cli.main(["send", "hello", "--stream", "--final-only"]) == 0
+    assert capsys.readouterr().out == "hello world\n"
+    assert fake_http[0].calls[0][1]["on_token"] is None
+
+
+def test_json_is_honest_about_unavailable_browser_runtime_provenance(fake_http, capsys):
+    assert cli.main(["send", "hello", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["transport"] == "direct-http"
+    assert data["conversation_id"] == "conversation-1"
+    assert data["message_id"] == "message-1"
+    assert data["runtime_observation"] is None
+    assert data["provenance"] is None
+    assert len(fake_http[0].calls) == 1
+
+
+def test_continuation_and_files_and_explicit_model(fake_http, tmp_path):
+    doc = tmp_path / "attached.md"
+    doc.write_text("# Source", encoding="utf-8")
+    assert (
+        cli.main(
+            [
+                "send",
+                "hello",
+                "--conversation",
+                "conversation-1",
+                "--file",
+                str(doc),
+                "--model",
+                "gpt-6",
+            ]
+        )
+        == 0
+    )
+    kwargs = fake_http[0].calls[0][1]
+    assert kwargs["conversation"] == "conversation-1"
+    assert kwargs["media"] == [doc]
+    assert kwargs["model"] == "gpt-6"
+
+
+def test_temporary_is_direct_and_does_not_assume_durable_continuation(fake_http):
+    assert cli.main(["send", "hello", "--temporary"]) == 0
+    assert fake_http[0].calls[0][1]["temporary"] is True
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        ["--temporary", "--conversation", "conversation-1"],
+        ["--timings", "--stream"],
+        ["--poll-interval", "2"],
+        ["--file", "/file/that/does/not/exist.md"],
+    ],
+)
+def test_invalid_direct_flags_fail_before_constructing_client(fake_http, options):
+    assert cli.main(["send", "hello", *options]) != 0
+    assert not fake_http
+
+
+def test_explicit_browser_owned_is_preserved(monkeypatch, fake_http):
+    observed = []
+
+    def legacy(args):
+        observed.append(args.transport)
+        return 0
+
+    monkeypatch.setattr(cli.legacy_cli, "_run_send", legacy)
+    assert cli.main(["send", "hello", "--transport", "browser-owned"]) == 0
+    assert cli.main(["send", "hello", "--transport", "browserless-request"]) == 0
+    assert observed == ["browser-owned", "browserless-request"]
+    assert not fake_http
+
+
+def test_legacy_mode_cannot_silently_ignore_direct_only_files(fake_http):
+    assert (
+        cli.main(["send", "hello", "--transport", "browser-owned", "--file", "foo.md"])
+        != 0
+    )
+    assert not fake_http

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any, Sequence
 
 from . import cli as legacy_cli
 from .auth import DEFAULT_AUTH_FILE
+from .cli_direct_http import DIRECT_HTTP_TRANSPORT, send_direct_http
 from .conversation_snapshot import snapshot_conversation
 from .doctor import run_doctor
 from .export import EXPORT_FORMAT_ALIASES, write_conversation_export
@@ -37,8 +38,7 @@ PRODUCT_NATIVE_TO_SEMANTIC: dict[str, str] = {
     "HIGH": "DEEP",
 }
 SEMANTIC_TO_PRODUCT_NATIVE: dict[str, str] = {
-    semantic: product
-    for product, semantic in PRODUCT_NATIVE_TO_SEMANTIC.items()
+    semantic: product for product, semantic in PRODUCT_NATIVE_TO_SEMANTIC.items()
 }
 DEFAULT_PUBLIC_MODEL_PROFILE = "HIGH"
 
@@ -106,6 +106,35 @@ def _configure_send_profile(parser: argparse.ArgumentParser) -> None:
     raise RuntimeError("PR8_14_SEND_PROFILE_ARGUMENT_MISSING")
 
 
+def _configure_send_direct_http(parser: argparse.ArgumentParser) -> None:
+    """Change only installed cwa send, not the historical product runtime."""
+    root = _root_subparsers(parser)
+    send = root.choices["send"]
+    for action in send._actions:
+        if action.dest == "transport":
+            action.choices = (DIRECT_HTTP_TRANSPORT, *SUPPORTED_PRODUCT_TRANSPORTS)
+            action.default = DIRECT_HTTP_TRANSPORT
+            action.help = (
+                "direct-http (default primary SDK); browser-owned and "
+                "browserless-request are explicit legacy runtime transports"
+            )
+            break
+    else:
+        raise RuntimeError("CLI_SEND_TRANSPORT_MISSING")
+    send.add_argument(
+        "--file",
+        action="append",
+        type=Path,
+        dest="files",
+        default=[],
+        help="attach an existing file (repeat to attach multiple files); direct-http only",
+    )
+    send.add_argument(
+        "--model",
+        help="explicit ChatGPT web model slug; direct-http only",
+    )
+
+
 def _configure_snapshot_artifact(parser: argparse.ArgumentParser) -> None:
     root = _root_subparsers(parser)
     snapshot = root.choices.get("snapshot")
@@ -137,6 +166,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = legacy_cli._build_parser()
     parser.prog = "cwa"
     _configure_send_profile(parser)
+    _configure_send_direct_http(parser)
     _configure_snapshot_artifact(parser)
     root = _root_subparsers(parser)
 
@@ -161,7 +191,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="read normalized messages from the canonical current conversation branch",
     )
     _add_inspection_common(messages)
-    messages.add_argument("conversation", help="raw conversation id or ChatGPT conversation URL")
+    messages.add_argument(
+        "conversation", help="raw conversation id or ChatGPT conversation URL"
+    )
     messages.add_argument("--limit", type=int)
     messages.add_argument(
         "--role",
@@ -179,7 +211,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "export",
         help="write a normalized current-branch export plus stable artifact manifest",
     )
-    export.add_argument("conversation", help="raw conversation id or ChatGPT conversation URL")
+    export.add_argument(
+        "conversation", help="raw conversation id or ChatGPT conversation URL"
+    )
     export.add_argument("--auth-file", type=Path, default=DEFAULT_AUTH_FILE)
     export.add_argument(
         "--format",
@@ -187,7 +221,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default="markdown",
         help="export representation: markdown/md, jsonl, or txt/text",
     )
-    export.add_argument("--name", default="conversation", help="artifact file-name prefix")
+    export.add_argument(
+        "--name", default="conversation", help="artifact file-name prefix"
+    )
     export.add_argument("--output-dir", type=Path, default=Path("."))
     export.add_argument("--index", type=int)
     export.add_argument("--timeout", type=float, default=120.0)
@@ -286,7 +322,9 @@ def _run_status(args: argparse.Namespace) -> int:
         if health.canonical_status is not None:
             print(f"canonical_status: {health.canonical_status}")
         if health.extension_connected is not None:
-            print(f"extension_connected: {str(bool(health.extension_connected)).lower()}")
+            print(
+                f"extension_connected: {str(bool(health.extension_connected)).lower()}"
+            )
     return EXIT_OK if health.ready else EXIT_UNAVAILABLE
 
 
@@ -308,8 +346,12 @@ def _run_capabilities(args: argparse.Namespace) -> int:
         entries = capabilities.get("capabilities", {})
         for name in sorted(entries):
             entry = entries[name]
-            state = entry.get("state", "UNKNOWN") if isinstance(entry, dict) else "UNKNOWN"
-            owner = entry.get("owner", "UNKNOWN") if isinstance(entry, dict) else "UNKNOWN"
+            state = (
+                entry.get("state", "UNKNOWN") if isinstance(entry, dict) else "UNKNOWN"
+            )
+            owner = (
+                entry.get("owner", "UNKNOWN") if isinstance(entry, dict) else "UNKNOWN"
+            )
             print(f"{name}: {state} ({owner})")
         print("model_profiles: INSTANT MEDIUM HIGH")
         print("aliases: FAST=INSTANT BALANCED=MEDIUM DEEP=HIGH")
@@ -436,6 +478,10 @@ def _legacy_dispatch(args: argparse.Namespace) -> int:
     if args.command == "auth":
         return legacy_cli._run_auth(args)
     if args.command == "send":
+        if args.transport == DIRECT_HTTP_TRANSPORT:
+            return send_direct_http(args)
+        if args.files or args.model:
+            raise ValueError("--file and --model are available only with direct-http")
         return legacy_cli._run_send(args)
     if args.command == "browser-native":
         return legacy_cli._run_browser_native(args)
@@ -452,7 +498,9 @@ def _error_exit_code(error: BaseException) -> int:
     return EXIT_OPERATION_FAILED
 
 
-def _error_payload(args: argparse.Namespace, error: BaseException, exit_code: int) -> dict[str, Any]:
+def _error_payload(
+    args: argparse.Namespace, error: BaseException, exit_code: int
+) -> dict[str, Any]:
     detail: dict[str, Any] = {
         "type": type(error).__name__,
         "message": str(error),

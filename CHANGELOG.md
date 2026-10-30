@@ -6,9 +6,15 @@ The format is intentionally lightweight. Keep entries focused on user-visible be
 
 ## Unreleased
 
+## 0.4.1 - 2026-10-30
+
+- Unreleased patch candidate: make installed `cwa send` default to the primary Direct HTTP `BrowserlessHTTPClient`, while preserving explicit `browser-owned` / `browserless-request` CLI options and the historical Python product-runtime default.
+- CLI Direct HTTP now supports High/Medium/Instant requested profiles, one-send streaming, temporary and continued conversations, JSON output and explicit repeatable `--file` attachments; no automatic retry, browser fallback, or invented browser-runtime provenance.
+- Refresh README, STATUS and quickstart to recognize the already-published `v0.4.0` (GitHub and PyPI) rather than advertising it as an unreleased source candidate. Update this candidate date before tagging if publication happens on a different date.
+
 ## 0.4.0 - 2026-10-30
 
-- Release-candidate date only: 2026-10-30 is staged for v0.4.0; update the heading before tagging if the actual publication date differs. This section does not mean that a tag or release was published.
+- Published on GitHub Releases and PyPI on 2026-10-30; tagged release commit `96983ac98864c6a7f122dfa9abcc1a51136b053e` passed 16/16 CI and a user-run Direct HTTP GPT-6 High-requested three-Markdown live E2E (one send, streaming, canonical text/status/IDs).
 - Pre-release cleanup (#250): removed 21 historical files and retired duplicated diagnostics and live-acceptance runners while preserving active schema8–29 contract validation, production Direct HTTP and the Chrome extension. Net −5,985 lines over 66 paths in the integrated cleanup; versioned candidate CI passed 16/16 before documentation polish.
 - HTTP transport integrity (#246): every nonzero curl process exit fails closed, even if headers report HTTP 200. No partially transferred body is promoted to successful readback, and no automatic retry or secret-bearing error details were added.
 - Canonical GET curl-28 timeout recovery (2026-10-30): only the read path steps down existing `num_turns` hints (20 → 10 → 5) after a structured timeout; no same-size retry, write-path modification, or guarantee of recovery. Covered by deterministic regressions, not a newly verified live E2E.

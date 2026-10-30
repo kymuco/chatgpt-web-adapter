@@ -118,8 +118,8 @@ The historical `assemble_product_runtime()` default remains `browser-owned`
 for compatibility, not as a reliability recommendation. Direct HTTP is a
 standalone SDK, not the older `browserless-request` transport.
 
-**2026-10-29 acceptance:** current `main` Direct HTTP completed one GPT-6
-High-*requested* send with three Markdown attachments and a seven-line prompt,
+**2026-10-30 published release E2E:** on exact `v0.4.0` commit `96983ac9`, Direct HTTP completed one GPT-6
+High-*requested* send with three Markdown attachments and a multilingual prompt,
 two streaming chunks, exact values found only inside all three files, and
 matching canonical status, user text, assistant text and assistant message ID.
 This proves that specific scenario, not server-side attestation of the model or
@@ -198,27 +198,22 @@ The [production quickstart](docs/quickstart.md), [direct HTTP SDK guide](docs/br
 [Qwen guide](docs/qwen.md), [full capability map](docs/capabilities.md) and
 [provider finality model](docs/providers.md) describe their boundaries.
 
-Capability statuses below describe the **v0.4.0 source candidate** and its
-prior live evidence, not the latest published `v0.3.0` wheel.
+Capability statuses below describe the published **v0.4.0** release and the
+unreleased **v0.4.1** CLI patch candidate. Operation evidence is per-feature, not a
+promise of private-web-protocol stability.
 
 ## Release vs current `main`
 
-- **Latest public release:** `v0.3.0` — 2026-09-01.
-- **Published package version:** `0.3.0`.
-- **Current source candidate version:** `0.4.0` (not published; no release tag).
-- **Typing:** PEP 561 `py.typed` is staged for installed wheel/sdist consumers;
-  this does not mean every historical module passes strict type checking.
-- **Candidate release notes:** [CWA 0.4.0](docs/release_notes_0_4_0.md).
-- **Current `main`:** includes the post-0.3 provider architecture, non-chat
-  capabilities, Qwen browser/HTTP SDK, opt-in ChatGPT `BrowserlessHTTPClient`
-  (#212), governed generated-artifact handoff and scoped existing-browser
-  auth sync / canonical-GET recovery (#222). Browser rich-input hardening
-  [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) remains Draft.
-  The historical PR17.2 checkpoint is [documented here](docs/engineering/pr17_2_canonical_product_checkpoint.md).
+- **Latest public release:** `v0.4.0` — 2026-10-30 ([GitHub Release](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.0), [PyPI](https://pypi.org/project/chatgpt-web-adapter/0.4.0/)).
+- **Published package version:** `0.4.0`. The published wheel includes the Direct HTTP SDK.
+- **Next candidate:** `v0.4.1` (unreleased), to make the installed `cwa send` CLI use Direct HTTP by default; the historical product-runtime API default remains browser-owned.
+- **Typing:** PEP 561 `py.typed` is included in the released wheel/sdist; this is not a claim of comprehensive strict typing.
+- **Release documentation:** [v0.4.0 notes](docs/release_notes_0_4_0.md) (original prepublication review record). See [STATUS.md](STATUS.md) for current follow-up work.
 
-Do not assume every behavior described for current `main` exists in the published
-0.3.0 wheel. [STATUS.md](STATUS.md) is the compact source of truth for release/main
-differences.
+The v0.4.0 release tag is immutable; changes in this repository after publication
+require a new version rather than rewriting the published 0.4.0 artifacts.
+The historical [PR17.2 checkpoint](docs/engineering/pr17_2_canonical_product_checkpoint.md)
+remains available as an archival reference.
 
 ## Why browser-owned remains the SDK default
 
@@ -346,10 +341,21 @@ cwa doctor --json
 The extension popup is read-only local product chrome. Opening it does not create
 write authority or submit a product turn.
 
-### Send from the stable CLI
+### Send from the stable CLI (unreleased v0.4.1 behavior)
+
+For the v0.4.1 source candidate, `cwa send` defaults to the primary Direct HTTP SDK:
 
 ```powershell
 cwa send "Give me a short project summary." --profile HIGH
+cwa send "Summarize my notes." --file notes.md --profile MEDIUM
+```
+
+For the already-published v0.4.0 wheel, `cwa send` still defaults to browser-owned;
+use the Python `BrowserlessHTTPClient` above for Direct HTTP until v0.4.1 is released.
+The secondary browser-owned CLI remains explicitly available:
+
+```powershell
+cwa send "Browser-owned request" --transport browser-owned --profile HIGH
 ```
 
 Useful stable commands:
@@ -685,7 +691,7 @@ Tagged publication also requires:
 GitHub tag version == pyproject package version == dated CHANGELOG release heading
 ```
 
-Latest public release: `v0.3.0`.
+Latest public release: `v0.4.0` (2026-10-30).
 
 ## Naming
 

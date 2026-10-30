@@ -1,89 +1,49 @@
 # Project Status
 
-_Last updated: 2026-10-30 (v0.4.0 release candidate audit; not published)_
+_Last updated: 2026-10-30 (published v0.4.0 and unreleased CLI patch)_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
-
-Use [`ROADMAP.md`](ROADMAP.md) for direction,
-[`README.md`](README.md) for the project overview, and
-[`docs/README.md`](docs/README.md) for the documentation map.
+Use [`ROADMAP.md`](ROADMAP.md) for direction, [`README.md`](README.md)
+for the project overview, and [`docs/README.md`](docs/README.md)
+for the documentation map.
 
 ## Release and branch state
 
 ```text
-latest public release   v0.3.0
-release date            2026-09-01
-package version         0.4.0 (staged source candidate; not published)
-current main            9519d390 (post-0.3 with cleanup #250 merged)
+latest public release   v0.4.0
+release date            2026-10-30
+published PyPI version  0.4.0
+release/main commit     96983ac9
+next source candidate   0.4.1 (not tagged or published)
 architecture            PR15 provider architecture frozen
-current phase           v0.4.0 release candidate verification
+current phase           v0.4.1 CLI default alignment
 license                 MIT
 python                  3.10-3.14
 ```
 
-Current `main` is `9519d390d48945fd098f2a92421f133821662407`
-(2026-10-30): pre-v0.4.0 cleanup #250 was merged, reducing the source
-diff by 5,985 net lines (66 changed paths; 21 removed files). No extension
-JavaScript or active Direct HTTP send behavior was changed in that cleanup.
-The source still includes direct ChatGPT HTTP, Deep Research and generated-image
-readback, plus the experimental provider integrations introduced after v0.3.0.
-The branch also includes fail-closed curl transfer integrity and bounded
-read-only canonical-GET curl-28 timeout handling.
+**v0.4.0 was published** on GitHub Releases and PyPI on 2026-10-30
+from exactly `96983ac98864c6a7f122dfa9abcc1a51136b053e`.
+The merged `main` passed 16/16 GitHub CI checks. A user-run Windows
+Direct HTTP E2E on that exact release commit confirmed one GPT-6 High-requested
+send with three Markdown attachments, two streaming chunks, exact per-file
+values, canonical user/assistant text, final status and message ID, and no
+second send. Requested model/effort is not server-side attestation.
 
-The synchronized versioned release candidate [#238](https://github.com/kymuco/chatgpt-web-adapter/pull/238)
-at `a84bba9e84e8e6702053b74422700745c5c15b29` passed 16/16 GitHub
-CI checks (Windows/Linux Python 3.10–3.14, wheel/sdist, candidate release
-gate and installed-wheel smoke). This is the **pre-documentation** checked
-head; the final documentation-updated head needs its own green CI.
-The newest published package remains `v0.3.0` (2026-09-01); its wheel
-does **not** include post-0.3 features.
+**Known release limitation:** the secondary browser-owned three-file UI
+acceptance did not complete. Browser-owned remains `EXPERIMENTAL`; there is
+no automatic retry, implicit fallback, or general multi-file guarantee.
 
-## Proposed v0.4.0 scope and readiness (audit: 2026-10-30)
+**v0.4.1 source candidate (unreleased):** align the installed `cwa send`
+default with the primary `BrowserlessHTTPClient` direct HTTP SDK.
+Keep `assemble_product_runtime()` and `cwa runtime ...` browser-owned
+defaults for backward compatibility. Browser-owned and the historical
+`browserless-request` CLI send options stay explicitly selectable.
+The candidate must pass deterministic CI and an independent CLI live E2E
+before merging or publishing. Do not retag or rewrite v0.4.0 artifacts.
 
-The source candidate stages package version `0.4.0`, but this is **not** a Git
-tag, published GitHub Release, or authorization to upload to PyPI. Preserve
-the legacy browser-owned SDK default for compatibility while promoting
-`BrowserlessHTTPClient` to the primary ChatGPT public surface for live-verified
-operations. Browser-owned is secondary/experimental, not an automatic fallback.
-Ship the already-merged post-0.3 capabilities: ChatGPT Direct HTTP; Deep Research launch and canonical report readback (#227/#228);
-ordinary-request image generation observation and generated-image readback
-(#229); narrow governed file handoff; isolated experimental Qwen Web;
-experimental DeepSeek/Gemini and module-only Google Translate/Gemini Notebook.
-Neither one live success nor a release number promotes private web protocols
-to production or guarantees automatic image tool selection.
-
-**Confirmed:** versioned candidate `a84bba9e` passed 16/16 CI, including
-four clean installed-wheel smokes on Ubuntu/Windows with Python 3.10 and
-3.14. These packaging and deterministic checks are not fresh live-product
-evidence. Earlier image readback was independently proven on UI/HTTP,
-and governed generated-file handoff verified exact bytes and SHA-256.
-
-**2026-10-29 evidence and disposition:** PR #237 changes the recommended
-ChatGPT integration path to primary Direct HTTP without changing the legacy
-SDK default. The current public API classification is PRIMARY_PRODUCTION for
-`BrowserlessHTTPClient` and EXPERIMENTAL for browser-owned.
-The exact `main` at `0e330c5e` passed 16/16 CI. A user-run Direct HTTP E2E
-completed one send with three Markdown files, two streaming callbacks,
-file-only expected values and canonical ID/text/status match. GPT-6 High
-was requested, not independently server-attested. A fresh browser-owned
-three-file attempt stalled after one visible attachment; no confirmed
-multi-file browser acceptance exists for this source revision. Do not
-resend that attempt or silently promote its capability reliability.
-
-**Release disposition and remaining steps:**
-
-1. **Known limitation for v0.4.0:** browser-owned three-file UI acceptance did not complete on 2026-10-29. Browser-owned stays `EXPERIMENTAL`, not a production multi-file reliability claim. Historical draft [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) is not to be merged wholesale; publishing requires the maintainer to accept the scoped limitation explicitly. No automatic replay after ambiguous writes.
-2. **Closed / retained:** browser-native canonical 429 read-deadline issue [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168) was fixed by #232. Subsequent curl-transfer-integrity and bounded canonical-read curl-28 fallback changes preserve fail-closed semantics. The HTTP 500 step-down proposal in draft [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221) remains unproven and excluded.
-3. **Closed:** cleanup PR #250 merged; versioned candidate `a84bba9e` passed 16/16 release CI. Installed-wheel and static import verification do not attest private-web-protocol stability.
-4. **Pending:** green CI on the final documentation-updated candidate, an exact release SHA, dated changelog and tag/version parity, and separate maintainer authorization before merging/tagging or publishing to PyPI.
-
-**Deferred unless independently justified:** experimental Linux Qwen draft
-[#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217) requires actual
-EndeavourOS Native Messaging E2E; Qwen #223/#226 are deferred. The narrow
-verified capability metadata correction from #225 and PEP 561 packaging
-marker from #172 are staged in the candidate; full strict type checking and
-resumable history (#114) remain out of scope. No Codexia/HDE change, MCP layer, universal provider
-router, new browser-bypass code, or implicit retries belong in this release.
+Current source work is tracked in [PR #253](https://github.com/kymuco/chatgpt-web-adapter/pull/253).
+The v0.4.0 [release notes](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.0)
+remain a historical, immutable publication record.
 
 ## Product role
 
@@ -341,8 +301,8 @@ this current product-status summary.
 
 ## Release readiness checkpoint (2026-10-22)
 
-- **No new public release yet.** `v0.3.0` remains the published package;
-  a new version/tag is a separate release decision.
+- **v0.4.0 is published.** Subsequent changes, including the CLI default,
+  require a new version/tag and separate release approval.
 - **Linux PR [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217)**
   has 16/16 green CI but remains Draft pending a real
   EndeavourOS Chrome/Chromium + Qwen Native Messaging E2E.
