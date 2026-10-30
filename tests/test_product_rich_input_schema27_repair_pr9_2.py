@@ -150,4 +150,5 @@ def test_schema_27_support_probe_is_twenty_first_no_write_characterization_rpc()
     assert '"text"' not in block
     assert '"attachmentPaths"' not in block
     assert "PRODUCT_WRITE_BUDGET = _v21.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text

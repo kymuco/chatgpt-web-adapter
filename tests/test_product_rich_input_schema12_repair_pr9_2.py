@@ -53,5 +53,5 @@ def test_schema_12_gate_rejects_schema_11_and_requires_new_deadline_guarantees()
     assert "late_poststage_debugger_attach_auto_detached" in text
     assert "send_readiness_wait_deadline_bounded" in text
     assert "PRODUCT_WRITE_BUDGET = _v11.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text

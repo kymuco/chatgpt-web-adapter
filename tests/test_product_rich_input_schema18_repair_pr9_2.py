@@ -140,8 +140,8 @@ def test_schema_18_gate_preserves_schema_17_and_requires_identity_fields():
     for key in required:
         assert key in text
     assert "PRODUCT_WRITE_BUDGET = _v17.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
 
 
 def test_schema_18_support_probe_is_twelfth_no_write_characterization_rpc():

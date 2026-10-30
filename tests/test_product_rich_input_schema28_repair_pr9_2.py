@@ -195,8 +195,8 @@ def test_schema_28_support_gate_preserves_schema_27_and_requires_parser_repair_c
         assert key in text
     assert "PR9_2_SCHEMA28_PRIOR_METADATA_OBSERVER_NOT_PRESERVED" in text
     assert "PRODUCT_WRITE_BUDGET = _v27.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
 
 
 def test_schema_28_reconciliation_diagnostic_is_zero_write_and_reserves_cleanup_authority():

@@ -90,8 +90,8 @@ def test_schema_15_gate_preserves_schema_14_and_requires_both_handoffs():
     for key in required:
         assert key in text
     assert "PRODUCT_WRITE_BUDGET = _v14.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
 
 
 def test_schema_15_support_probe_is_ninth_no_write_characterization_rpc():

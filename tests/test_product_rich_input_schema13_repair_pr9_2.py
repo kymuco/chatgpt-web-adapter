@@ -109,5 +109,5 @@ def test_schema_13_gate_requires_complete_staging_deadline_contract():
     for key in required:
         assert key in text
     assert "PRODUCT_WRITE_BUDGET = _v12.PRODUCT_WRITE_BUDGET" in text
-    assert "--acknowledge-live-writes" in text
-    assert "performs exactly three product writes" in text
+    assert "def run_live_gate(" not in text
+    assert "send_text_observed(" not in text
