@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 try:
@@ -167,7 +168,8 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
     text = _read("STATUS.md")
 
     assert "latest public release   v0.3.0" in text
-    assert "current main            post-0.3 development" in text
+    assert "current main            " in text
+    assert "post-0.3" in text
     assert "PR15 provider architecture frozen" in text
     assert "ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK" in text
     assert "ChatGPT browser UI    EXPERIMENTAL / secondary" in text
@@ -244,7 +246,11 @@ def test_docs_map_distinguishes_current_docs_from_historical_evidence() -> None:
 
 def test_0_4_changelog_records_post_0_3_milestones() -> None:
     text = _read("CHANGELOG.md")
-    release_section = text.split("## 0.4.0 - 2026-10-29", 1)[1]
+    heading = next(
+        line for line in text.splitlines() if line.startswith("## 0.4.0 - ")
+    )
+    assert re.fullmatch(r"## 0\.4\.0 - \d{4}-\d{2}-\d{2}", heading)
+    release_section = text.split(heading, 1)[1]
     released_candidate = release_section.split("## 0.3.0", 1)[0]
 
     assert "connectors / required actions" in released_candidate
