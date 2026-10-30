@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema21_pr9_2 as _v21
 from . import product_rich_input_live_gate_schema23_pr9_2 as _v23
 
@@ -39,12 +38,12 @@ class ProductRichInputSchema24LiveProvider(_v23.ProductRichInputSchema23LiveProv
         support["pre_stage_official_composer_mount_awaited"] = response.get(
             "preStageOfficialComposerMountAwaited"
         )
-        support["pre_stage_official_composer_mount_wait_deadline_bounded"] = response.get(
-            "preStageOfficialComposerMountWaitDeadlineBounded"
+        support["pre_stage_official_composer_mount_wait_deadline_bounded"] = (
+            response.get("preStageOfficialComposerMountWaitDeadlineBounded")
         )
-        support["official_composer_mount_uses_production_attachment_evidence_reader"] = response.get(
-            "officialComposerMountUsesProductionAttachmentEvidenceReader"
-        )
+        support[
+            "official_composer_mount_uses_production_attachment_evidence_reader"
+        ] = response.get("officialComposerMountUsesProductionAttachmentEvidenceReader")
         support["tab_complete_alone_can_prove_composer_mounted"] = response.get(
             "tabCompleteAloneCanProveComposerMounted"
         )
@@ -67,9 +66,17 @@ def _validate_support(support: dict[str, Any]) -> None:
 
     if support.get("pre_stage_official_composer_mount_awaited") is not True:
         raise RuntimeError("PR9_2_SCHEMA24_COMPOSER_MOUNT_WAIT_NOT_PROVEN")
-    if support.get("pre_stage_official_composer_mount_wait_deadline_bounded") is not True:
+    if (
+        support.get("pre_stage_official_composer_mount_wait_deadline_bounded")
+        is not True
+    ):
         raise RuntimeError("PR9_2_SCHEMA24_COMPOSER_MOUNT_DEADLINE_NOT_PROVEN")
-    if support.get("official_composer_mount_uses_production_attachment_evidence_reader") is not True:
+    if (
+        support.get(
+            "official_composer_mount_uses_production_attachment_evidence_reader"
+        )
+        is not True
+    ):
         raise RuntimeError("PR9_2_SCHEMA24_PRODUCTION_MOUNT_EVIDENCE_NOT_PROVEN")
     if support.get("tab_complete_alone_can_prove_composer_mounted") is not False:
         raise RuntimeError("PR9_2_SCHEMA24_TAB_COMPLETE_MOUNT_AUTHORITY_NOT_REVOKED")

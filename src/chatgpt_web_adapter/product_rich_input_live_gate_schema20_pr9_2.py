@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema19_pr9_2 as _v19
 
 
@@ -56,16 +55,16 @@ class ProductRichInputSchema20LiveProvider(_v19.ProductRichInputSchema19LiveProv
         support["exactly_one_post_arm_conversation_request_required"] = response.get(
             "exactlyOnePostArmConversationRequestRequired"
         )
-        support["user_gesture_post_arm_request_can_satisfy_protected_submit"] = response.get(
-            "userGesturePostArmRequestCanSatisfyProtectedSubmit"
+        support["user_gesture_post_arm_request_can_satisfy_protected_submit"] = (
+            response.get("userGesturePostArmRequestCanSatisfyProtectedSubmit")
         )
         support[
             "ambiguous_post_arm_conversation_requests_signal_committed_readback_incomplete"
         ] = response.get(
             "ambiguousPostArmConversationRequestsSignalCommittedReadbackIncomplete"
         )
-        support["automatic_write_retry_after_submit_correlation_failure"] = response.get(
-            "automaticWriteRetryAfterSubmitCorrelationFailure"
+        support["automatic_write_retry_after_submit_correlation_failure"] = (
+            response.get("automaticWriteRetryAfterSubmitCorrelationFailure")
         )
         return support
 
@@ -79,9 +78,15 @@ def _validate_support(support: dict[str, Any]) -> None:
     legacy["new_chat_conversation_identity_authority"] = _SCHEMA19_IDENTITY_AUTHORITY
     _v19._validate_support(legacy)
 
-    if support.get("new_chat_conversation_identity_authority") != _EXPECTED_IDENTITY_AUTHORITY:
+    if (
+        support.get("new_chat_conversation_identity_authority")
+        != _EXPECTED_IDENTITY_AUTHORITY
+    ):
         raise RuntimeError("PR9_2_SUBMIT_BOUND_CONVERSATION_ID_AUTHORITY_NOT_PROVEN")
-    if support.get("protected_submit_request_correlation") != _EXPECTED_REQUEST_CORRELATION:
+    if (
+        support.get("protected_submit_request_correlation")
+        != _EXPECTED_REQUEST_CORRELATION
+    ):
         raise RuntimeError("PR9_2_PROTECTED_SUBMIT_REQUEST_CORRELATION_NOT_PROVEN")
     if support.get("protected_submit_request_armed_by_page_side_marker") is not True:
         raise RuntimeError("PR9_2_PAGE_SIDE_PROTECTED_SUBMIT_ARM_NOT_PROVEN")
@@ -91,7 +96,10 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_PRE_ARM_CONVERSATION_REQUEST_AUTHORITY_NOT_DENIED")
     if support.get("exactly_one_post_arm_conversation_request_required") is not True:
         raise RuntimeError("PR9_2_SINGLE_POST_ARM_CONVERSATION_REQUEST_NOT_REQUIRED")
-    if support.get("user_gesture_post_arm_request_can_satisfy_protected_submit") is not False:
+    if (
+        support.get("user_gesture_post_arm_request_can_satisfy_protected_submit")
+        is not False
+    ):
         raise RuntimeError("PR9_2_USER_GESTURE_REQUEST_AUTHORITY_NOT_DENIED")
     if (
         support.get(
@@ -100,5 +108,8 @@ def _validate_support(support: dict[str, Any]) -> None:
         is not True
     ):
         raise RuntimeError("PR9_2_AMBIGUOUS_POST_ARM_CLASSIFICATION_NOT_PROVEN")
-    if support.get("automatic_write_retry_after_submit_correlation_failure") is not False:
+    if (
+        support.get("automatic_write_retry_after_submit_correlation_failure")
+        is not False
+    ):
         raise RuntimeError("PR9_2_SUBMIT_CORRELATION_AUTOMATIC_RETRY_NOT_DENIED")

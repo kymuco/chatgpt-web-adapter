@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema10_pr9_2 as _v10
 
 

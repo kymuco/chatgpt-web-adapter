@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema13_pr9_2 as _v13
 
 
@@ -39,11 +38,11 @@ class ProductRichInputSchema14LiveProvider(_v13.ProductRichInputSchema13LiveProv
         support["rich_input_model_profile_combination_supported"] = response.get(
             "richInputModelProfileCombinationSupported"
         )
-        support["rich_input_model_profile_combination_fails_before_staging"] = response.get(
-            "richInputModelProfileCombinationFailsBeforeStaging"
+        support["rich_input_model_profile_combination_fails_before_staging"] = (
+            response.get("richInputModelProfileCombinationFailsBeforeStaging")
         )
-        support["rich_input_model_profile_combination_fails_before_write"] = response.get(
-            "richInputModelProfileCombinationFailsBeforeWrite"
+        support["rich_input_model_profile_combination_fails_before_write"] = (
+            response.get("richInputModelProfileCombinationFailsBeforeWrite")
         )
         support["pr810_raw_prewrite_selector_excluded_from_rich_input"] = response.get(
             "pr810RawPrewriteSelectorExcludedFromRichInput"
@@ -60,10 +59,18 @@ def _validate_support(support: dict[str, Any]) -> None:
     _v13._validate_support(legacy)
 
     if support.get("rich_input_model_profile_combination_supported") is not False:
-        raise RuntimeError("PR9_2_RICH_INPUT_MODEL_PROFILE_COMBINATION_SCOPE_NOT_PROVEN")
-    if support.get("rich_input_model_profile_combination_fails_before_staging") is not True:
+        raise RuntimeError(
+            "PR9_2_RICH_INPUT_MODEL_PROFILE_COMBINATION_SCOPE_NOT_PROVEN"
+        )
+    if (
+        support.get("rich_input_model_profile_combination_fails_before_staging")
+        is not True
+    ):
         raise RuntimeError("PR9_2_RICH_INPUT_MODEL_PROFILE_PRESTAGING_GUARD_NOT_PROVEN")
-    if support.get("rich_input_model_profile_combination_fails_before_write") is not True:
+    if (
+        support.get("rich_input_model_profile_combination_fails_before_write")
+        is not True
+    ):
         raise RuntimeError("PR9_2_RICH_INPUT_MODEL_PROFILE_PREWRITE_GUARD_NOT_PROVEN")
     if support.get("pr810_raw_prewrite_selector_excluded_from_rich_input") is not True:
         raise RuntimeError("PR9_2_PR810_RAW_PREWRITE_SELECTOR_EXCLUSION_NOT_PROVEN")

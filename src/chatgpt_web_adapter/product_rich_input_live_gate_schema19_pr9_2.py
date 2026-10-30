@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema18_pr9_2 as _v18
 
 
@@ -73,13 +72,21 @@ def _validate_support(support: dict[str, Any]) -> None:
     legacy["schema"] = _v18.SCHEMA
     _v18._validate_support(legacy)
 
-    if support.get("new_chat_conversation_identity_authority") != _EXPECTED_IDENTITY_AUTHORITY:
+    if (
+        support.get("new_chat_conversation_identity_authority")
+        != _EXPECTED_IDENTITY_AUTHORITY
+    ):
         raise RuntimeError("PR9_2_REQUEST_BOUND_CONVERSATION_ID_AUTHORITY_NOT_PROVEN")
     if support.get("response_body_conversation_identity_request_bound") is not True:
-        raise RuntimeError("PR9_2_RESPONSE_BODY_CONVERSATION_ID_REQUEST_BINDING_NOT_PROVEN")
+        raise RuntimeError(
+            "PR9_2_RESPONSE_BODY_CONVERSATION_ID_REQUEST_BINDING_NOT_PROVEN"
+        )
     if support.get("route_conversation_identity_authoritative") is not False:
         raise RuntimeError("PR9_2_ROUTE_CONVERSATION_ID_AUTHORITY_NOT_DENIED")
-    if support.get("manual_route_navigation_can_satisfy_new_chat_identity") is not False:
+    if (
+        support.get("manual_route_navigation_can_satisfy_new_chat_identity")
+        is not False
+    ):
         raise RuntimeError("PR9_2_MANUAL_ROUTE_IDENTITY_SATISFACTION_NOT_DENIED")
     if support.get("causal_conversation_identity_read_deadline_bounded") is not True:
         raise RuntimeError("PR9_2_CAUSAL_CONVERSATION_ID_READ_BOUND_NOT_PROVEN")
@@ -92,6 +99,8 @@ def _validate_support(support: dict[str, Any]) -> None:
         )
         is not True
     ):
-        raise RuntimeError("PR9_2_MISSING_REQUEST_BOUND_IDENTITY_CLASSIFICATION_NOT_PROVEN")
+        raise RuntimeError(
+            "PR9_2_MISSING_REQUEST_BOUND_IDENTITY_CLASSIFICATION_NOT_PROVEN"
+        )
     if support.get("automatic_write_retry_after_causal_identity_failure") is not False:
         raise RuntimeError("PR9_2_CAUSAL_IDENTITY_FAILURE_AUTOMATIC_RETRY_NOT_DENIED")

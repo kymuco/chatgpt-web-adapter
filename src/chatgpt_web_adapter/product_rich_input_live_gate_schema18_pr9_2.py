@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema17_pr9_2 as _v17
 
 
@@ -36,19 +35,21 @@ class ProductRichInputSchema18LiveProvider(_v17.ProductRichInputSchema17LiveProv
                 f"PR9_2_SCHEMA18_SUPPORT_FAILED:{response.get('error') or 'unknown'}"
             )
 
-        support["new_chat_conversation_identity_required_before_success"] = response.get(
-            "newChatConversationIdentityRequiredBeforeSuccess"
+        support["new_chat_conversation_identity_required_before_success"] = (
+            response.get("newChatConversationIdentityRequiredBeforeSuccess")
         )
-        support["post_write_conversation_identity_resolution_deadline_bounded"] = response.get(
-            "postWriteConversationIdentityResolutionDeadlineBounded"
+        support["post_write_conversation_identity_resolution_deadline_bounded"] = (
+            response.get("postWriteConversationIdentityResolutionDeadlineBounded")
         )
         support["post_write_conversation_identity_dedicated_reserve_ms"] = response.get(
             "postWriteConversationIdentityDedicatedReserveMs"
         )
-        support["missing_conversation_identity_can_return_transport_success"] = response.get(
-            "missingConversationIdentityCanReturnTransportSuccess"
+        support["missing_conversation_identity_can_return_transport_success"] = (
+            response.get("missingConversationIdentityCanReturnTransportSuccess")
         )
-        support["unresolved_conversation_identity_signals_committed_readback_incomplete"] = response.get(
+        support[
+            "unresolved_conversation_identity_signals_committed_readback_incomplete"
+        ] = response.get(
             "unresolvedConversationIdentitySignalsCommittedReadbackIncomplete"
         )
         support["automatic_write_retry_after_identity_failure"] = response.get(
@@ -65,16 +66,34 @@ def _validate_support(support: dict[str, Any]) -> None:
     legacy["schema"] = _v17.SCHEMA
     _v17._validate_support(legacy)
 
-    if support.get("new_chat_conversation_identity_required_before_success") is not True:
-        raise RuntimeError("PR9_2_NEW_CHAT_CONVERSATION_ID_SUCCESS_AUTHORITY_NOT_PROVEN")
-    if support.get("post_write_conversation_identity_resolution_deadline_bounded") is not True:
-        raise RuntimeError("PR9_2_POST_WRITE_CONVERSATION_ID_RESOLUTION_BOUND_NOT_PROVEN")
+    if (
+        support.get("new_chat_conversation_identity_required_before_success")
+        is not True
+    ):
+        raise RuntimeError(
+            "PR9_2_NEW_CHAT_CONVERSATION_ID_SUCCESS_AUTHORITY_NOT_PROVEN"
+        )
+    if (
+        support.get("post_write_conversation_identity_resolution_deadline_bounded")
+        is not True
+    ):
+        raise RuntimeError(
+            "PR9_2_POST_WRITE_CONVERSATION_ID_RESOLUTION_BOUND_NOT_PROVEN"
+        )
     reserve = support.get("post_write_conversation_identity_dedicated_reserve_ms")
     if not isinstance(reserve, int) or isinstance(reserve, bool) or reserve <= 0:
         raise RuntimeError("PR9_2_POST_WRITE_CONVERSATION_ID_RESERVE_NOT_PROVEN")
-    if support.get("missing_conversation_identity_can_return_transport_success") is not False:
+    if (
+        support.get("missing_conversation_identity_can_return_transport_success")
+        is not False
+    ):
         raise RuntimeError("PR9_2_MISSING_CONVERSATION_ID_TRANSPORT_SUCCESS_NOT_DENIED")
-    if support.get("unresolved_conversation_identity_signals_committed_readback_incomplete") is not True:
+    if (
+        support.get(
+            "unresolved_conversation_identity_signals_committed_readback_incomplete"
+        )
+        is not True
+    ):
         raise RuntimeError("PR9_2_COMMITTED_IDENTITY_FAILURE_CLASSIFICATION_NOT_PROVEN")
     if support.get("automatic_write_retry_after_identity_failure") is not False:
         raise RuntimeError("PR9_2_IDENTITY_FAILURE_AUTOMATIC_RETRY_NOT_DENIED")

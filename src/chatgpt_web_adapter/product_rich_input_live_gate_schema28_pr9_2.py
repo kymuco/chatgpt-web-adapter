@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema27_pr9_2 as _v27
 
 
@@ -43,8 +42,8 @@ class ProductRichInputSchema28LiveProvider(_v27.ProductRichInputSchema27LiveProv
         support["causal_stream_handoff_base64_body_decoding_supported"] = response.get(
             "causalStreamHandoffBase64BodyDecodingSupported"
         )
-        support["conflicting_stream_handoff_conversation_ids_fail_closed"] = response.get(
-            "conflictingStreamHandoffConversationIdsFailClosed"
+        support["conflicting_stream_handoff_conversation_ids_fail_closed"] = (
+            response.get("conflictingStreamHandoffConversationIdsFailClosed")
         )
         support["prior_stream_metadata_observer_side_effects_preserved"] = response.get(
             "priorStreamMetadataObserverSideEffectsPreserved"
@@ -63,11 +62,18 @@ def _validate_support(support: dict[str, Any]) -> None:
     if support.get("causal_stream_handoff_json_parsed_before_type_filter") is not True:
         raise RuntimeError("PR9_2_SCHEMA28_JSON_FIRST_STREAM_HANDOFF_PARSE_NOT_PROVEN")
     if support.get("causal_stream_handoff_json_whitespace_invariant") is not True:
-        raise RuntimeError("PR9_2_SCHEMA28_STREAM_HANDOFF_WHITESPACE_INVARIANCE_NOT_PROVEN")
+        raise RuntimeError(
+            "PR9_2_SCHEMA28_STREAM_HANDOFF_WHITESPACE_INVARIANCE_NOT_PROVEN"
+        )
     if support.get("causal_stream_handoff_base64_body_decoding_supported") is not True:
         raise RuntimeError("PR9_2_SCHEMA28_BASE64_RESPONSE_BODY_DECODING_NOT_PROVEN")
-    if support.get("conflicting_stream_handoff_conversation_ids_fail_closed") is not True:
-        raise RuntimeError("PR9_2_SCHEMA28_CONFLICTING_STREAM_HANDOFF_IDS_NOT_FAIL_CLOSED")
+    if (
+        support.get("conflicting_stream_handoff_conversation_ids_fail_closed")
+        is not True
+    ):
+        raise RuntimeError(
+            "PR9_2_SCHEMA28_CONFLICTING_STREAM_HANDOFF_IDS_NOT_FAIL_CLOSED"
+        )
     if support.get("prior_stream_metadata_observer_side_effects_preserved") is not True:
         raise RuntimeError("PR9_2_SCHEMA28_PRIOR_METADATA_OBSERVER_NOT_PRESERVED")
     if support.get("route_conversation_identity_authoritative") is not False:

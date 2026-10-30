@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema12_pr9_2 as _v12
 
 
@@ -78,26 +77,16 @@ def _validate_support(support: dict[str, Any]) -> None:
     _v12._validate_support(legacy)
 
     required = {
-        "attachment_staging_primitive_deadline_bounded":
-            "PR9_2_ATTACHMENT_STAGING_PRIMITIVE_DEADLINE_NOT_PROVEN",
-        "staging_debugger_setup_deadline_bounded":
-            "PR9_2_STAGING_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN",
-        "staging_composer_readiness_deadline_bounded":
-            "PR9_2_STAGING_COMPOSER_READINESS_DEADLINE_NOT_PROVEN",
-        "staging_file_input_lookup_deadline_bounded":
-            "PR9_2_STAGING_FILE_INPUT_LOOKUP_DEADLINE_NOT_PROVEN",
-        "staging_fence_persistence_deadline_bounded":
-            "PR9_2_STAGING_FENCE_PERSISTENCE_DEADLINE_NOT_PROVEN",
-        "staging_file_selection_deadline_bounded":
-            "PR9_2_STAGING_FILE_SELECTION_DEADLINE_NOT_PROVEN",
-        "staging_post_selection_cleanup_deadline_bounded":
-            "PR9_2_STAGING_POST_SELECTION_CLEANUP_DEADLINE_NOT_PROVEN",
-        "late_staging_debugger_attach_auto_detached":
-            "PR9_2_LATE_STAGING_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
-        "late_file_selection_fails_closed_behind_durable_fence":
-            "PR9_2_LATE_FILE_SELECTION_FENCE_NOT_PROVEN",
-        "post_selection_cleanup_best_effort_after_timeout":
-            "PR9_2_POST_SELECTION_CLEANUP_FALLBACK_NOT_PROVEN",
+        "attachment_staging_primitive_deadline_bounded": "PR9_2_ATTACHMENT_STAGING_PRIMITIVE_DEADLINE_NOT_PROVEN",
+        "staging_debugger_setup_deadline_bounded": "PR9_2_STAGING_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN",
+        "staging_composer_readiness_deadline_bounded": "PR9_2_STAGING_COMPOSER_READINESS_DEADLINE_NOT_PROVEN",
+        "staging_file_input_lookup_deadline_bounded": "PR9_2_STAGING_FILE_INPUT_LOOKUP_DEADLINE_NOT_PROVEN",
+        "staging_fence_persistence_deadline_bounded": "PR9_2_STAGING_FENCE_PERSISTENCE_DEADLINE_NOT_PROVEN",
+        "staging_file_selection_deadline_bounded": "PR9_2_STAGING_FILE_SELECTION_DEADLINE_NOT_PROVEN",
+        "staging_post_selection_cleanup_deadline_bounded": "PR9_2_STAGING_POST_SELECTION_CLEANUP_DEADLINE_NOT_PROVEN",
+        "late_staging_debugger_attach_auto_detached": "PR9_2_LATE_STAGING_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
+        "late_file_selection_fails_closed_behind_durable_fence": "PR9_2_LATE_FILE_SELECTION_FENCE_NOT_PROVEN",
+        "post_selection_cleanup_best_effort_after_timeout": "PR9_2_POST_SELECTION_CLEANUP_FALLBACK_NOT_PROVEN",
     }
     for key, error in required.items():
         if support.get(key) is not True:

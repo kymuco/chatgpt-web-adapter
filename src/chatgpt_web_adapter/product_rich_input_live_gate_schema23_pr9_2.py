@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema21_pr9_2 as _v21
 from . import product_rich_input_live_gate_schema22_pr9_2 as _v22
 
@@ -36,20 +35,20 @@ class ProductRichInputSchema23LiveProvider(_v22.ProductRichInputSchema22LiveProv
                 f"PR9_2_SCHEMA23_SUPPORT_FAILED:{response.get('error') or 'unknown'}"
             )
 
-        support["attachment_evidence_role_groups_require_removal_control"] = response.get(
-            "attachmentEvidenceRoleGroupsRequireRemovalControl"
+        support["attachment_evidence_role_groups_require_removal_control"] = (
+            response.get("attachmentEvidenceRoleGroupsRequireRemovalControl")
         )
-        support["attachment_filename_groups_independent_of_removal_controls"] = response.get(
-            "attachmentFilenameGroupsIndependentOfRemovalControls"
+        support["attachment_filename_groups_independent_of_removal_controls"] = (
+            response.get("attachmentFilenameGroupsIndependentOfRemovalControls")
         )
         support["composer_control_group_exclusion_uses_structure"] = response.get(
             "composerControlGroupExclusionUsesStructure"
         )
-        support["unclassified_role_groups_fail_closed_as_attachment_evidence"] = response.get(
-            "unclassifiedRoleGroupsFailClosedAsAttachmentEvidence"
+        support["unclassified_role_groups_fail_closed_as_attachment_evidence"] = (
+            response.get("unclassifiedRoleGroupsFailClosedAsAttachmentEvidence")
         )
-        support["composer_control_role_groups_excluded_from_attachment_evidence"] = response.get(
-            "composerControlRoleGroupsExcludedFromAttachmentEvidence"
+        support["composer_control_role_groups_excluded_from_attachment_evidence"] = (
+            response.get("composerControlRoleGroupsExcludedFromAttachmentEvidence")
         )
         support["pre_stage_clean_uses_attachment_owned_evidence_only"] = response.get(
             "preStageCleanUsesAttachmentOwnedEvidenceOnly"
@@ -69,15 +68,27 @@ def _validate_support(support: dict[str, Any]) -> None:
     legacy["schema"] = _v21.SCHEMA
     _v21._validate_support(legacy)
 
-    if support.get("attachment_evidence_role_groups_require_removal_control") is not False:
+    if (
+        support.get("attachment_evidence_role_groups_require_removal_control")
+        is not False
+    ):
         raise RuntimeError("PR9_2_SCHEMA23_REMOVAL_DEPENDENCY_NOT_REMOVED")
-    if support.get("attachment_filename_groups_independent_of_removal_controls") is not True:
+    if (
+        support.get("attachment_filename_groups_independent_of_removal_controls")
+        is not True
+    ):
         raise RuntimeError("PR9_2_FILENAME_GROUP_INDEPENDENCE_NOT_PROVEN")
     if support.get("composer_control_group_exclusion_uses_structure") is not True:
         raise RuntimeError("PR9_2_STRUCTURAL_COMPOSER_GROUP_EXCLUSION_NOT_PROVEN")
-    if support.get("unclassified_role_groups_fail_closed_as_attachment_evidence") is not True:
+    if (
+        support.get("unclassified_role_groups_fail_closed_as_attachment_evidence")
+        is not True
+    ):
         raise RuntimeError("PR9_2_UNKNOWN_ROLE_GROUP_FAIL_CLOSED_NOT_PROVEN")
-    if support.get("composer_control_role_groups_excluded_from_attachment_evidence") is not True:
+    if (
+        support.get("composer_control_role_groups_excluded_from_attachment_evidence")
+        is not True
+    ):
         raise RuntimeError("PR9_2_COMPOSER_CONTROL_GROUP_EXCLUSION_NOT_PROVEN")
     if support.get("pre_stage_clean_uses_attachment_owned_evidence_only") is not True:
         raise RuntimeError("PR9_2_ATTACHMENT_OWNED_CLEAN_PROOF_NOT_PROVEN")

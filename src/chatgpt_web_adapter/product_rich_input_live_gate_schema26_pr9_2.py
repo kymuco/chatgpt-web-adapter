@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema21_pr9_2 as _v21
 from . import product_rich_input_live_gate_schema25_pr9_2 as _v25
 
@@ -36,8 +35,8 @@ class ProductRichInputSchema26LiveProvider(_v25.ProductRichInputSchema25LiveProv
                 f"PR9_2_SCHEMA26_SUPPORT_FAILED:{response.get('error') or 'unknown'}"
             )
 
-        support["indexed_removal_ui_prefix_requires_independent_filename_group"] = response.get(
-            "indexedRemovalUiPrefixRequiresIndependentFilenameGroup"
+        support["indexed_removal_ui_prefix_requires_independent_filename_group"] = (
+            response.get("indexedRemovalUiPrefixRequiresIndependentFilenameGroup")
         )
         support["removal_only_indexed_ui_prefix_normalization_allowed"] = response.get(
             "removalOnlyIndexedUiPrefixNormalizationAllowed"
@@ -45,9 +44,9 @@ class ProductRichInputSchema26LiveProvider(_v25.ProductRichInputSchema25LiveProv
         support["literal_post_action_removal_basename_preserved"] = response.get(
             "literalPostActionRemovalBasenamePreserved"
         )
-        support["ambiguous_indexed_removal_label_fails_closed_without_filename_group"] = response.get(
-            "ambiguousIndexedRemovalLabelFailsClosedWithoutFilenameGroup"
-        )
+        support[
+            "ambiguous_indexed_removal_label_fails_closed_without_filename_group"
+        ] = response.get("ambiguousIndexedRemovalLabelFailsClosedWithoutFilenameGroup")
         support["indexed_removal_candidate_still_compared_exactly"] = response.get(
             "indexedRemovalCandidateStillComparedExactly"
         )
@@ -62,13 +61,23 @@ def _validate_support(support: dict[str, Any]) -> None:
     legacy["schema"] = _v25.SCHEMA
     _v25._validate_support(legacy)
 
-    if support.get("indexed_removal_ui_prefix_requires_independent_filename_group") is not True:
+    if (
+        support.get("indexed_removal_ui_prefix_requires_independent_filename_group")
+        is not True
+    ):
         raise RuntimeError("PR9_2_SCHEMA26_INDEXED_REMOVAL_CORROBORATION_NOT_PROVEN")
     if support.get("removal_only_indexed_ui_prefix_normalization_allowed") is not False:
-        raise RuntimeError("PR9_2_SCHEMA26_REMOVAL_ONLY_INDEXED_NORMALIZATION_NOT_REVOKED")
+        raise RuntimeError(
+            "PR9_2_SCHEMA26_REMOVAL_ONLY_INDEXED_NORMALIZATION_NOT_REVOKED"
+        )
     if support.get("literal_post_action_removal_basename_preserved") is not True:
         raise RuntimeError("PR9_2_SCHEMA26_LITERAL_REMOVAL_BASENAME_NOT_PRESERVED")
-    if support.get("ambiguous_indexed_removal_label_fails_closed_without_filename_group") is not True:
+    if (
+        support.get(
+            "ambiguous_indexed_removal_label_fails_closed_without_filename_group"
+        )
+        is not True
+    ):
         raise RuntimeError("PR9_2_SCHEMA26_AMBIGUOUS_INDEXED_REMOVAL_NOT_FAIL_CLOSED")
     if support.get("indexed_removal_candidate_still_compared_exactly") is not True:
         raise RuntimeError("PR9_2_SCHEMA26_INDEXED_REMOVAL_EXACTNESS_NOT_PROVEN")

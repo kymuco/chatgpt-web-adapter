@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema14_pr9_2 as _v14
 
 
@@ -39,11 +38,11 @@ class ProductRichInputSchema15LiveProvider(_v14.ProductRichInputSchema14LiveProv
         support["pre_stage_successful_debugger_detach_deadline_bounded"] = response.get(
             "preStageSuccessfulDebuggerDetachDeadlineBounded"
         )
-        support["post_stage_successful_debugger_detach_deadline_bounded"] = response.get(
-            "postStageSuccessfulDebuggerDetachDeadlineBounded"
+        support["post_stage_successful_debugger_detach_deadline_bounded"] = (
+            response.get("postStageSuccessfulDebuggerDetachDeadlineBounded")
         )
-        support["debugger_ownership_handoff_completed_before_next_attach"] = response.get(
-            "debuggerOwnershipHandoffCompletedBeforeNextAttach"
+        support["debugger_ownership_handoff_completed_before_next_attach"] = (
+            response.get("debuggerOwnershipHandoffCompletedBeforeNextAttach")
         )
         support["failure_path_debugger_detach_best_effort"] = response.get(
             "failurePathDebuggerDetachBestEffort"
@@ -61,9 +60,15 @@ def _validate_support(support: dict[str, Any]) -> None:
 
     if support.get("pre_stage_successful_debugger_detach_deadline_bounded") is not True:
         raise RuntimeError("PR9_2_PRESTAGE_SUCCESSFUL_DETACH_BOUND_NOT_PROVEN")
-    if support.get("post_stage_successful_debugger_detach_deadline_bounded") is not True:
+    if (
+        support.get("post_stage_successful_debugger_detach_deadline_bounded")
+        is not True
+    ):
         raise RuntimeError("PR9_2_POSTSTAGE_SUCCESSFUL_DETACH_BOUND_NOT_PROVEN")
-    if support.get("debugger_ownership_handoff_completed_before_next_attach") is not True:
+    if (
+        support.get("debugger_ownership_handoff_completed_before_next_attach")
+        is not True
+    ):
         raise RuntimeError("PR9_2_DEBUGGER_OWNERSHIP_HANDOFF_NOT_PROVEN")
     if support.get("failure_path_debugger_detach_best_effort") is not True:
         raise RuntimeError("PR9_2_FAILURE_PATH_DETACH_SEMANTICS_NOT_PROVEN")

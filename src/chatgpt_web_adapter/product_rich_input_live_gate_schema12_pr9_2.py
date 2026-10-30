@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema11_pr9_2 as _v11
 
 
@@ -57,12 +56,9 @@ def _validate_support(support: dict[str, Any]) -> None:
     _v11._validate_support(legacy)
 
     required = {
-        "poststage_debugger_setup_deadline_bounded":
-            "PR9_2_POSTSTAGE_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN",
-        "late_poststage_debugger_attach_auto_detached":
-            "PR9_2_LATE_POSTSTAGE_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
-        "send_readiness_wait_deadline_bounded":
-            "PR9_2_SEND_READINESS_WAIT_DEADLINE_NOT_PROVEN",
+        "poststage_debugger_setup_deadline_bounded": "PR9_2_POSTSTAGE_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN",
+        "late_poststage_debugger_attach_auto_detached": "PR9_2_LATE_POSTSTAGE_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
+        "send_readiness_wait_deadline_bounded": "PR9_2_SEND_READINESS_WAIT_DEADLINE_NOT_PROVEN",
     }
     for key, error in required.items():
         if support.get(key) is not True:

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema9_pr9_2 as _v9
 
 
@@ -60,14 +59,10 @@ def _validate_support(support: dict[str, Any]) -> None:
     _v9._validate_support(legacy)
 
     required = {
-        "official_composer_required_for_attachment_evidence":
-            "PR9_2_OFFICIAL_COMPOSER_ATTACHMENT_EVIDENCE_NOT_PROVEN",
-        "exact_basename_association_required":
-            "PR9_2_EXACT_BASENAME_ASSOCIATION_NOT_PROVEN",
-        "prestage_debugger_setup_deadline_bounded":
-            "PR9_2_PRESTAGE_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN",
-        "late_prestage_debugger_attach_auto_detached":
-            "PR9_2_LATE_PRESTAGE_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
+        "official_composer_required_for_attachment_evidence": "PR9_2_OFFICIAL_COMPOSER_ATTACHMENT_EVIDENCE_NOT_PROVEN",
+        "exact_basename_association_required": "PR9_2_EXACT_BASENAME_ASSOCIATION_NOT_PROVEN",
+        "prestage_debugger_setup_deadline_bounded": "PR9_2_PRESTAGE_DEBUGGER_SETUP_DEADLINE_NOT_PROVEN",
+        "late_prestage_debugger_attach_auto_detached": "PR9_2_LATE_PRESTAGE_DEBUGGER_ATTACH_DETACH_NOT_PROVEN",
     }
     for key, error in required.items():
         if support.get(key) is not True:

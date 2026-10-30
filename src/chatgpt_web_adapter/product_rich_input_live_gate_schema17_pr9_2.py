@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
-from . import product_rich_input_live_gate_pr9_2 as _v7
 from . import product_rich_input_live_gate_schema16_pr9_2 as _v16
 
 
@@ -54,8 +53,8 @@ class ProductRichInputSchema17LiveProvider(_v16.ProductRichInputSchema16LiveProv
         support["post_write_optional_reads_non_authoritative"] = response.get(
             "postWriteOptionalReadsNonAuthoritative"
         )
-        support["post_write_optional_reads_can_rewrite_submitted_outcome"] = response.get(
-            "postWriteOptionalReadsCanRewriteSubmittedOutcome"
+        support["post_write_optional_reads_can_rewrite_submitted_outcome"] = (
+            response.get("postWriteOptionalReadsCanRewriteSubmittedOutcome")
         )
         support["post_write_rpc_return_reserve_ms"] = response.get(
             "postWriteRpcReturnReserveMs"
@@ -83,8 +82,13 @@ def _validate_support(support: dict[str, Any]) -> None:
         raise RuntimeError("PR9_2_POST_WRITE_FINAL_TAB_READ_BOUND_NOT_PROVEN")
     if support.get("post_write_optional_reads_non_authoritative") is not True:
         raise RuntimeError("PR9_2_POST_WRITE_OPTIONAL_READ_AUTHORITY_NOT_PROVEN")
-    if support.get("post_write_optional_reads_can_rewrite_submitted_outcome") is not False:
-        raise RuntimeError("PR9_2_POST_WRITE_OPTIONAL_READ_OUTCOME_AUTHORITY_NOT_PROVEN")
+    if (
+        support.get("post_write_optional_reads_can_rewrite_submitted_outcome")
+        is not False
+    ):
+        raise RuntimeError(
+            "PR9_2_POST_WRITE_OPTIONAL_READ_OUTCOME_AUTHORITY_NOT_PROVEN"
+        )
     reserve = support.get("post_write_rpc_return_reserve_ms")
     if not isinstance(reserve, int) or isinstance(reserve, bool) or reserve <= 0:
         raise RuntimeError("PR9_2_POST_WRITE_RPC_RETURN_RESERVE_NOT_PROVEN")
