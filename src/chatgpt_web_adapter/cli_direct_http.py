@@ -29,7 +29,6 @@ class DirectHTTPReconciliationRequired(RequestError):
     write_may_have_been_submitted = True
 
 
-
 _PROFILE_REQUESTS: dict[str, tuple[str, str | None]] = {
     "FAST": ("gpt-6-instant", None),
     "BALANCED": ("gpt-6", "medium"),
