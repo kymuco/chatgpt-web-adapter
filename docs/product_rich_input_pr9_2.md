@@ -1,5 +1,10 @@
 # PR9.2 — Full Product Input Expansion
 
+**Archive notice (2026-10-30; pre-v0.4.0 cleanup):** This PR9.2 research document records historical schema-7–15 closure and older browser-owned rich-input acceptance criteria. It is not a current end-user support matrix. Direct HTTP (`BrowserlessHTTPClient`) is the primary production SDK path, independently validated for attachments; browser-owned rich-input remains a separate lower-support pathway.
+
+**Retired historical CLI gates:** `python -m chatgpt_web_adapter.product_rich_input_live_gate_schema8_pr9_2` through `schema28_pr9_2` are no longer executable acceptance runners. Their Python modules retain only cumulative read-only support-claim providers and fail-closed validators for existing regression tests. The current schema29 diagnostic entry point and packaged JavaScript overlays are unchanged. Any command for a retired schema below is preserved as historical evidence, not as runnable release guidance.
+
+
 Status: **browser-owned normal-turn implementation complete / schema-15 code closure green / final docs-synchronized exact-head closure pending / authenticated live graduation pending**
 
 PR9.2 expands `ChatGPTProductRuntime` from text-only input to images, files, and multimodal continuation without weakening the frozen PR9.0 browser-owned production boundary or the PR9.1 browserless challenge boundary.
