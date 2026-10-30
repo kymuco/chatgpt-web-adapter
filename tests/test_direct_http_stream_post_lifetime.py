@@ -74,9 +74,7 @@ def test_streaming_post_uses_bounded_long_lifetime(
         ("PUT", True),
     ],
 )
-def test_non_stream_write_or_read_retains_existing_curl_deadline(
-    method, no_buffer
-):
+def test_non_stream_write_or_read_retains_existing_curl_deadline(method, no_buffer):
     client = _client()
     command = client._build_curl_command(
         method,
@@ -116,12 +114,20 @@ def test_timeout_options_never_trigger_a_second_request():
     # a POST, access Sentinel, or write to any persistent state.
     client = _client()
     first = client._build_curl_command(
-        "POST", "https://chatgpt.com/backend-api/f/conversation",
-        {}, "fake-headers.txt", "fake-body.json", no_buffer=True,
+        "POST",
+        "https://chatgpt.com/backend-api/f/conversation",
+        {},
+        "fake-headers.txt",
+        "fake-body.json",
+        no_buffer=True,
     )
     second = client._build_curl_command(
-        "POST", "https://chatgpt.com/backend-api/f/conversation",
-        {}, "fake-headers.txt", "fake-body.json", no_buffer=True,
+        "POST",
+        "https://chatgpt.com/backend-api/f/conversation",
+        {},
+        "fake-headers.txt",
+        "fake-body.json",
+        no_buffer=True,
     )
     assert first == second
     assert _option(first, "--max-time") != str(client.timeout)
