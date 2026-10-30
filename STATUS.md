@@ -1,6 +1,6 @@
 # Project Status
 
-_Last updated: 2026-10-29_
+_Last updated: 2026-10-30 (v0.4.0 release candidate audit; not published)_
 
 This is the compact current-state view for `chatgpt-web-adapter` (CWA).
 
@@ -14,20 +14,31 @@ Use [`ROADMAP.md`](ROADMAP.md) for direction,
 latest public release   v0.3.0
 release date            2026-09-01
 package version         0.4.0 (staged source candidate; not published)
-current main            post-0.3 development
+current main            9519d390 (post-0.3 with cleanup #250 merged)
 architecture            PR15 provider architecture frozen
 current phase           v0.4.0 release candidate verification
 license                 MIT
 python                  3.10-3.14
 ```
 
-Audited `main` at `1b47d258f34047465c3fa148bf29711744f82ce8`
-(2026-10-25) passed 16/16 CI checks, including exact-wheel smoke. It includes
-direct ChatGPT HTTP, Deep Research #227/#228, generated-image readback #229,
-and post-0.3 provider/Qwen additions. The newest published package remains `v0.3.0`
-(2026-09-01); its wheel does **not** include these newly merged features.
+Current `main` is `9519d390d48945fd098f2a92421f133821662407`
+(2026-10-30): pre-v0.4.0 cleanup #250 was merged, reducing the source
+diff by 5,985 net lines (66 changed paths; 21 removed files). No extension
+JavaScript or active Direct HTTP send behavior was changed in that cleanup.
+The source still includes direct ChatGPT HTTP, Deep Research and generated-image
+readback, plus the experimental provider integrations introduced after v0.3.0.
+The branch also includes fail-closed curl transfer integrity and bounded
+read-only canonical-GET curl-28 timeout handling.
 
-## Proposed v0.4.0 scope and readiness (audit: 2026-10-29)
+The synchronized versioned release candidate [#238](https://github.com/kymuco/chatgpt-web-adapter/pull/238)
+at `a84bba9e84e8e6702053b74422700745c5c15b29` passed 16/16 GitHub
+CI checks (Windows/Linux Python 3.10–3.14, wheel/sdist, candidate release
+gate and installed-wheel smoke). This is the **pre-documentation** checked
+head; the final documentation-updated head needs its own green CI.
+The newest published package remains `v0.3.0` (2026-09-01); its wheel
+does **not** include post-0.3 features.
+
+## Proposed v0.4.0 scope and readiness (audit: 2026-10-30)
 
 The source candidate stages package version `0.4.0`, but this is **not** a Git
 tag, published GitHub Release, or authorization to upload to PyPI. Preserve
@@ -41,10 +52,11 @@ experimental DeepSeek/Gemini and module-only Google Translate/Gemini Notebook.
 Neither one live success nor a release number promotes private web protocols
 to production or guarantees automatic image tool selection.
 
-**Confirmed:** main commit `1b47d258` CI 16/16 (Ubuntu/Windows Python 3.10–3.14,
-release build and exact installed-wheel smoke); image readback was live-proven
-in 2/2 independent UI and HTTP conversations, and previously the existing
-artifact handoff downloaded a PNG with exact byte/SHA-256 verification.
+**Confirmed:** versioned candidate `a84bba9e` passed 16/16 CI, including
+four clean installed-wheel smokes on Ubuntu/Windows with Python 3.10 and
+3.14. These packaging and deterministic checks are not fresh live-product
+evidence. Earlier image readback was independently proven on UI/HTTP,
+and governed generated-file handoff verified exact bytes and SHA-256.
 
 **2026-10-29 evidence and disposition:** PR #237 changes the recommended
 ChatGPT integration path to primary Direct HTTP without changing the legacy
@@ -58,13 +70,12 @@ three-file attempt stalled after one visible attachment; no confirmed
 multi-file browser acceptance exists for this source revision. Do not
 resend that attempt or silently promote its capability reliability.
 
-**Release work not yet closed:**
+**Release disposition and remaining steps:**
 
-1. Release-gate the known browser-owned multi-file failure: [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) remains open historical evidence. The scoped fixes #233-#236 are merged, but the 2026-10-29 live E2E failed to complete; explicitly decide the acceptable known limitation **before publishing**. Do not merge #211 wholesale or retry ambiguous writes.
-2. **Closed:** the browser-native canonical 429 read-deadline escape [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168) was fixed by #232. No more implementation is required for that issue.
-3. **Deferred pending actual failing-page evidence:** draft [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221) proposes an unproven HTTP 500 fallback; do not merge on speculation.
-4. Reconfirm the already-expanded exact-wheel gate (#231) on the **versioned** candidate, including all four scripts, Direct HTTP, Deep Research, images and governed handoff. Import checks do not prove future product-protocol stability.
-5. Review the dated release notes, exact candidate SHA, full CI/build/wheel checks and strict tag/version/changelog parity. Tagging and PyPI publication require separate explicit authorization.
+1. **Known limitation for v0.4.0:** browser-owned three-file UI acceptance did not complete on 2026-10-29. Browser-owned stays `EXPERIMENTAL`, not a production multi-file reliability claim. Historical draft [#211](https://github.com/kymuco/chatgpt-web-adapter/pull/211) is not to be merged wholesale; publishing requires the maintainer to accept the scoped limitation explicitly. No automatic replay after ambiguous writes.
+2. **Closed / retained:** browser-native canonical 429 read-deadline issue [#168](https://github.com/kymuco/chatgpt-web-adapter/issues/168) was fixed by #232. Subsequent curl-transfer-integrity and bounded canonical-read curl-28 fallback changes preserve fail-closed semantics. The HTTP 500 step-down proposal in draft [#221](https://github.com/kymuco/chatgpt-web-adapter/pull/221) remains unproven and excluded.
+3. **Closed:** cleanup PR #250 merged; versioned candidate `a84bba9e` passed 16/16 release CI. Installed-wheel and static import verification do not attest private-web-protocol stability.
+4. **Pending:** green CI on the final documentation-updated candidate, an exact release SHA, dated changelog and tag/version parity, and separate maintainer authorization before merging/tagging or publishing to PyPI.
 
 **Deferred unless independently justified:** experimental Linux Qwen draft
 [#217](https://github.com/kymuco/chatgpt-web-adapter/pull/217) requires actual
