@@ -60,8 +60,9 @@ Requirements:
 - Python 3.10-3.14;
 - system `curl` in `PATH` for canonical web-session reads;
 - an authenticated ChatGPT web session;
-- Chrome/Chromium for the current production ChatGPT protected-write transport and
-  the current experimental DeepSeek/Gemini web-provider paths.
+- Chrome/Chromium for initial interactive authentication and for explicitly
+  selected experimental browser-owned ChatGPT, DeepSeek or Gemini UI paths;
+- Node.js 24+ for primary Direct HTTP sending (no Chrome tab required for Send).
 
 ## 2. Authenticate
 
