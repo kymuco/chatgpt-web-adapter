@@ -20,7 +20,13 @@ Plain invocation prints only the final canonical assistant text.
 cwa send "Continue from the previous result" --conversation <conversation-id>
 ```
 
-The standalone send surface currently accepts the same conversation value as `ChatGPTProductRuntime`: use a conversation id for continuation.
+Conversation continuation accepts a raw ID or either ChatGPT link form:
+`https://chatgpt.com/c/<conversation-id>` and
+`https://chatgpt.com/g/<project-or-gpt-id>/c/<conversation-id>`.
+The scope prefix is parsed to the same conversation ID; it is not itself a
+conversation. The signed-in account must already be authorized to access
+that conversation. This URL admission does not prove successful live
+continuation inside every Project.
 
 ## Model profiles
 
