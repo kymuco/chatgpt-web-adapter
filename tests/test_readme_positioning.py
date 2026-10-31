@@ -15,7 +15,7 @@ REQUIRED_WARNING_LINES = [
 
 def test_readme_starts_with_provider_aware_product_runtime_positioning() -> None:
     text = README.read_text(encoding="utf-8")
-    intro = text[:5000]
+    intro = text.split("## ChatGPT recommended: Direct HTTP", 1)[0]
 
     assert TAGLINE in intro
     assert "ChatGPT" in intro
