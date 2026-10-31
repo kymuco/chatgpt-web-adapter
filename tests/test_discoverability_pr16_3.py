@@ -53,7 +53,7 @@ def test_llms_txt_exposes_current_project_surface() -> None:
         "does **not** ship a general provider router or a dedicated MCP server" in text
     )
     assert "`BrowserlessHTTPClient`" in text
-    assert "Direct HTTP by default" in text
+    assert "defaults to Direct HTTP" in text
     assert "browser-owned" in text
     assert "legacy runtime defaults" in text
 
