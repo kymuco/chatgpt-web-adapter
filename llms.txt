@@ -1,48 +1,39 @@
-# CWA - chatgpt-web-adapter
+# CWA — chatgpt-web-adapter
 
-> CWA is a local product-runtime bridge for authenticated consumer AI web products. It lets local applications and agents use evidence-backed hosted product capabilities while keeping observation, write authority, retry authority, and finality separate.
+CWA is a Python SDK and CLI that connects local applications and agents to authenticated consumer AI web products. It is **not** an official provider API. Hosted web-product behavior can change.
 
-## Start
+## Default path for a new ChatGPT integration
 
-- [Project overview](https://github.com/kymuco/chatgpt-web-adapter/blob/main/README.md)
-- [Quickstart](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/quickstart.md)
-- [Capability map](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/capabilities.md)
-- [Provider matrix](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/providers.md)
-- [Qwen-only terminal quickstart](https://github.com/kymuco/chatgpt-web-adapter/blob/main/QWEN.md)
-- [Qwen quickstart in Russian / Быстрый старт Qwen](https://github.com/kymuco/chatgpt-web-adapter/blob/main/QWEN.ru.md)
-- [Qwen Web SDK and reference examples](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/qwen.md)
-- [Agent integration](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/agent_integration.md)
-- [Architecture](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/architecture.md)
-- [Security](https://github.com/kymuco/chatgpt-web-adapter/blob/main/SECURITY.md)
+- **Primary / live-verified:** `BrowserlessHTTPClient` (Direct HTTP), explicitly constructed in Python; `cwa send` defaults to Direct HTTP since released `v0.4.1`.
+- **Secondary / experimental:** `ChatGPTProductRuntime` with `browser-owned`. `assemble_product_runtime()` retains that historical default for compatibility, **not** as a recommendation.
+- **Legacy/compatibility:** `ChatGPTWebClient`. Historical `browserless-request` is **not** the primary Direct HTTP SDK.
+- **Inspection caveat:** `cwa doctor`, `cwa status`, `cwa capabilities`, `cwa messages` still use legacy runtime defaults; they are not Direct HTTP send-readiness checks.
+- **Prerequisites:** Python 3.10–3.14, saved `auth_data.json`, Node.js 24+ and `curl`. Initial interactive `auth login` needs optional `[browser]`; subsequent Direct HTTP sends do not require a browser tab.
+- **Conversation URLs:** regular `/c/<conversation-id>` and Project/GPT-scoped `/g/<scope>/c/<conversation-id>` URLs are parsed on current `main`; the latter change postdates tagged `v0.4.1` and is not yet live-verified for all Project reads.
 
-## Current proven product surfaces
+## Other integrations
 
-- ChatGPT: production/default conversational runtime; text, continuation, proven rich input and structured product observations; canonical readback where required.
-- DeepSeek Web: experimental module-only text new-chat and continuation; page-DOM stable noncanonical completion.
-- Gemini Web: experimental module-only text new-chat and continuation; page-DOM stable noncanonical completion.
-- Qwen Web: isolated experimental extension/native-host SDK, Windows-live-verified network SSE, text turns and reattachment; direct HTTP remains unproven.
-- Google Translate Web: experimental module-only text translation; PAGE_DOM_STABLE_TRANSLATION; no conversation identity.
+- Qwen Web: experimental isolated browser/Native Messaging SDK with live Windows text and network streaming evidence; direct HTTP mode remains limited/experimental.
+- DeepSeek Web and Gemini Web: experimental module-specific text/continuation.
+- Google Translate Web: experimental module-specific translation.
+- Gemini Notebook Web: experimental source admission and background Audio Overview lifecycle.
+- CWA does **not** ship a general provider router or a dedicated MCP server.
 
-## Integration
+## Read in this order
 
-- Python package: chatgpt-web-adapter
-- Python import: chatgpt_web_adapter
-- CLI: cwa / chatgpt-web-adapter
-- Python 3.10-3.14
-- Browser-owned execution is the reference/default strategy for ordinary consumer web products.
-- MCP adapter: planned direction, not currently shipped.
+1. [README — user-facing orientation](https://github.com/kymuco/chatgpt-web-adapter/blob/main/README.md)
+2. [Quickstart](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/quickstart.md) and [primary Python example](https://github.com/kymuco/chatgpt-web-adapter/blob/main/examples/direct_http_send.py)
+3. [Agent tool-wrapper guide](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/agent_integration.md) or [AGENTS.md for contributing agents](https://github.com/kymuco/chatgpt-web-adapter/blob/main/AGENTS.md)
+4. [Current status](https://github.com/kymuco/chatgpt-web-adapter/blob/main/STATUS.md), [capability map](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/capabilities.md), [provider contracts](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/providers.md)
+5. [Security](https://github.com/kymuco/chatgpt-web-adapter/blob/main/SECURITY.md), [architecture](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/architecture.md), [contributing](https://github.com/kymuco/chatgpt-web-adapter/blob/main/CONTRIBUTING.md)
 
-## Important invariants
+## Invariants
 
-- Product observation is not product approval.
-- Capability availability is not caller authorization.
-- Incremental output is not canonical finality.
-- Ambiguous product writes are not automatically retried.
-- CWA is not an official API client for OpenAI, Google, DeepSeek, or Qwen.
-- Product-specific browser mechanics stay below public runtime contracts.
+- Product observation is not user approval or downstream authority.
+- Capability availability is not permission to execute it.
+- Partial or streaming output is not canonical finality.
+- An ambiguous send is reconciled, **never automatically retried**.
+- No implicit browser/HTTP fallback, no challenge-bypass machinery.
+- Never commit or print authentication files, tokens, signed URLs or raw sensitive traces.
 
-## Contributing
-
-- [Contributing](https://github.com/kymuco/chatgpt-web-adapter/blob/main/CONTRIBUTING.md)
-- [Adding a hosted capability](https://github.com/kymuco/chatgpt-web-adapter/blob/main/docs/adding_capability.md)
-- [Issues](https://github.com/kymuco/chatgpt-web-adapter/issues)
+Documentation under `docs/engineering/` contains historical evidence; it does not override the current contracts above.
