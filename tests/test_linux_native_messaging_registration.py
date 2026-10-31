@@ -68,6 +68,19 @@ def test_linux_manifest_paths_prefer_chrome_config_home(monkeypatch, tmp_path: P
     )
 
 
+def test_linux_invalid_chrome_override_falls_back_to_xdg(
+    monkeypatch, tmp_path: Path
+):
+    xdg = tmp_path / "xdg"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
+    monkeypatch.setenv("CHROME_CONFIG_HOME", "relative/not-accepted")
+
+    paths = browser_native_install.linux_native_messaging_manifest_paths("test.host")
+    assert paths[0] == (
+        xdg / "google-chrome" / "NativeMessagingHosts" / "test.host.json"
+    )
+
+
 def test_browser_state_persists_beyond_xdg_runtime_dir(monkeypatch, tmp_path: Path):
     from chatgpt_web_adapter.browser_native_protocol import (
         default_browser_native_state_dir,
