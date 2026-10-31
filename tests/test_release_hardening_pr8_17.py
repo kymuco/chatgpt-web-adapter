@@ -10,7 +10,7 @@ import pytest
 from tools import installed_wheel_smoke, release_gate
 
 VERSION = "0.3.0"  # historical synthetic release-gate fixture
-STAGED_PROJECT_VERSION = "0.4.0"
+STAGED_PROJECT_VERSION = "0.4.1"
 
 
 def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") -> Path:
@@ -316,7 +316,7 @@ def test_pyproject_freezes_console_scripts_and_extension_package_data() -> None:
     text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
         encoding="utf-8"
     )
-    assert 'version = "0.4.0"' in text
+    assert 'version = "0.4.1"' in text
     assert 'cwa = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'chatgpt-web-adapter = "chatgpt_web_adapter.cli_v02:main"' in text
     assert (

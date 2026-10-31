@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -112,7 +111,9 @@ def test_product_native_and_semantic_profile_names_normalize_to_proven_keys() ->
         cli.normalize_public_model_profile("MAX")
 
 
-def test_send_accepts_product_native_alias_and_delegates_canonical_profile(monkeypatch) -> None:
+def test_send_accepts_product_native_alias_and_delegates_canonical_profile(
+    monkeypatch,
+) -> None:
     captured = {}
 
     def fake_run_send(args):
@@ -121,17 +122,32 @@ def test_send_accepts_product_native_alias_and_delegates_canonical_profile(monke
 
     monkeypatch.setattr(cli.legacy_cli, "_run_send", fake_run_send)
 
-    assert cli.main(["send", "hello", "--profile", "HIGH"]) == 0
+    assert (
+        cli.main(["send", "hello", "--transport", "browser-owned", "--profile", "HIGH"])
+        == 0
+    )
     assert captured["profile"] == "DEEP"
 
-    assert cli.main(["send", "hello", "--profile", "medium"]) == 0
+    assert (
+        cli.main(
+            ["send", "hello", "--transport", "browser-owned", "--profile", "medium"]
+        )
+        == 0
+    )
     assert captured["profile"] == "BALANCED"
 
-    assert cli.main(["send", "hello", "--profile", "instant"]) == 0
+    assert (
+        cli.main(
+            ["send", "hello", "--transport", "browser-owned", "--profile", "instant"]
+        )
+        == 0
+    )
     assert captured["profile"] == "FAST"
 
 
-def test_profile_contract_exposes_product_names_first_and_keeps_semantic_aliases() -> None:
+def test_profile_contract_exposes_product_names_first_and_keeps_semantic_aliases() -> (
+    None
+):
     contract = cli.model_profile_contract()
 
     assert contract["default"] == "HIGH"
@@ -149,7 +165,9 @@ def test_profile_contract_exposes_product_names_first_and_keeps_semantic_aliases
     assert contract["max_mapped"] is False
 
 
-def test_status_is_read_only_and_unhealthy_state_uses_exit_one(monkeypatch, capsys) -> None:
+def test_status_is_read_only_and_unhealthy_state_uses_exit_one(
+    monkeypatch, capsys
+) -> None:
     runtime = _Runtime(ready=False)
     monkeypatch.setattr(cli, "assemble_product_runtime", lambda **kwargs: runtime)
 
@@ -164,7 +182,9 @@ def test_status_is_read_only_and_unhealthy_state_uses_exit_one(monkeypatch, caps
     assert runtime.write_called is False
 
 
-def test_capabilities_is_read_only_and_exports_profile_alias_contract(monkeypatch, capsys) -> None:
+def test_capabilities_is_read_only_and_exports_profile_alias_contract(
+    monkeypatch, capsys
+) -> None:
     runtime = _Runtime()
     monkeypatch.setattr(cli, "assemble_product_runtime", lambda **kwargs: runtime)
 
@@ -263,7 +283,7 @@ def test_reconciliation_required_failure_uses_exit_four(monkeypatch, capsys) -> 
         lambda args: (_ for _ in ()).throw(_Ambiguous("write outcome ambiguous")),
     )
 
-    code = cli.main(["send", "hello", "--json"])
+    code = cli.main(["send", "hello", "--transport", "browser-owned", "--json"])
 
     payload = json.loads(capsys.readouterr().err)
     assert code == cli.EXIT_RECONCILIATION_REQUIRED
@@ -273,7 +293,9 @@ def test_reconciliation_required_failure_uses_exit_four(monkeypatch, capsys) -> 
 
 
 def test_public_console_scripts_route_through_stable_pr814_front_controller() -> None:
-    text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
 
     assert 'chatgpt-web-adapter = "chatgpt_web_adapter.cli_v02:main"' in text
     assert 'cwa = "chatgpt_web_adapter.cli_v02:main"' in text

@@ -17,6 +17,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .browserless_stream import parse_event
 from .client import ChatGPTWebClient
@@ -142,6 +143,74 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                 ]
             )
         return command
+
+    @staticmethod
+    def _http_phase(method: str, url: str) -> str:
+        """Static, non-secret operation label: never include URLs or file IDs."""
+        verb = method.upper()
+        parts = urlsplit(url)
+        # An external signed upload URL may contain credentials in its query.
+        # Classify only its method, not its host, path, or query.
+        if verb == "PUT":
+            return "file_upload"
+        if parts.scheme != "https" or parts.hostname != "chatgpt.com":
+            return "other_http"
+        path = parts.path
+        if verb == "POST" and path == "/backend-api/files":
+            return "file_registration"
+        if (
+            verb == "POST"
+            and path.startswith("/backend-api/files/")
+            and path.endswith("/uploaded")
+        ):
+            return "file_finalize"
+        if path == "/backend-api/sentinel/chat-requirements/prepare":
+            return "sentinel_prepare"
+        if path == "/backend-api/sentinel/chat-requirements/finalize":
+            return "sentinel_finalize"
+        if "chat-requirements" in path:
+            return "chat_requirements"
+        if path.startswith("/backend-api/conversations/"):
+            return "canonical_get" if verb == "GET" else "conversation_request"
+        if path == "/backend-api/conversations":
+            return "conversation_list" if verb == "GET" else "conversation_request"
+        if path.startswith("/backend-api/conversation/"):
+            return "canonical_get" if verb == "GET" else "conversation_request"
+        if path in {"/backend-api/conversation", "/backend-api/f/conversation"}:
+            return "conversation_write" if verb == "POST" else "canonical_get"
+        if verb == "GET" and path in {"/", "/api/auth/session"}:
+            return "session_bootstrap"
+        return "other_http"
+
+    def _run_curl(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        body: bytes | None = None,
+        *,
+        persist_cookies: bool = True,
+        follow_redirects: bool = False,
+    ) -> tuple[int, bytes, str]:
+        """Enrich transport failures with a safe phase, without retrying."""
+        try:
+            return super()._run_curl(
+                method,
+                url,
+                headers,
+                body,
+                persist_cookies=persist_cookies,
+                follow_redirects=follow_redirects,
+            )
+        except RequestError as error:
+            if error.request_stage not in {"transport", "transport_timeout"}:
+                raise
+            raise RequestError(
+                str(error),
+                status_code=error.status_code,
+                request_stage=error.request_stage,
+                endpoint=self._http_phase(method, url),
+            ) from error
 
     def _js(self, data: dict[str, Any]) -> dict[str, Any]:
         if not self.protocol_module.is_file():

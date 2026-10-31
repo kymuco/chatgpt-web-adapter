@@ -13,8 +13,9 @@ The browser-owned UI path remains secondary/experimental and the historical
 
 ## Path A - ChatGPT Direct HTTP (recommended)
 
-Install from the **0.4.0 source candidate** or from PyPI once 0.4.0 has been
-published. Obtain a signed-in `auth_data.json` via existing browser authentication.
+Install the published `0.4.0` package from PyPI, or use the unreleased
+`v0.4.1` source candidate while testing the new Direct HTTP CLI default.
+Obtain a signed-in `auth_data.json` via existing browser authentication.
 If you need initial `auth login`, install the optional `[browser]` extra and
 sign in once:
 
@@ -35,11 +36,19 @@ print(response.text)
 print(client.get_status(response.conversation.conversation_id).status)
 ```
 
+On the unreleased v0.4.1 source candidate, the same Direct HTTP SDK is also
+selected by default in `cwa send "Hello" --profile HIGH`; the released v0.4.0
+CLI still defaults to browser-owned, so use the Python example above on v0.4.0.
+The `cwa status`, `cwa doctor`, `cwa capabilities`, and `cwa messages` commands
+still inspect the legacy product-runtime transport (`browser-owned` by default),
+not Direct HTTP send health. The browser extension is not required for sending
+with the new CLI default. For CLI errors, `--json` reports a safe operation
+phase such as `file_upload`; a timeout can still have an unknown outcome.
 Never resend automatically if the first send has an uncertain outcome. See
 [Direct HTTP SDK](browserless_http_sdk.md) for model, files, continuation and
 setup limitations.
 
-## Path B - browser-owned CLI (secondary)
+## Path B - browser-owned CLI (secondary, explicit transport)
 
 Install CWA with the browser bridge:
 
@@ -79,7 +88,7 @@ cwa doctor --json
 Send a governed text turn:
 
 ```bash
-cwa send "Give me a two-sentence summary of what CWA does." --profile HIGH
+cwa send "Give me a two-sentence summary of what CWA does." --transport browser-owned --profile HIGH
 ```
 
 If the command reports a reconciliation-required outcome, do not blindly replay the

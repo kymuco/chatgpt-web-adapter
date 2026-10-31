@@ -47,7 +47,7 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
     assert "[Documentation](docs/README.md)" in text
     assert "[Status](STATUS.md)" in text
     assert "[Providers](docs/providers.md)" in text
-    assert "v0.3.0" in text
+    assert "Latest public release:** `v0.4.0`" in text
     assert "ChatGPT" in text
     assert "DeepSeek Web" in text
     assert "Gemini Web" in text
@@ -167,9 +167,9 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
 def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() -> None:
     text = _read("STATUS.md")
 
-    assert "latest public release   v0.3.0" in text
-    assert "current main            " in text
-    assert "post-0.3" in text
+    assert "latest public release   v0.4.0" in text
+    assert "release/main commit     96983ac9" in text
+    assert "v0.4.1 CLI default alignment" in text
     assert "PR15 provider architecture frozen" in text
     assert "ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK" in text
     assert "ChatGPT browser UI    EXPERIMENTAL / secondary" in text
@@ -179,8 +179,8 @@ def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() 
         "Google Translate Web  EXPERIMENTAL non-chat translate_text capability" in text
     )
     normalized = " ".join(text.split())
-    assert "The newest published package remains `v0.3.0`" in normalized
-    assert "direct ChatGPT HTTP" in normalized
+    assert "v0.4.0 was published" in normalized
+    assert "Direct HTTP E2E" in normalized
     assert "CAPTURED_UNADMITTED" in text
     assert "PR16  public positioning/documentation alignment" in text
 
@@ -265,7 +265,7 @@ def test_project_metadata_points_to_current_repository_docs() -> None:
     project = data["project"]
     urls = project["urls"]
 
-    assert project["version"] == "0.4.0"
+    assert project["version"] == "0.4.1"
     assert project["description"] == (
         "Local Python SDK and CLI bridge for authenticated consumer AI web products "
         "and hosted capabilities."
@@ -302,7 +302,7 @@ def test_post_pr17_2_checkpoint_is_bounded_to_source_and_proven_evidence() -> No
     assert "TURN_REQUIREMENT" in status
     assert "model preservation remains `UNKNOWN`" in status
     assert "### PR17.1-17.2" in roadmap
-    assert "v0.3.0" in readme
+    assert "v0.4.0" in readme
     assert "PR17.2 checkpoint" in readme
     assert "main@02b56911ae132d91d35d8bb87511141351968f80" in checkpoint
     assert "CI #1945" in checkpoint
