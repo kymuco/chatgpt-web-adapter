@@ -16,6 +16,18 @@ Equivalent long form:
 chatgpt-web-adapter snapshot "https://chatgpt.com/c/<conversation-id>" --name organism_lab
 ```
 
+Chats inside a ChatGPT Project (and GPT-scoped chat routes) use the same
+conversation-id contract. Pass the entire URL unchanged:
+
+```powershell
+cwa snapshot "https://chatgpt.com/g/g-p-project-slug/c/<conversation-id>" --name organism_lab
+```
+
+The SDK extracts the **last conversation id**, not the Project/GPT id. It reads
+the same authenticated canonical conversation payload. A valid URL does not
+by itself grant access to a conversation; the authenticated account still
+needs permission to read it.
+
 With no explicit `--index`, the command scans the output directory for existing matching context snapshots and selects `max(existing_index) + 1`.
 
 For example, if `organism_lab_chat_context_11.md` exists, the next command writes:
