@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import pytest
-
 import chatgpt_web_adapter as adapter
+import pytest
 
 
 CONVERSATION_ID = "conv-123"
@@ -62,7 +61,9 @@ def test_conversation_ref_rejects_nonconversation_scoped_routes(url: str) -> Non
 
 
 def test_conversation_ref_accepts_legacy_chat_openai_url() -> None:
-    ref = adapter.ConversationRef.from_any(f"https://chat.openai.com/c/{CONVERSATION_ID}/")
+    ref = adapter.ConversationRef.from_any(
+        f"https://chat.openai.com/c/{CONVERSATION_ID}/"
+    )
 
     assert ref.conversation_id == CONVERSATION_ID
 
