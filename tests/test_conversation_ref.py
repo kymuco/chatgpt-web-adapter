@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import chatgpt_web_adapter as adapter
-
 import pytest
 
+import chatgpt_web_adapter as adapter
 
 CONVERSATION_ID = "conv-123"
 
