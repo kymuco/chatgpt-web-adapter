@@ -36,12 +36,35 @@ def _assert_manifest(
 
 
 def test_linux_manifest_paths_use_xdg_configuration(monkeypatch, tmp_path: Path):
+    monkeypatch.delenv("CHROME_CONFIG_HOME", raising=False)
     config = tmp_path / "xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     paths = browser_native_install.linux_native_messaging_manifest_paths("test.host")
     assert paths == (
         config / "google-chrome" / "NativeMessagingHosts" / "test.host.json",
         config / "chromium" / "NativeMessagingHosts" / "test.host.json",
+    )
+
+
+def test_linux_manifest_paths_prefer_chrome_config_home(monkeypatch, tmp_path: Path):
+    xdg = tmp_path / "xdg"
+    chrome = tmp_path / "chrome-config"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
+    monkeypatch.setenv("CHROME_CONFIG_HOME", str(chrome))
+
+    paths = browser_native_install.linux_native_messaging_manifest_paths("test.host")
+    assert paths == (
+        chrome / "google-chrome" / "NativeMessagingHosts" / "test.host.json",
+        chrome / "chromium" / "NativeMessagingHosts" / "test.host.json",
+    )
+
+    # An explicitly supplied destination remains authoritative.
+    explicit = browser_native_install.linux_native_messaging_manifest_paths(
+        "test.host", config_home=xdg
+    )
+    assert explicit == (
+        xdg / "google-chrome" / "NativeMessagingHosts" / "test.host.json",
+        xdg / "chromium" / "NativeMessagingHosts" / "test.host.json",
     )
 
 
@@ -58,6 +81,7 @@ def test_browser_state_persists_beyond_xdg_runtime_dir(monkeypatch, tmp_path: Pa
 
 
 def test_chatgpt_installer_registers_both_linux_browsers(monkeypatch, tmp_path: Path):
+    monkeypatch.delenv("CHROME_CONFIG_HOME", raising=False)
     config = tmp_path / "xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.setattr(
@@ -87,6 +111,7 @@ def test_chatgpt_installer_registers_both_linux_browsers(monkeypatch, tmp_path: 
 
 
 def test_qwen_installer_registers_isolated_linux_host(monkeypatch, tmp_path: Path):
+    monkeypatch.delenv("CHROME_CONFIG_HOME", raising=False)
     config = tmp_path / "xdg"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.setattr(qwen_native, "state_dir", lambda: tmp_path / "qwen-native")
