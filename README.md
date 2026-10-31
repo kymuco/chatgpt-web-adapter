@@ -198,15 +198,15 @@ The [production quickstart](docs/quickstart.md), [direct HTTP SDK guide](docs/br
 [Qwen guide](docs/qwen.md), [full capability map](docs/capabilities.md) and
 [provider finality model](docs/providers.md) describe their boundaries.
 
-Capability statuses below describe the published **v0.4.0** release and the
-unreleased **v0.4.1** CLI patch candidate. Operation evidence is per-feature, not a
+Capability statuses below distinguish the published **v0.4.0** release from
+**v0.4.1** source now merged to `main` (publication pending). Operation evidence is per-feature, not a
 promise of private-web-protocol stability.
 
 ## Release vs current `main`
 
 - **Latest public release:** `v0.4.0` — 2026-10-30 ([GitHub Release](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.0), [PyPI](https://pypi.org/project/chatgpt-web-adapter/0.4.0/)).
 - **Published package version:** `0.4.0`. The published wheel includes the Direct HTTP SDK.
-- **Next candidate:** `v0.4.1` (unreleased), to make the installed `cwa send` CLI use Direct HTTP by default; the historical product-runtime API default remains browser-owned.
+- **Merged for next release:** `v0.4.1` (not yet published); current `main` makes `cwa send` use Direct HTTP by default, while the historical product-runtime API default remains browser-owned.
 - **Typing:** PEP 561 `py.typed` is included in the released wheel/sdist; this is not a claim of comprehensive strict typing.
 - **Release documentation:** [v0.4.0 notes](docs/release_notes_0_4_0.md) (original prepublication review record). See [STATUS.md](STATUS.md) for current follow-up work.
 
@@ -341,9 +341,9 @@ cwa doctor --json
 The extension popup is read-only local product chrome. Opening it does not create
 write authority or submit a product turn.
 
-### Send from the stable CLI (unreleased v0.4.1 behavior)
+### Send from current main CLI (v0.4.1 pending publication)
 
-For the v0.4.1 source candidate, `cwa send` defaults to the primary Direct HTTP SDK:
+On current `main` (v0.4.1 source), `cwa send` defaults to the primary Direct HTTP SDK:
 
 ```powershell
 cwa send "Give me a short project summary." --profile HIGH
@@ -358,8 +358,8 @@ The secondary browser-owned CLI remains explicitly available:
 cwa send "Browser-owned request" --transport browser-owned --profile HIGH
 ```
 
-The `cwa send` default is **Direct HTTP** only in the unreleased v0.4.1
-candidate. The `cwa doctor`, `cwa status`, `cwa capabilities` and `cwa messages`
+The `cwa send` default is **Direct HTTP** on current `main`;
+the published v0.4.0 wheel still defaults to browser-owned. The `cwa doctor`, `cwa status`, `cwa capabilities` and `cwa messages`
 inspection commands still target the historical product runtime, whose default
 transport is `browser-owned`; their browser-bridge readiness does **not** assess
 Direct HTTP send readiness. Do not confuse a disconnected extension with a
