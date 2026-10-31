@@ -90,7 +90,7 @@ def main():
 
             with winreg.CreateKey(
                 winreg.HKEY_CURRENT_USER,
-                rf"Software\\Google\\Chrome\\NativeMessagingHosts\\{HOST_NAME}",
+                rf"Software\Google\Chrome\NativeMessagingHosts\{HOST_NAME}",
             ) as key:
                 winreg.SetValueEx(key, None, 0, winreg.REG_SZ, str(host))
         else:
