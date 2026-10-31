@@ -14,7 +14,7 @@ latest public release   v0.4.1
 release date            2026-10-31
 published PyPI version  0.4.1
 release commit          e12b98eb015ae9a0d5b4ed629e96ba8941fc3514
-main checkpoint         b09988e0cd1d9e203eddba62d4b83335c76285f1
+post-release PR256      b09988e0cd1d9e203eddba62d4b83335c76285f1
 architecture            PR15 provider architecture frozen
 license                 MIT
 python                  3.10–3.14
