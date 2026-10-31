@@ -13,7 +13,7 @@
 
 CWA is **not an official provider API** and does not treat a partial response, visible browser state or a failed send as proof of successful completion.
 
-[Quickstart](docs/quickstart.md) · [Qwen (EN)](QWEN.md) · [Qwen (RU)](QWEN.ru.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Qwen SDK](docs/qwen.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
+[Quickstart](docs/quickstart.md) · [Qwen (EN)](QWEN.md) · [Qwen (RU)](QWEN.ru.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Qwen SDK](docs/qwen.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md) · [FAQ](#frequently-asked-questions)
 
 > [!WARNING]
 > CWA is not an official API client for OpenAI, Google, DeepSeek or Qwen. It works with
@@ -41,7 +41,7 @@ Already authenticated? The last command is enough. `cwa send` uses **Direct HTTP
 | You are... | Best first step |
 | --- | --- |
 | Trying ChatGPT from Python | [Direct HTTP (primary SDK)](#chatgpt-recommended-direct-http) |
-| Using the secondary browser-owned UI path | [Browser-owned Python example](#production-python-example) |
+| Using the secondary browser-owned UI path | [Browser-owned Python example](#secondary-browser-owned-python-example) |
 | Using ChatGPT without a browser tab | [Direct HTTP SDK guide](docs/browserless_http_sdk.md) |
 | Connecting a local assistant or coding agent | [Agent integration](docs/agent_integration.md) |
 | Checking what is actually supported | [Live capability matrix](#capability-matrix-current-main) · [Full map](docs/capabilities.md) |
@@ -137,6 +137,31 @@ This proves that specific scenario, not server-side attestation of the model or
 future protocol stability. The corresponding browser-owned test showed only
 one attachment and did not complete; its exact failure stage is unknown.
 
+## Frequently asked questions
+
+**Is this an official OpenAI API client?** No. CWA uses authenticated consumer
+web-product sessions and private, changeable product behavior. Review the
+provider's applicable terms and account restrictions before adopting it.
+
+**Do I need Chrome?** The primary Direct HTTP client does not need a Chrome
+tab to *send*. First-time interactive login may need Chromium (install the
+`[browser]` extra); the optional browser-owned UI runtime needs a browser.
+
+**Can I use an API key instead of logging in?** No. CWA requires an
+authenticated web session, not an OpenAI API key.
+
+**Why do `cwa doctor` and `cwa status` mention browser-owned?** Those
+inspection commands still target the legacy product runtime by default.
+They do **not** test Direct HTTP send readiness.
+
+**Can I retry after a timeout or rely on automatic fallback?** Not after a
+potentially submitted write. The outcome may be unknown: inspect/reconcile the
+conversation first. CWA does not silently resend or switch transports.
+
+**Are model and reasoning settings guaranteed?** They are requests, not
+proof of the actual model selected by the server. Check the
+[capability map](docs/capabilities.md) for evidence and limitations.
+
 ## Capability matrix (current `main`)
 
 **Legend:** ✅ live-verified operation · ◐ limited, historical or incomplete live evidence · — not established. Model/effort requests are not server attestation.
@@ -219,43 +244,12 @@ Capability and transport evidence are operation-specific. Published `v0.4.1` inc
 - **Typing:** PEP 561 `py.typed` is shipped; no claim of comprehensive strict typing.
 - **History:** [v0.4.0 release notes](docs/release_notes_0_4_0.md) and the [PR17.2 checkpoint](docs/engineering/pr17_2_canonical_product_checkpoint.md) remain immutable past evidence; see [STATUS.md](STATUS.md) for the current state.
 
-## Why browser-owned remains the SDK default
-
-The browser-owned runtime remains the historical API default to preserve existing
-callers, but its current transport support tier is EXPERIMENTAL. That is **not** a recommendation to
-prefer background tabs for new ChatGPT integrations. Direct HTTP is the
-preferred explicit choice for operations with current live evidence; neither
-path is immune to product changes.
-
-The browser already owns:
-
-```text
-authenticated session
-cookies
-frontend JavaScript
-normal product navigation
-page-owned upload/submit behavior
-product challenge/protection state
-```
-
-The browser-owned strategy therefore keeps CWA's job bounded:
-
-```text
-resolve product surface
-→ perform one governed write
-→ observe / reconcile outcome
-```
-
-A reusable background runtime tab is an implementation resource, not public
-conversation authority.
-
-CWA has **two distinct** direct-request implementations: the historical
-experimental `browserless-request` product-runtime transport and the primary
-`BrowserlessHTTPClient` SDK. Their contracts and evidence are different.
-Direct HTTP is recommended because specific operations passed live E2E, not
-merely because it avoids Chrome. Neither automatically replays ambiguous writes.
-
-See [docs/browser_owned.md](docs/browser_owned.md).
+The `browser-owned` transport stays the `assemble_product_runtime()` default for
+compatibility only; it is **experimental**, not the recommended new-integration
+path. For the underlying implementation and historical rationale see
+[the browser-owned guide](docs/browser_owned.md). Direct HTTP and the older
+`browserless-request` transport are separate implementations and never act as
+automatic fallbacks for each other.
 
 ## Official APIs are different semantics
 
@@ -274,32 +268,6 @@ and other evidence-backed product capabilities.
 
 It is not intended to replace official APIs where API semantics are what the caller
 actually wants.
-
-## ChatGPT: primary HTTP and secondary UI runtime
-
-ChatGPT remains the primary supported product. Direct HTTP is the primary
-public SDK for validated ChatGPT operations; browser-owned is a secondary
-experimental UI runtime, retained as the legacy assembly default.
-This distinction does not change the `assemble_product_runtime()` default.
-
-```text
-application
-    |
-    v
-ChatGPTProductRuntime
-    |\
-    | +---- ProductWriteTransport
-    |        browser-owned = EXPERIMENTAL
-    |        browserless-request = EXPERIMENTAL
-    |
-    +------ CanonicalConversationClient
-             canonical read / attach / status / finality
-```
-
-For new ChatGPT send/read integrations, prefer `BrowserlessHTTPClient` for
-its documented, live-verified operations. Use `ChatGPTProductRuntime` when you
-explicitly need browser-owned page interaction. The historical
-`ChatGPTWebClient` remains a compatibility surface.
 
 ## Browser-owned setup — secondary UI runtime
 
