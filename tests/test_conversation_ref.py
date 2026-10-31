@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import chatgpt_web_adapter as adapter
+
 import pytest
 
 
