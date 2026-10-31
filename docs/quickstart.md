@@ -13,8 +13,8 @@ The browser-owned UI path remains secondary/experimental and the historical
 
 ## Path A - ChatGPT Direct HTTP (recommended)
 
-Install the published `0.4.0` package from PyPI, or use the unreleased
-`v0.4.1` source candidate while testing the new Direct HTTP CLI default.
+Until `v0.4.1` is published, the PyPI release is `0.4.0`. Current `main`
+contains the merged Direct HTTP CLI update for the upcoming patch release.
 Obtain a signed-in `auth_data.json` via existing browser authentication.
 If you need initial `auth login`, install the optional `[browser]` extra and
 sign in once:
@@ -36,7 +36,7 @@ print(response.text)
 print(client.get_status(response.conversation.conversation_id).status)
 ```
 
-On the unreleased v0.4.1 source candidate, the same Direct HTTP SDK is also
+On current `main` (v0.4.1 pending publication), the same Direct HTTP SDK is
 selected by default in `cwa send "Hello" --profile HIGH`; the released v0.4.0
 CLI still defaults to browser-owned, so use the Python example above on v0.4.0.
 The `cwa status`, `cwa doctor`, `cwa capabilities`, and `cwa messages` commands
