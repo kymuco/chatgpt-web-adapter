@@ -49,7 +49,9 @@ def test_llms_txt_exposes_current_project_surface() -> None:
     assert "capability map" in text.lower()
     assert "Agent tool-wrapper guide" in text
     assert "Google Translate Web" in text
-    assert "does **not** ship a general provider router or a dedicated MCP server" in text
+    assert (
+        "does **not** ship a general provider router or a dedicated MCP server" in text
+    )
     assert "`BrowserlessHTTPClient`" in text
     assert "Direct HTTP by default" in text
     assert "browser-owned" in text
@@ -76,7 +78,9 @@ def test_google_translate_has_discoverable_example() -> None:
     assert 'target_language="es"' in text
 
 
-def test_agent_instructions_follow_primary_http_contract_and_preserve_authority() -> None:
+def test_agent_instructions_follow_primary_http_contract_and_preserve_authority() -> (
+    None
+):
     agent = _read("AGENTS.md")
     guide = _read("docs/agent_integration.md")
     primary = _read("examples/direct_http_send.py")
