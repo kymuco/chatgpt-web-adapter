@@ -48,7 +48,7 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
     assert "[Status](STATUS.md)" in text
     assert "[Providers](docs/providers.md)" in text
     assert "Latest public release:** [`v0.4.1`]" in text
-    assert "post-release" in text
+    assert "main` has additional changes" in text
     assert "cwa send" in text
     assert "ChatGPT" in text
     assert "DeepSeek Web" in text
