@@ -185,7 +185,7 @@ def test_status_distinguishes_published_release_from_post_release_main() -> None
     assert "v0.4.1" in normalized
     assert "three-Markdown Direct HTTP live evidence" in normalized
     assert "not present in the published" in normalized
-    assert "are not Direct HTTP send-readiness checks" in normalized
+    assert "are **not** Direct HTTP send-readiness checks" in text
     assert "CAPTURED_UNADMITTED" in text
     assert "PR16  public positioning/documentation alignment" in text
 
