@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-"""Persist and continue a conversation across separate runs.
+"""Historical ChatGPTWebClient compatibility example for persisted conversations.
 
-Purpose: show how to save ``ChatConversation`` state and reuse it later.
-Surface: stable
-Prerequisites: the browser extra, an ``auth login``-created session/profile, and
-write access to a local state file.
+For new sends, prefer the primary BrowserlessHTTPClient in
+examples/direct_http_send.py. This file retains a legacy browser/Sentinel path.
 """
 
 import argparse
