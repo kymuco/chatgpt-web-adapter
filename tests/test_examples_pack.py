@@ -17,7 +17,8 @@ REQUIRED_EXAMPLES = [
     "raw_payload.py",
 ]
 
-PRIMARY_PRODUCT_EXAMPLES = ["product_runtime.py"]
+PRIMARY_PRODUCT_EXAMPLES = ["direct_http_send.py"]
+SECONDARY_PRODUCT_EXAMPLES = ["product_runtime.py"]
 COMPATIBILITY_EXAMPLES = [
     "basic_send.py",
     "continue_saved.py",
@@ -40,6 +41,7 @@ PUBLIC_API_EXAMPLES = [
     *REQUIRED_EXAMPLES,
     "browser_native_send.py",
     "product_runtime.py",
+    "direct_http_send.py",
 ]
 
 
@@ -72,26 +74,32 @@ def test_public_examples_use_public_package_imports_only() -> None:
         assert "import chatgpt_web_adapter." not in text
 
 
-def test_primary_product_example_uses_runtime_capabilities_and_provenance() -> None:
-    text = (EXAMPLES / "product_runtime.py").read_text(encoding="utf-8")
+def test_primary_example_is_direct_http_and_secondary_example_keeps_provenance() -> None:
+    primary = (EXAMPLES / "direct_http_send.py").read_text(encoding="utf-8")
+    secondary = (EXAMPLES / "product_runtime.py").read_text(encoding="utf-8")
 
-    assert "assemble_product_runtime" in text
-    assert "runtime.capabilities()" in text
-    assert "send_text_observed" in text
-    assert "execution.provenance.to_dict()" in text
-    assert '"surface": "PRIMARY_PRODUCTION"' in text
-    assert "auto_sentinel" not in text
+    assert "from chatgpt_web_adapter import BrowserlessHTTPClient" in primary
+    assert "client.send(args.prompt)" in primary
+    assert "auto_sentinel" not in primary
+    assert "assemble_product_runtime" in secondary
+    assert 'transport="browser-owned"' in secondary
+    assert "runtime.capabilities()" in secondary
+    assert "send_text_observed" in secondary
+    assert "execution.provenance.to_dict()" in secondary
+    assert '"surface": "EXPERIMENTAL"' in secondary
+    assert "auto_sentinel" not in secondary
 
 
 def test_readme_classifies_example_groups_without_deleting_history() -> None:
     text = README.read_text(encoding="utf-8")
 
-    assert "Primary production example:" in text
-    assert "Compatibility examples:" in text
+    assert "Primary Direct HTTP example:" in text
+    assert "Secondary / compatibility examples" in text
     assert "Experimental examples:" in text
     assert "Research/diagnostic examples:" in text
     for filename in (
         *PRIMARY_PRODUCT_EXAMPLES,
+        *SECONDARY_PRODUCT_EXAMPLES,
         *COMPATIBILITY_EXAMPLES,
         *EXPERIMENTAL_EXAMPLES,
         *RESEARCH_DIAGNOSTIC_EXAMPLES,
