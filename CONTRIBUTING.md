@@ -55,7 +55,7 @@ Examples:
 - model/Temporary behavior;
 - structured observations;
 - capability declarations;
-- production browser-owned transport behavior.
+- primary Direct HTTP behavior or secondary browser-owned UI behavior.
 
 Expected validation:
 
@@ -116,7 +116,10 @@ Additional rules:
 
 ## Public API and compatibility
 
-`ChatGPTProductRuntime` is the forward-looking production boundary.
+`BrowserlessHTTPClient` is the primary recommended ChatGPT SDK for live-verified
+operations; `cwa send` defaults to it since published `v0.4.1`.
+`ChatGPTProductRuntime` is a **secondary experimental** browser-owned runtime
+with a legacy assembly default retained for compatibility.
 
 `ChatGPTWebClient` / `WebChatClient` remain compatibility surfaces for existing callers. Do not silently route one API through the other or remove compatibility/research imports merely for tree cleanliness.
 
