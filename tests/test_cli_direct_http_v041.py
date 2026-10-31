@@ -279,3 +279,57 @@ def test_text_mode_never_echoes_untrusted_phase(monkeypatch, capsys):
     assert "SECRET" not in output.err
     assert "phase:" not in output.err
     assert calls == [1]
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_phase"),
+    [
+        (
+            RequestError(
+                "curl failed: exit_code=18; http_status=200",
+                status_code=200,
+                request_stage="transport",
+                endpoint="file_upload",
+            ),
+            "file_upload",
+        ),
+        (
+            RequestError(
+                "curl failed: curl: (28) Operation timed out",
+                request_stage="transport",
+            ),
+            "conversation_write",
+        ),
+        (
+            RequestError(
+                "curl failed: curl: (56) Recv failure",
+                request_stage="transport",
+            ),
+            "conversation_write",
+        ),
+    ],
+)
+def test_partial_http_200_and_sse_transport_failure_require_reconciliation(
+    monkeypatch, capsys, failure, expected_phase
+):
+    calls = []
+
+    class StreamInterrupted:
+        def __init__(self, **kwargs):
+            pass
+
+        def send(self, *args, **kwargs):
+            calls.append(1)
+            raise failure
+
+    monkeypatch.setattr(
+        cli_direct_http, "BrowserlessHTTPClient", StreamInterrupted
+    )
+    exit_code = cli.main(["send", "hello", "--json"])
+    error = json.loads(capsys.readouterr().err)["error"]
+    assert exit_code == cli.EXIT_RECONCILIATION_REQUIRED
+    assert error["reconciliation_required"] is True
+    assert error["write_may_have_been_submitted"] is True
+    assert error["endpoint"] == expected_phase
+    assert "Recv failure" not in error["message"]
+    assert calls == [1]

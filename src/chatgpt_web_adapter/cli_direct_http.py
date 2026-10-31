@@ -106,14 +106,33 @@ def send_direct_http(args: Any) -> int:
             on_token=on_token if args.stream and not args.final_only else None,
         )
     except RequestError as error:
-        if error.request_stage != "transport_timeout":
+        # Some SSE curl failures arrive from the inherited stream reader as
+        # unstructured "curl failed: ..." transport errors. A stream can fail
+        # after ChatGPT has admitted the message, even without an HTTP status.
+        # Likewise, a nonzero curl exit after HTTP 200 does not prove the
+        # response body or conversation outcome was received completely.
+        stream_curl_failure = (
+            error.request_stage == "transport"
+            and error.endpoint is None
+            and str(error).startswith("curl failed:")
+        )
+        accepted_headers_partial = (
+            error.request_stage == "transport" and error.status_code == 200
+        )
+        if not (
+            error.request_stage == "transport_timeout"
+            or accepted_headers_partial
+            or stream_curl_failure
+        ):
             raise
         raise DirectHTTPReconciliationRequired(
-            "Direct HTTP send outcome unknown after transport timeout; "
+            "Direct HTTP send outcome unknown after transport failure; "
             "inspect canonical conversation history before any new send",
             status_code=error.status_code,
             request_stage=error.request_stage,
-            endpoint=error.endpoint,
+            endpoint="conversation_write"
+            if stream_curl_failure
+            else error.endpoint,
         ) from error
 
     if args.json:
