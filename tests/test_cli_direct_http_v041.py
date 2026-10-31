@@ -10,6 +10,7 @@ import pytest
 from chatgpt_web_adapter import cli_direct_http
 from chatgpt_web_adapter import cli_v02 as cli
 from chatgpt_web_adapter.exceptions import RequestError
+from chatgpt_web_adapter.diagnostic_metrics import send_with_expanded_metrics
 
 
 def _response(text="hello world"):
@@ -331,3 +332,50 @@ def test_partial_http_200_and_sse_transport_failure_require_reconciliation(
     assert error["endpoint"] == expected_phase
     assert "Recv failure" not in error["message"]
     assert calls == [1]
+
+
+def test_metrics_enriched_sse_stream_failure_requires_reconciliation(
+    monkeypatch, capsys
+):
+    """Real metrics wrapping must not turn an unknown POST into ordinary failure."""
+    send_attempts = []
+    created = []
+    conversation_url = "https://chatgpt.com/backend-api/conversation"
+
+    class WrappedStreamFailure:
+        def __init__(self, **kwargs):
+            self._get_ready_requirements = lambda: ({}, None)
+            self._extract_status_code = lambda headers: 0
+            self._build_curl_command = lambda *args, **kwargs: ["curl"]
+            self.raw_error = None
+            created.append(self)
+
+        @send_with_expanded_metrics
+        def send(self, *args, **kwargs):
+            send_attempts.append(1)
+            self._build_curl_command(
+                "POST",
+                conversation_url,
+                {"accept": "text/event-stream"},
+                "headers",
+                no_buffer=True,
+            )
+            self.raw_error = RequestError(
+                "curl failed: curl: (56) Recv failure",
+                request_stage="transport",
+            )
+            raise self.raw_error
+
+    monkeypatch.setattr(
+        cli_direct_http, "BrowserlessHTTPClient", WrappedStreamFailure
+    )
+    exit_code = cli.main(["send", "hello", "--json"])
+    payload = json.loads(capsys.readouterr().err)["error"]
+
+    assert created[0].raw_error.endpoint == conversation_url
+    assert exit_code == cli.EXIT_RECONCILIATION_REQUIRED
+    assert payload["reconciliation_required"] is True
+    assert payload["write_may_have_been_submitted"] is True
+    assert payload["endpoint"] == "conversation_write"
+    assert conversation_url not in json.dumps(payload)
+    assert send_attempts == [1]
