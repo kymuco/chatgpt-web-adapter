@@ -1,58 +1,46 @@
 # Project Status
 
-_Last updated: 2026-10-31 (v0.4.1 merged, publication pending)_
+_Last updated: 2026-10-31 (published v0.4.1; current main also includes PR #256)_
 
-This is the compact current-state view for `chatgpt-web-adapter` (CWA).
-Use [`ROADMAP.md`](ROADMAP.md) for direction, [`README.md`](README.md)
-for the project overview, and [`docs/README.md`](docs/README.md)
-for the documentation map.
+This is the current release and runtime snapshot. See [README.md](README.md)
+for first use, [docs/quickstart.md](docs/quickstart.md) for setup,
+[docs/capabilities.md](docs/capabilities.md) for supported features, and
+[ROADMAP.md](ROADMAP.md) for future direction.
 
 ## Release and branch state
 
 ```text
-latest public release   v0.4.0
-release date            2026-10-30
-published PyPI version  0.4.0
-release/main commit     96983ac9
-merged patch           0.4.1 (tag and publication pending)
+latest public release   v0.4.1
+release date            2026-10-31
+published PyPI version  0.4.1
+release commit          e12b98eb015ae9a0d5b4ed629e96ba8941fc3514
+post-release PR256      b09988e0cd1d9e203eddba62d4b83335c76285f1
 architecture            PR15 provider architecture frozen
-current phase           v0.4.1 release preparation
 license                 MIT
-python                  3.10-3.14
+python                  3.10–3.14
 ```
 
-**v0.4.0 was published** on GitHub Releases and PyPI on 2026-10-30
-from exactly `96983ac98864c6a7f122dfa9abcc1a51136b053e`.
-The merged `main` passed 16/16 GitHub CI checks. A user-run Windows
-Direct HTTP E2E on that exact release commit confirmed one GPT-6 High-requested
-send with three Markdown attachments, two streaming chunks, exact per-file
-values, canonical user/assistant text, final status and message ID, and no
-second send. Requested model/effort is not server-side attestation.
+**Released v0.4.1:** `cwa send` defaults to the primary Direct HTTP
+`BrowserlessHTTPClient`. The older `assemble_product_runtime()` and
+`cwa runtime ...` remain browser-owned by default **only for compatibility**.
+The browser-owned ChatGPT UI path remains **EXPERIMENTAL**. An incomplete
+three-file UI acceptance is not evidence of reliable multi-file sends.
 
-**Known release limitation:** the secondary browser-owned three-file UI
-acceptance did not complete. Browser-owned remains `EXPERIMENTAL`; there is
-no automatic retry, implicit fallback, or general multi-file guarantee.
+**Current main after the release:** PR [#256](https://github.com/kymuco/chatgpt-web-adapter/pull/256)
+added parsing of regular and Project/GPT-scoped ChatGPT conversation URLs.
+It is not present in the published `v0.4.1` wheel and does not yet establish
+authenticated Project read/write E2E in every environment. Main CI passed
+on the merged SHA above.
 
-**v0.4.1 source in main (not yet published):** installed `cwa send` now
-defaults to the primary `BrowserlessHTTPClient` Direct HTTP SDK.
-Keep `assemble_product_runtime()` and `cwa runtime ...` browser-owned
-defaults for backward compatibility. Browser-owned and the historical
-`browserless-request` CLI send options stay explicitly selectable.
-PR #253 merged at `12f7e07880d671353652c386684fc4c0e914be2d`
-after 16/16 CI. One earlier real CLI E2E proved three Markdown files,
-Send and independent canonical readback. The subsequent failure-classification
-fix has a focused metrics-wrapper regression and green CI.
-The `v0.4.1` GitHub Release and PyPI upload are still pending.
-Do not retag or rewrite v0.4.0 artifacts.
+The v0.4.0 [release](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.0)
+and its GPT-6 High-requested three-Markdown Direct HTTP live evidence remain
+historical release records; v0.4.1 publication did not change their scope.
 
-Historical CLI inspection commands (`status`, `doctor`, `capabilities`,
-`messages`) keep the browser-owned product-runtime defaults. They do not
-represent a Direct HTTP write-health check; v0.4.1 changes the `send` default
-only, with no implicit browser integration or automatic fallback.
-
-The merged CLI change is recorded in [PR #253](https://github.com/kymuco/chatgpt-web-adapter/pull/253).
-The v0.4.0 [release notes](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.0)
-remain a historical, immutable publication record.
+**CLI inspection caveat:** `cwa doctor`, `cwa status`, `cwa capabilities`,
+and `cwa messages` use the historical browser-owned product-runtime defaults;
+they are **not** Direct HTTP send-readiness checks. Failure after a possibly
+committed Send is not permission to retry; reconcile first. No implicit
+transport fallback is provided.
 
 ## Product role
 

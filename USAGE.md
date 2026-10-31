@@ -2,9 +2,11 @@
 
 This guide documents the current usage paths for `chatgpt-web-adapter` (CWA).
 
-The mature/default application path is still **`ChatGPTProductRuntime`**. Current
-`main` also contains module-only experimental runtimes for DeepSeek Web and Gemini
-Web.
+For new ChatGPT integrations, **`BrowserlessHTTPClient` (Direct HTTP)** is the
+primary live-verified SDK, and released `v0.4.1` makes it the default for `cwa send`.
+`ChatGPTProductRuntime` remains an experimental browser-owned option with its
+historical assembly default preserved for compatibility. Other web-product
+integrations are separately experimental.
 
 For project positioning and provider capability status, start with
 [`README.md`](README.md), [`STATUS.md`](STATUS.md) and
@@ -18,8 +20,8 @@ For project positioning and provider capability status, start with
 
 For new ChatGPT integrations, use the root-exported `BrowserlessHTTPClient`.
 It is the **PRIMARY_PRODUCTION** public client for live-verified operations,
-with explicit construction and no Chrome tab needed for sending. Install from
-the 0.4.0 source candidate or the published wheel once 0.4.0 is released;
+with explicit construction and no Chrome tab needed for sending. Install the
+published `0.4.1` wheel or a current source checkout;
 Node.js 24+, curl and a valid signed-in `auth_data.json` are required.
 
 ```python
@@ -58,8 +60,9 @@ Requirements:
 - Python 3.10-3.14;
 - system `curl` in `PATH` for canonical web-session reads;
 - an authenticated ChatGPT web session;
-- Chrome/Chromium for the current production ChatGPT protected-write transport and
-  the current experimental DeepSeek/Gemini web-provider paths.
+- Chrome/Chromium for initial interactive authentication and for explicitly
+  selected experimental browser-owned ChatGPT, DeepSeek or Gemini UI paths;
+- Node.js 24+ for primary Direct HTTP sending (no Chrome tab required for Send).
 
 ## 2. Authenticate
 
@@ -103,6 +106,10 @@ cwa doctor --json
 `doctor` does not send a ChatGPT product turn or repair the installation automatically.
 
 ## 4. Stable CLI
+
+`cwa send` defaults to Direct HTTP from version `0.4.1`. The inspection
+commands below (`status`, `doctor`, `capabilities`, `messages`) retain the
+legacy product-runtime defaults and are **not** Direct HTTP send-health checks.
 
 ### Inspect runtime state
 

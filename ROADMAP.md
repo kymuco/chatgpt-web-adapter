@@ -1,9 +1,11 @@
 # chatgpt-web-adapter Roadmap
 
-_Last updated: 2026-10-29_
+_Last updated: 2026-10-31 (published v0.4.1 / post-release main checkpoint)_
 
-This roadmap describes the current direction after CWA 0.3, the PR15 provider
-architecture reset, the isolated Qwen Web SDK, and opt-in ChatGPT direct HTTP.
+This roadmap describes direction after CWA 0.3, the PR15 provider architecture
+reset, the isolated Qwen Web SDK and the primary Direct HTTP ChatGPT SDK.
+Since v0.4.1, `cwa send` selects Direct HTTP by default; the historical
+browser-owned product-runtime default remains for compatibility only.
 
 Historical PR planning documents remain in `docs/` as evidence and lineage.
 
@@ -419,7 +421,12 @@ Reconsider only when external adoption justifies the privacy/update/support cont
 
 Do not publish merely to remove the unpacked/developer label.
 
-## v0.4.0 candidate scope (2026-10-25)
+## Historical v0.4.0 candidate scope (recorded 2026-10-25)
+
+**Archive note (2026-10-31):** v0.4.0 was published on 2026-10-30 and
+v0.4.1 on 2026-10-31. The candidate discussion below describes what was
+true *on 2026-10-25*, not today's publication status. Current releases
+and defaults are in [STATUS.md](STATUS.md).
 
 The audited `main` commit `1b47d258` supports a coherent **capability expansion**
 rather than another documentation-only `0.3.x` update. Preserve ChatGPT
@@ -448,10 +455,9 @@ is authorized by this planning entry.
 
 Do not cut a new minor release for documentation polish alone.
 
-Likely rule:
-
-- `0.3.x` — compatible fixes, drift repairs, docs, packaging, narrow ergonomics;
-- `0.4.0` — coherent new public runtime capability generation.
+Current rule: patch releases can carry compatible bug fixes and bounded
+public-interface corrections; new capability generations require separate,
+evidence-backed scope. Do not create a version solely to update documentation.
 
 ## Architectural invariants
 

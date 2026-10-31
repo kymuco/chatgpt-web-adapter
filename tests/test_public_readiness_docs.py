@@ -47,7 +47,9 @@ def test_readme_points_to_current_status_providers_and_conservative_boundaries()
     assert "[Documentation](docs/README.md)" in text
     assert "[Status](STATUS.md)" in text
     assert "[Providers](docs/providers.md)" in text
-    assert "Latest public release:** `v0.4.0`" in text
+    assert "Latest public release:** [`v0.4.1`]" in text
+    assert "main` has additional changes" in text
+    assert "cwa send" in text
     assert "ChatGPT" in text
     assert "DeepSeek Web" in text
     assert "Gemini Web" in text
@@ -164,12 +166,13 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
         assert limit in quickstart_ru, limit
 
 
-def test_status_distinguishes_published_release_from_merged_patch() -> None:
+def test_status_distinguishes_published_release_from_post_release_main() -> None:
     text = _read("STATUS.md")
 
-    assert "latest public release   v0.4.0" in text
-    assert "release/main commit     96983ac9" in text
-    assert "v0.4.1 release preparation" in text
+    assert "latest public release   v0.4.1" in text
+    assert "published PyPI version  0.4.1" in text
+    assert "release commit          e12b98eb015ae9a0" in text
+    assert "post-release PR256      b09988e0cd1d9e20" in text
     assert "PR15 provider architecture frozen" in text
     assert "ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK" in text
     assert "ChatGPT browser UI    EXPERIMENTAL / secondary" in text
@@ -179,8 +182,10 @@ def test_status_distinguishes_published_release_from_merged_patch() -> None:
         "Google Translate Web  EXPERIMENTAL non-chat translate_text capability" in text
     )
     normalized = " ".join(text.split())
-    assert "v0.4.0 was published" in normalized
-    assert "Direct HTTP E2E" in normalized
+    assert "v0.4.1" in normalized
+    assert "three-Markdown Direct HTTP live evidence" in normalized
+    assert "not present in the published" in normalized
+    assert "are **not** Direct HTTP send-readiness checks" in text
     assert "CAPTURED_UNADMITTED" in text
     assert "PR16  public positioning/documentation alignment" in text
 

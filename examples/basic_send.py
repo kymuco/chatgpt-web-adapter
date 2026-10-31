@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-"""Send one prompt through the stable ChatGPT web send flow.
+"""Historical ChatGPTWebClient compatibility send example.
 
-Purpose: minimal reference example for a new chat request with optional token
-streaming.
-Surface: stable
-Prerequisites: the browser extra and an ``auth login``-created session/profile.
+For new ChatGPT integrations use examples/direct_http_send.py instead.
+This sample retains the legacy Sentinel-era flow and its old model default;
+it is not the current primary Direct HTTP SDK example.
 """
 
 import argparse

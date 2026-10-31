@@ -44,12 +44,18 @@ def test_agent_guide_does_not_claim_mcp_is_shipped() -> None:
 def test_llms_txt_exposes_current_project_surface() -> None:
     text = _read("llms.txt")
 
-    assert text.startswith("# CWA - chatgpt-web-adapter")
+    assert text.startswith("# CWA — chatgpt-web-adapter")
     assert "Quickstart" in text
-    assert "Capability map" in text
-    assert "Agent integration" in text
+    assert "capability map" in text.lower()
+    assert "Agent tool-wrapper guide" in text
     assert "Google Translate Web" in text
-    assert "MCP adapter: planned direction, not currently shipped." in text
+    assert (
+        "does **not** ship a general provider router or a dedicated MCP server" in text
+    )
+    assert "`BrowserlessHTTPClient`" in text
+    assert "defaults to Direct HTTP" in text
+    assert "browser-owned" in text
+    assert "legacy runtime defaults" in text
 
 
 def test_capability_contribution_path_is_evidence_driven() -> None:
@@ -70,3 +76,20 @@ def test_google_translate_has_discoverable_example() -> None:
     assert "GoogleTranslateWebCapability" in text
     assert "translate_text(" in text
     assert 'target_language="es"' in text
+
+
+def test_agent_instructions_follow_primary_http_contract_and_preserve_authority() -> (
+    None
+):
+    agent = _read("AGENTS.md")
+    guide = _read("docs/agent_integration.md")
+    primary = _read("examples/direct_http_send.py")
+
+    assert "BrowserlessHTTPClient" in agent
+    assert "v0.4.1" in agent
+    assert "legacy runtime" in agent
+    assert "No automatic replay" in agent
+    assert "No implicit fallback" in agent
+    assert "A dedicated MCP adapter is **not shipped yet**" in guide
+    assert "BrowserlessHTTPClient" in primary
+    assert "client.send(args.prompt)" in primary

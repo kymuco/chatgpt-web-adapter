@@ -96,10 +96,13 @@ replay.
 For a minimal local agent that can launch subprocesses:
 
 ```bash
-cwa doctor --json
-cwa capabilities --json
-cwa send "Summarize this task in three bullets." --profile HIGH
+cwa send "Summarize this task in three bullets." --profile HIGH --json
 ```
+
+`cwa send` selects Direct HTTP by default on published `v0.4.1`. Do **not** use
+`cwa doctor` or `cwa capabilities` as a Direct HTTP health check: those commands
+inspect the legacy product runtime by default. Dedicated MCP support is not shipped;
+this is a subprocess integration, not an implicit grant of agent authority.
 
 Treat structured exit/failure classes as part of the tool contract. In particular,
 reconciliation-required output must not be converted into automatic replay.

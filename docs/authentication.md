@@ -5,7 +5,7 @@ use an OpenAI API key and does not implement an alternative login protocol.
 
 ## Install
 
-For the primary Direct HTTP SDK (when the 0.4.0 package is published):
+For the released primary Direct HTTP SDK:
 
 ```bash
 python -m pip install chatgpt-web-adapter
@@ -22,8 +22,9 @@ For secondary browser-owned UI interaction and legacy login support:
 python -m pip install "chatgpt-web-adapter[browser]"
 ```
 
-Use the source checkout until v0.4.0 is published; PyPI v0.3.0 lacks the new
-primary HTTP SDK.
+Published `v0.4.1` includes the primary Direct HTTP SDK and uses it by default
+for `cwa send`. A source checkout of current `main` also includes later
+Project/GPT conversation URL parsing not present in that tagged wheel.
 
 ## First Login
 
@@ -163,9 +164,11 @@ the profile.
 Use separate `browser_profile_dir` values if truly independent concurrent
 browser sessions are required.
 
-## Linux Without a Desktop
+## Historical browser-owned use on Linux without a desktop
 
-The supported sequence is:
+This section concerns legacy browser-owned / Sentinel-dependent workflows, **not**
+Direct HTTP sending after an authenticated session has already been saved.
+The historical sequence is:
 
 1. Perform the first interactive login where Chromium can display a window, or
    through a temporary desktop/X session on the target machine.
@@ -173,8 +176,8 @@ The supported sequence is:
 3. Run later writes with `sentinel_headless=True`.
 
 Copying only `auth_data.json` to a clean server is not guaranteed to reproduce
-the browser session. A completely Chromium-free protected-write mode is not
-currently supported.
+the **browser-owned** session. For the separate primary Direct HTTP send path,
+Chromium is not required during sending; see the SDK setup requirements above.
 
 ## Sync existing Chrome session through CWA (opt-in)
 

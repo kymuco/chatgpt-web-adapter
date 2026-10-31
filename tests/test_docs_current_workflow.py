@@ -93,9 +93,10 @@ def test_compatibility_write_examples_are_retained_not_rebranded_as_primary() ->
         assert "sentinel_headless=True" in text, path
 
     readme = _read("README.md")
-    assert "Primary production example:" in readme
+    assert "Primary Direct HTTP example:" in readme
+    assert "examples/direct_http_send.py" in readme
     assert "examples/product_runtime.py" in readme
-    assert "Compatibility examples:" in readme
+    assert "Secondary / compatibility examples" in readme
     assert "Research/diagnostic examples:" in readme
 
 

@@ -292,19 +292,18 @@ ChatGPT semantics for another provider.
 
 ## 11. Rich input
 
-Rich input is currently a mature ChatGPT capability on the proven browser-owned path.
+The primary Direct HTTP `BrowserlessHTTPClient` has live-verified Markdown/PNG
+attachments and multimodal sends, including one guarded three-Markdown
+published-release E2E with canonical readback. Operation evidence is not a
+guarantee that the private web protocol will stay stable.
 
-Supported evidence-backed paths include:
+The separate browser-owned UI runtime has **historical** image/file evidence,
+but its recent three-file attempt did not complete, so it remains secondary
+and `EXPERIMENTAL`. In that path, Native Messaging carries validated local paths
+rather than raw attachment bytes; the product page owns upload and submit.
 
-- image new chat;
-- general file new chat;
-- multimodal continuation.
-
-Native Messaging carries validated local paths rather than raw attachment bytes. The
-official page owns upload and submit.
-
-DeepSeek/Gemini do not inherit rich-input availability merely because their web UIs may
-visibly expose upload controls.
+DeepSeek/Gemini do not inherit rich-input availability merely because their
+web UIs may visibly expose upload controls.
 
 ## 12. Structured product observation
 

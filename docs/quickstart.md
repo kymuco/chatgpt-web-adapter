@@ -13,8 +13,9 @@ The browser-owned UI path remains secondary/experimental and the historical
 
 ## Path A - ChatGPT Direct HTTP (recommended)
 
-Until `v0.4.1` is published, the PyPI release is `0.4.0`. Current `main`
-contains the merged Direct HTTP CLI update for the upcoming patch release.
+Published `v0.4.1` and current `main` use Direct HTTP by default for `cwa send`.
+The newest `main` also contains post-release Project/GPT conversation URL parsing,
+which is not included in the tagged `v0.4.1` wheel.
 Obtain a signed-in `auth_data.json` via existing browser authentication.
 If you need initial `auth login`, install the optional `[browser]` extra and
 sign in once:
@@ -36,9 +37,8 @@ print(response.text)
 print(client.get_status(response.conversation.conversation_id).status)
 ```
 
-On current `main` (v0.4.1 pending publication), the same Direct HTTP SDK is
-selected by default in `cwa send "Hello" --profile HIGH`; the released v0.4.0
-CLI still defaults to browser-owned, so use the Python example above on v0.4.0.
+On released `v0.4.1` and current `main`, the same Direct HTTP SDK is
+selected by default in `cwa send "Hello" --profile HIGH`.
 The `cwa status`, `cwa doctor`, `cwa capabilities`, and `cwa messages` commands
 still inspect the legacy product-runtime transport (`browser-owned` by default),
 not Direct HTTP send health. The browser extension is not required for sending
