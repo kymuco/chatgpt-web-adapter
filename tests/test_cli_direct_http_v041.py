@@ -9,8 +9,8 @@ import pytest
 
 from chatgpt_web_adapter import cli_direct_http
 from chatgpt_web_adapter import cli_v02 as cli
-from chatgpt_web_adapter.exceptions import RequestError
 from chatgpt_web_adapter.diagnostic_metrics import send_with_expanded_metrics
+from chatgpt_web_adapter.exceptions import RequestError
 
 
 def _response(text="hello world"):
