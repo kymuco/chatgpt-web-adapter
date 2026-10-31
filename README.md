@@ -9,11 +9,9 @@
 [![Python](https://img.shields.io/pypi/pyversions/chatgpt-web-adapter.svg)](https://pypi.org/project/chatgpt-web-adapter/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Local product-runtime bridge for authenticated consumer AI web products.**
+**Use your signed-in ChatGPT web session from Python or the terminal.** CWA is a local SDK and CLI for integrating consumer AI web products into applications and agents. Its primary ChatGPT path is authenticated Direct HTTP; other provider integrations have separate, mostly experimental contracts.
 
-CWA lets local software, assistants and agents use ordinary hosted AI products through
-typed runtime contracts without turning browser details, product observations or
-partial output into implicit authority.
+CWA is **not an official provider API** and does not treat a partial response, visible browser state or a failed send as proof of successful completion.
 
 [Quickstart](docs/quickstart.md) · [Qwen (EN)](QWEN.md) · [Qwen (RU)](QWEN.ru.md) · [Capabilities](docs/capabilities.md) · [Agent integration](docs/agent_integration.md) · [Documentation](docs/README.md) · [Providers](docs/providers.md) · [Qwen SDK](docs/qwen.md) · [Status](STATUS.md) · [Architecture](docs/architecture.md) · [Security](SECURITY.md)
 
@@ -23,6 +21,20 @@ partial output into implicit authority.
 
 > **Product observation is not authority. Incremental output is not canonical finality.
 > Ambiguous writes are never automatically retried.**
+
+## First ChatGPT result
+
+Python 3.10–3.14, Node.js 24+, `curl` and a signed-in ChatGPT account are required. The optional `[browser]` extra is for **initial interactive authentication**, not for Direct HTTP sending:
+
+```powershell
+python -m pip install "chatgpt-web-adapter[browser]"
+chatgpt-web-adapter auth login --auth-file auth_data.json
+cwa send "Explain CWA in two sentences." --profile HIGH
+```
+
+Already authenticated? The last command is enough. `cwa send` uses **Direct HTTP by default in released v0.4.1**; it needs no running Chrome tab. Python users can import `BrowserlessHTTPClient`; see [a minimal example](examples/direct_http_send.py) and the [quickstart](docs/quickstart.md). Never commit `auth_data.json`.
+
+**Agent?** Read [AGENTS.md](AGENTS.md) for repository work, [agent integration](docs/agent_integration.md) for tool calls, and [llms.txt](llms.txt) for discovery. `cwa doctor/status/capabilities/messages` still inspect the **legacy product runtime** by default, not Direct HTTP send health. There is no automatic transport fallback or replay after an uncertain send.
 
 ## Start here
 
@@ -107,8 +119,7 @@ print(client.get_status(response.conversation.conversation_id).status)
 secondary, experimental option. It is still the SDK default only for backward
 compatibility. Callers may select it deliberately,
 but CWA never switches transports or resends after an ambiguous write; first
-reconcile the prior conversation outcome. No Headless Chromium backend is
-planned for v0.4.0.
+reconcile the prior conversation outcome. No Headless Chromium replacement is planned for this path.
 
 **Support tier and operation evidence are separate.** Direct HTTP is the
 **PRIMARY_PRODUCTION** public client for live-verified ChatGPT operations; its
@@ -198,22 +209,15 @@ The [production quickstart](docs/quickstart.md), [direct HTTP SDK guide](docs/br
 [Qwen guide](docs/qwen.md), [full capability map](docs/capabilities.md) and
 [provider finality model](docs/providers.md) describe their boundaries.
 
-Capability statuses below distinguish the published **v0.4.0** release from
-**v0.4.1** source now merged to `main` (publication pending). Operation evidence is per-feature, not a
-promise of private-web-protocol stability.
+Capability and transport evidence are operation-specific. Published `v0.4.1` includes the Direct HTTP CLI default; current `main` also contains later unreleased changes. A working private web protocol today is not a guarantee of future stability.
 
 ## Release vs current `main`
 
-- **Latest public release:** `v0.4.0` — 2026-10-30 ([GitHub Release](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.0), [PyPI](https://pypi.org/project/chatgpt-web-adapter/0.4.0/)).
-- **Published package version:** `0.4.0`. The published wheel includes the Direct HTTP SDK.
-- **Merged for next release:** `v0.4.1` (not yet published); current `main` makes `cwa send` use Direct HTTP by default, while the historical product-runtime API default remains browser-owned.
-- **Typing:** PEP 561 `py.typed` is included in the released wheel/sdist; this is not a claim of comprehensive strict typing.
-- **Release documentation:** [v0.4.0 notes](docs/release_notes_0_4_0.md) (original prepublication review record). See [STATUS.md](STATUS.md) for current follow-up work.
-
-The v0.4.0 release tag is immutable; changes in this repository after publication
-require a new version rather than rewriting the published 0.4.0 artifacts.
-The historical [PR17.2 checkpoint](docs/engineering/pr17_2_canonical_product_checkpoint.md)
-remains available as an archival reference.
+- **Latest public release:** [`v0.4.1`](https://github.com/kymuco/chatgpt-web-adapter/releases/tag/v0.4.1), published 2026-10-31 ([PyPI](https://pypi.org/project/chatgpt-web-adapter/0.4.1/)).
+- **Published release commit:** `e12b98eb`; `main` has additional changes, including [Project/GPT conversation URL admission (#256)](https://github.com/kymuco/chatgpt-web-adapter/pull/256), not yet part of that tagged wheel.
+- **CLI:** `cwa send` uses Direct HTTP by default since `0.4.1`. `assemble_product_runtime()` still defaults to the **experimental** browser-owned transport for backwards compatibility.
+- **Typing:** PEP 561 `py.typed` is shipped; no claim of comprehensive strict typing.
+- **History:** [v0.4.0 release notes](docs/release_notes_0_4_0.md) remain an immutable past checkpoint; see [STATUS.md](STATUS.md) for the current state.
 
 ## Why browser-owned remains the SDK default
 
@@ -292,8 +296,8 @@ ChatGPTProductRuntime
              canonical read / attach / status / finality
 ```
 
-For new ChatGPT send/read integrations, prefer `BrowserlessHTTPClient` when
-its experimental scope is suitable. Use `ChatGPTProductRuntime` when you
+For new ChatGPT send/read integrations, prefer `BrowserlessHTTPClient` for
+its documented, live-verified operations. Use `ChatGPTProductRuntime` when you
 explicitly need browser-owned page interaction. The historical
 `ChatGPTWebClient` remains a compatibility surface.
 
@@ -341,25 +345,22 @@ cwa doctor --json
 The extension popup is read-only local product chrome. Opening it does not create
 write authority or submit a product turn.
 
-### Send from current main CLI (v0.4.1 pending publication)
+### Send with the published CLI (`v0.4.1` and current `main`)
 
-On current `main` (v0.4.1 source), `cwa send` defaults to the primary Direct HTTP SDK:
+`cwa send` defaults to the primary Direct HTTP client:
 
 ```powershell
 cwa send "Give me a short project summary." --profile HIGH
 cwa send "Summarize my notes." --file notes.md --profile MEDIUM
 ```
 
-For the already-published v0.4.0 wheel, `cwa send` still defaults to browser-owned;
-use the Python `BrowserlessHTTPClient` above for Direct HTTP until v0.4.1 is released.
 The secondary browser-owned CLI remains explicitly available:
 
 ```powershell
 cwa send "Browser-owned request" --transport browser-owned --profile HIGH
 ```
 
-The `cwa send` default is **Direct HTTP** on current `main`;
-the published v0.4.0 wheel still defaults to browser-owned. The `cwa doctor`, `cwa status`, `cwa capabilities` and `cwa messages`
+The `cwa send` default is **Direct HTTP** on released `v0.4.1` and current `main`. The `cwa doctor`, `cwa status`, `cwa capabilities` and `cwa messages`
 inspection commands still target the historical product runtime, whose default
 transport is `browser-owned`; their browser-bridge readiness does **not** assess
 Direct HTTP send readiness. Do not confuse a disconnected extension with a
@@ -384,9 +385,9 @@ Temporary Chat:
 cwa send "Answer briefly." --temporary --profile INSTANT
 ```
 
-## Production Python example
+## Secondary browser-owned Python example
 
-This demonstrates the secondary browser-owned runtime retained for compatibility. For new
+This demonstrates the experimental browser-owned runtime retained for compatibility. For new
 ChatGPT integrations, use the recommended Direct HTTP example above.
 
 ```python
@@ -625,11 +626,13 @@ Downstream applications decide what to do with product evidence.
 
 ## Examples
 
-Primary production example:
+Primary Direct HTTP example:
 
-- [examples/product_runtime.py](examples/product_runtime.py)
+- [examples/direct_http_send.py](examples/direct_http_send.py)
 
-Compatibility examples:
+Secondary / compatibility examples (not the recommended send path):
+
+- [examples/product_runtime.py](examples/product_runtime.py) — historical browser-owned runtime;
 
 - [examples/basic_send.py](examples/basic_send.py)
 - [examples/continue_saved.py](examples/continue_saved.py)
@@ -700,7 +703,7 @@ Tagged publication also requires:
 GitHub tag version == pyproject package version == dated CHANGELOG release heading
 ```
 
-Latest public release: `v0.4.0` (2026-10-30).
+Latest public release: `v0.4.1` (2026-10-31).
 
 ## Naming
 
