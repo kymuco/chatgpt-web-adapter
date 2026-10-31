@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+"""Secondary experimental browser-owned runtime (compatibility example).
+
+For new ChatGPT sends prefer examples/direct_http_send.py.
+"""
+
 import argparse
 import json
 from pathlib import Path
@@ -9,7 +14,7 @@ from chatgpt_web_adapter import assemble_product_runtime
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Primary production ChatGPT product runtime example"
+        description="Secondary experimental browser-owned ChatGPT runtime example"
     )
     parser.add_argument("--conversation")
     parser.add_argument("--auth-file", type=Path, default=Path("auth_data.json"))
@@ -24,7 +29,7 @@ def main() -> None:
     )
     health = runtime.health(args.conversation)
     report = {
-        "surface": "PRIMARY_PRODUCTION",
+        "surface": "EXPERIMENTAL",
         "transport": runtime.transport,
         "health": health.to_dict(),
         "capabilities": runtime.capabilities().to_dict(),
