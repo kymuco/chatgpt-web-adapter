@@ -1,6 +1,6 @@
 # Security
 
-`chatgpt-web-adapter` (CWA) works with authenticated consumer AI web-product sessions and a high-trust local Chrome extension / Native Messaging bridge. ChatGPT is the current production/default provider; DeepSeek Web and Gemini Web are experimental providers on current `main`. Treat all provider-session, browser and product-capability material accordingly.
+`chatgpt-web-adapter` (CWA) works with authenticated consumer AI web sessions. The **primary ChatGPT SDK** is the Direct HTTP `BrowserlessHTTPClient`, and `cwa send` defaults to it since `v0.4.1`. A separate, high-trust Chrome extension / Native Messaging bridge remains for **experimental** browser-owned interactions; DeepSeek Web and Gemini Web are also experimental. Treat all provider-session, browser and product-capability material as sensitive.
 
 ## Sensitive material
 
@@ -38,7 +38,7 @@ Use local-only directories and repository-local exclusions such as `.git/info/ex
 
 ## Browser-owned bridge
 
-The production ChatGPT protected-write transport is `browser-owned`. Current experimental DeepSeek/Gemini provider proofs also use the same local browser bridge with provider-specific page semantics.
+Browser-owned is a **secondary experimental ChatGPT UI transport**, kept as a legacy SDK default for compatibility, not a preferred production path. Experimental DeepSeek/Gemini provider proofs also use the same local browser bridge with provider-specific page semantics. Direct HTTP is a separate SDK and does not silently fall back to this bridge.
 
 The browser-native extension has Chrome's high-trust `debugger` permission. Load only the extension shipped with this package/source tree and treat changes to extension/service-worker/Native Messaging/provider code as security-sensitive product-runtime changes.
 
@@ -68,19 +68,17 @@ Observation never grants approval, connector authorization, write/retry authorit
 
 ## Generated-artifact boundary
 
-PR10.1 deliberately does **not** implement generated-artifact download/materialization on the current product surface.
+The shared canonical ChatGPT client supports a **narrow, governed**
+`handoff_generated_artifact(...)` operation for a uniquely identified,
+conversation-owned product file. It requires an explicit caller-chosen
+destination, enforces no implicit overwrite, and verifies retrieved bytes.
+User uploads, arbitrary sandbox links, unrelated conversations and guessed
+artifact identifiers are not covered.
 
-Current frozen status:
-
-```text
-ARTIFACT_DOWNLOAD_HANDOFF_UNSUPPORTED_WITHOUT_STABLE_PRODUCT_IDENTITY
-```
-
-CWA does not export candidate artifact locator values and does not synthesize artifact identity from filename, assistant prose, DOM position, message order, URL similarity, or minified React/update-queue internals.
-
-A future handoff may reopen only after a stable product-owned artifact identity and a safe browser-owned resolution path are separately proven. Any eventual local write must also require explicit caller destination/overwrite authority and must keep capability-bearing locators private.
-
-See [`docs/generated_artifact_handoff_pr10_1.md`](docs/generated_artifact_handoff_pr10_1.md).
+Generated image/report readback has separate experimental and read-only limits.
+Never expose signed file locators or assume a tool-generated filename alone
+proves identity. Historical [PR10.1](docs/generated_artifact_handoff_pr10_1.md)
+records an earlier unsupported state; it is not the current handoff contract.
 
 ## Challenge and anti-abuse boundary
 
