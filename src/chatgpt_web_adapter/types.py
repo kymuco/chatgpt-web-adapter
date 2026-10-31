@@ -174,9 +174,7 @@ class AuthData:
             accessToken=access_token,
             cookies=payload.get("cookies") or {},
             browserCookies=(
-                payload.get("browserCookies")
-                or payload.get("browser_cookies")
-                or []
+                payload.get("browserCookies") or payload.get("browser_cookies") or []
             ),
             headers=payload.get("headers") or {},
             expires=payload.get("expires"),
