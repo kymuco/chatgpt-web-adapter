@@ -91,6 +91,9 @@ python ./qwen_sdk.py --stream network
 Registration writes per-user manifests in both
 `${XDG_CONFIG_HOME:-~/.config}/google-chrome/NativeMessagingHosts` and
 `${XDG_CONFIG_HOME:-~/.config}/chromium/NativeMessagingHosts`.
+A valid absolute \`CHROME_CONFIG_HOME\` overrides \`XDG_CONFIG_HOME\` for
+both manifest locations.
+
 The unpacked extension is in the persistent
 `${XDG_STATE_HOME:-~/.local/state}/chatgpt-web-adapter/qwen-native/extension`
 location. Reload the isolated Qwen extension after registration, sign in to
