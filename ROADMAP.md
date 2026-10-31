@@ -1,6 +1,6 @@
 # chatgpt-web-adapter Roadmap
 
-_Updated 2026-10-31 for the published v0.4.1 / post-release main checkpoint._
+_Last updated: 2026-10-31 (published v0.4.1 / post-release main checkpoint)_
 
 This roadmap describes direction after CWA 0.3, the PR15 provider architecture
 reset, the isolated Qwen Web SDK and the primary Direct HTTP ChatGPT SDK.
