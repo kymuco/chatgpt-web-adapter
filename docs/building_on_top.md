@@ -6,9 +6,26 @@ consumer AI web-product semantics.
 Higher-level products should consume CWA without moving application cognition, policy
 or workflow authority into this repository.
 
-## Start from the runtime contract
+## Choose the current ChatGPT entry point
 
-For the mature/default ChatGPT path:
+For a **new ChatGPT integration**, use the primary, live-verified Direct HTTP
+client; it needs a saved session, Node.js 24+ and curl, but no Chrome tab when
+sending:
+
+```python
+from chatgpt_web_adapter import BrowserlessHTTPClient
+
+client = BrowserlessHTTPClient(auth_file="auth_data.json")
+response = client.send("Summarize the task in three bullets.")
+print(response.text)
+```
+
+See [browserless_http_sdk.md](browserless_http_sdk.md) for continuation,
+streaming and per-operation evidence. The standalone `cwa send` CLI chooses
+Direct HTTP by default since released `v0.4.1`.
+
+Only choose the older product runtime when you **explicitly need** its
+browser-owned UI or provider-boundary interface:
 
 ```python
 from chatgpt_web_adapter import assemble_product_runtime
@@ -19,19 +36,15 @@ runtime = assemble_product_runtime(
 )
 ```
 
-For new integrations, prefer the runtime/capability/provenance surface over the
-historical `ChatGPTWebClient`.
+This path is **EXPERIMENTAL**. It remains the assembly default for backwards
+compatibility, not as a production recommendation. Methods such as
+`runtime.health()`, `runtime.capabilities()`,
+`runtime.send_text_observed()`, `runtime.get_status()` and
+`product_provider_boundary(runtime)` belong to that product-runtime surface;
+do not assume the standalone `BrowserlessHTTPClient` implements them.
 
-Useful application primitives include:
-
-- `runtime.health()`;
-- `runtime.capabilities()`;
-- `runtime.send()`;
-- `runtime.send_text_observed()`;
-- `runtime.get_status()`;
-- `runtime.get_messages()`;
-- `runtime.attach_conversation()`;
-- `product_provider_boundary(runtime)` for provider-neutral metadata validation.
+`ChatGPTWebClient` is a historical compatibility client, not the recommended
+new-integration Send API.
 
 ## Provider-aware integration
 
@@ -50,7 +63,7 @@ runtime
 Current `main` has:
 
 ```text
-ChatGPT       production/default
+ChatGPT HTTP  primary / live-verified; browser-owned secondary / experimental
 DeepSeek Web  experimental
 Gemini Web    experimental
 ```
