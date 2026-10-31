@@ -164,12 +164,12 @@ def test_qwen_reference_guide_matches_isolated_experimental_sdk() -> None:
         assert limit in quickstart_ru, limit
 
 
-def test_status_distinguishes_release_from_unreleased_main_and_provider_tiers() -> None:
+def test_status_distinguishes_published_release_from_merged_patch() -> None:
     text = _read("STATUS.md")
 
     assert "latest public release   v0.4.0" in text
     assert "release/main commit     96983ac9" in text
-    assert "v0.4.1 CLI default alignment" in text
+    assert "v0.4.1 release preparation" in text
     assert "PR15 provider architecture frozen" in text
     assert "ChatGPT HTTP          PRIMARY_PRODUCTION / live-verified SDK" in text
     assert "ChatGPT browser UI    EXPERIMENTAL / secondary" in text
