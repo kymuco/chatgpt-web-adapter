@@ -298,10 +298,13 @@ def linux_native_messaging_manifest_paths(
 ) -> tuple[Path, Path]:
     """Linux per-user Native Messaging locations for Chrome and Chromium."""
     if config_home is None:
-        xdg_home = os.environ.get("XDG_CONFIG_HOME")
+        # Respect Chrome's user-config override before the XDG default.
+        config_root = os.environ.get("CHROME_CONFIG_HOME") or os.environ.get(
+            "XDG_CONFIG_HOME"
+        )
         config_home = (
-            Path(xdg_home).expanduser()
-            if xdg_home and Path(xdg_home).is_absolute()
+            Path(config_root).expanduser()
+            if config_root and Path(config_root).is_absolute()
             else Path.home() / ".config"
         )
     return (
