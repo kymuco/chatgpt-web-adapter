@@ -64,7 +64,42 @@ Reload the **Qwen extension** in `chrome://extensions`. Sign in to [chat.qwen.ai
 | Extension | Separate unpacked Qwen extension | Existing CWA extension |
 | Web permission | `https://chat.qwen.ai/*` | Existing production permissions |
 
-This source installer registers the Qwen Native Host on **Windows**. Unit/packaging tests also run on Linux, but do not imply the same native-host installation workflow works there.
+The source installer supports **Windows and Linux Native Messaging registration**.
+Linux registration is covered by offline tests; real Qwen browser turns remain
+**live-verified on Windows only**. The Linux install contract does not imply a
+successful live Qwen response on EndeavourOS.
+
+### Linux / EndeavourOS setup (offline-validated installation)
+
+From the checkout, create and activate an environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python -m chatgpt_web_adapter.qwen_native
+```
+
+Load the printed directory into Chrome or Chromium at `chrome://extensions`
+(Developer mode → Load unpacked). Copy **the Qwen extension's own ID**, then:
+
+```bash
+python -m chatgpt_web_adapter.qwen_native --extension-id YOUR_QWEN_EXTENSION_ID
+python ./qwen_sdk.py --stream network
+```
+
+Registration writes per-user manifests in both
+`${XDG_CONFIG_HOME:-~/.config}/google-chrome/NativeMessagingHosts` and
+`${XDG_CONFIG_HOME:-~/.config}/chromium/NativeMessagingHosts`.
+A valid absolute \`CHROME_CONFIG_HOME\` overrides \`XDG_CONFIG_HOME\` for
+both manifest locations.
+
+The unpacked extension is in the persistent
+`${XDG_STATE_HOME:-~/.local/state}/chatgpt-web-adapter/qwen-native/extension`
+location. Reload the isolated Qwen extension after registration, sign in to
+`chat.qwen.ai`, and keep the browser running. Do not use the production
+ChatGPT/CWA extension ID or host name. Linux live E2E is **not yet proven**;
+report failures without publishing credentials or browser profile state.
 
 ## 2. CLI cookbook (browser transport)
 

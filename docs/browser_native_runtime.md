@@ -125,6 +125,38 @@ chatgpt-web-adapter browser-native status
 
 A healthy runtime reports `available=true` and `extension_connected=true`.
 
+## Linux (including EndeavourOS / Arch)
+
+Use Python 3.10+ and Google Chrome or Chromium. Install from the intended
+virtual environment, then register the packaged host:
+
+```bash
+python -m pip install -e .
+chatgpt-web-adapter browser-native install
+chatgpt-web-adapter browser-native extension-dir
+```
+
+Load the printed **persistent** unpacked extension directory in
+`chrome://extensions` (Developer mode → Load unpacked), then reload the
+extension after any future `browser-native install`. The installer writes
+per-user Native Messaging manifests for both Google Chrome and Chromium:
+
+```text
+${XDG_CONFIG_HOME:-~/.config}/google-chrome/NativeMessagingHosts/
+${XDG_CONFIG_HOME:-~/.config}/chromium/NativeMessagingHosts/
+```
+
+If \`CHROME_CONFIG_HOME\` is set to an absolute path, it takes precedence
+over \`XDG_CONFIG_HOME\` for both native-host manifest roots.
+
+The extension and deployment state live under
+`${XDG_STATE_HOME:-~/.local/state}/chatgpt-web-adapter/browser-native/`
+so that the unpacked extension survives logout and reboot. The Native Messaging
+host executable is taken from the active Python environment; keep that
+environment installed. Run `chatgpt-web-adapter browser-native status` after
+loading the extension. This is an installation-contract check, **not** a claim
+that ChatGPT live turns have been exercised on EndeavourOS.
+
 ## SDK usage
 
 ```python
