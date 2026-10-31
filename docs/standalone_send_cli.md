@@ -1,83 +1,73 @@
-# Standalone `cwa send`
+# Standalone `cwa send` — primary ChatGPT CLI
 
-`cwa send` is the human-oriented terminal entrypoint for one ordinary ChatGPT product turn. It is a thin usability layer over the existing `ChatGPTProductRuntime`; it does not introduce a second write path.
+Since published `v0.4.1`, `cwa send` uses the **Direct HTTP**
+`BrowserlessHTTPClient` by default. No ChatGPT browser tab is needed to send.
+This differs from the older `cwa runtime send` command and the
+`assemble_product_runtime()` compatibility default (browser-owned, experimental).
 
-## Default behavior
+## Setup and first turn
 
-```powershell
-cwa send "Explain this result"
-```
-
-The standalone CLI deliberately defaults to semantic profile `DEEP`, which maps through the proven PR8.10 selector to product mode `HIGH`.
-
-This is a CLI usability policy only. The Python `ChatGPTProductRuntime` keeps its existing `model_profile=None` default so library callers retain explicit control and compatibility.
-
-Plain invocation prints only the final canonical assistant text.
-
-## Continue a conversation
+Requirements: Python 3.10–3.14, Node.js 24+, `curl` and valid
+`auth_data.json`. First-time authentication is interactive and needs
+the optional `[browser]` package extra:
 
 ```powershell
-cwa send "Continue from the previous result" --conversation <conversation-id>
+python -m pip install "chatgpt-web-adapter[browser]"
+chatgpt-web-adapter auth login --auth-file auth_data.json
+cwa send "Explain this result in two sentences." --profile HIGH
 ```
 
-Conversation continuation accepts a raw ID or either ChatGPT link form:
-`https://chatgpt.com/c/<conversation-id>` and
-`https://chatgpt.com/g/<project-or-gpt-id>/c/<conversation-id>`.
-The scope prefix is parsed to the same conversation ID; it is not itself a
-conversation. The signed-in account must already be authorized to access
-that conversation. This URL admission does not prove successful live
-continuation inside every Project.
+See [authentication](authentication.md) for session handling. Direct HTTP
+uses private, changeable ChatGPT web behavior; it is not an official API.
 
-## Model profiles
+## Profiles, continuation and files
 
-Supported standalone profiles are:
-
-```text
-FAST      -> INSTANT
-BALANCED  -> MEDIUM
-DEEP      -> HIGH (default)
-```
-
-Examples:
+The default requested profile is `HIGH`. Supported aliases are
+`FAST=INSTANT`, `BALANCED=MEDIUM`, `DEEP=HIGH`. Model/profile requests
+do not attest what the server actually selected.
 
 ```powershell
-cwa send "Give me a quick answer" --profile FAST
-cwa send "Analyze the tradeoffs" --profile BALANCED
-cwa send "Do a deep technical review" --profile DEEP
+cwa send "Brief answer." --profile INSTANT
+cwa send "Compare the tradeoffs." --profile MEDIUM
+cwa send "Continue the previous chat." --conversation <conversation-id> --profile HIGH
+cwa send "Summarize these notes." --file notes-a.md --file notes-b.md --profile HIGH
+cwa send "Answer without saving a durable chat." --temporary
 ```
 
-Profile names are case-insensitive. `MAX` remains intentionally unavailable because the proven product selector has only the three mapped slider states.
+`--conversation` accepts an ID or standard ChatGPT URL. On current `main` it
+also accepts `https://chatgpt.com/g/<project-or-gpt-id>/c/<conversation-id>`,
+a parser update **not included in the published `v0.4.1` wheel**. Parsing
+does not guarantee access; the signed-in account must be authorized to read
+or continue that conversation. Project-specific authenticated continuation
+is not yet established by an independent live E2E.
 
-Explicit profile selection is fail-closed in the production runtime. The CLI does not silently fall back to another product mode.
-
-## Revision-safe streaming
+## Output and failures
 
 ```powershell
-cwa send "Explain the architecture" --stream
+cwa send "Explain the architecture." --stream
+cwa send "Inspect this." --json
 ```
 
-Streaming uses the proven PR8.9 `on_event` revision-safe surface, not the legacy `on_token` compatibility callback.
+Plain mode shows the completed answer; streaming may include provisional
+output, so final/canonical readback remains authoritative. JSON output exposes
+structured send results or a bounded failure. Do not interpret a lost response
+after potential submission as permission to resend. **No automatic retry or
+transport fallback** is performed.
 
-Append-only extensions appear naturally. If already displayed provisional text is revised, the portable terminal renderer starts a labelled revision/canonical block rather than pretending the source was an append-only token stream. Canonical final text remains authoritative.
+`cwa doctor`, `cwa status`, `cwa capabilities` and `cwa messages` still
+inspect the **legacy product runtime** by default; they are not Direct HTTP
+send-readiness checks.
 
-The renderer also reuses PR8.9 sequence validation, so duplicate or reordered text observations are not blindly printed twice.
+## Explicit secondary runtime
 
-## Machine-readable output
+The older browser-owned UI mode is **EXPERIMENTAL**, even though its
+historical Python assembly default is retained for compatibility:
 
 ```powershell
-cwa send "Inspect this" --json
+cwa send "Use the page-owned UI path." --transport browser-owned --profile HIGH
+cwa runtime send "Use the historical product-runtime command."
 ```
 
-`--json` returns the same structured observed execution shape used by the lower-level `runtime send` command, including conversation identity, runtime observation and provenance.
-
-`--stream` and `--json` are mutually exclusive so stdout has one clear contract.
-
-## Compatibility boundary
-
-The existing command remains available:
-
-```powershell
-cwa runtime send "..."
-```
-
-It remains the lower-level machine-oriented runtime command and keeps its existing behavior. In particular, this standalone feature does not impose the `DEEP` default on `ChatGPTProductRuntime` itself or on `runtime send`.
+These are separate, explicitly selected paths; CWA does not silently migrate
+between them. See [primary HTTP SDK](browserless_http_sdk.md) and
+[capabilities](capabilities.md) for per-operation evidence.
