@@ -146,6 +146,9 @@ ${XDG_CONFIG_HOME:-~/.config}/google-chrome/NativeMessagingHosts/
 ${XDG_CONFIG_HOME:-~/.config}/chromium/NativeMessagingHosts/
 ```
 
+If \`CHROME_CONFIG_HOME\` is set to an absolute path, it takes precedence
+over \`XDG_CONFIG_HOME\` for both native-host manifest roots.
+
 The extension and deployment state live under
 `${XDG_STATE_HOME:-~/.local/state}/chatgpt-web-adapter/browser-native/`
 so that the unpacked extension survives logout and reboot. The Native Messaging
