@@ -113,8 +113,13 @@ def send_direct_http(args: Any) -> int:
         # response body or conversation outcome was received completely.
         stream_curl_failure = (
             error.request_stage == "transport"
-            and error.endpoint is None
             and str(error).startswith("curl failed:")
+            # The metrics wrapper enriches streamed POST errors with the
+            # conversation URL even when no HTTP headers were received.
+            and (
+                error.endpoint is None
+                or error.endpoint.startswith("https://chatgpt.com/backend-api/")
+            )
         )
         accepted_headers_partial = (
             error.request_stage == "transport" and error.status_code == 200
