@@ -25,13 +25,13 @@ def conversation_id_from_selector(value: str) -> str:
     if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_CHATGPT_HOSTS:
         raise ValueError("CHATGPT_CONVERSATION_URL_REQUIRED")
 
-    parts = [part for part in parsed.path.split("/") if part]
-    candidates = [
-        parts[index + 1] for index, part in enumerate(parts[:-1]) if part == "c"
-    ]
-    if len(candidates) != 1:
-        raise ValueError("CHATGPT_CONVERSATION_URL_REQUIRED")
-    return _conversation_id(candidates[0])
+    try:
+        # Share the SDK's exact-route policy instead of maintaining an
+        # independent, permissive nested /c/ path parser.
+        conversation_id = ConversationRef.from_any(text).conversation_id
+        return _conversation_id(conversation_id)
+    except (ValueError, TypeError) as exc:
+        raise ValueError("CHATGPT_CONVERSATION_URL_REQUIRED") from exc
 
 
 def main() -> int:
