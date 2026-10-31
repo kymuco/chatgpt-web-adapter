@@ -4,6 +4,8 @@ import argparse
 import json
 from urllib.parse import urlparse
 
+from chatgpt_web_adapter.types import ConversationRef
+
 if __package__:
     from .pr13_1_conversation_files_identity_probe import _conversation_id, run_probe
 else:
