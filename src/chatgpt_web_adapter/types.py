@@ -481,7 +481,9 @@ class PendingApproval:
             "target_message_id",
             _required_str(self.target_message_id, "target_message_id"),
         )
-        object.__setattr__(self, "recipient", _required_str(self.recipient, "recipient"))
+        object.__setattr__(
+            self, "recipient", _required_str(self.recipient, "recipient")
+        )
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any] | None) -> "PendingApproval | None":
@@ -726,7 +728,9 @@ class ChatRequestDiagnostics:
             for value in self.handoff_option_types
             if isinstance(value, str) and value.strip()
         )
-        self.resume_transport_preference = _optional_str(self.resume_transport_preference)
+        self.resume_transport_preference = _optional_str(
+            self.resume_transport_preference
+        )
         self.handoff_recovery_mode = _optional_str(self.handoff_recovery_mode)
         self.resume_with_websockets = bool(self.resume_with_websockets)
         self.turn_exchange_id = _optional_str(self.turn_exchange_id)
