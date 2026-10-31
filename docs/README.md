@@ -125,8 +125,8 @@ not public API definition.
 - [`engineering/pr17_2_canonical_product_checkpoint.md`](engineering/pr17_2_canonical_product_checkpoint.md)
   — exact merged-source baseline, release gap, private Notebook retrieval
   boundary, background ChatGPT submit/slider evidence and Phase C reasoning
-  preservation. This is current checkpoint guidance; linked PR engineering
-  documents remain underlying historical evidence.
+  preservation. This is **historical checkpoint evidence**, not the current
+  release or transport recommendation; see [`../STATUS.md`](../STATUS.md).
 
 ## Release and maintenance
 
