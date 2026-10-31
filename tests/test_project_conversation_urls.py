@@ -10,7 +10,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from chatgpt_web_adapter import ChatGPTWebClient, ConversationRef
 from chatgpt_web_adapter.messages import get_messages as parse_messages
 
@@ -51,7 +50,9 @@ def _payload() -> dict:
     }
 
 
-@pytest.mark.parametrize("url", [REGULAR_URL, PROJECT_URL, PROJECT_URL + "?model=gpt-6"])
+@pytest.mark.parametrize(
+    "url", [REGULAR_URL, PROJECT_URL, PROJECT_URL + "?model=gpt-6"]
+)
 def test_user_full_history_to_markdown_pattern_uses_canonical_id(url: str) -> None:
     """Exercise the user's ConversationRef -> full payload -> messages path."""
     calls = []
