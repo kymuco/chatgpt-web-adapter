@@ -74,7 +74,9 @@ def test_public_examples_use_public_package_imports_only() -> None:
         assert "import chatgpt_web_adapter." not in text
 
 
-def test_primary_example_is_direct_http_and_secondary_example_keeps_provenance() -> None:
+def test_primary_example_is_direct_http_and_secondary_example_keeps_provenance() -> (
+    None
+):
     primary = (EXAMPLES / "direct_http_send.py").read_text(encoding="utf-8")
     secondary = (EXAMPLES / "product_runtime.py").read_text(encoding="utf-8")
 
