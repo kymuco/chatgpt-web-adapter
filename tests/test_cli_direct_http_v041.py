@@ -322,9 +322,7 @@ def test_partial_http_200_and_sse_transport_failure_require_reconciliation(
             calls.append(1)
             raise failure
 
-    monkeypatch.setattr(
-        cli_direct_http, "BrowserlessHTTPClient", StreamInterrupted
-    )
+    monkeypatch.setattr(cli_direct_http, "BrowserlessHTTPClient", StreamInterrupted)
     exit_code = cli.main(["send", "hello", "--json"])
     error = json.loads(capsys.readouterr().err)["error"]
     assert exit_code == cli.EXIT_RECONCILIATION_REQUIRED

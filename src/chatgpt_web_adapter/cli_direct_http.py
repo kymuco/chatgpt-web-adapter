@@ -130,9 +130,7 @@ def send_direct_http(args: Any) -> int:
             "inspect canonical conversation history before any new send",
             status_code=error.status_code,
             request_stage=error.request_stage,
-            endpoint="conversation_write"
-            if stream_curl_failure
-            else error.endpoint,
+            endpoint="conversation_write" if stream_curl_failure else error.endpoint,
         ) from error
 
     if args.json:
