@@ -9,9 +9,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
 from chatgpt_web_adapter import ChatGPTWebClient, ConversationRef
 from chatgpt_web_adapter.messages import get_messages as parse_messages
+
+import pytest
 
 
 CONVERSATION_ID = "6ae57b9d-95dc-83ed-8bab-3556e8c2d1c0"
@@ -112,7 +113,7 @@ def test_public_attach_and_message_read_accept_both_routes(url: str) -> None:
     assert calls and set(calls) == {CONVERSATION_ID}
 
 
-def test_extension_route_parser_supports_project_tabs_without_ambiguous_matches() -> None:
+def test_extension_route_parser_accepts_project_tabs() -> None:
     """Run the shipping service-worker route parser in a Node VM (no Chrome)."""
     node = shutil.which("node")
     if not node:
