@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -34,6 +36,60 @@ def test_qwen_native_descriptor_and_host_are_independent(monkeypatch, tmp_path):
     assert QwenBrowserTurnProvider().descriptor_path != (
         production_root / "bridge.json"
     )
+
+
+def test_windows_qwen_native_registration_uses_single_registry_separators(
+    monkeypatch, tmp_path: Path
+):
+    """Simulate the Windows registry call without writing to a real registry."""
+    root = tmp_path / "qwen-native"
+    executable_dir = tmp_path / "Scripts"
+    executable_dir.mkdir()
+    (executable_dir / "qwen-web-adapter-native-host.exe").write_text(
+        "placeholder", encoding="utf-8"
+    )
+    monkeypatch.setattr(qwen_native, "state_dir", lambda: root)
+    monkeypatch.setattr(qwen_native, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(qwen_native.sys, "executable", str(executable_dir / "python.exe"))
+    monkeypatch.setattr(
+        qwen_native.sys,
+        "argv",
+        ["qwen-native", "--extension-id", "abcdefghijklmnopabcdefghijklmnop"],
+    )
+    calls = []
+
+    class RegistryKey:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def create_key(root_key, path):
+        calls.append((root_key, path))
+        return RegistryKey()
+
+    def set_value(_key, name, _reserved, _type, value):
+        calls.append((name, value))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "winreg",
+        SimpleNamespace(
+            HKEY_CURRENT_USER=1,
+            REG_SZ=1,
+            CreateKey=create_key,
+            SetValueEx=set_value,
+        ),
+    )
+
+    qwen_native.main()
+
+    assert calls[0] == (
+        1,
+        rf"Software\Google\Chrome\NativeMessagingHosts\{qwen_native.HOST_NAME}",
+    )
+    assert calls[1] == (None, str(root / "native-host.json"))
 
 
 def test_qwen_worker_is_not_loaded_by_shared_cwa():
