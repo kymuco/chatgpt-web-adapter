@@ -29,6 +29,38 @@ def test_conversation_ref_accepts_chatgpt_url_with_query_and_fragment() -> None:
     assert ref.conversation_id == CONVERSATION_ID
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://chatgpt.com/g/g-p-example-project/c/conv-123",
+        "https://chatgpt.com/g/g-p-example-project/c/conv-123/",
+        "https://chatgpt.com/g/g-p-example-project/c/conv-123?model=gpt-6#message",
+        "https://www.chatgpt.com/g/g-p-example-project/c/conv-123",
+        "https://chatgpt.com/g/g-custom-gpt/c/conv-123",
+    ],
+)
+def test_conversation_ref_accepts_project_and_gpt_chat_urls(url: str) -> None:
+    assert adapter.ConversationRef.from_any(url).conversation_id == CONVERSATION_ID
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://chatgpt.com/g/g-p-example-project",
+        "https://chatgpt.com/g/g-p-example-project/c/",
+        "https://chatgpt.com/g/other/c/conv-123",
+        "https://chatgpt.com/other/c/conv-123",
+        "https://chatgpt.com/c/conv-123/extra",
+        "https://chatgpt.com/g/g-p-example-project/c/conv-123/extra",
+        "https://chatgpt.com/g/g-p-example-project/c/conv-123/c/other",
+        "https://example.com/g/g-p-example-project/c/conv-123",
+    ],
+)
+def test_conversation_ref_rejects_nonconversation_scoped_routes(url: str) -> None:
+    with pytest.raises(ValueError):
+        adapter.ConversationRef.from_any(url)
+
+
 def test_conversation_ref_accepts_legacy_chat_openai_url() -> None:
     ref = adapter.ConversationRef.from_any(f"https://chat.openai.com/c/{CONVERSATION_ID}/")
 
