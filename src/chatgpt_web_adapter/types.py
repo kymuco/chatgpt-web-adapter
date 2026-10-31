@@ -279,13 +279,27 @@ class ConversationRef:
         hostname = (parsed.hostname or "").lower()
         if parsed.scheme not in {"http", "https"}:
             raise ValueError("conversation URL must use http or https")
-        if hostname not in {"chatgpt.com", "chat.openai.com"}:
+        if hostname not in {"chatgpt.com", "www.chatgpt.com", "chat.openai.com"}:
             raise ValueError("conversation URL host is not supported")
 
-        parts = [part for part in parsed.path.split("/") if part]
-        if len(parts) != 2 or parts[0] != "c":
-            raise ValueError("conversation URL must have /c/<conversation_id> path")
-        return parts[1]
+        # ChatGPT uses /c/<id> for regular chats and /g/<g-id>/c/<id>
+        # for chats opened inside a Project or a GPT. Both address the
+        # same canonical conversation id; never treat the project id as it.
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) == 2 and parts[0] == "c" and parts[1]:
+            return parts[1]
+        if (
+            len(parts) == 4
+            and parts[0] == "g"
+            and parts[1].startswith("g-")
+            and parts[2] == "c"
+            and parts[3]
+        ):
+            return parts[3]
+        raise ValueError(
+            "conversation URL must have /c/<conversation_id> or "
+            "/g/<project-id>/c/<conversation_id> path"
+        )
 
 
 @dataclass
