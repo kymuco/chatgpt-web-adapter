@@ -50,7 +50,9 @@ def test_windows_qwen_native_registration_uses_single_registry_separators(
     )
     monkeypatch.setattr(qwen_native, "state_dir", lambda: root)
     monkeypatch.setattr(qwen_native, "os", SimpleNamespace(name="nt"))
-    monkeypatch.setattr(qwen_native.sys, "executable", str(executable_dir / "python.exe"))
+    monkeypatch.setattr(
+        qwen_native.sys, "executable", str(executable_dir / "python.exe")
+    )
     monkeypatch.setattr(
         qwen_native.sys,
         "argv",
