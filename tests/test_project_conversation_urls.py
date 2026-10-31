@@ -9,11 +9,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from chatgpt_web_adapter import ChatGPTWebClient, ConversationRef
-from chatgpt_web_adapter.messages import get_messages as parse_messages
-
 import pytest
 
+from chatgpt_web_adapter import ChatGPTWebClient, ConversationRef
+from chatgpt_web_adapter.messages import get_messages as parse_messages
 
 CONVERSATION_ID = "6ae57b9d-95dc-83ed-8bab-3556e8c2d1c0"
 PROJECT_ID = "g-p-6ade211b7c10819194ec0adbdc964fe3-cwa"
