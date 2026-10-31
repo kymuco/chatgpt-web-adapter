@@ -48,6 +48,34 @@ Never resend automatically if the first send has an uncertain outcome. See
 [Direct HTTP SDK](browserless_http_sdk.md) for model, files, continuation and
 setup limitations.
 
+## Existing conversation links: regular and Project chats
+
+Every public CWA method that accepts a ChatGPT conversation reference can
+receive a raw conversation ID, a standard
+`https://chatgpt.com/c/<conversation-id>` URL, or a Project/GPT-scoped
+`https://chatgpt.com/g/<project-or-gpt-id>/c/<conversation-id>` URL.
+The `ConversationRef` parser selects the **conversation ID** and never
+mistakes the scope identifier for the conversation.
+
+For example, this pattern supports either URL without rewriting it:
+
+```python
+from chatgpt_web_adapter import ChatGPTWebClient, ConversationRef
+
+url = "https://chatgpt.com/g/g-p-my-project/c/my-conversation-id"
+client = ChatGPTWebClient(auth_file="auth_data.json", timeout=120)
+ref = ConversationRef.from_any(url)
+payload = client._get_full_conversation_payload(ref.conversation_id)
+```
+
+The last line is a historical private payload API, included to match existing
+scripts; for public reads prefer `client.get_messages(url, limit=None)`,
+`client.attach_conversation(url)` or the `cwa snapshot` / `cwa export`
+commands. The input URL is an address, **not authorization**; access still
+depends on the current authenticated account. Normalizing a URL to a
+conversation ID does not retain or recreate the original Project URL or imply
+that a Project-specific read has been live-verified.
+
 ## Path B - browser-owned CLI (secondary, explicit transport)
 
 Install CWA with the browser bridge:

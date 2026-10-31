@@ -160,8 +160,11 @@ function conversationIdFromUrl(url) {
   try {
     const parsed = new URL(url);
     if (parsed.origin !== CHATGPT_ORIGIN) return null;
-    const match = parsed.pathname.match(/^\/c\/([^/]+)/);
-    return match ? decodeURIComponent(match[1]) : null;
+    const path = parsed.pathname.replace(/\/+$/, "");
+    const plain = /^\/c\/([^/]+)$/.exec(path);
+    const scoped = /^\/g\/(g-[^/]+)\/c\/([^/]+)$/.exec(path);
+    const id = plain ? plain[1] : scoped ? scoped[2] : null;
+    return id ? decodeURIComponent(id) : null;
   } catch {
     return null;
   }
