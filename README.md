@@ -217,7 +217,7 @@ Capability and transport evidence are operation-specific. Published `v0.4.1` inc
 - **Published release commit:** `e12b98eb`; `main` has additional changes, including [Project/GPT conversation URL admission (#256)](https://github.com/kymuco/chatgpt-web-adapter/pull/256), not yet part of that tagged wheel.
 - **CLI:** `cwa send` uses Direct HTTP by default since `0.4.1`. `assemble_product_runtime()` still defaults to the **experimental** browser-owned transport for backwards compatibility.
 - **Typing:** PEP 561 `py.typed` is shipped; no claim of comprehensive strict typing.
-- **History:** [v0.4.0 release notes](docs/release_notes_0_4_0.md) remain an immutable past checkpoint; see [STATUS.md](STATUS.md) for the current state.
+- **History:** [v0.4.0 release notes](docs/release_notes_0_4_0.md) and the [PR17.2 checkpoint](docs/engineering/pr17_2_canonical_product_checkpoint.md) remain immutable past evidence; see [STATUS.md](STATUS.md) for the current state.
 
 ## Why browser-owned remains the SDK default
 
