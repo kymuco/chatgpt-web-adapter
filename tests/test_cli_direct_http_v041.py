@@ -366,9 +366,7 @@ def test_metrics_enriched_sse_stream_failure_requires_reconciliation(
             )
             raise self.raw_error
 
-    monkeypatch.setattr(
-        cli_direct_http, "BrowserlessHTTPClient", WrappedStreamFailure
-    )
+    monkeypatch.setattr(cli_direct_http, "BrowserlessHTTPClient", WrappedStreamFailure)
     exit_code = cli.main(["send", "hello", "--json"])
     payload = json.loads(capsys.readouterr().err)["error"]
 
