@@ -29,6 +29,9 @@ from .web_session import bootstrap_web_session, suppress_web_session_debug_trace
 ASSET_URL = "https://chatgpt.com/cdn/assets/200429.3d54d9c431.js"
 MODULE_HASH = "21a5313fc55570e213891f3f6daef5a596130a8a5cd12b8d90a94e37944321ed"
 RUNTIME = Path(__file__).with_name("browserless_js") / "runtime.cjs"
+STREAM_POST_MAX_TIME_SECONDS = 1800
+STREAM_POST_LOW_SPEED_TIME_SECONDS = 180
+STREAM_POST_LOW_SPEED_LIMIT_BYTES_PER_SECOND = 1
 
 
 def fetch_protocol_module(curl: str, destination: Path) -> None:
@@ -65,6 +68,29 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
     """
 
     _parse_event = staticmethod(parse_event)
+
+    def _build_curl_command(
+        self, method, url, headers, header_path, body_path=None, *,
+        no_buffer=False, follow_redirects=False,
+    ):
+        command = super()._build_curl_command(
+            method, url, headers, header_path, body_path,
+            no_buffer=no_buffer, follow_redirects=follow_redirects,
+        )
+        parsed = urlsplit(url)
+        if (
+            method.upper() == "POST" and no_buffer
+            and parsed.scheme == "https" and parsed.hostname == "chatgpt.com"
+            and parsed.path in {"/backend-api/f/conversation", "/backend-api/conversation"}
+            and headers.get("accept") == "text/event-stream"
+        ):
+            maximum = command.index("--max-time")
+            command[maximum + 1] = str(max(self.timeout, STREAM_POST_MAX_TIME_SECONDS))
+            command.extend([
+                "--speed-limit", str(STREAM_POST_LOW_SPEED_LIMIT_BYTES_PER_SECOND),
+                "--speed-time", str(max(self.timeout, STREAM_POST_LOW_SPEED_TIME_SECONDS)),
+            ])
+        return command
 
     def _run_curl(self, method, url, headers, body=None, *, persist_cookies=True, follow_redirects=False):
         try:

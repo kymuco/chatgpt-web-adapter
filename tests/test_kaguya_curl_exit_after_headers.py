@@ -6,6 +6,7 @@ No network, auth, Sentinel or conversation request is performed.
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -153,3 +154,30 @@ def test_failed_sentinel_prepare_never_requests_finalize_or_conversation(monkeyp
     assert caught.value.endpoint == "sentinel_prepare"
     assert len(requests) == 1
     assert requests[0][1].endswith("/sentinel/chat-requirements/prepare")
+
+
+def test_stream_failure_reports_safe_stage_without_body_or_stderr(monkeypatch):
+    client = _client()
+
+    class Process:
+        stdout = io.BytesIO(b"data: partial private response\n")
+        stderr = io.BytesIO(b"curl timeout secret data")
+
+        def wait(self, timeout=None):
+            return 28
+
+        def poll(self):
+            return 28
+
+    def popen(command, **_kwargs):
+        Path(command[command.index("-D") + 1]).write_text("HTTP/1.1 200 OK\n", encoding="utf-8")
+        return Process()
+
+    monkeypatch.setattr(core.subprocess, "Popen", popen)
+    with pytest.raises(RequestError) as caught:
+        client._stream_backend_payload({}, {})
+    assert caught.value.request_stage == "conversation_stream"
+    assert caught.value.status_code == 200
+    assert "exit_code=28" in str(caught.value)
+    assert "secret" not in str(caught.value)
+    assert "private" not in str(caught.value)

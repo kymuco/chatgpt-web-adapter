@@ -2110,8 +2110,9 @@ class ChatGPTWebClient:
                 error_text = f"backend status={status}"
                 raise RequestError(error_text)
             if return_code != 0:
-                error_text = f"curl failed: {stderr_text.strip() or return_code}"
-                raise RequestError(error_text)
+                error_text = f"curl failed: exit_code={return_code}; http_status={status}"
+                raise RequestError(error_text, status_code=status or None,
+                                   request_stage="conversation_stream")
             return latest_conversation_id, latest_message_id, "".join(full_chunks)
         finally:
             self._write_debug_trace(
@@ -2943,8 +2944,9 @@ class ChatGPTWebClient:
                 error_text = f"backend status={status}: {body_text[:300]}"
                 raise RequestError(error_text)
             if return_code != 0:
-                error_text = f"curl failed: {stderr_text.strip() or return_code}"
-                raise RequestError(error_text)
+                error_text = f"curl failed: exit_code={return_code}; http_status={status}"
+                raise RequestError(error_text, status_code=status or None,
+                                   request_stage="conversation_stream")
         finally:
             self._write_debug_trace(
                 "stream",
