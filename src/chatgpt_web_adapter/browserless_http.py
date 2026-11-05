@@ -17,6 +17,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .browserless_stream import parse_event
 from .client import ChatGPTWebClient
@@ -64,6 +65,27 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
     """
 
     _parse_event = staticmethod(parse_event)
+
+    def _run_curl(self, method, url, headers, body=None, *, persist_cookies=True, follow_redirects=False):
+        try:
+            return super()._run_curl(
+                method, url, headers, body,
+                persist_cookies=persist_cookies, follow_redirects=follow_redirects,
+            )
+        except RequestError as error:
+            if error.request_stage not in {"transport", "transport_timeout"}:
+                raise
+            parsed = urlsplit(url)
+            endpoints = {
+                "/backend-api/sentinel/chat-requirements/prepare": "sentinel_prepare",
+                "/backend-api/sentinel/chat-requirements/finalize": "sentinel_finalize",
+                "/": "session_bootstrap",
+            }
+            endpoint = endpoints.get(parsed.path, "other_http") if (
+                parsed.scheme == "https" and parsed.hostname == "chatgpt.com"
+            ) else "other_http"
+            raise RequestError(str(error), status_code=error.status_code,
+                               request_stage=error.request_stage, endpoint=endpoint) from error
 
     def __init__(
         self,
