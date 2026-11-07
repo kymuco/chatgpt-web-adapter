@@ -29,6 +29,15 @@ def test_default_browser_and_interactive_continuation(runner, monkeypatch):
     assert client.send_text.call_args_list[0].kwargs["conversation"] is None
     assert client.send_text.call_args_list[1].kwargs["conversation"] == "chat"
     client.import_browser_auth.assert_not_called()
+    assert "on_token" in client.send_text.call_args_list[0].kwargs
+    assert "on_text" not in client.send_text.call_args_list[0].kwargs
+
+
+def test_explicit_dom_stream_remains_available(runner):
+    module, _, client = runner
+    assert module.main(["--stream", "dom", "hello"]) == 0
+    assert "on_text" in client.send_text.call_args.kwargs
+    assert "on_token" not in client.send_text.call_args.kwargs
 
 
 def test_explicit_http_is_labelled_experimental(runner, capsys):
@@ -37,6 +46,30 @@ def test_explicit_http_is_labelled_experimental(runner, capsys):
     factory.assert_called_once_with(transport="http")
     assert "experimental" in capsys.readouterr().err
     client.send_text.assert_called_once()
+
+
+def test_live_network_prints_fragments_once(runner, capsys):
+    module, _, client = runner
+
+    def reply(message, **kwargs):
+        kwargs["on_token"]("O")
+        kwargs["on_token"]("K")
+        return SimpleNamespace(text="OK", conversation="chat")
+
+    client.send_text.side_effect = reply
+    assert module.main(["hello"]) == 0
+    assert capsys.readouterr().out == "OK\n"
+
+
+def test_interactive_http_stream_does_not_pass_browser_conversation(
+    runner, monkeypatch
+):
+    module, _, client = runner
+    messages = iter(["hello", "/exit"])
+    monkeypatch.setattr("builtins.input", lambda _: next(messages))
+    assert module.main(["--transport", "http"]) == 0
+    assert "on_token" in client.send_text.call_args.kwargs
+    assert "conversation" not in client.send_text.call_args.kwargs
 
 
 def test_auth_import_without_transport_never_sends(runner):

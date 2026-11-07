@@ -73,7 +73,7 @@ Qwen SDK · transport=browser · /exit для выхода
 
 Type a question and press Enter. The SDK streams answer fragments as they are observed. Use `/exit` to quit. The terminal maintains the returned conversation within that run.
 
-> **Why `--stream network`?** The CLI defaults to `dom` snapshots; hidden-tab DOM may be incomplete even after Qwen finishes. The network mode is the preferred, Windows-live-verified text-streaming path. Neither mode proves canonical/durable Qwen conversation readback.
+> **Why `--stream network`?** The CLI now defaults to `network`; the flag is optional. It is the preferred, Windows-live-verified streaming path because hidden-tab DOM can be incomplete. Use `--stream dom` only when explicitly needed. Neither mode proves canonical/durable Qwen conversation readback.
 
 ## Everyday commands (same CLI)
 

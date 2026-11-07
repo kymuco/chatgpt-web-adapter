@@ -146,9 +146,7 @@ class QwenHttpClient:
         if changed and self.on_auth_updated is not None:
             self.on_auth_updated(self.credentials)
 
-    def _request(
-        self, method: str, path: str, *, payload: Any = None, stream: bool = False
-    ) -> Any:
+    def _request(self, method: str, path: str, *, payload: Any = None) -> Any:
         if not path.startswith("/api/") or "//" in path:
             raise ValueError("Only Qwen API paths are supported")
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -349,7 +347,7 @@ class QwenHttpClient:
         # One and only one completion POST. On interrupted stream, never replay.
         try:
             with self._request(
-                "POST", path, payload=self._payload(text, selected, state), stream=True
+                "POST", path, payload=self._payload(text, selected, state)
             ) as response:
                 # No retry is safe after a completion POST, even if Qwen returns
                 # a login/WAF HTML page with HTTP 200.
