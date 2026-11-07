@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from .browser_native_host import BrowserNativeBroker
+from .browser_native_install import linux_native_messaging_manifest_paths
 from .browser_native_protocol import (
     default_browser_native_state_dir,
     read_native_message,
@@ -66,32 +67,37 @@ def main():
         identity = args.extension_id
         if len(identity) != 32 or any(c not in "abcdefghijklmnop" for c in identity):
             parser.error("Invalid Chrome extension ID")
-        executable = Path(sys.executable).parent / "qwen-web-adapter-native-host.exe"
-        if not executable.exists():
-            parser.error("Run pip install -e . first")
-        host = root / "native-host.json"
-        host.write_text(
-            json.dumps(
-                {
-                    "name": HOST_NAME,
-                    "description": "Independent Qwen bridge",
-                    "path": str(executable),
-                    "type": "stdio",
-                    "allowed_origins": [f"chrome-extension://{identity}/"],
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        if os.name != "nt":
-            parser.error("Native host registration currently supports Windows only")
-        import winreg
+        if os.name != "nt" and sys.platform != "linux":
+            parser.error("Native host registration supports Windows and Linux only")
 
-        with winreg.CreateKey(
-            winreg.HKEY_CURRENT_USER,
-            rf"Software\Google\Chrome\NativeMessagingHosts\{HOST_NAME}",
-        ) as key:
-            winreg.SetValueEx(key, None, 0, winreg.REG_SZ, str(host))
+        suffix = ".exe" if os.name == "nt" else ""
+        executable = (
+            Path(sys.executable).parent / f"qwen-web-adapter-native-host{suffix}"
+        )
+        if not executable.is_file():
+            parser.error("Run pip install -e . first")
+        payload = {
+            "name": HOST_NAME,
+            "description": "Independent Qwen bridge",
+            "path": str(executable.resolve()),
+            "type": "stdio",
+            "allowed_origins": [f"chrome-extension://{identity}/"],
+        }
+        if os.name == "nt":
+            host = root / "native-host.json"
+            host.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            import winreg
+
+            with winreg.CreateKey(
+                winreg.HKEY_CURRENT_USER,
+                rf"Software\Google\Chrome\NativeMessagingHosts\{HOST_NAME}",
+            ) as key:
+                winreg.SetValueEx(key, None, 0, winreg.REG_SZ, str(host))
+        else:
+            for host in linux_native_messaging_manifest_paths(HOST_NAME):
+                host.parent.mkdir(parents=True, exist_ok=True)
+                host.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+                os.chmod(host, 0o600)
         print("Qwen native host registered")
     print(extension)
 
