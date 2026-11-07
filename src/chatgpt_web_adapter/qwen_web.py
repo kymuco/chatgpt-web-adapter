@@ -163,6 +163,41 @@ class QwenBrowserTurnProvider(BrowserNativeTurnProvider):
             expires_at=float(expires) if isinstance(expires, (int, float)) else None,
         )
 
+    def read_history(self, conversation: Any) -> dict[str, Any]:
+        """Return Qwen's raw chat-detail JSON; never submit or infer canonical finality."""
+        conversation_id = self._conversation_id(conversation)
+        if conversation_id is None:
+            raise ValueError("Qwen conversation is required for history read")
+        request_id = uuid.uuid4().hex
+        response = self._rpc(
+            {
+                "type": "turn",
+                "request_id": request_id,
+                "providerId": QWEN_PROVIDER_ID,
+                "operation": "read_history",
+                "conversationId": conversation_id,
+            },
+            timeout=35.0,
+        )
+        if response.get("ok") is not True:
+            raise RequestError(
+                "QWEN_HISTORY_READ_FAILED: " + str(response.get("error") or "unknown"),
+                request_stage="qwen_history_read",
+            )
+        if (
+            response.get("request_id") != request_id
+            or response.get("providerId") != QWEN_PROVIDER_ID
+            or response.get("operation") != "history_snapshot"
+            or response.get("conversationId") != conversation_id
+            or response.get("canonicalCompletionProven") is not False
+            or not isinstance(response.get("payload"), dict)
+        ):
+            raise RequestError(
+                "QWEN_HISTORY_READ_IDENTITY_OR_SHAPE_INVALID",
+                request_stage="qwen_history_read",
+            )
+        return response["payload"]
+
     def send_text(
         self,
         text: str,

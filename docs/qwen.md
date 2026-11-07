@@ -186,6 +186,20 @@ print(result.text)
 
 `QwenClient.chat()` accepts a Qwen UUID or an exact `https://chat.qwen.ai/c/UUID` URL. It prepares a reference, **without sending anything**; the following `send_text()` is the write.
 
+### Read Qwen's raw conversation payload (experimental)
+
+```python
+from chatgpt_web_adapter.qwen_client import QwenClient
+
+client = QwenClient(transport="browser")
+chat = QwenClient.chat("YOUR_CHAT_UUID")
+payload = client.read_history(chat)  # one read-only GET, no model prompt
+messages = payload["data"]["chat"]["history"]["messages"]
+print("Message IDs:", list(messages))
+```
+
+Open this **exact Qwen conversation in Chrome first** with the isolated Qwen extension connected. The SDK reuses that tab in the background; it does **not** open/activate a tab, send a message, export credentials or retry the GET. This path requests `GET /api/v2/chats/{id}/` from the authenticated page and returns the **unmodified JSON envelope**, not a synthesized transcript. The current expected `data.chat.history.messages` shape is based on third-party source and deterministic tests; it has **not** been live-confirmed in our Qwen session. Schema, pagination/completeness, selected response and durable canonical finality remain unverified. A changed envelope or response over 700 KB fails explicitly rather than silently truncating.
+
 ### Regenerate only a Qwen overload response
 
 ```python
