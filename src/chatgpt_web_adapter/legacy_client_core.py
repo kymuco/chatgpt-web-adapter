@@ -2785,6 +2785,7 @@ class ChatGPTWebClient:
         return_code = 0
         error_text: str | None = None
         raw_events: list[str] = []
+        stream_reconciler = None
         with tempfile.NamedTemporaryFile(delete=False) as header_file:
             header_path = header_file.name
         try:
@@ -2819,9 +2820,20 @@ class ChatGPTWebClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
+            start_reconciler = getattr(self, "_start_stalled_stream_reconciler", None)
+            if callable(start_reconciler):
+                try:
+                    stream_reconciler = start_reconciler(
+                        process, conversation_id, user_message_id, temporary
+                    )
+                except Exception:
+                    # Read-only observation must never disrupt a dispatched write.
+                    stream_reconciler = None
             error_body: list[bytes] = []
             assert process.stdout is not None
             for raw_line in iter(process.stdout.readline, b""):
+                if stream_reconciler is not None:
+                    stream_reconciler.activity()
                 if len(error_body) < 64:
                     error_body.append(raw_line)
                 if not raw_line.startswith(b"data: "):
@@ -2962,9 +2974,26 @@ class ChatGPTWebClient:
                 error_text = f"backend status={status}: {body_text[:300]}"
                 raise RequestError(error_text)
             if return_code != 0:
-                error_text = f"curl failed: {stderr_text.strip() or return_code}"
-                raise RequestError(error_text)
+                reconciled = (
+                    stream_reconciler.result if stream_reconciler is not None else None
+                )
+                if reconciled is None or status != 200:
+                    error_text = f"curl failed: {stderr_text.strip() or return_code}"
+                    raise RequestError(error_text)
+                streamed_text = "".join(full_chunks)
+                if reconciled.text.startswith(streamed_text):
+                    record_token(reconciled.text[len(streamed_text):])
+                full_chunks[:] = [reconciled.text]
+                state["message_id"] = reconciled.message_id
+                state["parent_message_id"] = reconciled.message_id
+                state["finish_reason"] = "stop"
+                self._emit_event(
+                    on_event, "stream_canonical_reconciled",
+                    emitted_suffix=reconciled.text.startswith(streamed_text),
+                )
         finally:
+            if stream_reconciler is not None:
+                stream_reconciler.stop()
             self._write_debug_trace(
                 "stream",
                 {

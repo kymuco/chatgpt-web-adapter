@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import io
 import base64
+import io
 import json
 import shutil
 import threading
@@ -11,9 +11,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Iterator
 
+import pytest
+
 import chatgpt_web_adapter as adapter
 import chatgpt_web_adapter.client as client_mod
-import pytest
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 40
 
@@ -809,6 +810,58 @@ def test_send_backend_error_raises_request_error(monkeypatch: pytest.MonkeyPatch
 
         with pytest.raises(adapter.RequestError, match="backend status=500"):
             client.send("fail please")
+
+
+@pytest.mark.parametrize(
+    ("canonical_text", "expected_callbacks"),
+    [("Hello world", ["Hello ", "world"]), ("Revised answer", ["Hello "])],
+)
+def test_interrupted_stream_uses_confirmed_readback_without_duplicate_tokens(
+    monkeypatch: pytest.MonkeyPatch, canonical_text: str, expected_callbacks: list[str],
+) -> None:
+    from types import SimpleNamespace
+
+    import chatgpt_web_adapter.legacy_client_core as core
+    from chatgpt_web_adapter.direct_stream_reconciliation import ReconciledAnswer
+
+    client = _build_client()
+    monkeypatch.setattr(client, "_get_ready_requirements", lambda: ({"token": "test"}, None))
+    post_count = []
+    observations = []
+
+    class FakeProcess:
+        stdout = io.BytesIO(b'data: {"p":"/message/content/parts/0","v":"Hello "}\n')
+        stderr = io.BytesIO(b"terminated")
+        def wait(self, timeout=None):
+            return 1
+        def poll(self):
+            return 1
+
+    def popen(command, **kwargs):
+        post_count.append(command)
+        Path(command[command.index("-D") + 1]).write_text("HTTP/1.1 200 OK\r\n\r\n")
+        return FakeProcess()
+
+    def start(process, conversation_id, user_message_id, temporary):
+        observations.append((conversation_id, user_message_id, temporary))
+        return SimpleNamespace(
+            result=ReconciledAnswer("assistant-new", canonical_text),
+            activity=lambda: None,
+            stop=lambda: None,
+        )
+
+    monkeypatch.setattr(core.subprocess, "Popen", popen)
+    client._start_stalled_stream_reconciler = start
+    callbacks = []
+    response = client.send(
+        "test", conversation={"conversation_id": "chat", "parent_message_id": "old"},
+        on_token=callbacks.append,
+    )
+    assert response.text == canonical_text
+    assert response.conversation.message_id == "assistant-new"
+    assert callbacks == expected_callbacks
+    assert len(post_count) == 1
+    assert observations[0][0] == "chat" and observations[0][1]
 
 
 def test_send_handles_richer_live_like_sse_stream(monkeypatch: pytest.MonkeyPatch) -> None:

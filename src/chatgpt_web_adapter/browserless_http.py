@@ -7,6 +7,7 @@ separate implementation and remains unchanged.
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import json
 import re
@@ -143,6 +144,29 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                 ]
             )
         return command
+
+    def _start_stalled_stream_reconciler(
+        self, process: Any, conversation_id: str | None, user_message_id: str,
+        temporary: bool,
+    ) -> Any:
+        if temporary or not conversation_id:
+            return None
+        from .direct_stream_reconciliation import StalledStreamReconciler
+
+        # Keep readback independent of the writer's mutable session state.
+        reader = ChatGPTWebClient(
+            auth=copy.deepcopy(self.auth),
+            auth_file=self.auth_file,
+            timeout=10,
+            curl_bin=self.curl_bin,
+            auto_refresh_auth=False,
+            persist_refreshed_auth=False,
+        )
+        reconciler = StalledStreamReconciler(
+            reader, process, conversation_id, user_message_id
+        )
+        reconciler.start()
+        return reconciler
 
     @staticmethod
     def _http_phase(method: str, url: str) -> str:
@@ -489,12 +513,24 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                     "reentrant send on the same browserless client is not supported"
                 )
             start = time.perf_counter()
-            self.last_timing = {"ttft_seconds": None, "stream_ttft_seconds": None}
-            if not bootstrap_web_session(self):
-                raise RequestError("HTTP bootstrap did not establish device context")
-            self.last_timing["bootstrap_seconds"] = time.perf_counter() - start
+            self.last_timing = {
+                "ttft_seconds": None,
+                "stream_ttft_seconds": None,
+                "bootstrap_seconds": None,
+                "attach_seconds": None,
+                "pre_stream_seconds": None,
+            }
+            try:
+                if not bootstrap_web_session(self):
+                    raise RequestError("HTTP bootstrap did not establish device context")
+            finally:
+                self.last_timing["bootstrap_seconds"] = time.perf_counter() - start
             if isinstance(conversation, str):
-                conversation = self.attach_conversation(conversation).conversation
+                attach_start = time.perf_counter()
+                try:
+                    conversation = self.attach_conversation(conversation).conversation
+                finally:
+                    self.last_timing["attach_seconds"] = time.perf_counter() - attach_start
             stream_start = None
 
             def token_callback(text):
@@ -511,6 +547,8 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                 nonlocal stream_start
                 if event.get("type") == "stream_started":
                     stream_start = time.perf_counter()
+                    # The event marks request construction, not receipt of SSE.
+                    self.last_timing["pre_stream_seconds"] = stream_start - start
                 if on_event:
                     on_event(event)
 

@@ -78,6 +78,8 @@ def test_direct_new_chat_streams_and_retains_conversation_identity(harness):
     assert client._browserless_sending is False
     assert client.last_timing["ttft_seconds"] is not None
     assert client.last_timing["stream_ttft_seconds"] is not None
+    assert client.last_timing["pre_stream_seconds"] >= client.last_timing["bootstrap_seconds"]
+    assert client.last_timing["attach_seconds"] is None
     assert client.last_timing["total_seconds"] >= 0
 
 
@@ -102,10 +104,39 @@ def test_continuation_temporary_and_media_forwarded_without_browser_fallback(
     _, kwargs = calls[0]
     assert kwargs["conversation"] is attached.conversation
     assert kwargs["media"] is requested_files
+    assert client.last_timing["attach_seconds"] >= 0
 
     client.send("Ephemeral", temporary=True)
     assert calls[1][1]["temporary"] is True
     assert calls[1][1]["conversation"] is None
+
+
+def test_attach_failure_retains_phase_timing_and_never_dispatches(harness, monkeypatch):
+    client, calls, _ = harness
+
+    def fail(_identity):
+        raise RequestError("GET timed out")
+
+    monkeypatch.setattr(client, "attach_conversation", fail)
+    with pytest.raises(RequestError, match="GET timed out"):
+        client.send("Continue", conversation="existing")
+    assert client.last_timing["bootstrap_seconds"] >= 0
+    assert client.last_timing["attach_seconds"] >= 0
+    assert client.last_timing["pre_stream_seconds"] is None
+    assert calls == []
+
+
+def test_bootstrap_failure_retains_phase_timing_and_never_dispatches(harness, monkeypatch):
+    client, calls, _ = harness
+    monkeypatch.setattr(
+        "chatgpt_web_adapter.browserless_http.bootstrap_web_session", lambda _: False
+    )
+    with pytest.raises(RequestError, match="bootstrap"):
+        client.send("Continue", conversation="existing")
+    assert client.last_timing["bootstrap_seconds"] >= 0
+    assert client.last_timing["attach_seconds"] is None
+    assert client.last_timing["pre_stream_seconds"] is None
+    assert calls == []
 
 
 def test_failed_direct_send_does_not_replay_or_leave_client_busy(harness, monkeypatch):
