@@ -13,6 +13,26 @@ VERSION = "0.3.0"  # historical synthetic release-gate fixture
 STAGED_PROJECT_VERSION = "0.4.1"
 
 
+def test_wheel_extension_check_ignores_user_deployment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from chatgpt_web_adapter import browser_native_install
+
+    packaged = tmp_path / "wheel-extension"
+    packaged.mkdir()
+    monkeypatch.setattr(
+        browser_native_install, "packaged_browser_native_extension_dir", lambda: packaged
+    )
+
+    def reject_user_deployment() -> Path:
+        raise AssertionError("installed user deployment must not be consulted")
+
+    monkeypatch.setattr(
+        browser_native_install, "browser_native_extension_dir", reject_user_deployment
+    )
+    assert installed_wheel_smoke._packaged_extension_dir() == packaged.resolve()
+
+
 def _root(tmp_path: Path, *, changelog: str = "# Changelog\n\n## Unreleased\n") -> Path:
     root = tmp_path / "repo"
     extension = root / "src" / "chatgpt_web_adapter" / "browser_native_extension"

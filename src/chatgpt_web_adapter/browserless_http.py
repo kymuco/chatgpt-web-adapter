@@ -486,6 +486,7 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
         conversation: Any = None,
         on_token: Any = None,
         on_event: Any = None,
+        on_dispatch_identity: Any = None,
         reasoning_effort: str | None = None,
         conversation_origin: str | None = None,
         media: Any = None,
@@ -495,6 +496,8 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
             raise ValueError("prompt must be nonempty")
         if not isinstance(model, str) or not model.strip():
             raise ValueError("model must be a nonempty web model slug")
+        if on_dispatch_identity is not None and not callable(on_dispatch_identity):
+            raise TypeError("on_dispatch_identity must be callable")
         if conversation_origin is not None and conversation_origin not in {
             "flora",
             "tpp",
@@ -543,9 +546,34 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                 if on_token:
                     on_token(text)
 
+            dispatch_identity_delivered = False
+
             def event_callback(event):
-                nonlocal stream_start
+                nonlocal stream_start, dispatch_identity_delivered
+                if on_dispatch_identity is not None and event.get("type") == "request_payload_prepared":
+                    if dispatch_identity_delivered:
+                        raise RequestError("duplicate dispatch identity event")
+                    payload = event.get("payload")
+                    messages = payload.get("messages") if isinstance(payload, dict) else None
+                    users = [
+                        item for item in messages
+                        if isinstance(item, dict)
+                        and isinstance(item.get("author"), dict)
+                        and item["author"].get("role") == "user"
+                    ] if isinstance(messages, list) else []
+                    message_id = users[0].get("id") if len(users) == 1 else None
+                    if not isinstance(message_id, str) or not message_id.strip():
+                        raise RequestError("dispatch identity unavailable before stream")
+                    on_dispatch_identity({
+                        "conversation_id": payload.get("conversation_id"),
+                        "user_message_id": message_id,
+                        "parent_message_id": payload.get("parent_message_id"),
+                        "temporary": temporary,
+                    })
+                    dispatch_identity_delivered = True
                 if event.get("type") == "stream_started":
+                    if on_dispatch_identity is not None and not dispatch_identity_delivered:
+                        raise RequestError("dispatch identity not persisted before stream")
                     stream_start = time.perf_counter()
                     # The event marks request construction, not receipt of SSE.
                     self.last_timing["pre_stream_seconds"] = stream_start - start

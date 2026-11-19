@@ -83,6 +83,69 @@ def test_direct_new_chat_streams_and_retains_conversation_identity(harness):
     assert client.last_timing["total_seconds"] >= 0
 
 
+def test_dispatch_identity_exposes_only_minimal_fields(harness, monkeypatch):
+    client, _, _ = harness
+    identities = []
+    events = []
+
+    def underlying(_self, prompt, **kwargs):
+        callback = kwargs["on_event"]
+        callback({"type": "request_payload_prepared", "payload": {
+            "conversation_id": "chat", "parent_message_id": "old",
+            "messages": [{"id": "new", "author": {"role": "user"},
+                          "content": {"parts": ["private prompt"]}}],
+        }})
+        callback({"type": "stream_started"})
+        return ChatResponse(text="ok")
+
+    monkeypatch.setattr(ChatGPTWebClient, "send", underlying)
+    client.send("private prompt", on_dispatch_identity=identities.append, on_event=events.append)
+    assert identities == [{"conversation_id": "chat", "parent_message_id": "old",
+                           "user_message_id": "new", "temporary": False}]
+    assert "private prompt" not in repr(identities)
+    assert len(events) == 2
+
+
+def test_dispatch_identity_failure_stops_before_stream(harness, monkeypatch):
+    client, _, _ = harness
+    stages = []
+
+    def underlying(_self, prompt, **kwargs):
+        callback = kwargs["on_event"]
+        callback({"type": "request_payload_prepared", "payload": {
+            "messages": [{"id": "new", "author": {"role": "user"}}],
+        }})
+        stages.append("stream")
+        return ChatResponse(text="ok")
+
+    def fail(_identity):
+        raise OSError("synthetic persistence failure")
+
+    monkeypatch.setattr(ChatGPTWebClient, "send", underlying)
+    with pytest.raises(OSError, match="persistence"):
+        client.send("synthetic", on_dispatch_identity=fail)
+    assert stages == []
+
+
+def test_dispatch_identity_missing_fails_before_stream(harness):
+    client, _, _ = harness
+    with pytest.raises(RequestError, match="dispatch identity"):
+        client.send("synthetic", on_dispatch_identity=lambda identity: None)
+
+
+@pytest.mark.parametrize("messages", [[], [{"author": {"role": "user"}}],
+    [{"id": "a", "author": {"role": "user"}},
+     {"id": "b", "author": {"role": "user"}}]])
+def test_dispatch_identity_rejects_missing_or_multiple_users(harness, monkeypatch, messages):
+    client, _, _ = harness
+    def underlying(_self, prompt, **kwargs):
+        kwargs["on_event"]({"type": "request_payload_prepared", "payload": {"messages": messages}})
+        raise AssertionError("should stop before POST")
+    monkeypatch.setattr(ChatGPTWebClient, "send", underlying)
+    with pytest.raises(RequestError, match="dispatch identity"):
+        client.send("synthetic", on_dispatch_identity=lambda identity: None)
+
+
 def test_continuation_temporary_and_media_forwarded_without_browser_fallback(
     harness, monkeypatch
 ):

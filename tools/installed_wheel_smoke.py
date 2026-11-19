@@ -139,6 +139,15 @@ def _run_help(command: tuple[str, ...], *, cwd: Path) -> None:
         )
 
 
+def _packaged_extension_dir() -> Path:
+    """Inspect wheel package data independently of a user's deployment."""
+    from chatgpt_web_adapter.browser_native_install import (
+        packaged_browser_native_extension_dir,
+    )
+
+    return packaged_browser_native_extension_dir().resolve()
+
+
 def _validate_installed_0_3_surface(package: object) -> dict[str, object]:
     for module_name in REQUIRED_PRODUCT_MODULES:
         importlib.import_module(module_name)
@@ -303,9 +312,7 @@ def _installed_checks(*, expected_version: str) -> dict[str, object]:
     product_surface = _validate_installed_0_3_surface(package)
     candidate_surface = _validate_post_0_3_candidate_surface(package_path.parent)
 
-    from chatgpt_web_adapter.browser_native_install import browser_native_extension_dir
-
-    extension_dir = browser_native_extension_dir().resolve()
+    extension_dir = _packaged_extension_dir()
     required_extension_files = [
         extension_dir / "manifest.json",
         extension_dir / "service_worker.js",
@@ -407,6 +414,11 @@ def run_smoke(*, wheel: Path, expected_version: str) -> dict[str, object]:
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)
         env["PATH"] = str(_venv_bin(env_dir)) + os.pathsep + env.get("PATH", "")
+        if os.name == "nt":
+            # A wheel smoke test must not inspect or modify the caller's
+            # installed browser-native deployment. Doctor still validates
+            # the normal fail-closed behavior inside this clean child profile.
+            env["LOCALAPPDATA"] = str(tmp_path / "localappdata")
         completed = subprocess.run(
             [
                 str(python),

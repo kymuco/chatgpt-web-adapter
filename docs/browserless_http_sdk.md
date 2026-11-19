@@ -61,6 +61,24 @@ the complete result. If readback is unavailable or ambiguous, the stream keeps
 its existing timeout behavior. New and temporary chats are not covered by this
 reconciliation path.
 
+### Persisting the local dispatch identity
+
+`send(..., on_dispatch_identity=callback)` optionally invokes a synchronous
+callback before the main conversation streaming POST. Its dictionary contains
+only `conversation_id`, `user_message_id`, `parent_message_id`, and `temporary`;
+it does not contain the prompt or credentials. The callback can persist these
+fields alongside the caller's own durable handoff. If it raises, or the
+identity is unavailable before the streaming request is constructed, the
+main conversation POST is not started. This is an opt-in hook; the caller
+owns storage, security, idempotency and recovery policy.
+
+Bootstrap, preparation, and attachment operations can occur before the callback.
+The ID is generated locally; storing it does not prove that the product received
+the request or that a response exists. New and temporary conversations may not
+have a conversation ID at this point. A later ambiguous send must not be
+automatically replayed. Existing `on_event` callbacks can still receive the full
+request payload and should not be logged without redaction.
+
 ## Deep Research direct HTTP launch (experimental, opt-in)
 
 A genuine UI-launched Deep Research user message was observed carrying
