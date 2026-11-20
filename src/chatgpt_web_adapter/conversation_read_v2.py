@@ -271,6 +271,7 @@ def _read_current_page(
     """
     last_status = 0
     last_data: Any = None
+    last_transport_timeout: RequestError | None = None
 
     for num_turns in CANONICAL_CONVERSATION_NUM_TURNS_CANDIDATES:
         non_json_retries = CANONICAL_CONVERSATION_NON_JSON_RETRIES
@@ -283,11 +284,21 @@ def _read_current_page(
                 before=before,
                 num_turns=num_turns,
             )
-            status, data = (
-                read_get(current_url, headers)
-                if read_get is not None
-                else client._json_request("GET", current_url, None, headers)
-            )
+            try:
+                status, data = (
+                    read_get(current_url, headers)
+                    if read_get is not None
+                    else client._json_request("GET", current_url, None, headers)
+                )
+            except RequestError as error:
+                if error.request_stage != "transport_timeout":
+                    raise
+                # GET only: retry at the next, smaller server query hint.
+                # Never generalize this to write operations or an unbounded
+                # same-size retry. Preserve the real curl timeout if exhausted.
+                last_transport_timeout = error
+                break
+            last_transport_timeout = None
             last_status, last_data = status, data
 
             if status == 429:
@@ -316,6 +327,8 @@ def _read_current_page(
 
             return status, data
 
+    if last_transport_timeout is not None:
+        raise last_transport_timeout
     return last_status, last_data
 
 
