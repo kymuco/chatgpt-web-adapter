@@ -26,7 +26,9 @@ def canonical_turn_text(
 
     Never select the globally newest assistant message. No recovery writes.
     """
-    if not all(isinstance(x, str) and x for x in (conversation_id, user_id, message_id)):
+    if not all(
+        isinstance(x, str) and x for x in (conversation_id, user_id, message_id)
+    ):
         raise _unverified()
     if not isinstance(payload, dict):
         raise _unverified()
