@@ -222,3 +222,23 @@ Headless Chromium backend is introduced.
 
 No live requests are made by the `test_browserless_http_client_contract.py`
 regressions; they exercise the client boundary with a mocked underlying send.
+
+## Direct HTTP response integrity
+
+The text assembler distinguishes append and replace patches for the first
+text part, including batched patches, and tracks full text snapshots per
+message. The final ChatResponse.text is reconstructed from message state.
+Append-only on_token callbacks remain provisional: a non-prefix revision
+cannot retract previously emitted tokens. Use the final response for delivery.
+Intentional repeated append text is preserved; no heuristic deduplication.
+
+For persistent ordinary text turns where exact delivery matters, pass
+verify_final_text=True to BrowserlessHTTPClient.send. When the stream returns
+nonempty text, one additional canonical conversation read verifies the active
+completed turn against the returned conversation, user and assistant IDs and
+returns its saved text. A read failure or identity/completion mismatch fails
+closed; the preceding send may already have committed and must not be replayed.
+This is opt-in; temporary chats and Deep Research do not support it. Empty
+responses (e.g. asynchronous image generation or pending tools) retain their
+existing lifecycle; this option does not verify their completion. The option
+is not a guarantee that every future private protocol shape is supported.
