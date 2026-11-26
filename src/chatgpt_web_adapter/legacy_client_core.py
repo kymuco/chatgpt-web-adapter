@@ -2122,7 +2122,11 @@ class ChatGPTWebClient:
             if return_code != 0:
                 error_text = f"curl failed: {stderr_text.strip() or return_code}"
                 raise RequestError(error_text)
-            return latest_conversation_id, latest_message_id, "".join(full_chunks)
+            return (
+                latest_conversation_id,
+                latest_message_id,
+                state.get("_browserless_final_text", "".join(full_chunks)),
+            )
         finally:
             self._write_debug_trace(
                 "stream",
@@ -2995,7 +2999,7 @@ class ChatGPTWebClient:
                     pass
 
         total_latency = time.perf_counter() - started_at
-        recovered_text = "".join(full_chunks)
+        recovered_text = state.get("_browserless_final_text", "".join(full_chunks))
         recovered_conversation_id = state.get("conversation_id")
         recovered_message_id = state.get("message_id") or state.get("parent_message_id")
         recovered_observed_model = state.get("observed_model")
@@ -3157,6 +3161,7 @@ class ChatGPTWebClient:
         return ChatResponse(
             text=recovered_text,
             title=title_update,
+            submitted_user_message_id=user_message_id,
             conversation=ChatConversation(
                 conversation_id=recovered_conversation_id,
                 message_id=recovered_message_id,

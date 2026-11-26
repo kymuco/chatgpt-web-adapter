@@ -818,3 +818,5 @@ class ChatResponse:
     conversation: ChatConversation = field(default_factory=ChatConversation)
     metrics: ChatMetrics = field(default_factory=ChatMetrics)
     request: ChatRequestDiagnostics = field(default_factory=ChatRequestDiagnostics)
+    # The exact user message ID generated for this send; not conversation.user_id.
+    submitted_user_message_id: str | None = None

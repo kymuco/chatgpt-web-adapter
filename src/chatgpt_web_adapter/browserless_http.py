@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 from .browserless_stream import parse_event
 from .client import ChatGPTWebClient
 from .exceptions import RequestError
+from .response_integrity import verify_canonical_turn
 from .sentinel_requirements import build_sentinel_prepare_headers
 from .sentinel_transaction import FinalizedSentinelBundle, _validate_finalize_response
 from .web_session import bootstrap_web_session, suppress_web_session_debug_trace
@@ -466,6 +467,7 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
         conversation_origin: str | None = None,
         media: Any = None,
         deep_research: bool = False,
+        verify_final_text: bool = False,
     ):
         if not isinstance(prompt, str) or not prompt.strip():
             raise ValueError("prompt must be nonempty")
@@ -476,6 +478,8 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
             "tpp",
         }:
             raise ValueError("conversation_origin must be flora or tpp")
+        if verify_final_text and (temporary or deep_research):
+            raise ValueError("verify_final_text requires a persistent ordinary turn")
         if deep_research:
             if temporary or conversation is not None or media is not None:
                 raise ValueError(
@@ -518,7 +522,7 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
             self._browserless_sending = True
             try:
                 with suppress_web_session_debug_trace():
-                    return super().send(
+                    response = super().send(
                         prompt,
                         model=model,
                         temporary=temporary,
@@ -538,6 +542,15 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                             else {}
                         ),
                     )
+                    if verify_final_text and response.text:
+                        identity = response.conversation
+                        response.text = verify_canonical_turn(
+                            self._get_conversation_payload,
+                            conversation_id=identity.conversation_id,
+                            user_id=response.submitted_user_message_id,
+                            message_id=identity.message_id,
+                        )
+                    return response
             finally:
                 self._browserless_sending = False
                 self.set_sentinel_bundle_provider(None)
