@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 from .browserless_stream import parse_event
 from .client import ChatGPTWebClient
 from .exceptions import RequestError
-from .response_integrity import canonical_turn_text
+from .response_integrity import verify_canonical_turn
 from .sentinel_requirements import build_sentinel_prepare_headers
 from .sentinel_transaction import FinalizedSentinelBundle, _validate_finalize_response
 from .web_session import bootstrap_web_session, suppress_web_session_debug_trace
@@ -544,27 +544,12 @@ class BrowserlessHTTPClient(ChatGPTWebClient):
                     )
                     if verify_final_text and response.text:
                         identity = response.conversation
-                        if not all(
-                            isinstance(value, str) and value
-                            for value in (
-                                identity.conversation_id,
-                                identity.user_id,
-                                identity.message_id,
-                            )
-                        ):
-                            raise RequestError(
-                                "Missing final turn identity; do not replay the write"
-                            )
-                        payload = self._get_conversation_payload(
-                            identity.conversation_id
-                        )
-                        canonical = canonical_turn_text(
-                            payload,
+                        response.text = verify_canonical_turn(
+                            self._get_conversation_payload,
                             conversation_id=identity.conversation_id,
-                            user_id=identity.user_id,
+                            user_id=response.submitted_user_message_id,
                             message_id=identity.message_id,
                         )
-                        response.text = canonical
                     return response
             finally:
                 self._browserless_sending = False

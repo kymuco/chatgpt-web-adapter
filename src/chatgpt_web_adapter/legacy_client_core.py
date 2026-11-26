@@ -3161,6 +3161,7 @@ class ChatGPTWebClient:
         return ChatResponse(
             text=recovered_text,
             title=title_update,
+            submitted_user_message_id=user_message_id,
             conversation=ChatConversation(
                 conversation_id=recovered_conversation_id,
                 message_id=recovered_message_id,

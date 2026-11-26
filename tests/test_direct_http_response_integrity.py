@@ -155,7 +155,7 @@ def test_canonical_read_never_guesses(mutation):
 
 
 @pytest.mark.parametrize("read_ok", [True, False])
-def test_verify_final_text_one_write_and_one_read(monkeypatch, read_ok):
+def test_verify_final_text_one_write_and_bounded_reads(monkeypatch, read_ok):
     client = object.__new__(BrowserlessHTTPClient)
     client._browserless_lock = RLock()
     client._browserless_sending = False
@@ -176,8 +176,9 @@ def test_verify_final_text_one_write_and_one_read(monkeypatch, read_ok):
         return ChatResponse(
             text="CorruptCorrupt",
             conversation=ChatConversation(
-                conversation_id="c", user_id="u", message_id="a"
+                conversation_id="c", user_id="old-or-account-id", message_id="a"
             ),
+            submitted_user_message_id="u",
         )
 
     def read(cid):
@@ -187,12 +188,36 @@ def test_verify_final_text_one_write_and_one_read(monkeypatch, read_ok):
         return canonical_payload()
 
     monkeypatch.setattr(ChatGPTWebClient, "send", send)
+    monkeypatch.setattr("chatgpt_web_adapter.response_integrity.time.sleep", lambda _: None)
     monkeypatch.setattr(client, "_get_conversation_payload", read)
     if read_ok:
         assert client.send("Once", verify_final_text=True).text == "Correct text"
     else:
-        with pytest.raises(RequestError, match="read failed"):
+        with pytest.raises(RequestError, match="read_failed"):
             client.send("Once", verify_final_text=True)
     assert writes == ["Once"]
-    assert reads == ["c"]
+    assert reads == ["c"] * (1 if read_ok else 3)
     assert client._browserless_sending is False
+
+
+def test_verification_recovers_stale_snapshot_without_replay(monkeypatch):
+    from chatgpt_web_adapter.response_integrity import verify_canonical_turn
+    old = canonical_payload()
+    old["mapping"]["assistant-node"]["message"]["status"] = "in_progress"
+    old["mapping"]["assistant-node"]["message"]["end_turn"] = False
+    snapshots = iter([old, canonical_payload()])
+    reads = []
+    monkeypatch.setattr("chatgpt_web_adapter.response_integrity.time.sleep", lambda _: None)
+    def read(cid):
+        reads.append(cid)
+        return next(snapshots)
+    assert verify_canonical_turn(read, conversation_id="c", user_id="u", message_id="a") == "Correct text"
+    assert reads == ["c", "c"]
+
+
+def test_verification_does_not_read_without_submitted_identity():
+    from chatgpt_web_adapter.response_integrity import verify_canonical_turn
+    def unexpected_read(cid):
+        pytest.fail("missing submitted identity must fail before reading")
+    with pytest.raises(RequestError, match="missing_identity"):
+        verify_canonical_turn(unexpected_read, conversation_id="c", user_id=None, message_id="a")
